@@ -38,6 +38,7 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [];
       };
       projects: {
         Row: {
@@ -73,6 +74,15 @@ export type Database = {
           updated_at?: string;
           deleted_at?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "projects_owner_id_fkey";
+            columns: ["owner_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       project_memberships: {
         Row: {
@@ -108,6 +118,22 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "project_memberships_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "project_memberships_user_id_fkey";
+            columns: ["user_id"];
+            isOneToOne: false;
+            referencedRelation: "users";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       organizations: {
         Row: {
@@ -182,6 +208,15 @@ export type Database = {
           updated_at?: string;
           deleted_at?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "organizations_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       people: {
         Row: {
@@ -274,6 +309,15 @@ export type Database = {
           updated_at?: string;
           deleted_at?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "people_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       opportunities: {
         Row: {
@@ -357,6 +401,15 @@ export type Database = {
           updated_at?: string;
           deleted_at?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "opportunities_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       rfps: {
         Row: {
@@ -467,6 +520,15 @@ export type Database = {
           updated_at?: string;
           deleted_at?: string | null;
         };
+        Relationships: [
+          {
+            foreignKeyName: "rfps_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          }
+        ];
       };
       custom_field_definitions: {
         Row: {
@@ -535,6 +597,15 @@ export type Database = {
           created_at?: string;
           updated_at?: string;
         };
+        Relationships: [
+          {
+            foreignKeyName: "custom_field_definitions_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          }
+        ];
       };
     };
     Views: Record<string, never>;
