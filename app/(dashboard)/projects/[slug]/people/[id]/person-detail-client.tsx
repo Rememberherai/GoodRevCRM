@@ -1,0 +1,335 @@
+'use client';
+
+import { useState } from 'react';
+import { useParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import {
+  ArrowLeft,
+  Building2,
+  Linkedin,
+  Mail,
+  MapPin,
+  Pencil,
+  Phone,
+  Smartphone,
+  Trash2,
+  Twitter,
+  Target,
+  User,
+} from 'lucide-react';
+import { usePerson } from '@/hooks/use-people';
+import { usePersonStore, deletePerson } from '@/stores/person';
+import { Button } from '@/components/ui/button';
+import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { Badge } from '@/components/ui/badge';
+import { Separator } from '@/components/ui/separator';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
+import { PersonForm } from '@/components/people/person-form';
+
+interface PersonDetailClientProps {
+  personId: string;
+}
+
+export function PersonDetailClient({ personId }: PersonDetailClientProps) {
+  const params = useParams();
+  const router = useRouter();
+  const slug = params.slug as string;
+  const [isEditing, setIsEditing] = useState(false);
+  const [showDeleteDialog, setShowDeleteDialog] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+
+  const { person, isLoading, error, refresh } = usePerson(personId);
+  const removePerson = usePersonStore((s) => s.removePerson);
+
+  const handleDelete = async () => {
+    setIsDeleting(true);
+    try {
+      await deletePerson(slug, personId);
+      removePerson(personId);
+      router.push(`/projects/${slug}/people`);
+    } catch {
+      setIsDeleting(false);
+    }
+  };
+
+  const getInitials = (firstName: string, lastName: string) => {
+    return `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
+  };
+
+  const getFullName = (firstName: string, lastName: string) => {
+    return `${firstName} ${lastName}`.trim();
+  };
+
+  if (isLoading) {
+    return (
+      <div className="flex items-center justify-center py-12">
+        <div className="text-muted-foreground">Loading...</div>
+      </div>
+    );
+  }
+
+  if (error || !person) {
+    return (
+      <div className="space-y-4">
+        <Button variant="ghost" asChild>
+          <Link href={`/projects/${slug}/people`}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to People
+          </Link>
+        </Button>
+        <div className="rounded-md bg-destructive/15 p-4 text-destructive">
+          {error || 'Person not found'}
+        </div>
+      </div>
+    );
+  }
+
+  if (isEditing) {
+    return (
+      <div className="space-y-6">
+        <div className="flex items-center gap-4">
+          <Button variant="ghost" onClick={() => setIsEditing(false)}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Cancel
+          </Button>
+          <h2 className="text-2xl font-bold">Edit Person</h2>
+        </div>
+        <PersonForm
+          person={person}
+          onSuccess={() => {
+            setIsEditing(false);
+            refresh();
+          }}
+          onCancel={() => setIsEditing(false)}
+        />
+      </div>
+    );
+  }
+
+  const addressParts = [
+    person.address_city,
+    person.address_state,
+    person.address_country,
+  ].filter(Boolean);
+
+  return (
+    <div className="space-y-6">
+      <div className="flex items-center justify-between">
+        <Button variant="ghost" asChild>
+          <Link href={`/projects/${slug}/people`}>
+            <ArrowLeft className="mr-2 h-4 w-4" />
+            Back to People
+          </Link>
+        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setIsEditing(true)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </Button>
+          <Button
+            variant="outline"
+            className="text-destructive"
+            onClick={() => setShowDeleteDialog(true)}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            Delete
+          </Button>
+        </div>
+      </div>
+
+      <div className="flex items-center gap-4">
+        <Avatar className="h-16 w-16">
+          <AvatarImage
+            src={person.avatar_url ?? undefined}
+            alt={getFullName(person.first_name, person.last_name)}
+          />
+          <AvatarFallback className="text-lg">
+            {getInitials(person.first_name, person.last_name)}
+          </AvatarFallback>
+        </Avatar>
+        <div>
+          <h2 className="text-2xl font-bold">
+            {getFullName(person.first_name, person.last_name)}
+          </h2>
+          {person.job_title && (
+            <p className="text-muted-foreground">{person.job_title}</p>
+          )}
+          {person.department && (
+            <Badge variant="secondary" className="mt-1">
+              {person.department}
+            </Badge>
+          )}
+        </div>
+      </div>
+
+      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+        <Card className="col-span-1">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <User className="h-5 w-5" />
+              Contact
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {person.email && (
+              <div className="flex items-center gap-2">
+                <Mail className="h-4 w-4 text-muted-foreground" />
+                <a
+                  href={`mailto:${person.email}`}
+                  className="text-primary hover:underline"
+                >
+                  {person.email}
+                </a>
+              </div>
+            )}
+            {person.phone && (
+              <div className="flex items-center gap-2">
+                <Phone className="h-4 w-4 text-muted-foreground" />
+                <a href={`tel:${person.phone}`} className="hover:underline">
+                  {person.phone}
+                </a>
+              </div>
+            )}
+            {person.mobile_phone && (
+              <div className="flex items-center gap-2">
+                <Smartphone className="h-4 w-4 text-muted-foreground" />
+                <a href={`tel:${person.mobile_phone}`} className="hover:underline">
+                  {person.mobile_phone}
+                </a>
+              </div>
+            )}
+            {addressParts.length > 0 && (
+              <div className="flex items-start gap-2">
+                <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                <span>{addressParts.join(', ')}</span>
+              </div>
+            )}
+            {person.timezone && (
+              <div className="text-sm text-muted-foreground">
+                Timezone: {person.timezone}
+              </div>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="col-span-1">
+          <CardHeader>
+            <CardTitle>Social</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            {person.linkedin_url && (
+              <div className="flex items-center gap-2">
+                <Linkedin className="h-4 w-4 text-muted-foreground" />
+                <a
+                  href={person.linkedin_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="text-primary hover:underline"
+                >
+                  LinkedIn Profile
+                </a>
+              </div>
+            )}
+            {person.twitter_handle && (
+              <div className="flex items-center gap-2">
+                <Twitter className="h-4 w-4 text-muted-foreground" />
+                <span>@{person.twitter_handle}</span>
+              </div>
+            )}
+            {!person.linkedin_url && !person.twitter_handle && (
+              <p className="text-sm text-muted-foreground">
+                No social profiles added
+              </p>
+            )}
+          </CardContent>
+        </Card>
+
+        <Card className="col-span-1">
+          <CardHeader>
+            <CardTitle>Stats</CardTitle>
+            <CardDescription>Related records</CardDescription>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Building2 className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm">Organizations</span>
+              </div>
+              <Badge variant="outline">{person.organization_count ?? 0}</Badge>
+            </div>
+            <Separator />
+            <div className="flex items-center justify-between">
+              <div className="flex items-center gap-2">
+                <Target className="h-4 w-4 text-muted-foreground" />
+                <span className="text-sm">Opportunities</span>
+              </div>
+              <Badge variant="outline">{person.opportunities_count ?? 0}</Badge>
+            </div>
+          </CardContent>
+        </Card>
+      </div>
+
+      {person.notes && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Notes</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <p className="whitespace-pre-wrap">{person.notes}</p>
+          </CardContent>
+        </Card>
+      )}
+
+      {person.custom_fields && Object.keys(person.custom_fields).length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Custom Fields</CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+              {Object.entries(person.custom_fields).map(([key, value]) => (
+                <div key={key}>
+                  <p className="text-sm font-medium text-muted-foreground">{key}</p>
+                  <p>{String(value)}</p>
+                </div>
+              ))}
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
+      <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Person</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &quot;
+              {getFullName(person.first_name, person.last_name)}&quot;? This action
+              cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              onClick={handleDelete}
+              disabled={isDeleting}
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+            >
+              {isDeleting ? 'Deleting...' : 'Delete'}
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+    </div>
+  );
+}
