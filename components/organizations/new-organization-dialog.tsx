@@ -1,0 +1,134 @@
+'use client';
+
+import { useForm } from 'react-hook-form';
+import { zodResolver } from '@hookform/resolvers/zod';
+import { useOrganizations } from '@/hooks/use-organizations';
+import { createOrganizationSchema, type CreateOrganizationInput } from '@/lib/validators/organization';
+import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
+
+interface NewOrganizationDialogProps {
+  open: boolean;
+  onOpenChange: (open: boolean) => void;
+}
+
+export function NewOrganizationDialog({ open, onOpenChange }: NewOrganizationDialogProps) {
+  const { create, isLoading } = useOrganizations();
+
+  const {
+    register,
+    handleSubmit,
+    reset,
+    formState: { errors },
+  } = useForm<CreateOrganizationInput>({
+    resolver: zodResolver(createOrganizationSchema),
+    defaultValues: {
+      name: '',
+      domain: '',
+      industry: '',
+      website: '',
+    },
+  });
+
+  const onSubmit = async (data: CreateOrganizationInput) => {
+    try {
+      await create(data);
+      reset();
+      onOpenChange(false);
+    } catch {
+      // Error is handled by the hook
+    }
+  };
+
+  const handleClose = () => {
+    reset();
+    onOpenChange(false);
+  };
+
+  return (
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-[500px]">
+        <DialogHeader>
+          <DialogTitle>Add Organization</DialogTitle>
+          <DialogDescription>
+            Create a new organization. You can add more details after creation.
+          </DialogDescription>
+        </DialogHeader>
+        <form onSubmit={handleSubmit(onSubmit)}>
+          <div className="grid gap-4 py-4">
+            <div className="space-y-2">
+              <Label htmlFor="new-name">
+                Name <span className="text-destructive">*</span>
+              </Label>
+              <Input
+                id="new-name"
+                {...register('name')}
+                placeholder="Acme Corp"
+                autoFocus
+              />
+              {errors.name && (
+                <p className="text-sm text-destructive">{errors.name.message}</p>
+              )}
+            </div>
+
+            <div className="space-y-2">
+              <Label htmlFor="new-domain">Domain</Label>
+              <Input
+                id="new-domain"
+                {...register('domain')}
+                placeholder="acme.com"
+              />
+              {errors.domain && (
+                <p className="text-sm text-destructive">{errors.domain.message}</p>
+              )}
+            </div>
+
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-industry">Industry</Label>
+                <Input
+                  id="new-industry"
+                  {...register('industry')}
+                  placeholder="Technology"
+                />
+                {errors.industry && (
+                  <p className="text-sm text-destructive">{errors.industry.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new-website">Website</Label>
+                <Input
+                  id="new-website"
+                  type="url"
+                  {...register('website')}
+                  placeholder="https://acme.com"
+                />
+                {errors.website && (
+                  <p className="text-sm text-destructive">{errors.website.message}</p>
+                )}
+              </div>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button type="button" variant="outline" onClick={handleClose}>
+              Cancel
+            </Button>
+            <Button type="submit" disabled={isLoading}>
+              {isLoading ? 'Creating...' : 'Create Organization'}
+            </Button>
+          </DialogFooter>
+        </form>
+      </DialogContent>
+    </Dialog>
+  );
+}

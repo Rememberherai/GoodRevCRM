@@ -1,0 +1,149 @@
+import { createClient } from '@/lib/supabase/server';
+import { NextResponse } from 'next/server';
+import { createOrganizationSchema } from '@/lib/validators/organization';
+import type { Database } from '@/types/database';
+
+type OrganizationInsert = Database['public']['Tables']['organizations']['Insert'];
+type Organization = Database['public']['Tables']['organizations']['Row'];
+
+interface RouteContext {
+  params: Promise<{ slug: string }>;
+}
+
+// GET /api/projects/[slug]/organizations - List organizations
+export async function GET(request: Request, context: RouteContext) {
+  try {
+    const { slug } = await context.params;
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Get project ID from slug
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('slug', slug)
+      .is('deleted_at', null)
+      .single();
+
+    if (projectError || !project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    // Parse query parameters
+    const { searchParams } = new URL(request.url);
+    const page = parseInt(searchParams.get('page') ?? '1', 10);
+    const limit = parseInt(searchParams.get('limit') ?? '50', 10);
+    const search = searchParams.get('search') ?? '';
+    const sortBy = searchParams.get('sortBy') ?? 'created_at';
+    const sortOrder = searchParams.get('sortOrder') ?? 'desc';
+
+    const offset = (page - 1) * limit;
+
+    // Build query
+    let query = supabase
+      .from('organizations')
+      .select('*', { count: 'exact' })
+      .eq('project_id', project.id)
+      .is('deleted_at', null);
+
+    // Apply search filter
+    if (search) {
+      query = query.or(`name.ilike.%${search}%,domain.ilike.%${search}%,industry.ilike.%${search}%`);
+    }
+
+    // Apply sorting
+    const ascending = sortOrder === 'asc';
+    query = query.order(sortBy, { ascending });
+
+    // Apply pagination
+    query = query.range(offset, offset + limit - 1);
+
+    const { data: organizations, error, count } = await query;
+
+    if (error) {
+      console.error('Error fetching organizations:', error);
+      return NextResponse.json({ error: 'Failed to fetch organizations' }, { status: 500 });
+    }
+
+    return NextResponse.json({
+      organizations: organizations as Organization[],
+      pagination: {
+        page,
+        limit,
+        total: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / limit),
+      },
+    });
+  } catch (error) {
+    console.error('Error in GET /api/projects/[slug]/organizations:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// POST /api/projects/[slug]/organizations - Create organization
+export async function POST(request: Request, context: RouteContext) {
+  try {
+    const { slug } = await context.params;
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    // Get project ID from slug
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('slug', slug)
+      .is('deleted_at', null)
+      .single();
+
+    if (projectError || !project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const validationResult = createOrganizationSchema.safeParse(body);
+
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: validationResult.error.flatten() },
+        { status: 400 }
+      );
+    }
+
+    const orgData: OrganizationInsert = {
+      ...validationResult.data,
+      project_id: project.id,
+      created_by: user.id,
+      custom_fields: validationResult.data.custom_fields as OrganizationInsert['custom_fields'],
+    };
+
+    const { data: organization, error } = await supabase
+      .from('organizations')
+      .insert(orgData)
+      .select()
+      .single();
+
+    if (error) {
+      console.error('Error creating organization:', error);
+      return NextResponse.json({ error: 'Failed to create organization' }, { status: 500 });
+    }
+
+    return NextResponse.json({ organization: organization as Organization }, { status: 201 });
+  } catch (error) {
+    console.error('Error in POST /api/projects/[slug]/organizations:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
