@@ -33,6 +33,9 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { OrganizationForm } from '@/components/organizations/organization-form';
+import { ResearchPanel } from '@/components/research/research-panel';
+import { ResearchResultsDialog } from '@/components/research/research-results-dialog';
+import type { ResearchJob } from '@/types/research';
 
 interface OrganizationDetailClientProps {
   organizationId: string;
@@ -45,8 +48,15 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showResearchResults, setShowResearchResults] = useState(false);
+  const [researchJob, setResearchJob] = useState<ResearchJob | null>(null);
 
   const { organization, isLoading, error, refresh } = useOrganization(organizationId);
+
+  const handleResearchComplete = (job: ResearchJob) => {
+    setResearchJob(job);
+    setShowResearchResults(true);
+  };
   const removeOrganization = useOrganizationStore((s) => s.removeOrganization);
 
   const handleDelete = async () => {
@@ -288,6 +298,13 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
         </Card>
       )}
 
+      <ResearchPanel
+        entityType="organization"
+        entityId={organizationId}
+        entityName={organization.name}
+        onResearchComplete={handleResearchComplete}
+      />
+
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -309,6 +326,13 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <ResearchResultsDialog
+        open={showResearchResults}
+        onOpenChange={setShowResearchResults}
+        job={researchJob}
+        onApplied={refresh}
+      />
     </div>
   );
 }
