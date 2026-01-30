@@ -21,6 +21,21 @@ interface NewOrganizationDialogProps {
   onOpenChange: (open: boolean) => void;
 }
 
+function extractDomain(url: string): string {
+  try {
+    // Add protocol if missing
+    let fullUrl = url;
+    if (!url.startsWith('http://') && !url.startsWith('https://')) {
+      fullUrl = 'https://' + url;
+    }
+    const hostname = new URL(fullUrl).hostname;
+    // Remove www. prefix
+    return hostname.replace(/^www\./, '');
+  } catch {
+    return '';
+  }
+}
+
 export function NewOrganizationDialog({ open, onOpenChange }: NewOrganizationDialogProps) {
   const { create, isLoading } = useOrganizations();
 
@@ -33,7 +48,6 @@ export function NewOrganizationDialog({ open, onOpenChange }: NewOrganizationDia
     resolver: zodResolver(createOrganizationSchema),
     defaultValues: {
       name: '',
-      domain: '',
       industry: '',
       website: '',
     },
@@ -41,7 +55,9 @@ export function NewOrganizationDialog({ open, onOpenChange }: NewOrganizationDia
 
   const onSubmit = async (data: CreateOrganizationInput) => {
     try {
-      await create(data);
+      // Auto-extract domain from website
+      const domain = data.website ? extractDomain(data.website) : undefined;
+      await create({ ...data, domain });
       reset();
       onOpenChange(false);
     } catch {
@@ -80,19 +96,19 @@ export function NewOrganizationDialog({ open, onOpenChange }: NewOrganizationDia
               )}
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="new-domain">Domain</Label>
-              <Input
-                id="new-domain"
-                {...register('domain')}
-                placeholder="acme.com"
-              />
-              {errors.domain && (
-                <p className="text-sm text-destructive">{errors.domain.message}</p>
-              )}
-            </div>
-
             <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-website">Website</Label>
+                <Input
+                  id="new-website"
+                  {...register('website')}
+                  placeholder="acme.com"
+                />
+                {errors.website && (
+                  <p className="text-sm text-destructive">{errors.website.message}</p>
+                )}
+              </div>
+
               <div className="space-y-2">
                 <Label htmlFor="new-industry">Industry</Label>
                 <Input
@@ -102,19 +118,6 @@ export function NewOrganizationDialog({ open, onOpenChange }: NewOrganizationDia
                 />
                 {errors.industry && (
                   <p className="text-sm text-destructive">{errors.industry.message}</p>
-                )}
-              </div>
-
-              <div className="space-y-2">
-                <Label htmlFor="new-website">Website</Label>
-                <Input
-                  id="new-website"
-                  type="url"
-                  {...register('website')}
-                  placeholder="https://acme.com"
-                />
-                {errors.website && (
-                  <p className="text-sm text-destructive">{errors.website.message}</p>
                 )}
               </div>
             </div>

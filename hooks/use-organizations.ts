@@ -76,6 +76,8 @@ export function useOrganizations() {
         const message = err instanceof Error ? err.message : 'Failed to create organization';
         setError(message);
         throw err;
+      } finally {
+        setLoading(false);
       }
     },
     [projectSlug, addOrganization, setLoading, setError]
@@ -94,6 +96,8 @@ export function useOrganizations() {
         const message = err instanceof Error ? err.message : 'Failed to update organization';
         setError(message);
         throw err;
+      } finally {
+        setLoading(false);
       }
     },
     [projectSlug, updateOrganization, setLoading, setError]
@@ -111,6 +115,8 @@ export function useOrganizations() {
         const message = err instanceof Error ? err.message : 'Failed to delete organization';
         setError(message);
         throw err;
+      } finally {
+        setLoading(false);
       }
     },
     [projectSlug, removeOrganization, setLoading, setError]
@@ -198,6 +204,8 @@ export function useOrganization(organizationId: string) {
         const message = err instanceof Error ? err.message : 'Failed to update organization';
         setError(message);
         throw err;
+      } finally {
+        setLoading(false);
       }
     },
     [projectSlug, organizationId, setCurrentOrganization, setLoading, setError]

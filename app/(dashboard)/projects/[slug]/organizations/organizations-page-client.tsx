@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Search, Building2, ExternalLink, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Plus, Search, Building2, ExternalLink, MoreHorizontal, Pencil, Trash2, Upload, ClipboardPaste } from 'lucide-react';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -34,11 +34,21 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { NewOrganizationDialog } from '@/components/organizations/new-organization-dialog';
+import { BulkAddDialog } from '@/components/organizations/bulk-add-dialog';
+import { ImportWizard } from '@/components/import-export';
+import {
+  Dialog,
+  DialogContent,
+  DialogHeader,
+  DialogTitle,
+} from '@/components/ui/dialog';
 
 export function OrganizationsPageClient() {
   const params = useParams();
   const slug = params.slug as string;
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
+  const [showBulkAddDialog, setShowBulkAddDialog] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -50,6 +60,7 @@ export function OrganizationsPageClient() {
     search,
     remove,
     goToPage,
+    refresh,
   } = useOrganizations();
 
   const handleSearch = (e: React.FormEvent) => {
@@ -85,10 +96,20 @@ export function OrganizationsPageClient() {
             Manage companies and organizations in your CRM
           </p>
         </div>
-        <Button onClick={() => setShowNewDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Organization
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowBulkAddDialog(true)}>
+            <ClipboardPaste className="mr-2 h-4 w-4" />
+            Bulk Add
+          </Button>
+          <Button variant="outline" onClick={() => setShowImportDialog(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Import CSV
+          </Button>
+          <Button onClick={() => setShowNewDialog(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Organization
+          </Button>
+        </div>
       </div>
 
       <form onSubmit={handleSearch} className="flex items-center gap-4">
@@ -258,6 +279,24 @@ export function OrganizationsPageClient() {
       )}
 
       <NewOrganizationDialog open={showNewDialog} onOpenChange={setShowNewDialog} />
+
+      <BulkAddDialog open={showBulkAddDialog} onOpenChange={setShowBulkAddDialog} />
+
+      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
+        <DialogContent className="sm:max-w-[600px]">
+          <DialogHeader>
+            <DialogTitle>Import Organizations</DialogTitle>
+          </DialogHeader>
+          <ImportWizard
+            projectSlug={slug}
+            onComplete={() => {
+              setShowImportDialog(false);
+              refresh();
+            }}
+            onCancel={() => setShowImportDialog(false)}
+          />
+        </DialogContent>
+      </Dialog>
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
