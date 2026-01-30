@@ -11,6 +11,9 @@ import {
   deleteOrganization,
 } from '@/stores/organization';
 import type { CreateOrganizationInput, UpdateOrganizationInput } from '@/lib/validators/organization';
+import { createDebugger } from '@/lib/debug';
+
+const log = createDebugger('useOrganizations');
 
 export function useOrganizations() {
   const params = useParams();
@@ -36,10 +39,16 @@ export function useOrganizations() {
   } = useOrganizationStore();
 
   const loadOrganizations = useCallback(async () => {
-    if (!projectSlug) return;
+    log.log('loadOrganizations called', { projectSlug, page: pagination.page });
+    if (!projectSlug) {
+      log.log('No projectSlug, returning early');
+      return;
+    }
 
     setLoading(true);
+    log.log('setLoading(true)');
     try {
+      log.log('Fetching organizations...');
       const result = await fetchOrganizations(projectSlug, {
         page: pagination.page,
         limit: pagination.limit,
@@ -47,10 +56,13 @@ export function useOrganizations() {
         sortBy,
         sortOrder,
       });
+      log.log('Fetched organizations', { count: result.organizations.length, pagination: result.pagination });
       setOrganizations(result.organizations, result.pagination);
     } catch (err) {
+      log.error('Failed to fetch organizations', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch organizations');
     } finally {
+      log.log('setLoading(false)');
       setLoading(false);
     }
   }, [
@@ -67,18 +79,24 @@ export function useOrganizations() {
 
   const create = useCallback(
     async (data: CreateOrganizationInput) => {
+      log.log('create called', { projectSlug, data });
       if (!projectSlug) throw new Error('No project selected');
 
       setLoading(true);
+      log.log('setLoading(true)');
       try {
+        log.log('Creating organization...');
         const organization = await createOrganization(projectSlug, data);
+        log.log('Created organization', { id: organization.id, name: organization.name });
         addOrganization(organization);
         return organization;
       } catch (err) {
+        log.error('Failed to create organization', err);
         const message = err instanceof Error ? err.message : 'Failed to create organization';
         setError(message);
         throw err;
       } finally {
+        log.log('setLoading(false)');
         setLoading(false);
       }
     },
@@ -182,15 +200,24 @@ export function useOrganization(organizationId: string) {
   } = useOrganizationStore();
 
   const loadOrganization = useCallback(async () => {
-    if (!projectSlug || !organizationId) return;
+    log.log('loadOrganization called', { projectSlug, organizationId });
+    if (!projectSlug || !organizationId) {
+      log.log('Missing projectSlug or organizationId, returning early');
+      return;
+    }
 
     setLoading(true);
+    log.log('setLoading(true)');
     try {
+      log.log('Fetching organization...');
       const organization = await fetchOrganization(projectSlug, organizationId);
+      log.log('Fetched organization', { id: organization.id, name: organization.name });
       setCurrentOrganization(organization);
     } catch (err) {
+      log.error('Failed to fetch organization', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch organization');
     } finally {
+      log.log('setLoading(false)');
       setLoading(false);
     }
   }, [projectSlug, organizationId, setCurrentOrganization, setLoading, setError]);
