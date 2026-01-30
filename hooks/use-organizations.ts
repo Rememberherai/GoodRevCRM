@@ -50,6 +50,8 @@ export function useOrganizations() {
       setOrganizations(result.organizations, result.pagination);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch organizations');
+    } finally {
+      setLoading(false);
     }
   }, [
     projectSlug,
@@ -188,6 +190,8 @@ export function useOrganization(organizationId: string) {
       setCurrentOrganization(organization);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch organization');
+    } finally {
+      setLoading(false);
     }
   }, [projectSlug, organizationId, setCurrentOrganization, setLoading, setError]);
 
