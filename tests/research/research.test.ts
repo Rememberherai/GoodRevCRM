@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach } from 'vitest';
+import { describe, it, expect } from 'vitest';
 import {
   startResearchSchema,
   applyResearchSchema,
@@ -261,9 +261,9 @@ describe('Prompt Builders', () => {
           options: [],
           default_value: null,
           validation_rules: null,
+          created_by: null,
           created_at: '2024-01-01',
           updated_at: '2024-01-01',
-          deleted_at: null,
         },
       ];
 
@@ -344,8 +344,8 @@ describe('Prompt Builders', () => {
       ];
       const schema = buildCustomFieldsSchema(fields);
       const statusProp = (schema.properties as Record<string, { enum?: string[] }>).status;
-      expect(statusProp.enum).toContain('active');
-      expect(statusProp.enum).toContain('inactive');
+      expect(statusProp?.enum).toContain('active');
+      expect(statusProp?.enum).toContain('inactive');
     });
 
     it('builds schema for number field', () => {
@@ -354,7 +354,7 @@ describe('Prompt Builders', () => {
       ];
       const schema = buildCustomFieldsSchema(fields);
       const countProp = (schema.properties as Record<string, { type: string[] }>).count;
-      expect(countProp.type).toContain('number');
+      expect(countProp?.type).toContain('number');
     });
   });
 
@@ -530,9 +530,9 @@ function createMockField(overrides: Partial<CustomFieldDefinition>): CustomField
     options: [],
     default_value: null,
     validation_rules: null,
+    created_by: null,
     created_at: '2024-01-01',
     updated_at: '2024-01-01',
-    deleted_at: null,
     ...overrides,
   };
 }
