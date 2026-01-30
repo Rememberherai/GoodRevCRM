@@ -57,12 +57,13 @@ export const FAST_MODEL: OpenRouterModel = 'anthropic/claude-3-haiku';
 
 // Request options
 export interface OpenRouterRequestOptions {
-  model?: OpenRouterModel;
+  model?: OpenRouterModel | string;
   temperature?: number;
   maxTokens?: number;
   topP?: number;
   stream?: boolean;
   responseFormat?: 'text' | 'json_object';
+  systemPrompt?: string;
 }
 
 // Client class
@@ -187,10 +188,20 @@ export class OpenRouterClient {
     schema: z.ZodSchema<T>,
     options: OpenRouterRequestOptions = {}
   ): Promise<T> {
-    const response = await this.complete(prompt, {
-      ...options,
-      responseFormat: 'json_object',
-    });
+    const { systemPrompt, ...restOptions } = options;
+
+    let response: string;
+    if (systemPrompt) {
+      response = await this.completeWithSystem(systemPrompt, prompt, {
+        ...restOptions,
+        responseFormat: 'json_object',
+      });
+    } else {
+      response = await this.complete(prompt, {
+        ...restOptions,
+        responseFormat: 'json_object',
+      });
+    }
 
     let parsed: unknown;
     try {

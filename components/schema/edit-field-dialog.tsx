@@ -40,6 +40,10 @@ interface FormData {
   is_visible_in_list: boolean;
   group_name: string;
   options: { value: string; label: string }[];
+  // AI extraction settings
+  is_ai_extractable: boolean;
+  ai_extraction_hint: string;
+  ai_confidence_threshold: number;
 }
 
 export function EditFieldDialog({ open, onOpenChange, field }: EditFieldDialogProps) {
@@ -65,6 +69,10 @@ export function EditFieldDialog({ open, onOpenChange, field }: EditFieldDialogPr
       is_visible_in_list: true,
       group_name: '',
       options: [],
+      // AI extraction defaults
+      is_ai_extractable: true,
+      ai_extraction_hint: '',
+      ai_confidence_threshold: 0.7,
     },
   });
 
@@ -92,6 +100,10 @@ export function EditFieldDialog({ open, onOpenChange, field }: EditFieldDialogPr
         is_visible_in_list: field.is_visible_in_list,
         group_name: field.group_name ?? '',
         options,
+        // AI extraction settings - cast to access the new fields
+        is_ai_extractable: (field as { is_ai_extractable?: boolean }).is_ai_extractable ?? true,
+        ai_extraction_hint: (field as { ai_extraction_hint?: string | null }).ai_extraction_hint ?? '',
+        ai_confidence_threshold: (field as { ai_confidence_threshold?: number | null }).ai_confidence_threshold ?? 0.7,
       });
       replace(options);
     }
@@ -111,6 +123,10 @@ export function EditFieldDialog({ open, onOpenChange, field }: EditFieldDialogPr
       is_visible_in_list: formData.is_visible_in_list,
       group_name: formData.group_name || null,
       options: formData.options.filter(o => o.value && o.label),
+      // AI extraction settings
+      is_ai_extractable: formData.is_ai_extractable,
+      ai_extraction_hint: formData.ai_extraction_hint || null,
+      ai_confidence_threshold: formData.ai_confidence_threshold,
     };
 
     // Validate with Zod
@@ -332,6 +348,67 @@ export function EditFieldDialog({ open, onOpenChange, field }: EditFieldDialogPr
                   onCheckedChange={(checked) => setValue('is_visible_in_list', checked)}
                 />
               </div>
+            </div>
+          </div>
+
+          {/* AI Extraction Settings */}
+          <div className="space-y-4">
+            <Label className="text-base">AI Research Settings</Label>
+            <p className="text-sm text-muted-foreground">
+              Configure how AI research extracts values for this field.
+            </p>
+            <div className="space-y-4">
+              <div className="flex items-center justify-between rounded-lg border p-3">
+                <div className="space-y-0.5">
+                  <Label htmlFor="is_ai_extractable" className="text-sm font-normal">
+                    AI Extractable
+                  </Label>
+                  <p className="text-xs text-muted-foreground">
+                    Allow AI research to extract this field
+                  </p>
+                </div>
+                <Switch
+                  id="is_ai_extractable"
+                  checked={watch('is_ai_extractable')}
+                  onCheckedChange={(checked) => setValue('is_ai_extractable', checked)}
+                />
+              </div>
+
+              {watch('is_ai_extractable') && (
+                <>
+                  <div className="space-y-2">
+                    <Label htmlFor="ai_extraction_hint">Extraction Hint</Label>
+                    <Textarea
+                      id="ai_extraction_hint"
+                      {...register('ai_extraction_hint')}
+                      placeholder="e.g. Look for the company's founding year on their About page or LinkedIn. Usually found in company history sections."
+                      rows={3}
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Instructions for AI on how to find and extract this field value.
+                    </p>
+                  </div>
+
+                  <div className="space-y-2">
+                    <Label htmlFor="ai_confidence_threshold">
+                      Confidence Threshold: {Math.round(watch('ai_confidence_threshold') * 100)}%
+                    </Label>
+                    <input
+                      type="range"
+                      id="ai_confidence_threshold"
+                      min="0"
+                      max="1"
+                      step="0.05"
+                      value={watch('ai_confidence_threshold')}
+                      onChange={(e) => setValue('ai_confidence_threshold', parseFloat(e.target.value))}
+                      className="w-full"
+                    />
+                    <p className="text-xs text-muted-foreground">
+                      Minimum confidence required before auto-applying this field.
+                    </p>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 

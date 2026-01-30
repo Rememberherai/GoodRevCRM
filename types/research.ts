@@ -83,6 +83,119 @@ export interface ResearchStats {
   tokens_used: number;
 }
 
+// Research settings per entity type
+export interface ResearchSettings {
+  id: string;
+  project_id: string;
+  entity_type: EntityType;
+  system_prompt: string | null;
+  user_prompt_template: string | null;
+  model_id: string;
+  temperature: number;
+  max_tokens: number;
+  default_confidence_threshold: number;
+  auto_apply_high_confidence: boolean;
+  high_confidence_threshold: number;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+// Default prompts for each entity type
+export const DEFAULT_SYSTEM_PROMPTS: Record<EntityType, string> = {
+  organization: `You are a business research assistant. Your task is to find accurate information about companies and organizations from publicly available sources.
+
+Be precise and factual. Only include information you are confident about. For each piece of information, provide a confidence score between 0 and 1.
+
+Focus on:
+- Company overview and description
+- Industry and sector
+- Employee count and company size
+- Revenue and financial data (if public)
+- Headquarters location
+- Key products/services`,
+
+  person: `You are a professional research assistant. Your task is to find accurate professional information about individuals from publicly available sources like LinkedIn, company websites, and professional profiles.
+
+Be precise and factual. Respect privacy - only include professional information. For each piece of information, provide a confidence score between 0 and 1.
+
+Focus on:
+- Current job title and company
+- Professional background
+- Contact information (if publicly available)
+- Location
+- Professional achievements`,
+
+  opportunity: `You are a sales research assistant. Your task is to gather information relevant to sales opportunities from publicly available sources.
+
+Focus on understanding the prospect's needs, budget indicators, and decision-making process. Provide confidence scores for all findings.`,
+
+  rfp: `You are an RFP research assistant. Your task is to analyze RFP requirements and gather relevant competitive intelligence.
+
+Focus on understanding requirements, evaluation criteria, and competitive landscape. Provide confidence scores for all findings.`,
+};
+
+export const DEFAULT_USER_PROMPT_TEMPLATES: Record<EntityType, string> = {
+  organization: `Research the following organization and extract structured information:
+
+Organization Name: {{name}}
+{{#if domain}}Domain: {{domain}}{{/if}}
+{{#if website}}Website: {{website}}{{/if}}
+
+Please find and return:
+1. Company description and overview
+2. Industry classification
+3. Employee count (estimate if exact not available)
+4. Annual revenue (if publicly available)
+5. Headquarters location (city, state, country)
+6. Key products or services
+
+{{#if custom_fields}}
+Also try to find values for these custom fields:
+{{#each custom_fields}}
+- {{this.label}}: {{this.ai_extraction_hint}}
+{{/each}}
+{{/if}}
+
+Return structured JSON with confidence scores for each field.`,
+
+  person: `Research the following person and extract professional information:
+
+Name: {{first_name}} {{last_name}}
+{{#if email}}Email: {{email}}{{/if}}
+{{#if organization_name}}Current Organization: {{organization_name}}{{/if}}
+
+Please find and return:
+1. Current job title and company
+2. Professional email (if publicly available)
+3. LinkedIn profile URL
+4. Location (city, state, country)
+5. Professional background/bio
+
+{{#if custom_fields}}
+Also try to find values for these custom fields:
+{{#each custom_fields}}
+- {{this.label}}: {{this.ai_extraction_hint}}
+{{/each}}
+{{/if}}
+
+Return structured JSON with confidence scores for each field.`,
+
+  opportunity: `Research the following sales opportunity:
+
+Opportunity: {{name}}
+{{#if organization_name}}Organization: {{organization_name}}{{/if}}
+
+Find relevant information that could help close this deal.`,
+
+  rfp: `Analyze the following RFP:
+
+Title: {{title}}
+{{#if rfp_number}}RFP Number: {{rfp_number}}{{/if}}
+
+Extract key requirements and evaluation criteria.`,
+};
+
 // Constants for research
 export const RESEARCH_STATUS_LABELS: Record<ResearchStatus, string> = {
   pending: 'Pending',

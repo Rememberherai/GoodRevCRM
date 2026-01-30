@@ -54,25 +54,52 @@ export function buildCustomFieldsSchema(fields: CustomFieldDefinition[]): Record
   };
 }
 
-// Format custom fields for research prompt
-export function formatCustomFieldsForPrompt(fields: CustomFieldDefinition[]): string {
-  if (fields.length === 0) return '';
+// Extended field definition with AI fields
+interface ExtendedCustomFieldDefinition extends CustomFieldDefinition {
+  is_ai_extractable?: boolean;
+  ai_extraction_hint?: string | null;
+  ai_confidence_threshold?: number | null;
+}
 
-  const fieldDescriptions = fields.map(field => {
+// Format custom fields for research prompt (with AI extraction hints)
+export function formatCustomFieldsForPrompt(fields: CustomFieldDefinition[]): string {
+  // Filter to only AI-extractable fields
+  const extractableFields = (fields as ExtendedCustomFieldDefinition[]).filter(
+    f => f.is_ai_extractable !== false
+  );
+
+  if (extractableFields.length === 0) return '';
+
+  const fieldDescriptions = extractableFields.map(field => {
     let description = `- ${field.label} (${field.name}): ${getFieldTypeDescription(field.field_type)}`;
-    if (field.description) {
+
+    // Add AI extraction hint if available (prioritize this)
+    if (field.ai_extraction_hint) {
+      description += `\n  Hint: ${field.ai_extraction_hint}`;
+    } else if (field.description) {
       description += ` - ${field.description}`;
     }
+
     if (field.field_type === 'select' || field.field_type === 'multi_select') {
       const options = field.options as { value: string; label: string }[];
-      description += `. Options: ${options.map(o => o.label).join(', ')}`;
+      description += `\n  Valid options: ${options.map(o => o.value).join(', ')}`;
     }
+
+    // Add confidence threshold info
+    const threshold = field.ai_confidence_threshold ?? 0.7;
+    description += `\n  Required confidence: ${Math.round(threshold * 100)}%`;
+
     return description;
   });
 
   return `
-Custom fields to research:
+Custom fields to extract (only return if confident):
 ${fieldDescriptions.join('\n')}`;
+}
+
+// Get only AI-extractable custom fields
+export function getAIExtractableFields(fields: CustomFieldDefinition[]): CustomFieldDefinition[] {
+  return (fields as ExtendedCustomFieldDefinition[]).filter(f => f.is_ai_extractable !== false);
 }
 
 function getFieldTypeDescription(fieldType: string): string {
@@ -96,16 +123,54 @@ function getFieldTypeDescription(fieldType: string): string {
   return descriptions[fieldType] ?? 'value';
 }
 
+// Simple template interpolation (replaces {{variable}} with values)
+function interpolateTemplate(
+  template: string,
+  variables: Record<string, string | null | undefined>
+): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (_, key) => {
+    const value = variables[key];
+    return value ?? '';
+  });
+}
+
 // Organization research prompt
 export function buildOrganizationResearchPrompt(
   organization: Pick<Organization, 'name' | 'domain' | 'website' | 'industry'>,
-  customFields: CustomFieldDefinition[] = []
+  customFields: CustomFieldDefinition[] = [],
+  customPromptTemplate?: string
 ): string {
   const customFieldsSection = formatCustomFieldsForPrompt(customFields);
   const customFieldsSchema = customFields.length > 0
     ? buildCustomFieldsSchema(customFields)
     : null;
 
+  // If custom prompt template is provided, use it
+  if (customPromptTemplate) {
+    const variables = {
+      name: organization.name,
+      domain: organization.domain,
+      website: organization.website,
+      industry: organization.industry,
+    };
+
+    let prompt = interpolateTemplate(customPromptTemplate, variables);
+
+    // Add custom fields section if not already in template
+    if (customFieldsSection && !prompt.includes('custom_fields')) {
+      prompt += `\n${customFieldsSection}`;
+    }
+
+    if (customFieldsSchema) {
+      prompt += `\n\nThe custom_fields object in your response should match this schema:\n${JSON.stringify(customFieldsSchema, null, 2)}`;
+    }
+
+    prompt += '\n\nRespond with valid JSON matching the expected structure. Use null for any fields you cannot determine.';
+
+    return prompt;
+  }
+
+  // Default prompt
   let prompt = `You are a business intelligence researcher. Research the following company and provide structured data.
 
 Company Information:
@@ -148,7 +213,8 @@ Respond with valid JSON matching the expected structure. Use null for any fields
 export function buildPersonResearchPrompt(
   person: Pick<Person, 'first_name' | 'last_name' | 'email' | 'job_title'>,
   organizationName?: string,
-  customFields: CustomFieldDefinition[] = []
+  customFields: CustomFieldDefinition[] = [],
+  customPromptTemplate?: string
 ): string {
   const fullName = `${person.first_name} ${person.last_name}`;
   const customFieldsSection = formatCustomFieldsForPrompt(customFields);
@@ -156,6 +222,34 @@ export function buildPersonResearchPrompt(
     ? buildCustomFieldsSchema(customFields)
     : null;
 
+  // If custom prompt template is provided, use it
+  if (customPromptTemplate) {
+    const variables = {
+      first_name: person.first_name,
+      last_name: person.last_name,
+      full_name: fullName,
+      email: person.email,
+      job_title: person.job_title,
+      organization_name: organizationName,
+    };
+
+    let prompt = interpolateTemplate(customPromptTemplate, variables);
+
+    // Add custom fields section if not already in template
+    if (customFieldsSection && !prompt.includes('custom_fields')) {
+      prompt += `\n${customFieldsSection}`;
+    }
+
+    if (customFieldsSchema) {
+      prompt += `\n\nThe custom_fields object in your response should match this schema:\n${JSON.stringify(customFieldsSchema, null, 2)}`;
+    }
+
+    prompt += '\n\nRespond with valid JSON matching the expected structure. Use null for any fields you cannot determine.';
+
+    return prompt;
+  }
+
+  // Default prompt
   let prompt = `You are a professional research analyst. Research the following person and provide structured data.
 
 Person Information:

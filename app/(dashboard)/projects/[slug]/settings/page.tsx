@@ -32,6 +32,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
 import { useProjectStore } from '@/stores/project';
+import { ResearchSettingsPanel } from '@/components/settings/research-settings';
 
 interface ProjectSettingsPageProps {
   params: Promise<{ slug: string }>;
@@ -109,7 +110,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
   };
 
   return (
-    <div className="space-y-6 max-w-2xl">
+    <div className="space-y-6 max-w-4xl">
       <div>
         <h2 className="text-2xl font-bold">Settings</h2>
         <p className="text-muted-foreground">
@@ -184,6 +185,8 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
           </Form>
         </CardContent>
       </Card>
+
+      <ResearchSettingsPanel slug={slug} />
 
       <Card className="border-destructive">
         <CardHeader>

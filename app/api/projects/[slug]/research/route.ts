@@ -9,10 +9,26 @@ import {
 import {
   buildOrganizationResearchPrompt,
   buildPersonResearchPrompt,
+  getAIExtractableFields,
 } from '@/lib/openrouter/prompts';
-import type { CustomFieldDefinition } from '@/types/custom-field';
+import type { CustomFieldDefinition, EntityType } from '@/types/custom-field';
 import type { ResearchJob } from '@/types/research';
 import type { OrganizationResearch, PersonResearch } from '@/lib/openrouter/structured-output';
+
+// Type for research settings from DB
+interface ResearchSettingsDB {
+  id: string;
+  project_id: string;
+  entity_type: EntityType;
+  system_prompt: string | null;
+  user_prompt_template: string | null;
+  model_id: string;
+  temperature: number;
+  max_tokens: number;
+  default_confidence_threshold: number;
+  auto_apply_high_confidence: boolean;
+  high_confidence_threshold: number;
+}
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -199,7 +215,7 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Invalid entity type' }, { status: 400 });
     }
 
-    // Fetch custom fields if requested
+    // Fetch custom fields if requested (only AI-extractable ones)
     let customFields: CustomFieldDefinition[] = [];
     if (include_custom_fields) {
       const { data: fields } = await supabase
@@ -209,11 +225,35 @@ export async function POST(request: Request, context: RouteContext) {
         .eq('entity_type', entity_type)
         .is('deleted_at', null);
 
-      customFields = (fields ?? []) as CustomFieldDefinition[];
+      // Filter to only AI-extractable fields
+      customFields = getAIExtractableFields((fields ?? []) as CustomFieldDefinition[]);
     }
 
-    // Build the research prompt
+    // Fetch research settings for this entity type
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabaseAny = supabase as any;
+    const { data: researchSettingsData } = await supabaseAny
+      .from('research_settings')
+      .select('*')
+      .eq('project_id', project.id)
+      .eq('entity_type', entity_type)
+      .single();
+
+    const researchSettings = researchSettingsData as ResearchSettingsDB | null;
+
+    // Use research settings or defaults
+    const modelId = researchSettings?.model_id ?? DEFAULT_MODEL;
+    const temperature = researchSettings?.temperature ?? 0.3;
+    const maxTokens = researchSettings?.max_tokens ?? 4096;
+
+    // Build the research prompt (with custom system/user prompts if configured)
     let prompt: string;
+    let systemPrompt: string | undefined;
+
+    if (researchSettings?.system_prompt) {
+      systemPrompt = researchSettings.system_prompt;
+    }
+
     if (entity_type === 'organization') {
       prompt = buildOrganizationResearchPrompt(
         {
@@ -222,7 +262,8 @@ export async function POST(request: Request, context: RouteContext) {
           website: entity.website ?? null,
           industry: entity.industry ?? null,
         },
-        customFields
+        customFields,
+        researchSettings?.user_prompt_template ?? undefined
       );
     } else {
       prompt = buildPersonResearchPrompt(
@@ -233,14 +274,12 @@ export async function POST(request: Request, context: RouteContext) {
           job_title: entity.job_title ?? null,
         },
         organizationName,
-        customFields
+        customFields,
+        researchSettings?.user_prompt_template ?? undefined
       );
     }
 
-    // Create the research job record using type assertion
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabaseAny = supabase as any;
-
+    // Create the research job record
     const { data: job, error: insertError } = await supabaseAny
       .from('research_jobs')
       .insert({
@@ -265,18 +304,21 @@ export async function POST(request: Request, context: RouteContext) {
       const client = getOpenRouterClient();
 
       // Call the appropriate schema based on entity type
+      // Use configured model and settings
       let result: OrganizationResearch | PersonResearch;
       if (entity_type === 'organization') {
         result = await client.completeJson(prompt, organizationResearchSchema, {
-          model: DEFAULT_MODEL,
-          temperature: 0.3,
-          maxTokens: 4096,
+          model: modelId,
+          temperature,
+          maxTokens,
+          systemPrompt,
         });
       } else {
         result = await client.completeJson(prompt, personResearchSchema, {
-          model: DEFAULT_MODEL,
-          temperature: 0.3,
-          maxTokens: 4096,
+          model: modelId,
+          temperature,
+          maxTokens,
+          systemPrompt,
         });
       }
 
@@ -286,7 +328,7 @@ export async function POST(request: Request, context: RouteContext) {
         .update({
           status: 'completed',
           result,
-          model_used: DEFAULT_MODEL,
+          model_used: modelId,
           completed_at: new Date().toISOString(),
         })
         .eq('id', job.id)

@@ -153,6 +153,10 @@ export const customFieldDefinitionSchema = z.object({
   options: z.array(selectOptionSchema),
   default_value: z.any().nullable(),
   validation_rules: validationRulesSchema,
+  // AI extraction settings
+  is_ai_extractable: z.boolean().optional(),
+  ai_extraction_hint: z.string().max(1000).nullable().optional(),
+  ai_confidence_threshold: z.number().min(0).max(1).nullable().optional(),
 }).superRefine((data, ctx) => {
   // Validate options are required for select/multi_select
   if (
@@ -226,6 +230,10 @@ export const updateCustomFieldDefinitionSchema = z.object({
   options: z.array(selectOptionSchema).optional(),
   default_value: z.any().nullable().optional(),
   validation_rules: validationRulesSchema,
+  // AI extraction settings
+  is_ai_extractable: z.boolean().optional(),
+  ai_extraction_hint: z.string().max(1000).nullable().optional(),
+  ai_confidence_threshold: z.number().min(0).max(1).nullable().optional(),
 });
 
 // Schema for reordering fields
