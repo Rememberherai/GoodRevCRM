@@ -31,9 +31,9 @@ CREATE POLICY "Users can view activity for their projects"
   FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM project_members
-      WHERE project_members.project_id = activity_log.project_id
-      AND project_members.user_id = auth.uid()
+      SELECT 1 FROM project_memberships
+      WHERE project_memberships.project_id = activity_log.project_id
+      AND project_memberships.user_id = auth.uid()
     )
   );
 
@@ -42,9 +42,9 @@ CREATE POLICY "Users can insert activity for their projects"
   FOR INSERT
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM project_members
-      WHERE project_members.project_id = activity_log.project_id
-      AND project_members.user_id = auth.uid()
+      SELECT 1 FROM project_memberships
+      WHERE project_memberships.project_id = activity_log.project_id
+      AND project_memberships.user_id = auth.uid()
     )
   );
 

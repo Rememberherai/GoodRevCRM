@@ -311,9 +311,9 @@ CREATE POLICY "Users can view tags in their projects"
   ON entity_tags FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM project_members
-      WHERE project_members.project_id = entity_tags.project_id
-        AND project_members.user_id = auth.uid()
+      SELECT 1 FROM project_memberships
+      WHERE project_memberships.project_id = entity_tags.project_id
+        AND project_memberships.user_id = auth.uid()
     )
   );
 
@@ -321,9 +321,9 @@ CREATE POLICY "Users can manage tags in their projects"
   ON entity_tags FOR ALL
   USING (
     EXISTS (
-      SELECT 1 FROM project_members
-      WHERE project_members.project_id = entity_tags.project_id
-        AND project_members.user_id = auth.uid()
+      SELECT 1 FROM project_memberships
+      WHERE project_memberships.project_id = entity_tags.project_id
+        AND project_memberships.user_id = auth.uid()
     )
   );
 
@@ -335,9 +335,9 @@ CREATE POLICY "Users can view tag assignments in their projects"
   USING (
     EXISTS (
       SELECT 1 FROM entity_tags
-      JOIN project_members ON project_members.project_id = entity_tags.project_id
+      JOIN project_memberships ON project_memberships.project_id = entity_tags.project_id
       WHERE entity_tags.id = entity_tag_assignments.tag_id
-        AND project_members.user_id = auth.uid()
+        AND project_memberships.user_id = auth.uid()
     )
   );
 
@@ -346,9 +346,9 @@ CREATE POLICY "Users can manage tag assignments in their projects"
   USING (
     EXISTS (
       SELECT 1 FROM entity_tags
-      JOIN project_members ON project_members.project_id = entity_tags.project_id
+      JOIN project_memberships ON project_memberships.project_id = entity_tags.project_id
       WHERE entity_tags.id = entity_tag_assignments.tag_id
-        AND project_members.user_id = auth.uid()
+        AND project_memberships.user_id = auth.uid()
     )
   );
 

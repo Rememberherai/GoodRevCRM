@@ -43,9 +43,9 @@ CREATE POLICY "Users can view webhooks in their projects"
   ON webhooks FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM project_members
-      WHERE project_members.project_id = webhooks.project_id
-        AND project_members.user_id = auth.uid()
+      SELECT 1 FROM project_memberships
+      WHERE project_memberships.project_id = webhooks.project_id
+        AND project_memberships.user_id = auth.uid()
     )
   );
 
@@ -53,10 +53,10 @@ CREATE POLICY "Admins can manage webhooks"
   ON webhooks FOR ALL
   USING (
     EXISTS (
-      SELECT 1 FROM project_members
-      WHERE project_members.project_id = webhooks.project_id
-        AND project_members.user_id = auth.uid()
-        AND project_members.role IN ('owner', 'admin')
+      SELECT 1 FROM project_memberships
+      WHERE project_memberships.project_id = webhooks.project_id
+        AND project_memberships.user_id = auth.uid()
+        AND project_memberships.role IN ('owner', 'admin')
     )
   );
 
@@ -68,9 +68,9 @@ CREATE POLICY "Users can view webhook deliveries in their projects"
   USING (
     EXISTS (
       SELECT 1 FROM webhooks
-      JOIN project_members ON project_members.project_id = webhooks.project_id
+      JOIN project_memberships ON project_memberships.project_id = webhooks.project_id
       WHERE webhooks.id = webhook_deliveries.webhook_id
-        AND project_members.user_id = auth.uid()
+        AND project_memberships.user_id = auth.uid()
     )
   );
 

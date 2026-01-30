@@ -132,7 +132,7 @@ CREATE POLICY "Users can view reports in their projects"
   ON report_definitions FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM project_members pm
+      SELECT 1 FROM project_memberships pm
       WHERE pm.project_id = report_definitions.project_id
       AND pm.user_id = auth.uid()
     )
@@ -142,7 +142,7 @@ CREATE POLICY "Admins can manage reports"
   ON report_definitions FOR ALL
   USING (
     EXISTS (
-      SELECT 1 FROM project_members pm
+      SELECT 1 FROM project_memberships pm
       WHERE pm.project_id = report_definitions.project_id
       AND pm.user_id = auth.uid()
       AND pm.role IN ('owner', 'admin')
@@ -154,7 +154,7 @@ CREATE POLICY "Users can view report runs in their projects"
   ON report_runs FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM project_members pm
+      SELECT 1 FROM project_memberships pm
       WHERE pm.project_id = report_runs.project_id
       AND pm.user_id = auth.uid()
     )
@@ -164,7 +164,7 @@ CREATE POLICY "Admins can manage report runs"
   ON report_runs FOR ALL
   USING (
     EXISTS (
-      SELECT 1 FROM project_members pm
+      SELECT 1 FROM project_memberships pm
       WHERE pm.project_id = report_runs.project_id
       AND pm.user_id = auth.uid()
       AND pm.role IN ('owner', 'admin')
@@ -347,7 +347,7 @@ BEGIN
     COUNT(DISTINCT t.id) FILTER (WHERE t.status = 'completed' AND t.updated_at BETWEEN p_start_date AND p_end_date)::BIGINT,
     COUNT(DISTINCT al.id) FILTER (WHERE al.created_at BETWEEN p_start_date AND p_end_date)::BIGINT
   FROM auth.users u
-  JOIN project_members pm ON pm.user_id = u.id AND pm.project_id = p_project_id
+  JOIN project_memberships pm ON pm.user_id = u.id AND pm.project_id = p_project_id
   LEFT JOIN opportunities o ON o.owner_id = u.id AND o.project_id = p_project_id
   LEFT JOIN tasks t ON t.assignee_id = u.id AND t.project_id = p_project_id
   LEFT JOIN activity_logs al ON al.user_id = u.id AND al.project_id = p_project_id

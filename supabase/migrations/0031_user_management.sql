@@ -48,10 +48,10 @@ CREATE POLICY "Users can view invitations for their projects"
   ON project_invitations FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM project_members
-      WHERE project_members.project_id = project_invitations.project_id
-        AND project_members.user_id = auth.uid()
-        AND project_members.role IN ('owner', 'admin')
+      SELECT 1 FROM project_memberships
+      WHERE project_memberships.project_id = project_invitations.project_id
+        AND project_memberships.user_id = auth.uid()
+        AND project_memberships.role IN ('owner', 'admin')
     )
     OR email = (SELECT email FROM users WHERE id = auth.uid())
   );
@@ -60,10 +60,10 @@ CREATE POLICY "Admins can create invitations"
   ON project_invitations FOR INSERT
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM project_members
-      WHERE project_members.project_id = project_invitations.project_id
-        AND project_members.user_id = auth.uid()
-        AND project_members.role IN ('owner', 'admin')
+      SELECT 1 FROM project_memberships
+      WHERE project_memberships.project_id = project_invitations.project_id
+        AND project_memberships.user_id = auth.uid()
+        AND project_memberships.role IN ('owner', 'admin')
     )
   );
 
@@ -71,10 +71,10 @@ CREATE POLICY "Admins can delete invitations"
   ON project_invitations FOR DELETE
   USING (
     EXISTS (
-      SELECT 1 FROM project_members
-      WHERE project_members.project_id = project_invitations.project_id
-        AND project_members.user_id = auth.uid()
-        AND project_members.role IN ('owner', 'admin')
+      SELECT 1 FROM project_memberships
+      WHERE project_memberships.project_id = project_invitations.project_id
+        AND project_memberships.user_id = auth.uid()
+        AND project_memberships.role IN ('owner', 'admin')
     )
   );
 
@@ -136,7 +136,7 @@ BEGIN
 
   -- Check if already a member
   IF EXISTS (
-    SELECT 1 FROM project_members
+    SELECT 1 FROM project_memberships
     WHERE project_id = v_invitation.project_id AND user_id = v_user_id
   ) THEN
     -- Mark invitation as accepted and return
@@ -145,7 +145,7 @@ BEGIN
   END IF;
 
   -- Add user to project
-  INSERT INTO project_members (project_id, user_id, role)
+  INSERT INTO project_memberships (project_id, user_id, role)
   VALUES (v_invitation.project_id, v_user_id, v_invitation.role);
 
   -- Mark invitation as accepted
@@ -156,7 +156,7 @@ END;
 $$;
 
 -- Function to get project members with user info
-CREATE OR REPLACE FUNCTION get_project_members(p_project_id UUID)
+CREATE OR REPLACE FUNCTION get_project_memberships(p_project_id UUID)
 RETURNS TABLE (
   id UUID,
   user_id UUID,
@@ -188,7 +188,7 @@ BEGIN
       ORDER BY us.last_active_at DESC
       LIMIT 1
     ) as last_active_at
-  FROM project_members pm
+  FROM project_memberships pm
   JOIN users u ON u.id = pm.user_id
   WHERE pm.project_id = p_project_id
   ORDER BY pm.role, u.full_name;
@@ -211,7 +211,7 @@ DECLARE
 BEGIN
   -- Get current user's role
   SELECT role INTO v_current_user_role
-  FROM project_members
+  FROM project_memberships
   WHERE project_id = p_project_id AND user_id = auth.uid();
 
   -- Only owners and admins can change roles
@@ -221,7 +221,7 @@ BEGIN
 
   -- Get target user's current role
   SELECT role INTO v_target_user_role
-  FROM project_members
+  FROM project_memberships
   WHERE project_id = p_project_id AND user_id = p_user_id;
 
   -- Can't change owner's role
@@ -239,7 +239,7 @@ BEGIN
     RETURN false;
   END IF;
 
-  UPDATE project_members
+  UPDATE project_memberships
   SET role = p_new_role
   WHERE project_id = p_project_id AND user_id = p_user_id;
 

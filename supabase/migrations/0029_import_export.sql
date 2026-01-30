@@ -50,9 +50,9 @@ CREATE POLICY "Users can view import jobs in their projects"
   ON import_jobs FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM project_members
-      WHERE project_members.project_id = import_jobs.project_id
-        AND project_members.user_id = auth.uid()
+      SELECT 1 FROM project_memberships
+      WHERE project_memberships.project_id = import_jobs.project_id
+        AND project_memberships.user_id = auth.uid()
     )
   );
 
@@ -60,9 +60,9 @@ CREATE POLICY "Users can create import jobs in their projects"
   ON import_jobs FOR INSERT
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM project_members
-      WHERE project_members.project_id = import_jobs.project_id
-        AND project_members.user_id = auth.uid()
+      SELECT 1 FROM project_memberships
+      WHERE project_memberships.project_id = import_jobs.project_id
+        AND project_memberships.user_id = auth.uid()
     )
   );
 
@@ -77,9 +77,9 @@ CREATE POLICY "Users can view export jobs in their projects"
   ON export_jobs FOR SELECT
   USING (
     EXISTS (
-      SELECT 1 FROM project_members
-      WHERE project_members.project_id = export_jobs.project_id
-        AND project_members.user_id = auth.uid()
+      SELECT 1 FROM project_memberships
+      WHERE project_memberships.project_id = export_jobs.project_id
+        AND project_memberships.user_id = auth.uid()
     )
   );
 
@@ -87,9 +87,9 @@ CREATE POLICY "Users can create export jobs in their projects"
   ON export_jobs FOR INSERT
   WITH CHECK (
     EXISTS (
-      SELECT 1 FROM project_members
-      WHERE project_members.project_id = export_jobs.project_id
-        AND project_members.user_id = auth.uid()
+      SELECT 1 FROM project_memberships
+      WHERE project_memberships.project_id = export_jobs.project_id
+        AND project_memberships.user_id = auth.uid()
     )
   );
 
