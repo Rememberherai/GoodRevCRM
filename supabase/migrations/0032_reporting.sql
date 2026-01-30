@@ -5,26 +5,21 @@
 -- ANALYTICS VIEWS
 -- ============================================================================
 
--- Pipeline summary view
+-- Pipeline summary view (using opportunity_stage ENUM)
 CREATE OR REPLACE VIEW pipeline_summary AS
 SELECT
   p.id AS project_id,
-  ps.id AS stage_id,
-  ps.name AS stage_name,
-  ps.position AS stage_position,
+  o.stage AS stage_name,
   COUNT(o.id) AS opportunity_count,
-  COALESCE(SUM(o.value), 0) AS total_value,
-  COALESCE(AVG(o.value), 0) AS avg_value,
+  COALESCE(SUM(o.amount), 0) AS total_value,
+  COALESCE(AVG(o.amount), 0) AS avg_value,
   COALESCE(AVG(o.probability), 0) AS avg_probability,
-  COALESCE(SUM(o.value * o.probability / 100), 0) AS weighted_value
+  COALESCE(SUM(o.amount * COALESCE(o.probability, 0) / 100), 0) AS weighted_value
 FROM projects p
-CROSS JOIN pipeline_stages ps
-LEFT JOIN opportunities o ON o.stage_id = ps.id
-  AND o.project_id = p.id
-  AND o.status = 'open'
-WHERE ps.project_id = p.id AND ps.is_active = true
-GROUP BY p.id, ps.id, ps.name, ps.position
-ORDER BY ps.position;
+LEFT JOIN opportunities o ON o.project_id = p.id
+  AND o.deleted_at IS NULL
+  AND o.stage NOT IN ('closed_won', 'closed_lost')
+GROUP BY p.id, o.stage;
 
 -- Activity metrics view
 CREATE OR REPLACE VIEW activity_metrics AS
@@ -35,7 +30,7 @@ SELECT
   action,
   COUNT(*) AS activity_count,
   COUNT(DISTINCT user_id) AS unique_users
-FROM activity_logs
+FROM activity_log
 GROUP BY project_id, DATE_TRUNC('day', created_at), entity_type, action;
 
 -- Opportunity conversion rates
@@ -44,17 +39,18 @@ SELECT
   project_id,
   DATE_TRUNC('month', created_at) AS month,
   COUNT(*) AS total_created,
-  COUNT(*) FILTER (WHERE status = 'won') AS won_count,
-  COUNT(*) FILTER (WHERE status = 'lost') AS lost_count,
-  COUNT(*) FILTER (WHERE status = 'open') AS open_count,
-  COALESCE(SUM(value) FILTER (WHERE status = 'won'), 0) AS won_value,
-  COALESCE(SUM(value) FILTER (WHERE status = 'lost'), 0) AS lost_value,
+  COUNT(*) FILTER (WHERE stage = 'closed_won') AS won_count,
+  COUNT(*) FILTER (WHERE stage = 'closed_lost') AS lost_count,
+  COUNT(*) FILTER (WHERE stage NOT IN ('closed_won', 'closed_lost')) AS open_count,
+  COALESCE(SUM(amount) FILTER (WHERE stage = 'closed_won'), 0) AS won_value,
+  COALESCE(SUM(amount) FILTER (WHERE stage = 'closed_lost'), 0) AS lost_value,
   ROUND(
-    COUNT(*) FILTER (WHERE status = 'won')::numeric /
-    NULLIF(COUNT(*) FILTER (WHERE status IN ('won', 'lost')), 0) * 100,
+    COUNT(*) FILTER (WHERE stage = 'closed_won')::numeric /
+    NULLIF(COUNT(*) FILTER (WHERE stage IN ('closed_won', 'closed_lost')), 0) * 100,
     2
   ) AS win_rate
 FROM opportunities
+WHERE deleted_at IS NULL
 GROUP BY project_id, DATE_TRUNC('month', created_at);
 
 -- ============================================================================
@@ -183,9 +179,7 @@ CREATE POLICY "Users can manage their own widgets"
 -- Get pipeline summary for a project
 CREATE OR REPLACE FUNCTION get_pipeline_summary(p_project_id UUID)
 RETURNS TABLE (
-  stage_id UUID,
-  stage_name VARCHAR,
-  stage_position INTEGER,
+  stage_name TEXT,
   opportunity_count BIGINT,
   total_value NUMERIC,
   avg_value NUMERIC,
@@ -197,20 +191,17 @@ AS $$
 BEGIN
   RETURN QUERY
   SELECT
-    ps.id,
-    ps.name,
-    ps.position,
+    o.stage::TEXT,
     COUNT(o.id)::BIGINT,
-    COALESCE(SUM(o.value), 0)::NUMERIC,
-    COALESCE(AVG(o.value), 0)::NUMERIC,
-    COALESCE(SUM(o.value * o.probability / 100), 0)::NUMERIC
-  FROM pipeline_stages ps
-  LEFT JOIN opportunities o ON o.stage_id = ps.id
-    AND o.project_id = p_project_id
-    AND o.status = 'open'
-  WHERE ps.project_id = p_project_id AND ps.is_active = true
-  GROUP BY ps.id, ps.name, ps.position
-  ORDER BY ps.position;
+    COALESCE(SUM(o.amount), 0)::NUMERIC,
+    COALESCE(AVG(o.amount), 0)::NUMERIC,
+    COALESCE(SUM(o.amount * COALESCE(o.probability, 0) / 100), 0)::NUMERIC
+  FROM opportunities o
+  WHERE o.project_id = p_project_id
+    AND o.deleted_at IS NULL
+    AND o.stage NOT IN ('closed_won', 'closed_lost')
+  GROUP BY o.stage
+  ORDER BY o.stage;
 END;
 $$;
 
@@ -222,8 +213,8 @@ CREATE OR REPLACE FUNCTION get_activity_summary(
 )
 RETURNS TABLE (
   activity_date DATE,
-  entity_type VARCHAR,
-  action VARCHAR,
+  entity_type TEXT,
+  action TEXT,
   count BIGINT
 )
 LANGUAGE plpgsql
@@ -233,10 +224,10 @@ BEGIN
   RETURN QUERY
   SELECT
     DATE(al.created_at),
-    al.entity_type,
-    al.action,
+    al.entity_type::TEXT,
+    al.action::TEXT,
     COUNT(*)::BIGINT
-  FROM activity_logs al
+  FROM activity_log al
   WHERE al.project_id = p_project_id
     AND al.created_at BETWEEN p_start_date AND p_end_date
   GROUP BY DATE(al.created_at), al.entity_type, al.action
@@ -268,18 +259,19 @@ BEGIN
   SELECT
     DATE_TRUNC('month', o.created_at)::DATE,
     COUNT(*)::BIGINT,
-    COUNT(*) FILTER (WHERE o.status = 'won')::BIGINT,
-    COUNT(*) FILTER (WHERE o.status = 'lost')::BIGINT,
-    COUNT(*) FILTER (WHERE o.status = 'open')::BIGINT,
-    COALESCE(SUM(o.value) FILTER (WHERE o.status = 'won'), 0)::NUMERIC,
-    COALESCE(SUM(o.value) FILTER (WHERE o.status = 'lost'), 0)::NUMERIC,
+    COUNT(*) FILTER (WHERE o.stage = 'closed_won')::BIGINT,
+    COUNT(*) FILTER (WHERE o.stage = 'closed_lost')::BIGINT,
+    COUNT(*) FILTER (WHERE o.stage NOT IN ('closed_won', 'closed_lost'))::BIGINT,
+    COALESCE(SUM(o.amount) FILTER (WHERE o.stage = 'closed_won'), 0)::NUMERIC,
+    COALESCE(SUM(o.amount) FILTER (WHERE o.stage = 'closed_lost'), 0)::NUMERIC,
     ROUND(
-      COUNT(*) FILTER (WHERE o.status = 'won')::NUMERIC /
-      NULLIF(COUNT(*) FILTER (WHERE o.status IN ('won', 'lost')), 0) * 100,
+      COUNT(*) FILTER (WHERE o.stage = 'closed_won')::NUMERIC /
+      NULLIF(COUNT(*) FILTER (WHERE o.stage IN ('closed_won', 'closed_lost')), 0) * 100,
       2
     )
   FROM opportunities o
   WHERE o.project_id = p_project_id
+    AND o.deleted_at IS NULL
     AND o.created_at BETWEEN p_start_date AND p_end_date
   GROUP BY DATE_TRUNC('month', o.created_at)
   ORDER BY DATE_TRUNC('month', o.created_at) DESC;
@@ -306,12 +298,13 @@ BEGIN
   RETURN QUERY
   SELECT
     DATE_TRUNC('month', o.updated_at)::DATE,
-    COALESCE(SUM(o.value) FILTER (WHERE o.status = 'won'), 0)::NUMERIC,
-    COALESCE(SUM(o.value * o.probability / 100), 0)::NUMERIC,
+    COALESCE(SUM(o.amount) FILTER (WHERE o.stage = 'closed_won'), 0)::NUMERIC,
+    COALESCE(SUM(o.amount * COALESCE(o.probability, 0) / 100), 0)::NUMERIC,
     COUNT(*)::BIGINT,
-    COALESCE(AVG(o.value), 0)::NUMERIC
+    COALESCE(AVG(o.amount), 0)::NUMERIC
   FROM opportunities o
   WHERE o.project_id = p_project_id
+    AND o.deleted_at IS NULL
     AND o.updated_at BETWEEN p_start_date AND p_end_date
   GROUP BY DATE_TRUNC('month', o.updated_at)
   ORDER BY DATE_TRUNC('month', o.updated_at) DESC;
@@ -342,17 +335,17 @@ BEGIN
     u.id,
     u.email::VARCHAR,
     COUNT(DISTINCT o.id) FILTER (WHERE o.created_at BETWEEN p_start_date AND p_end_date)::BIGINT,
-    COUNT(DISTINCT o.id) FILTER (WHERE o.status = 'won' AND o.updated_at BETWEEN p_start_date AND p_end_date)::BIGINT,
-    COALESCE(SUM(o.value) FILTER (WHERE o.status = 'won' AND o.updated_at BETWEEN p_start_date AND p_end_date), 0)::NUMERIC,
+    COUNT(DISTINCT o.id) FILTER (WHERE o.stage = 'closed_won' AND o.updated_at BETWEEN p_start_date AND p_end_date)::BIGINT,
+    COALESCE(SUM(o.amount) FILTER (WHERE o.stage = 'closed_won' AND o.updated_at BETWEEN p_start_date AND p_end_date), 0)::NUMERIC,
     COUNT(DISTINCT t.id) FILTER (WHERE t.status = 'completed' AND t.updated_at BETWEEN p_start_date AND p_end_date)::BIGINT,
     COUNT(DISTINCT al.id) FILTER (WHERE al.created_at BETWEEN p_start_date AND p_end_date)::BIGINT
-  FROM auth.users u
+  FROM users u
   JOIN project_memberships pm ON pm.user_id = u.id AND pm.project_id = p_project_id
-  LEFT JOIN opportunities o ON o.owner_id = u.id AND o.project_id = p_project_id
+  LEFT JOIN opportunities o ON o.owner_id = u.id AND o.project_id = p_project_id AND o.deleted_at IS NULL
   LEFT JOIN tasks t ON t.assignee_id = u.id AND t.project_id = p_project_id
-  LEFT JOIN activity_logs al ON al.user_id = u.id AND al.project_id = p_project_id
+  LEFT JOIN activity_log al ON al.user_id = u.id AND al.project_id = p_project_id
   GROUP BY u.id, u.email
-  ORDER BY COALESCE(SUM(o.value) FILTER (WHERE o.status = 'won' AND o.updated_at BETWEEN p_start_date AND p_end_date), 0) DESC;
+  ORDER BY COALESCE(SUM(o.amount) FILTER (WHERE o.stage = 'closed_won' AND o.updated_at BETWEEN p_start_date AND p_end_date), 0) DESC;
 END;
 $$;
 
