@@ -2,7 +2,8 @@
 
 import { useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import { Sparkles, Loader2, RefreshCw, ChevronDown, ChevronUp, History, AlertCircle } from 'lucide-react';
+import Link from 'next/link';
+import { Sparkles, Loader2, RefreshCw, ChevronDown, ChevronUp, History, AlertCircle, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -151,8 +152,15 @@ export function ResearchPanel({ entityType, entityId, entityName, onResearchComp
             )}
           </Button>
         </div>
-        <CardDescription>
-          Use AI to research and enrich {entityType} data
+        <CardDescription className="flex items-center justify-between">
+          <span>Use AI to research and enrich {entityType} data</span>
+          <Link
+            href={`/projects/${slug}/settings`}
+            className="inline-flex items-center text-xs hover:underline"
+          >
+            <Settings className="mr-1 h-3 w-3" />
+            Customize prompts
+          </Link>
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">

@@ -1,9 +1,15 @@
 'use client';
 
+import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { useOrganizations } from '@/hooks/use-organizations';
 import { organizationSchema, type CreateOrganizationInput } from '@/lib/validators/organization';
+import {
+  createOrganization,
+  updateOrganizationApi,
+  useOrganizationStore,
+} from '@/stores/organization';
 import type { Organization } from '@/types/organization';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -19,7 +25,12 @@ interface OrganizationFormProps {
 }
 
 export function OrganizationForm({ organization, onSuccess, onCancel }: OrganizationFormProps) {
-  const { create, update, isLoading } = useOrganizations();
+  const params = useParams();
+  const projectSlug = params.slug as string;
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const addOrganization = useOrganizationStore((s) => s.addOrganization);
+  const updateOrganizationInStore = useOrganizationStore((s) => s.updateOrganization);
 
   const {
     register,
@@ -47,20 +58,31 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
   });
 
   const onSubmit = async (data: CreateOrganizationInput) => {
+    setIsLoading(true);
+    setError(null);
     try {
       if (organization) {
-        await update(organization.id, data);
+        const updated = await updateOrganizationApi(projectSlug, organization.id, data);
+        updateOrganizationInStore(organization.id, updated);
       } else {
-        await create(data);
+        const created = await createOrganization(projectSlug, data);
+        addOrganization(created);
       }
       onSuccess?.();
-    } catch {
-      // Error is handled by the hook
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to save organization');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {error && (
+        <div className="rounded-lg border border-destructive bg-destructive/10 p-3 text-sm text-destructive">
+          {error}
+        </div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Basic Information</CardTitle>
