@@ -54,10 +54,17 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // If logged in and trying to access login page, redirect to projects
-  if (user && pathname === '/login') {
+  // If logged in and trying to access login page or root, redirect to projects
+  if (user && (pathname === '/login' || pathname === '/')) {
     const url = request.nextUrl.clone();
     url.pathname = '/projects';
+    return NextResponse.redirect(url);
+  }
+
+  // If not logged in and on root, redirect to login
+  if (!user && pathname === '/') {
+    const url = request.nextUrl.clone();
+    url.pathname = '/login';
     return NextResponse.redirect(url);
   }
 
