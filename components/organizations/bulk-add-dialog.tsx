@@ -48,7 +48,7 @@ function generateNameFromDomain(domain: string): string {
   // Remove TLD and capitalize
   const parts = domain.split('.');
   if (parts.length >= 2) {
-    const name = parts[parts.length - 2];
+    const name = parts[parts.length - 2] ?? domain;
     return name.charAt(0).toUpperCase() + name.slice(1);
   }
   return domain;
