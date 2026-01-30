@@ -20,6 +20,10 @@ dist/
 .env.development.local
 .env.test.local
 .env.production.local
+.env.vercel
+env.txt
+env-vercel.txt
+*.env
 
 # Debug
 npm-debug.log*
