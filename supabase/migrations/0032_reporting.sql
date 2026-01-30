@@ -360,9 +360,9 @@ $$;
 CREATE TRIGGER update_report_definitions_updated_at
   BEFORE UPDATE ON report_definitions
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+  EXECUTE FUNCTION public.handle_updated_at();
 
 CREATE TRIGGER update_dashboard_widgets_updated_at
   BEFORE UPDATE ON dashboard_widgets
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+  EXECUTE FUNCTION public.handle_updated_at();

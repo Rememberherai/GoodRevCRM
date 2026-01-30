@@ -259,4 +259,4 @@ CREATE INDEX IF NOT EXISTS idx_user_sessions_project ON user_sessions(project_id
 CREATE TRIGGER update_user_settings_updated_at
   BEFORE UPDATE ON user_settings
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+  EXECUTE FUNCTION public.handle_updated_at();

@@ -109,9 +109,9 @@ CREATE INDEX IF NOT EXISTS idx_export_jobs_status ON export_jobs(status);
 CREATE TRIGGER update_import_jobs_updated_at
   BEFORE UPDATE ON import_jobs
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+  EXECUTE FUNCTION public.handle_updated_at();
 
 CREATE TRIGGER update_export_jobs_updated_at
   BEFORE UPDATE ON export_jobs
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+  EXECUTE FUNCTION public.handle_updated_at();

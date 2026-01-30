@@ -138,4 +138,4 @@ CREATE INDEX IF NOT EXISTS idx_webhook_deliveries_created ON webhook_deliveries(
 CREATE TRIGGER update_webhooks_updated_at
   BEFORE UPDATE ON webhooks
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+  EXECUTE FUNCTION public.handle_updated_at();
