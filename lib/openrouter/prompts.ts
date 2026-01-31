@@ -165,7 +165,26 @@ export function buildOrganizationResearchPrompt(
       prompt += `\n\nThe custom_fields object in your response should match this schema:\n${JSON.stringify(customFieldsSchema, null, 2)}`;
     }
 
-    prompt += '\n\nRespond with valid JSON matching the expected structure. Use null for any fields you cannot determine.';
+    prompt += `
+
+Your response MUST be a JSON object with these EXACT field names:
+{
+  "company_name": "string or null",
+  "website": "string or null",
+  "industry": "string or null",
+  "employee_count": number or null,
+  "annual_revenue": "string or null",
+  "description": "string or null",
+  "headquarters": {"city": "string", "state": "string", "country": "string"} or null,
+  "founded_year": number or null,
+  "key_products": ["array of strings"] or null,
+  "competitors": ["array of strings"] or null,
+  "recent_news": [{"title": "string", "date": "string", "summary": "string"}] or null,
+  "custom_fields": {},
+  "confidence_scores": {"field_name": 0.95, ...}
+}
+
+Use null for any fields you cannot determine. Respond ONLY with the JSON object.`;
 
     return prompt;
   }
@@ -204,7 +223,36 @@ ${JSON.stringify(customFieldsSchema, null, 2)}`;
 
   prompt += `
 
-Respond with valid JSON matching the expected structure. Use null for any fields you cannot determine.`;
+Your response MUST be a JSON object with these EXACT field names:
+\`\`\`json
+{
+  "company_name": "Full legal company name",
+  "website": "https://example.com",
+  "industry": "Industry classification",
+  "employee_count": 50000,
+  "annual_revenue": "$50B",
+  "description": "Company description and overview...",
+  "headquarters": {
+    "city": "City name",
+    "state": "State or province",
+    "country": "Country"
+  },
+  "founded_year": 2004,
+  "key_products": ["Product 1", "Product 2", "Product 3"],
+  "competitors": ["Competitor 1", "Competitor 2"],
+  "recent_news": [
+    {"title": "News headline", "date": "2024-01-15", "summary": "Brief summary of the news..."}
+  ],
+  "custom_fields": {},
+  "confidence_scores": {
+    "company_name": 0.95,
+    "website": 0.9,
+    "industry": 0.85
+  }
+}
+\`\`\`
+
+Use null for any fields you cannot determine. Respond ONLY with the JSON object, no additional text.`;
 
   return prompt;
 }
@@ -244,7 +292,26 @@ export function buildPersonResearchPrompt(
       prompt += `\n\nThe custom_fields object in your response should match this schema:\n${JSON.stringify(customFieldsSchema, null, 2)}`;
     }
 
-    prompt += '\n\nRespond with valid JSON matching the expected structure. Use null for any fields you cannot determine.';
+    prompt += `
+
+Your response MUST be a JSON object with these EXACT field names:
+{
+  "full_name": "string or null",
+  "current_title": "string or null",
+  "current_company": "string or null",
+  "email": "string or null",
+  "phone": "string or null",
+  "linkedin_url": "string or null",
+  "location": {"city": "string", "state": "string", "country": "string"} or null,
+  "education": [{"institution": "string", "degree": "string", "year": number}] or null,
+  "work_history": [{"company": "string", "title": "string", "start_year": number, "end_year": number}] or null,
+  "skills": ["array of strings"] or null,
+  "bio": "string or null",
+  "custom_fields": {},
+  "confidence_scores": {"field_name": 0.95, ...}
+}
+
+Use null for any fields you cannot determine. Respond ONLY with the JSON object.`;
 
     return prompt;
   }
@@ -285,7 +352,38 @@ ${JSON.stringify(customFieldsSchema, null, 2)}`;
 
   prompt += `
 
-Respond with valid JSON matching the expected structure. Use null for any fields you cannot determine.`;
+Your response MUST be a JSON object with these EXACT field names:
+\`\`\`json
+{
+  "full_name": "Full name of the person",
+  "current_title": "Current job title",
+  "current_company": "Current employer name",
+  "email": "professional@email.com",
+  "phone": "+1-555-123-4567",
+  "linkedin_url": "https://linkedin.com/in/username",
+  "location": {
+    "city": "City name",
+    "state": "State or province",
+    "country": "Country"
+  },
+  "education": [
+    {"institution": "University Name", "degree": "Degree Type", "year": 2010}
+  ],
+  "work_history": [
+    {"company": "Company Name", "title": "Job Title", "start_year": 2015, "end_year": 2020}
+  ],
+  "skills": ["Skill 1", "Skill 2", "Skill 3"],
+  "bio": "Brief professional biography...",
+  "custom_fields": {},
+  "confidence_scores": {
+    "full_name": 0.95,
+    "current_title": 0.9,
+    "current_company": 0.85
+  }
+}
+\`\`\`
+
+Use null for any fields you cannot determine. Respond ONLY with the JSON object, no additional text.`;
 
   return prompt;
 }
