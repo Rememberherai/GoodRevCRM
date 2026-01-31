@@ -173,6 +173,7 @@ export async function POST(request: Request, context: RouteContext) {
         .insert({
           person_id: (person as Person).id,
           organization_id: organization_id as string,
+          project_id: project.id,
           is_primary: true,
         });
 

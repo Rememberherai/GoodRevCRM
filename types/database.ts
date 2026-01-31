@@ -535,34 +535,43 @@ export type Database = {
           id: string;
           person_id: string;
           organization_id: string;
-          title: string | null;
+          project_id: string;
+          job_title: string | null;
           department: string | null;
           is_primary: boolean;
+          is_current: boolean;
           start_date: string | null;
           end_date: string | null;
           created_at: string;
+          updated_at: string;
         };
         Insert: {
           id?: string;
           person_id: string;
           organization_id: string;
-          title?: string | null;
+          project_id: string;
+          job_title?: string | null;
           department?: string | null;
           is_primary?: boolean;
+          is_current?: boolean;
           start_date?: string | null;
           end_date?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Update: {
           id?: string;
           person_id?: string;
           organization_id?: string;
-          title?: string | null;
+          project_id?: string;
+          job_title?: string | null;
           department?: string | null;
           is_primary?: boolean;
+          is_current?: boolean;
           start_date?: string | null;
           end_date?: string | null;
           created_at?: string;
+          updated_at?: string;
         };
         Relationships: [
           {
@@ -577,6 +586,13 @@ export type Database = {
             columns: ["organization_id"];
             isOneToOne: false;
             referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "person_organizations_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
             referencedColumns: ["id"];
           }
         ];
