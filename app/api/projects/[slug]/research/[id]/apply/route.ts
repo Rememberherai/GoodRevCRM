@@ -77,9 +77,12 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const body = await request.json();
+    console.log('Apply request body:', JSON.stringify(body, null, 2));
+
     const validationResult = applyResearchSchema.safeParse(body);
 
     if (!validationResult.success) {
+      console.error('Validation failed:', validationResult.error.flatten());
       return NextResponse.json(
         { error: 'Validation failed', details: validationResult.error.flatten() },
         { status: 400 }
@@ -96,11 +99,16 @@ export async function POST(request: Request, context: RouteContext) {
       ? ORGANIZATION_STANDARD_FIELDS
       : PERSON_STANDARD_FIELDS;
 
+    console.log('Processing', field_updates.length, 'field updates');
+    console.log('Standard fields allowed:', Array.from(standardFields));
     for (const update of field_updates) {
+      console.log('Field:', update.field_name, 'is_custom:', update.is_custom, 'value type:', typeof update.value);
       if (update.is_custom) {
         customFieldUpdates[update.field_name] = update.value;
       } else if (standardFields.has(update.field_name)) {
         standardUpdates[update.field_name] = update.value;
+      } else {
+        console.log('WARNING: Field not in standard fields list:', update.field_name);
       }
     }
 
@@ -137,28 +145,51 @@ export async function POST(request: Request, context: RouteContext) {
       updateData.custom_fields = mergedCustomFields;
     }
 
+    console.log('Standard updates:', JSON.stringify(standardUpdates, null, 2));
+    console.log('Custom field updates:', JSON.stringify(customFieldUpdates, null, 2));
+    console.log('Final update data:', JSON.stringify(updateData, null, 2));
+    console.log('Entity type:', typedJob.entity_type, 'Entity ID:', typedJob.entity_id);
+
+    // Check if there's actually anything to update
+    if (Object.keys(updateData).length === 0) {
+      console.log('No fields to update');
+      return NextResponse.json({
+        success: true,
+        fields_updated: 0,
+        standard_fields: [],
+        custom_fields: [],
+        message: 'No fields to update',
+      });
+    }
+
     // Update the entity
     if (typedJob.entity_type === 'organization') {
-      const { error: updateError } = await supabase
+      const { data: updateResult, error: updateError } = await supabase
         .from('organizations')
         .update(updateData as OrganizationUpdate)
         .eq('id', typedJob.entity_id)
-        .eq('project_id', project.id);
+        .eq('project_id', project.id)
+        .select();
+
+      console.log('Organization update result:', updateResult, 'Error:', updateError);
 
       if (updateError) {
         console.error('Error updating organization:', updateError);
-        return NextResponse.json({ error: 'Failed to apply research results' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to apply research results', details: updateError.message }, { status: 500 });
       }
     } else if (typedJob.entity_type === 'person') {
-      const { error: updateError } = await supabase
+      const { data: updateResult, error: updateError } = await supabase
         .from('people')
         .update(updateData as PersonUpdate)
         .eq('id', typedJob.entity_id)
-        .eq('project_id', project.id);
+        .eq('project_id', project.id)
+        .select();
+
+      console.log('Person update result:', updateResult, 'Error:', updateError);
 
       if (updateError) {
         console.error('Error updating person:', updateError);
-        return NextResponse.json({ error: 'Failed to apply research results' }, { status: 500 });
+        return NextResponse.json({ error: 'Failed to apply research results', details: updateError.message }, { status: 500 });
       }
     }
 
