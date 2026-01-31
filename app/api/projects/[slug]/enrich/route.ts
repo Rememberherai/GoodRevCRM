@@ -265,7 +265,22 @@ export async function POST(request: Request, context: RouteContext) {
           fields_updated: Object.keys(updates).length,
         });
       } catch (enrichError) {
-        const errorMessage = enrichError instanceof Error ? enrichError.message : 'Enrichment failed';
+        console.error('Enrichment error:', enrichError);
+
+        let errorMessage = 'Enrichment failed';
+        if (enrichError instanceof Error) {
+          errorMessage = enrichError.message;
+          // Include response body if it's a FullEnrichError
+          if ('responseBody' in enrichError && enrichError.responseBody) {
+            console.error('FullEnrich response body:', enrichError.responseBody);
+            const body = enrichError.responseBody as Record<string, unknown>;
+            if (body.error) {
+              errorMessage = String(body.error);
+            } else if (body.message) {
+              errorMessage = String(body.message);
+            }
+          }
+        }
 
         await supabaseAny
           .from('enrichment_jobs')
