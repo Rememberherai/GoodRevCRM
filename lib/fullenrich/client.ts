@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // FullEnrich API configuration
-const FULLENRICH_API_URL = 'https://api.fullenrich.com/v1';
+const FULLENRICH_API_URL = 'https://app.fullenrich.com/api/v2';
 
 // Response schemas
 const enrichmentPersonSchema = z.object({
@@ -37,10 +37,12 @@ const enrichmentJobResponseSchema = z.object({
 });
 
 const enrichmentRequestSchema = z.object({
-  id: z.string(),
-  status: z.enum(['pending', 'processing']),
-  estimated_completion: z.string().nullable(),
-});
+  enrichment_id: z.string(),
+}).transform((data) => ({
+  id: data.enrichment_id,
+  status: 'processing' as const,
+  estimated_completion: null,
+}));
 
 export type EnrichmentPerson = z.infer<typeof enrichmentPersonSchema>;
 export type EnrichmentJobResponse = z.infer<typeof enrichmentJobResponseSchema>;
@@ -136,31 +138,42 @@ export class FullEnrichClient {
   }
 
   /**
-   * Enrich a single person
+   * Start bulk enrichment (FullEnrich only supports async bulk enrichment)
+   * For single person, pass array with one person
    */
-  async enrichPerson(input: EnrichPersonInput): Promise<EnrichmentPerson> {
+  async startBulkEnrich(input: BulkEnrichInput): Promise<EnrichmentRequest> {
+    const payload = {
+      name: `enrichment-${Date.now()}`,
+      webhook_url: input.webhook_url,
+      data: input.people.map((p) => ({
+        first_name: p.first_name,
+        last_name: p.last_name,
+        domain: p.company_domain,
+        company_name: p.company_name,
+        linkedin_url: p.linkedin_url,
+        enrich_fields: ['contact.emails', 'contact.phones'],
+      })),
+    };
+
     return this.request(
-      '/enrich/person',
+      '/contact/enrich/bulk',
       {
         method: 'POST',
-        body: JSON.stringify(input),
+        body: JSON.stringify(payload),
       },
-      enrichmentPersonSchema
+      enrichmentRequestSchema
     );
   }
 
   /**
-   * Start a bulk enrichment job (async)
+   * Enrich a single person (uses bulk endpoint with one person)
+   * Note: This is async - results come via webhook
    */
-  async startBulkEnrich(input: BulkEnrichInput): Promise<EnrichmentRequest> {
-    return this.request(
-      '/enrich/bulk',
-      {
-        method: 'POST',
-        body: JSON.stringify(input),
-      },
-      enrichmentRequestSchema
-    );
+  async enrichPerson(input: EnrichPersonInput, webhookUrl?: string): Promise<EnrichmentRequest> {
+    return this.startBulkEnrich({
+      people: [input],
+      webhook_url: webhookUrl,
+    });
   }
 
   /**
@@ -168,7 +181,7 @@ export class FullEnrichClient {
    */
   async getJobStatus(jobId: string): Promise<EnrichmentJobResponse> {
     return this.request(
-      `/enrich/jobs/${jobId}`,
+      `/contact/enrich/bulk/${jobId}`,
       { method: 'GET' },
       enrichmentJobResponseSchema
     );
@@ -178,7 +191,7 @@ export class FullEnrichClient {
    * Get available credits
    */
   async getCredits(): Promise<{ available: number; used: number }> {
-    return this.request('/account/credits', { method: 'GET' });
+    return this.request('/workspace/credits', { method: 'GET' });
   }
 
   /**

@@ -5,11 +5,7 @@ import {
   bulkEnrichSchema,
   enrichmentHistoryQuerySchema,
 } from '@/lib/validators/enrichment';
-import {
-  getFullEnrichClient,
-  mapEnrichmentToPerson,
-  type EnrichmentPerson,
-} from '@/lib/fullenrich/client';
+import { getFullEnrichClient, type EnrichmentPerson } from '@/lib/fullenrich/client';
 import type { EnrichmentJob, EnrichmentInput } from '@/types/enrichment';
 import type { EnrichmentStatus } from '@/lib/fullenrich/client';
 
@@ -198,7 +194,7 @@ export async function POST(request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
-    // Process single person enrichment
+    // Process single person enrichment (uses same bulk flow since FullEnrich is async)
     if (!isBulk) {
       const person = people[0]!;
       const primaryOrgId = personToOrgId.get(person.id);
@@ -220,10 +216,9 @@ export async function POST(request: Request, context: RouteContext) {
         .insert({
           project_id: project.id,
           person_id: person.id,
-          status: 'processing',
+          status: 'pending',
           input_data: inputData,
           created_by: user.id,
-          started_at: new Date().toISOString(),
         })
         .select()
         .single();
@@ -233,36 +228,28 @@ export async function POST(request: Request, context: RouteContext) {
         return NextResponse.json({ error: 'Failed to create enrichment job' }, { status: 500 });
       }
 
-      // Execute enrichment
+      // Start enrichment with FullEnrich (async - results come via webhook)
       try {
         const client = getFullEnrichClient();
-        const result = await client.enrichPerson(inputData);
+        const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/fullenrich`;
 
-        // Update job with results
+        const enrichRequest = await client.enrichPerson(inputData, webhookUrl);
+
+        // Update job with external job ID
         const { data: updatedJob } = await supabaseAny
           .from('enrichment_jobs')
           .update({
-            status: 'completed',
-            result,
-            credits_used: 1,
-            completed_at: new Date().toISOString(),
+            external_job_id: enrichRequest.id,
+            status: 'processing',
+            started_at: new Date().toISOString(),
           })
           .eq('id', job.id)
           .select()
           .single();
 
-        // Auto-apply results to person
-        const updates = mapEnrichmentToPerson(result, person);
-        if (Object.keys(updates).length > 0) {
-          await supabase
-            .from('people')
-            .update(updates)
-            .eq('id', person.id);
-        }
-
         return NextResponse.json({
-          job: updatedJob ?? { ...job, status: 'completed', result },
-          fields_updated: Object.keys(updates).length,
+          job: updatedJob ?? { ...job, status: 'processing', external_job_id: enrichRequest.id },
+          message: 'Enrichment started. Results will be available shortly.',
         });
       } catch (enrichError) {
         console.error('Enrichment error:', enrichError);

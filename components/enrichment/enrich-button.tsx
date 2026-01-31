@@ -65,6 +65,10 @@ export function EnrichButton({
           toast.info(`${personName} already has complete data`);
         }
         onEnriched?.(job, fieldsUpdated);
+      } else if (job.status === 'processing') {
+        setLastResult('success');
+        toast.success(`Enrichment started for ${personName}. Results will appear shortly.`);
+        onEnriched?.(job, 0);
       } else if (job.status === 'failed') {
         setLastResult('failed');
         toast.error(`Enrichment failed: ${job.error ?? 'Unknown error'}`);
