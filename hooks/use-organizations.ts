@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   useOrganizationStore,
@@ -189,14 +189,12 @@ export function useOrganizations() {
 export function useOrganization(organizationId: string) {
   const params = useParams();
   const projectSlug = params.slug as string;
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const {
     currentOrganization,
-    isLoading,
-    error,
     setCurrentOrganization,
-    setLoading,
-    setError,
   } = useOrganizationStore();
 
   const loadOrganization = useCallback(async () => {
@@ -206,8 +204,9 @@ export function useOrganization(organizationId: string) {
       return;
     }
 
-    setLoading(true);
-    log.log('setLoading(true)');
+    setIsLoading(true);
+    setError(null);
+    log.log('setIsLoading(true)');
     try {
       log.log('Fetching organization...');
       const organization = await fetchOrganization(projectSlug, organizationId);
@@ -217,16 +216,16 @@ export function useOrganization(organizationId: string) {
       log.error('Failed to fetch organization', err);
       setError(err instanceof Error ? err.message : 'Failed to fetch organization');
     } finally {
-      log.log('setLoading(false)');
-      setLoading(false);
+      log.log('setIsLoading(false)');
+      setIsLoading(false);
     }
-  }, [projectSlug, organizationId, setCurrentOrganization, setLoading, setError]);
+  }, [projectSlug, organizationId, setCurrentOrganization]);
 
   const update = useCallback(
     async (data: UpdateOrganizationInput) => {
       if (!projectSlug || !organizationId) throw new Error('Invalid parameters');
 
-      setLoading(true);
+      setIsLoading(true);
       try {
         const organization = await updateOrganizationApi(projectSlug, organizationId, data);
         setCurrentOrganization({ ...organization, people_count: 0, opportunities_count: 0 });
@@ -236,10 +235,10 @@ export function useOrganization(organizationId: string) {
         setError(message);
         throw err;
       } finally {
-        setLoading(false);
+        setIsLoading(false);
       }
     },
-    [projectSlug, organizationId, setCurrentOrganization, setLoading, setError]
+    [projectSlug, organizationId, setCurrentOrganization]
   );
 
   useEffect(() => {
