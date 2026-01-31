@@ -73,14 +73,15 @@ export async function GET(_request: Request, context: RouteContext) {
       }
 
       // Fetch custom field definitions (only AI-extractable ones)
-      const { data: customFieldDefs } = await supabase
+      // Use supabaseAny since is_ai_extractable isn't in generated types
+      const { data: customFieldDefs } = await supabaseAny
         .from('custom_field_definitions')
-        .select('name, is_ai_extractable')
+        .select('name')
         .eq('project_id', project.id)
         .eq('entity_type', typedJob.entity_type)
         .eq('is_ai_extractable', true);
 
-      const customFieldNames = (customFieldDefs ?? []).map((f: { name: string }) => f.name);
+      const customFieldNames = ((customFieldDefs ?? []) as { name: string }[]).map(f => f.name);
 
       console.log('[RESEARCH-GET] Custom field definitions from DB', JSON.stringify({
         count: customFieldNames.length,

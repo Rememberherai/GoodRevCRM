@@ -89,7 +89,7 @@ const enrichmentRecordSchema = z.object({
     company_name: z.string().nullable().optional(),
     linkedin_url: z.string().nullable().optional(),
   }).optional(),
-  custom: z.record(z.unknown()).optional(),
+  custom: z.record(z.string(), z.unknown()).optional(),
   contact_info: contactInfoSchema,
   profile: profileSchema,
   error: z.string().nullable().optional(),
