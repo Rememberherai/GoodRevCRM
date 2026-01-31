@@ -7,8 +7,6 @@ import {
   ArrowLeft,
   Building2,
   Globe,
-  Linkedin,
-  MapPin,
   Pencil,
   Phone,
   Trash2,
