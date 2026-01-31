@@ -77,7 +77,8 @@ export async function POST(request: Request) {
     }
 
     const webhookData = validationResult.data;
-    const { id: enrichmentId, status, data: results, cost, error } = webhookData;
+    const enrichmentId = webhookData.enrichment_id ?? webhookData.id ?? '';
+    const { status, datas: results, cost, error } = webhookData;
     const credits_used = cost?.credits ?? 0;
 
     console.log('FullEnrich webhook received:', { enrichmentId, status, resultsCount: results?.length });
@@ -168,13 +169,22 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // Extract data from FullEnrich format
-      const contactInfo = record.contact_info;
-      const profile = record.profile;
+      // Extract data from FullEnrich v1 format (contact object with phones/emails)
+      const contact = record.contact;
+      const profile = contact?.profile;
+
+      // Map phones from v1 format (number field) to our format (phone field)
+      const allPhones = contact?.phones?.map((p: { number: string; type?: string; status?: string }) => ({
+        phone: p.number,
+        type: p.type ?? 'mobile',
+        status: p.status,
+      })) ?? [];
+
+      const allEmails = contact?.emails ?? [];
 
       // Convert result to EnrichmentPerson format
       const enrichmentResult: EnrichmentPerson = {
-        email: contactInfo?.email?.email ?? contactInfo?.emails?.[0]?.email ?? null,
+        email: contact?.most_probable_email ?? allEmails[0]?.email ?? null,
         first_name: profile?.first_name ?? null,
         last_name: profile?.last_name ?? null,
         full_name: profile?.full_name ?? null,
@@ -182,20 +192,21 @@ export async function POST(request: Request) {
         company_name: profile?.company ?? null,
         company_domain: null,
         linkedin_url: profile?.linkedin_url ?? null,
-        phone: contactInfo?.phone?.phone ?? contactInfo?.phones?.[0]?.phone ?? null,
+        phone: contact?.most_probable_phone ?? allPhones[0]?.phone ?? null,
         location: profile?.location ? {
           city: profile.location.city ?? null,
           state: profile.location.state ?? null,
           country: profile.location.country ?? null,
         } : null,
-        work_email: contactInfo?.emails?.find(e => e.type === 'work')?.email ?? null,
-        personal_email: contactInfo?.emails?.find(e => e.type === 'personal')?.email ?? null,
-        mobile_phone: contactInfo?.phones?.find(p => p.type === 'mobile')?.phone ?? null,
-        work_phone: contactInfo?.phones?.find(p => p.type === 'work')?.phone ?? null,
+        work_email: allEmails.find((e: { type?: string }) => e.type === 'work')?.email ?? null,
+        personal_email: contact?.most_probable_personal_email ??
+                        allEmails.find((e: { type?: string }) => e.type === 'personal')?.email ?? null,
+        mobile_phone: allPhones.find((p: { type?: string }) => p.type === 'mobile')?.phone ?? null,
+        work_phone: allPhones.find((p: { type?: string }) => p.type === 'work')?.phone ?? null,
         confidence_score: null,
         // Include raw arrays for user selection in review modal
-        all_emails: contactInfo?.emails ?? [],
-        all_phones: contactInfo?.phones ?? [],
+        all_emails: allEmails,
+        all_phones: allPhones,
       };
 
       // Update job with results (user will review and apply via modal)

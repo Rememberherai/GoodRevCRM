@@ -40,69 +40,60 @@ export const enrichmentHistoryQuerySchema = z.object({
 
 export type EnrichmentHistoryQuery = z.infer<typeof enrichmentHistoryQuerySchema>;
 
-// Schema for FullEnrich webhook payload (matches their GET /bulk/:id response)
-const contactInfoSchema = z.object({
-  email: z.object({
-    email: z.string().nullable().optional(),
-    status: z.string().nullable().optional(),
-    type: z.string().nullable().optional(),
-  }).nullable().optional(),
-  phone: z.object({
-    phone: z.string().nullable().optional(),
-    status: z.string().nullable().optional(),
-    type: z.string().nullable().optional(),
-    region: z.string().nullable().optional(),
-  }).nullable().optional(),
+// Schema for FullEnrich v1 webhook payload (matches v1 API format)
+// V1 uses "datas" array with "contact" object containing phones/emails
+const v1ContactSchema = z.object({
+  most_probable_phone: z.string().nullable().optional(),
+  phones: z.array(z.object({
+    number: z.string(),
+    type: z.string().optional(),
+    status: z.string().optional(),
+  })).optional(),
+  most_probable_email: z.string().nullable().optional(),
+  most_probable_email_status: z.string().nullable().optional(),
   emails: z.array(z.object({
     email: z.string(),
     status: z.string().optional(),
     type: z.string().optional(),
   })).optional(),
-  phones: z.array(z.object({
-    phone: z.string(),
+  most_probable_personal_email: z.string().nullable().optional(),
+  most_probable_personal_email_status: z.string().nullable().optional(),
+  personal_emails: z.array(z.object({
+    email: z.string(),
     status: z.string().optional(),
     type: z.string().optional(),
-    region: z.string().optional(),
   })).optional(),
-}).nullable().optional();
-
-const profileSchema = z.object({
-  full_name: z.string().nullable().optional(),
-  first_name: z.string().nullable().optional(),
-  last_name: z.string().nullable().optional(),
-  headline: z.string().nullable().optional(),
-  job_title: z.string().nullable().optional(),
-  company: z.string().nullable().optional(),
-  location: z.object({
-    city: z.string().nullable().optional(),
-    state: z.string().nullable().optional(),
-    country: z.string().nullable().optional(),
+  profile: z.object({
+    full_name: z.string().nullable().optional(),
+    first_name: z.string().nullable().optional(),
+    last_name: z.string().nullable().optional(),
+    headline: z.string().nullable().optional(),
+    job_title: z.string().nullable().optional(),
+    company: z.string().nullable().optional(),
+    location: z.object({
+      city: z.string().nullable().optional(),
+      state: z.string().nullable().optional(),
+      country: z.string().nullable().optional(),
+    }).nullable().optional(),
+    linkedin_url: z.string().nullable().optional(),
   }).nullable().optional(),
-  linkedin_url: z.string().nullable().optional(),
 }).nullable().optional();
 
 const enrichmentRecordSchema = z.object({
-  input: z.object({
-    first_name: z.string().nullable().optional(),
-    last_name: z.string().nullable().optional(),
-    domain: z.string().nullable().optional(),
-    company_name: z.string().nullable().optional(),
-    linkedin_url: z.string().nullable().optional(),
-  }).optional(),
+  contact: v1ContactSchema,
   custom: z.record(z.string(), z.unknown()).optional(),
-  contact_info: contactInfoSchema,
-  profile: profileSchema,
   error: z.string().nullable().optional(),
 });
 
 export const enrichmentWebhookSchema = z.object({
-  id: z.string(),
+  enrichment_id: z.string().optional(),
+  id: z.string().optional(),
   name: z.string().optional(),
   status: z.enum(['CREATED', 'IN_PROGRESS', 'CANCELED', 'CREDITS_INSUFFICIENT', 'FINISHED', 'RATE_LIMIT', 'UNKNOWN'] as const),
   cost: z.object({
     credits: z.number(),
   }).optional(),
-  data: z.array(enrichmentRecordSchema).optional(),
+  datas: z.array(enrichmentRecordSchema).optional(),
   error: z.string().optional(),
 });
 

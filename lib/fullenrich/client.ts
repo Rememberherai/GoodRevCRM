@@ -1,76 +1,68 @@
 import { z } from 'zod';
 
 // FullEnrich API configuration
-const FULLENRICH_API_URL = 'https://app.fullenrich.com/api/v2';
+// NOTE: Using v1 API - v2 has different response format that doesn't work
+const FULLENRICH_API_URL = 'https://app.fullenrich.com/api/v1';
 
-// FullEnrich API actual response schemas (matches their GET /bulk/:id format)
-const fullEnrichContactInfoSchema = z.object({
-  email: z.object({
-    email: z.string().nullable().optional(),
-    status: z.string().nullable().optional(),
-    type: z.string().nullable().optional(),
-  }).nullable().optional(),
-  phone: z.object({
-    phone: z.string().nullable().optional(),
-    status: z.string().nullable().optional(),
-    type: z.string().nullable().optional(),
-    region: z.string().nullable().optional(),
-  }).nullable().optional(),
+// FullEnrich API v1 response schemas (matches rebel-enrich working format)
+// V1 uses "datas" array with "contact" object inside each record
+const fullEnrichV1ContactSchema = z.object({
+  most_probable_phone: z.string().nullable().optional(),
+  phones: z.array(z.object({
+    number: z.string(),
+    type: z.string().optional(),
+    status: z.string().optional(),
+  })).optional(),
+  most_probable_email: z.string().nullable().optional(),
+  most_probable_email_status: z.string().nullable().optional(),
   emails: z.array(z.object({
     email: z.string(),
     status: z.string().optional(),
     type: z.string().optional(),
   })).optional(),
-  phones: z.array(z.object({
-    phone: z.string(),
+  most_probable_personal_email: z.string().nullable().optional(),
+  most_probable_personal_email_status: z.string().nullable().optional(),
+  personal_emails: z.array(z.object({
+    email: z.string(),
     status: z.string().optional(),
     type: z.string().optional(),
-    region: z.string().optional(),
   })).optional(),
-}).nullable().optional();
-
-const fullEnrichProfileSchema = z.object({
-  full_name: z.string().nullable().optional(),
-  first_name: z.string().nullable().optional(),
-  last_name: z.string().nullable().optional(),
-  headline: z.string().nullable().optional(),
-  job_title: z.string().nullable().optional(),
-  company: z.string().nullable().optional(),
-  location: z.object({
-    city: z.string().nullable().optional(),
-    state: z.string().nullable().optional(),
-    country: z.string().nullable().optional(),
-  }).nullable().optional(),
-  linkedin_url: z.string().nullable().optional(),
-}).nullable().optional();
-
-const fullEnrichRecordSchema = z.object({
-  input: z.object({
+  profile: z.object({
+    full_name: z.string().nullable().optional(),
     first_name: z.string().nullable().optional(),
     last_name: z.string().nullable().optional(),
-    domain: z.string().nullable().optional(),
-    company_name: z.string().nullable().optional(),
+    headline: z.string().nullable().optional(),
+    job_title: z.string().nullable().optional(),
+    company: z.string().nullable().optional(),
+    location: z.object({
+      city: z.string().nullable().optional(),
+      state: z.string().nullable().optional(),
+      country: z.string().nullable().optional(),
+    }).nullable().optional(),
     linkedin_url: z.string().nullable().optional(),
-  }).optional(),
+  }).nullable().optional(),
+}).nullable().optional();
+
+const fullEnrichV1RecordSchema = z.object({
+  contact: fullEnrichV1ContactSchema,
   custom: z.record(z.string(), z.unknown()).optional(),
-  contact_info: fullEnrichContactInfoSchema,
-  profile: fullEnrichProfileSchema,
   error: z.string().nullable().optional(),
 });
 
-// Raw FullEnrich API response schema
+// Raw FullEnrich API v1 response schema
 const fullEnrichApiResponseSchema = z.object({
-  id: z.string(),
+  enrichment_id: z.string().optional(),
+  id: z.string().optional(),
   name: z.string().optional(),
   status: z.enum(['CREATED', 'IN_PROGRESS', 'CANCELED', 'CREDITS_INSUFFICIENT', 'FINISHED', 'RATE_LIMIT', 'UNKNOWN']),
   cost: z.object({
     credits: z.number(),
   }).optional(),
-  data: z.array(fullEnrichRecordSchema).optional(),
+  datas: z.array(fullEnrichV1RecordSchema).optional(),
   error: z.string().optional(),
 });
 
-// Transform FullEnrich response to our normalized format
+// Transform FullEnrich v1 response to our normalized format
 const enrichmentJobResponseSchema = fullEnrichApiResponseSchema.transform((data) => {
   // Map FullEnrich status to our internal status
   let status: 'pending' | 'processing' | 'completed' | 'failed';
@@ -91,13 +83,24 @@ const enrichmentJobResponseSchema = fullEnrichApiResponseSchema.transform((data)
       status = 'pending';
   }
 
-  // Transform data records to our EnrichmentPerson format
-  const results = data.data?.map((record) => {
-    const contactInfo = record.contact_info;
-    const profile = record.profile;
+  // Transform v1 datas records to our EnrichmentPerson format
+  // V1 uses: datas[].contact with phones[], emails[], most_probable_phone, etc.
+  const results = data.datas?.map((record) => {
+    const contact = record.contact;
+    const profile = contact?.profile;
+
+    // Map phones from v1 format (number field) to our format (phone field)
+    const allPhones = contact?.phones?.map((p: { number: string; type?: string; status?: string }) => ({
+      phone: p.number,
+      type: p.type ?? 'mobile', // FullEnrich specializes in mobile
+      status: p.status,
+    })) ?? [];
+
+    // Emails are already in correct format
+    const allEmails = contact?.emails ?? [];
 
     return {
-      email: contactInfo?.email?.email ?? contactInfo?.emails?.[0]?.email ?? null,
+      email: contact?.most_probable_email ?? allEmails[0]?.email ?? null,
       first_name: profile?.first_name ?? null,
       last_name: profile?.last_name ?? null,
       full_name: profile?.full_name ?? null,
@@ -105,25 +108,26 @@ const enrichmentJobResponseSchema = fullEnrichApiResponseSchema.transform((data)
       company_name: profile?.company ?? null,
       company_domain: null,
       linkedin_url: profile?.linkedin_url ?? null,
-      phone: contactInfo?.phone?.phone ?? contactInfo?.phones?.[0]?.phone ?? null,
+      phone: contact?.most_probable_phone ?? allPhones[0]?.phone ?? null,
       location: profile?.location ? {
         city: profile.location.city ?? null,
         state: profile.location.state ?? null,
         country: profile.location.country ?? null,
       } : null,
-      work_email: contactInfo?.emails?.find((e) => e.type === 'work')?.email ?? null,
-      personal_email: contactInfo?.emails?.find((e) => e.type === 'personal')?.email ?? null,
-      mobile_phone: contactInfo?.phones?.find((p) => p.type === 'mobile')?.phone ?? null,
-      work_phone: contactInfo?.phones?.find((p) => p.type === 'work')?.phone ?? null,
+      work_email: allEmails.find((e: { type?: string }) => e.type === 'work')?.email ?? null,
+      personal_email: contact?.most_probable_personal_email ??
+                      allEmails.find((e: { type?: string }) => e.type === 'personal')?.email ?? null,
+      mobile_phone: allPhones.find((p: { type?: string }) => p.type === 'mobile')?.phone ?? null,
+      work_phone: allPhones.find((p: { type?: string }) => p.type === 'work')?.phone ?? null,
       confidence_score: null,
-      // Also include raw arrays for user selection
-      all_emails: contactInfo?.emails ?? [],
-      all_phones: contactInfo?.phones ?? [],
+      // Include raw arrays for user selection in review modal
+      all_emails: allEmails,
+      all_phones: allPhones,
     };
   }) ?? null;
 
   return {
-    id: data.id,
+    id: data.enrichment_id ?? data.id ?? '',
     status,
     created_at: new Date().toISOString(),
     completed_at: status === 'completed' ? new Date().toISOString() : null,
@@ -172,7 +176,7 @@ export interface EnrichmentPerson {
 
 export type EnrichmentJobResponse = z.infer<typeof enrichmentJobResponseSchema>;
 export type EnrichmentRequest = z.infer<typeof enrichmentRequestSchema>;
-export type FullEnrichRecord = z.infer<typeof fullEnrichRecordSchema>;
+export type FullEnrichRecord = z.infer<typeof fullEnrichV1RecordSchema>;
 
 // Enrichment status
 export type EnrichmentStatus = 'pending' | 'processing' | 'completed' | 'failed';
@@ -266,17 +270,19 @@ export class FullEnrichClient {
   /**
    * Start bulk enrichment (FullEnrich only supports async bulk enrichment)
    * For single person, pass array with one person
+   * NOTE: v1 API uses "datas" array (not "data")
    */
   async startBulkEnrich(input: BulkEnrichInput): Promise<EnrichmentRequest> {
     const payload = {
       name: `enrichment-${Date.now()}`,
       webhook_url: input.webhook_url,
-      data: input.people.map((p) => ({
-        first_name: p.first_name,
-        last_name: p.last_name,
+      datas: input.people.map((p) => ({
+        firstname: p.first_name,
+        lastname: p.last_name,
         domain: p.company_domain,
         company_name: p.company_name,
         linkedin_url: p.linkedin_url,
+        email: p.email, // Optional hint
         enrich_fields: ['contact.emails', 'contact.phones'],
       })),
     };
