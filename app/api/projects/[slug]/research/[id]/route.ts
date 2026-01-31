@@ -103,6 +103,13 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({
         job: typedJob,
         field_mappings: fieldMappings,
+        _debug: {
+          customFieldNamesFromDB: customFieldNames,
+          jobResultHasCustomFields: !!(typedJob.result as Record<string, unknown>)?.custom_fields,
+          jobResultCustomFields: (typedJob.result as Record<string, unknown>)?.custom_fields,
+          fieldMappingsCount: fieldMappings.length,
+          customFieldMappings: fieldMappings.filter(m => m.target_is_custom),
+        }
       });
     }
 

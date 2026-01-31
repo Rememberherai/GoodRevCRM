@@ -336,11 +336,16 @@ export async function POST(request: Request, context: RouteContext) {
         });
       }
 
-      console.log('[RESEARCH] AI research result', JSON.stringify({
-        hasCustomFields: !!result.custom_fields,
-        customFieldsKeys: result.custom_fields ? Object.keys(result.custom_fields) : [],
-        customFieldsValues: result.custom_fields,
-      }, null, 2));
+      // Debug info that will be visible in the response
+      const debugInfo = {
+        customFieldsPassedToPrompt: customFields.length,
+        customFieldNames: customFields.map(f => f.name),
+        aiReturnedCustomFields: !!result.custom_fields,
+        aiCustomFieldKeys: result.custom_fields ? Object.keys(result.custom_fields) : [],
+        aiCustomFieldValues: result.custom_fields,
+      };
+
+      console.log('[RESEARCH] AI research result', JSON.stringify(debugInfo, null, 2));
 
       // Update the job with results
       const { data: updatedJob, error: updateError } = await supabaseAny
@@ -359,7 +364,16 @@ export async function POST(request: Request, context: RouteContext) {
         console.error('Error updating research job:', updateError);
       }
 
-      return NextResponse.json({ job: updatedJob ?? { ...job, status: 'completed', result } });
+      // Include debug info in development
+      return NextResponse.json({
+        job: updatedJob ?? { ...job, status: 'completed', result },
+        _debug: {
+          customFieldsPassedToPrompt: customFields.length,
+          customFieldNames: customFields.map(f => f.name),
+          aiReturnedCustomFields: !!result.custom_fields,
+          aiCustomFieldKeys: result.custom_fields ? Object.keys(result.custom_fields) : [],
+        }
+      });
     } catch (researchError) {
       // Update the job with error
       const errorMessage = researchError instanceof Error ? researchError.message : 'Research failed';
