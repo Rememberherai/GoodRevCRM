@@ -212,8 +212,8 @@ export const organizationResearchSchema = z.object({
     date: z.string().nullish().transform(v => v ?? null),
     summary: z.string(),
   })).nullish().transform(v => v ?? null),
-  custom_fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
-  confidence_scores: z.record(z.string(), z.number()).optional(),
+  custom_fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).nullish().transform(v => v ?? {}),
+  confidence_scores: z.record(z.string(), z.number()).nullish().transform(v => v ?? {}),
 });
 
 export type OrganizationResearch = z.infer<typeof organizationResearchSchema>;
@@ -245,8 +245,8 @@ export const personResearchSchema = z.object({
   })).nullish().transform(v => v ?? null),
   skills: z.array(z.string()).nullish().transform(v => v ?? null),
   bio: z.string().nullish().transform(v => v ?? null),
-  custom_fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
-  confidence_scores: z.record(z.string(), z.number()).optional(),
+  custom_fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).nullish().transform(v => v ?? {}),
+  confidence_scores: z.record(z.string(), z.number()).nullish().transform(v => v ?? {}),
 });
 
 export type PersonResearch = z.infer<typeof personResearchSchema>;

@@ -277,6 +277,21 @@ Your response MUST be a JSON object with these EXACT field names:
 
 Use null for any fields you cannot determine. Respond ONLY with the JSON object, no additional text.`;
 
+  // Add explicit custom field instructions if there are custom fields
+  if (customFields.length > 0) {
+    prompt += `
+
+IMPORTANT - Custom Fields Required:
+You MUST populate the "custom_fields" object with values for these specific fields:
+${customFields.map(f => {
+  const hint = (f as ExtendedCustomFieldDefinition).ai_extraction_hint;
+  return `- "${f.name}" (${f.label}): ${getFieldTypeDescription(f.field_type)}${hint ? ` - ${hint}` : ''}`;
+}).join('\n')}
+
+For each custom field, research and extract the value. If you cannot find the information, set the value to null.
+Include confidence scores for custom fields as "custom_fields.field_name" in confidence_scores.`;
+  }
+
   return prompt;
 }
 
@@ -413,6 +428,21 @@ Your response MUST be a JSON object with these EXACT field names:
 \`\`\`
 
 Use null for any fields you cannot determine. Respond ONLY with the JSON object, no additional text.`;
+
+  // Add explicit custom field instructions if there are custom fields
+  if (customFields.length > 0) {
+    prompt += `
+
+IMPORTANT - Custom Fields Required:
+You MUST populate the "custom_fields" object with values for these specific fields:
+${customFields.map(f => {
+  const hint = (f as ExtendedCustomFieldDefinition).ai_extraction_hint;
+  return `- "${f.name}" (${f.label}): ${getFieldTypeDescription(f.field_type)}${hint ? ` - ${hint}` : ''}`;
+}).join('\n')}
+
+For each custom field, research and extract the value. If you cannot find the information, set the value to null.
+Include confidence scores for custom fields as "custom_fields.field_name" in confidence_scores.`;
+  }
 
   return prompt;
 }

@@ -166,6 +166,8 @@ describe('Research Schemas', () => {
         key_products: null,
         competitors: null,
         recent_news: null,
+        custom_fields: {},
+        confidence_scores: {},
       };
       const result = organizationResearchSchema.safeParse(data);
       expect(result.success).toBe(true);
@@ -417,6 +419,7 @@ describe('Field Mapping Utilities', () => {
         key_products: null,
         competitors: null,
         recent_news: null,
+        custom_fields: {},
         confidence_scores: { company_name: 0.95, website: 0.8 },
       };
 
@@ -447,6 +450,7 @@ describe('Field Mapping Utilities', () => {
         work_history: null,
         skills: null,
         bio: 'Executive bio',
+        custom_fields: {},
         confidence_scores: { current_title: 0.9 },
       };
 
