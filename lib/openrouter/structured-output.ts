@@ -191,26 +191,27 @@ export type ExtractedField = z.infer<typeof extractedFieldSchema>;
 export type ExtractedFields = z.infer<typeof extractedFieldsSchema>;
 
 // Schema for organization research
+// Using .nullish() to accept both null and undefined from AI responses
 export const organizationResearchSchema = z.object({
-  company_name: z.string().nullable(),
-  website: z.string().nullable(),
-  industry: z.string().nullable(),
-  employee_count: z.number().nullable(),
-  annual_revenue: z.string().nullable(),
-  description: z.string().nullable(),
+  company_name: z.string().nullish().transform(v => v ?? null),
+  website: z.string().nullish().transform(v => v ?? null),
+  industry: z.string().nullish().transform(v => v ?? null),
+  employee_count: z.number().nullish().transform(v => v ?? null),
+  annual_revenue: z.string().nullish().transform(v => v ?? null),
+  description: z.string().nullish().transform(v => v ?? null),
   headquarters: z.object({
-    city: z.string().nullable(),
-    state: z.string().nullable(),
-    country: z.string().nullable(),
-  }).nullable(),
-  founded_year: z.number().nullable(),
-  key_products: z.array(z.string()).nullable(),
-  competitors: z.array(z.string()).nullable(),
+    city: z.string().nullish().transform(v => v ?? null),
+    state: z.string().nullish().transform(v => v ?? null),
+    country: z.string().nullish().transform(v => v ?? null),
+  }).nullish().transform(v => v ?? null),
+  founded_year: z.number().nullish().transform(v => v ?? null),
+  key_products: z.array(z.string()).nullish().transform(v => v ?? null),
+  competitors: z.array(z.string()).nullish().transform(v => v ?? null),
   recent_news: z.array(z.object({
     title: z.string(),
-    date: z.string().nullable(),
+    date: z.string().nullish().transform(v => v ?? null),
     summary: z.string(),
-  })).nullable(),
+  })).nullish().transform(v => v ?? null),
   custom_fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
   confidence_scores: z.record(z.string(), z.number()).optional(),
 });
@@ -218,31 +219,32 @@ export const organizationResearchSchema = z.object({
 export type OrganizationResearch = z.infer<typeof organizationResearchSchema>;
 
 // Schema for person research
+// Using .nullish() to accept both null and undefined from AI responses
 export const personResearchSchema = z.object({
-  full_name: z.string().nullable(),
-  current_title: z.string().nullable(),
-  current_company: z.string().nullable(),
-  email: z.string().nullable(),
-  phone: z.string().nullable(),
-  linkedin_url: z.string().nullable(),
+  full_name: z.string().nullish().transform(v => v ?? null),
+  current_title: z.string().nullish().transform(v => v ?? null),
+  current_company: z.string().nullish().transform(v => v ?? null),
+  email: z.string().nullish().transform(v => v ?? null),
+  phone: z.string().nullish().transform(v => v ?? null),
+  linkedin_url: z.string().nullish().transform(v => v ?? null),
   location: z.object({
-    city: z.string().nullable(),
-    state: z.string().nullable(),
-    country: z.string().nullable(),
-  }).nullable(),
+    city: z.string().nullish().transform(v => v ?? null),
+    state: z.string().nullish().transform(v => v ?? null),
+    country: z.string().nullish().transform(v => v ?? null),
+  }).nullish().transform(v => v ?? null),
   education: z.array(z.object({
     institution: z.string(),
-    degree: z.string().nullable(),
-    year: z.number().nullable(),
-  })).nullable(),
+    degree: z.string().nullish().transform(v => v ?? null),
+    year: z.number().nullish().transform(v => v ?? null),
+  })).nullish().transform(v => v ?? null),
   work_history: z.array(z.object({
     company: z.string(),
     title: z.string(),
-    start_year: z.number().nullable(),
-    end_year: z.number().nullable(),
-  })).nullable(),
-  skills: z.array(z.string()).nullable(),
-  bio: z.string().nullable(),
+    start_year: z.number().nullish().transform(v => v ?? null),
+    end_year: z.number().nullish().transform(v => v ?? null),
+  })).nullish().transform(v => v ?? null),
+  skills: z.array(z.string()).nullish().transform(v => v ?? null),
+  bio: z.string().nullish().transform(v => v ?? null),
   custom_fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).optional(),
   confidence_scores: z.record(z.string(), z.number()).optional(),
 });

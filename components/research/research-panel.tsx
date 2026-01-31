@@ -2,7 +2,6 @@
 
 import { useState, useCallback } from 'react';
 import { useParams } from 'next/navigation';
-import Link from 'next/link';
 import { Sparkles, Loader2, RefreshCw, ChevronDown, ChevronUp, History, AlertCircle, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -15,6 +14,7 @@ import {
 import { toast } from 'sonner';
 import type { EntityType } from '@/types/custom-field';
 import type { ResearchJob, ResearchStatus } from '@/types/research';
+import { ResearchSettingsDialog } from './research-settings-dialog';
 
 interface ResearchPanelProps {
   entityType: EntityType;
@@ -31,6 +31,7 @@ export function ResearchPanel({ entityType, entityId, entityName, onResearchComp
   const [showHistory, setShowHistory] = useState(false);
   const [history, setHistory] = useState<ResearchJob[]>([]);
   const [isLoadingHistory, setIsLoadingHistory] = useState(false);
+  const [showSettings, setShowSettings] = useState(false);
 
   const startResearch = useCallback(async () => {
     if (!slug || isResearching) return;
@@ -134,33 +135,35 @@ export function ResearchPanel({ entityType, entityId, entityName, onResearchComp
             <Sparkles className="h-5 w-5 text-primary" />
             <CardTitle>AI Research</CardTitle>
           </div>
-          <Button
-            onClick={startResearch}
-            disabled={isResearching}
-            size="sm"
-          >
-            {isResearching ? (
-              <>
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                Researching...
-              </>
-            ) : (
-              <>
-                <RefreshCw className="mr-2 h-4 w-4" />
-                Research {entityName}
-              </>
-            )}
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={() => setShowSettings(true)}
+            >
+              <Settings className="h-4 w-4" />
+            </Button>
+            <Button
+              onClick={startResearch}
+              disabled={isResearching}
+              size="sm"
+            >
+              {isResearching ? (
+                <>
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                  Researching...
+                </>
+              ) : (
+                <>
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                  Research {entityName}
+                </>
+              )}
+            </Button>
+          </div>
         </div>
-        <CardDescription className="flex items-center justify-between">
-          <span>Use AI to research and enrich {entityType} data</span>
-          <Link
-            href={`/projects/${slug}/settings`}
-            className="inline-flex items-center text-xs hover:underline"
-          >
-            <Settings className="mr-1 h-3 w-3" />
-            Customize prompts
-          </Link>
+        <CardDescription>
+          Use AI to research and enrich {entityType} data
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
@@ -251,6 +254,13 @@ export function ResearchPanel({ entityType, entityId, entityName, onResearchComp
           </CollapsibleContent>
         </Collapsible>
       </CardContent>
+
+      <ResearchSettingsDialog
+        slug={slug}
+        entityType={entityType}
+        open={showSettings}
+        onOpenChange={setShowSettings}
+      />
     </Card>
   );
 }
