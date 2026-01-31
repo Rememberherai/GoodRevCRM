@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
-import { enrichmentWebhookSchema } from '@/lib/validators/enrichment';
+import { enrichmentWebhookSchema, type EnrichmentRecord } from '@/lib/validators/enrichment';
 import { mapEnrichmentToPerson, type EnrichmentPerson } from '@/lib/fullenrich/client';
 
 // Create admin client for webhook processing (bypasses RLS)
@@ -76,7 +76,11 @@ export async function POST(request: Request) {
       );
     }
 
-    const { job_id, status, results, error, credits_used } = validationResult.data;
+    const webhookData = validationResult.data;
+    const { id: enrichmentId, status, data: results, cost, error } = webhookData;
+    const credits_used = cost?.credits ?? 0;
+
+    console.log('FullEnrich webhook received:', { enrichmentId, status, resultsCount: results?.length });
 
     // Create admin client (bypasses RLS for webhook processing)
     const supabase = createAdminClient();
@@ -85,37 +89,48 @@ export async function POST(request: Request) {
     const { data: jobs, error: fetchError } = await supabase
       .from('enrichment_jobs')
       .select('id, person_id, project_id')
-      .eq('external_job_id', job_id);
+      .eq('external_job_id', enrichmentId);
 
     if (fetchError || !jobs || jobs.length === 0) {
-      console.error('Enrichment jobs not found for external ID:', job_id);
+      console.error('Enrichment jobs not found for external ID:', enrichmentId);
       return NextResponse.json({ error: 'Jobs not found' }, { status: 404 });
     }
 
-    if (status === 'failed') {
-      // Mark all jobs as failed
+    // Handle failed/canceled/insufficient credits statuses
+    if (status === 'CANCELED' || status === 'CREDITS_INSUFFICIENT' || status === 'RATE_LIMIT') {
+      const errorMessage = status === 'CREDITS_INSUFFICIENT'
+        ? 'Insufficient credits'
+        : status === 'RATE_LIMIT'
+          ? 'Rate limit exceeded'
+          : error ?? 'Enrichment canceled';
+
       await supabase
         .from('enrichment_jobs')
         .update({
           status: 'failed',
-          error: error ?? 'Enrichment failed',
+          error: errorMessage,
           completed_at: new Date().toISOString(),
         })
-        .eq('external_job_id', job_id);
+        .eq('external_job_id', enrichmentId);
 
       return NextResponse.json({ processed: jobs.length, status: 'failed' });
     }
 
-    // Process completed results
+    // Still processing
+    if (status === 'CREATED' || status === 'IN_PROGRESS') {
+      return NextResponse.json({ processed: 0, status: 'processing' });
+    }
+
+    // Process completed results (status === 'FINISHED')
     if (!results || results.length === 0) {
       await supabase
         .from('enrichment_jobs')
         .update({
           status: 'completed',
-          credits_used: credits_used ?? 0,
+          credits_used: credits_used,
           completed_at: new Date().toISOString(),
         })
-        .eq('external_job_id', job_id);
+        .eq('external_job_id', enrichmentId);
 
       return NextResponse.json({ processed: jobs.length, status: 'completed' });
     }
@@ -125,9 +140,9 @@ export async function POST(request: Request) {
 
     for (let i = 0; i < jobs.length; i++) {
       const job = jobs[i]!;
-      const result = results[i];
+      const record = results[i] as EnrichmentRecord | undefined;
 
-      if (!result) {
+      if (!record) {
         // No result for this job
         await supabase
           .from('enrichment_jobs')
@@ -140,36 +155,44 @@ export async function POST(request: Request) {
         continue;
       }
 
-      if (result.error) {
+      if (record.error) {
         // Individual result failed
         await supabase
           .from('enrichment_jobs')
           .update({
             status: 'failed',
-            error: result.error,
+            error: record.error,
             completed_at: new Date().toISOString(),
           })
           .eq('id', job.id);
         continue;
       }
 
+      // Extract data from FullEnrich format
+      const contactInfo = record.contact_info;
+      const profile = record.profile;
+
       // Convert result to EnrichmentPerson format
       const enrichmentResult: EnrichmentPerson = {
-        email: result.email ?? null,
-        first_name: result.first_name ?? null,
-        last_name: result.last_name ?? null,
-        full_name: null,
-        job_title: result.job_title ?? null,
-        company_name: null,
+        email: contactInfo?.email?.email ?? contactInfo?.emails?.[0]?.email ?? null,
+        first_name: profile?.first_name ?? null,
+        last_name: profile?.last_name ?? null,
+        full_name: profile?.full_name ?? null,
+        job_title: profile?.job_title ?? null,
+        company_name: profile?.company ?? null,
         company_domain: null,
-        linkedin_url: result.linkedin_url ?? null,
-        phone: result.phone ?? null,
-        location: result.location ?? null,
-        work_email: null,
-        personal_email: null,
-        mobile_phone: null,
-        work_phone: null,
-        confidence_score: result.confidence_score ?? null,
+        linkedin_url: profile?.linkedin_url ?? null,
+        phone: contactInfo?.phone?.phone ?? contactInfo?.phones?.[0]?.phone ?? null,
+        location: profile?.location ? {
+          city: profile.location.city ?? null,
+          state: profile.location.state ?? null,
+          country: profile.location.country ?? null,
+        } : null,
+        work_email: contactInfo?.emails?.find(e => e.type === 'work')?.email ?? null,
+        personal_email: contactInfo?.emails?.find(e => e.type === 'personal')?.email ?? null,
+        mobile_phone: contactInfo?.phones?.find(p => p.type === 'mobile')?.phone ?? null,
+        work_phone: contactInfo?.phones?.find(p => p.type === 'work')?.phone ?? null,
+        confidence_score: null,
       };
 
       // Update job with results
@@ -193,6 +216,7 @@ export async function POST(request: Request) {
       if (person) {
         // Apply enrichment updates to person
         const updates = mapEnrichmentToPerson(enrichmentResult, person);
+        console.log('Applying enrichment updates to person:', { personId: job.person_id, updates });
         if (Object.keys(updates).length > 0) {
           await supabase
             .from('people')

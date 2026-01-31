@@ -40,28 +40,71 @@ export const enrichmentHistoryQuerySchema = z.object({
 
 export type EnrichmentHistoryQuery = z.infer<typeof enrichmentHistoryQuerySchema>;
 
-// Schema for webhook payload
-export const enrichmentWebhookSchema = z.object({
-  job_id: z.string(),
-  status: z.enum(['completed', 'failed'] as const),
-  results: z.array(z.object({
-    person_id: z.string().optional(),
+// Schema for FullEnrich webhook payload (matches their GET /bulk/:id response)
+const contactInfoSchema = z.object({
+  email: z.object({
     email: z.string().nullable().optional(),
+    status: z.string().nullable().optional(),
+    type: z.string().nullable().optional(),
+  }).nullable().optional(),
+  phone: z.object({
+    phone: z.string().nullable().optional(),
+    status: z.string().nullable().optional(),
+    type: z.string().nullable().optional(),
+    region: z.string().nullable().optional(),
+  }).nullable().optional(),
+  emails: z.array(z.object({
+    email: z.string(),
+    status: z.string().optional(),
+    type: z.string().optional(),
+  })).optional(),
+  phones: z.array(z.object({
+    phone: z.string(),
+    status: z.string().optional(),
+    type: z.string().optional(),
+    region: z.string().optional(),
+  })).optional(),
+}).nullable().optional();
+
+const profileSchema = z.object({
+  full_name: z.string().nullable().optional(),
+  first_name: z.string().nullable().optional(),
+  last_name: z.string().nullable().optional(),
+  headline: z.string().nullable().optional(),
+  job_title: z.string().nullable().optional(),
+  company: z.string().nullable().optional(),
+  location: z.object({
+    city: z.string().nullable().optional(),
+    state: z.string().nullable().optional(),
+    country: z.string().nullable().optional(),
+  }).nullable().optional(),
+  linkedin_url: z.string().nullable().optional(),
+}).nullable().optional();
+
+const enrichmentRecordSchema = z.object({
+  input: z.object({
     first_name: z.string().nullable().optional(),
     last_name: z.string().nullable().optional(),
-    job_title: z.string().nullable().optional(),
+    domain: z.string().nullable().optional(),
+    company_name: z.string().nullable().optional(),
     linkedin_url: z.string().nullable().optional(),
-    phone: z.string().nullable().optional(),
-    location: z.object({
-      city: z.string().nullable(),
-      state: z.string().nullable(),
-      country: z.string().nullable(),
-    }).nullable().optional(),
-    confidence_score: z.number().nullable().optional(),
-    error: z.string().nullable().optional(),
-  })).optional(),
+  }).optional(),
+  custom: z.record(z.unknown()).optional(),
+  contact_info: contactInfoSchema,
+  profile: profileSchema,
+  error: z.string().nullable().optional(),
+});
+
+export const enrichmentWebhookSchema = z.object({
+  id: z.string(),
+  name: z.string().optional(),
+  status: z.enum(['CREATED', 'IN_PROGRESS', 'CANCELED', 'CREDITS_INSUFFICIENT', 'FINISHED', 'RATE_LIMIT', 'UNKNOWN'] as const),
+  cost: z.object({
+    credits: z.number(),
+  }).optional(),
+  data: z.array(enrichmentRecordSchema).optional(),
   error: z.string().optional(),
-  credits_used: z.number().optional(),
 });
 
 export type EnrichmentWebhookPayload = z.infer<typeof enrichmentWebhookSchema>;
+export type EnrichmentRecord = z.infer<typeof enrichmentRecordSchema>;
