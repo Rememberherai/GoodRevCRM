@@ -16,6 +16,7 @@ import {
   Target,
   Plus,
   Mail,
+  Bot,
 } from 'lucide-react';
 import { useOrganization } from '@/hooks/use-organizations';
 import { useOrganizationStore, deleteOrganization } from '@/stores/organization';
@@ -24,6 +25,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -50,6 +52,7 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
   const params = useParams();
   const router = useRouter();
   const slug = params.slug as string;
+  const [activeTab, setActiveTab] = useState('info');
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -141,28 +144,6 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
     );
   }
 
-  if (isEditing) {
-    return (
-      <div className="space-y-6">
-        <div className="flex items-center gap-4">
-          <Button variant="ghost" onClick={() => setIsEditing(false)}>
-            <ArrowLeft className="mr-2 h-4 w-4" />
-            Cancel
-          </Button>
-          <h2 className="text-2xl font-bold">Edit Organization</h2>
-        </div>
-        <OrganizationForm
-          organization={organization}
-          onSuccess={() => {
-            setIsEditing(false);
-            refresh();
-          }}
-          onCancel={() => setIsEditing(false)}
-        />
-      </div>
-    );
-  }
-
   const addressParts = [
     organization.address_street,
     organization.address_city,
@@ -173,6 +154,7 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
 
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex items-center justify-between">
         <Button variant="ghost" asChild>
           <Link href={`/projects/${slug}/organizations`}>
@@ -181,10 +163,6 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
           </Link>
         </Button>
         <div className="flex items-center gap-2">
-          <Button variant="outline" onClick={() => setIsEditing(true)}>
-            <Pencil className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
           <Button
             variant="outline"
             className="text-destructive"
@@ -196,12 +174,13 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
         </div>
       </div>
 
+      {/* Organization Header */}
       <div className="flex items-center gap-4">
         <Avatar className="h-16 w-16">
           <AvatarImage src={organization.logo_url ?? undefined} alt={organization.name} />
           <AvatarFallback className="text-lg">{getInitials(organization.name)}</AvatarFallback>
         </Avatar>
-        <div>
+        <div className="flex-1">
           <h2 className="text-2xl font-bold">{organization.name}</h2>
           {organization.domain && (
             <p className="text-muted-foreground">{organization.domain}</p>
@@ -214,203 +193,266 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Building2 className="h-5 w-5" />
-              Overview
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {organization.description && (
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Description</p>
-                <p className="text-sm">{organization.description}</p>
-              </div>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="info" className="gap-2">
+            <Building2 className="h-4 w-4" />
+            Info
+          </TabsTrigger>
+          <TabsTrigger value="people" className="gap-2">
+            <Users className="h-4 w-4" />
+            People
+            {(organization.people_count ?? 0) > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {organization.people_count}
+              </Badge>
             )}
-            {organization.employee_count && (
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Employees</p>
-                <p>{organization.employee_count.toLocaleString()}</p>
-              </div>
-            )}
-            {organization.annual_revenue && (
-              <div>
-                <p className="text-sm font-medium text-muted-foreground">Annual Revenue</p>
-                <p>${organization.annual_revenue.toLocaleString()}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          </TabsTrigger>
+          <TabsTrigger value="research" className="gap-2">
+            <Bot className="h-4 w-4" />
+            AI Research
+          </TabsTrigger>
+        </TabsList>
 
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Globe className="h-5 w-5" />
-              Contact
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {organization.website && (
-              <div className="flex items-center gap-2">
-                <Globe className="h-4 w-4 text-muted-foreground" />
-                <a
-                  href={organization.website}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  {organization.website}
-                </a>
+        {/* Info Tab */}
+        <TabsContent value="info" className="space-y-6">
+          {isEditing ? (
+            <div className="space-y-4">
+              <div className="flex items-center justify-between">
+                <h3 className="text-lg font-semibold">Edit Organization</h3>
+                <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
+                  Cancel
+                </Button>
               </div>
-            )}
-            {organization.linkedin_url && (
-              <div className="flex items-center gap-2">
-                <Linkedin className="h-4 w-4 text-muted-foreground" />
-                <a
-                  href={organization.linkedin_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  LinkedIn Profile
-                </a>
-              </div>
-            )}
-            {organization.phone && (
-              <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <span>{organization.phone}</span>
-              </div>
-            )}
-            {addressParts.length > 0 && (
-              <div className="flex items-start gap-2">
-                <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                <span>{addressParts.join(', ')}</span>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Stats</CardTitle>
-            <CardDescription>Related records</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Users className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">People</span>
-              </div>
-              <Badge variant="outline">{organization.people_count ?? 0}</Badge>
+              <OrganizationForm
+                organization={organization}
+                onSuccess={() => {
+                  setIsEditing(false);
+                  refresh();
+                }}
+                onCancel={() => setIsEditing(false)}
+              />
             </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Opportunities</span>
+          ) : (
+            <>
+              <div className="flex justify-end">
+                <Button variant="outline" onClick={() => setIsEditing(true)}>
+                  <Pencil className="mr-2 h-4 w-4" />
+                  Edit
+                </Button>
               </div>
-              <Badge variant="outline">{organization.opportunities_count ?? 0}</Badge>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
 
-      {organization.custom_fields && Object.keys(organization.custom_fields).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Custom Fields</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Object.entries(organization.custom_fields).map(([key, value]) => (
-                <div key={key}>
-                  <p className="text-sm font-medium text-muted-foreground">{key}</p>
-                  <p>{String(value)}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+                <Card className="col-span-1">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5" />
+                      Overview
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {organization.description && (
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Description</p>
+                        <p className="text-sm">{organization.description}</p>
+                      </div>
+                    )}
+                    {organization.employee_count && (
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Employees</p>
+                        <p>{organization.employee_count.toLocaleString()}</p>
+                      </div>
+                    )}
+                    {organization.annual_revenue && (
+                      <div>
+                        <p className="text-sm font-medium text-muted-foreground">Annual Revenue</p>
+                        <p>${organization.annual_revenue.toLocaleString()}</p>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
 
-      <Card>
-        <CardHeader>
+                <Card className="col-span-1">
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Globe className="h-5 w-5" />
+                      Contact
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    {organization.website && (
+                      <div className="flex items-center gap-2">
+                        <Globe className="h-4 w-4 text-muted-foreground" />
+                        <a
+                          href={organization.website}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          {organization.website}
+                        </a>
+                      </div>
+                    )}
+                    {organization.linkedin_url && (
+                      <div className="flex items-center gap-2">
+                        <Linkedin className="h-4 w-4 text-muted-foreground" />
+                        <a
+                          href={organization.linkedin_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-primary hover:underline"
+                        >
+                          LinkedIn Profile
+                        </a>
+                      </div>
+                    )}
+                    {organization.phone && (
+                      <div className="flex items-center gap-2">
+                        <Phone className="h-4 w-4 text-muted-foreground" />
+                        <span>{organization.phone}</span>
+                      </div>
+                    )}
+                    {addressParts.length > 0 && (
+                      <div className="flex items-start gap-2">
+                        <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                        <span>{addressParts.join(', ')}</span>
+                      </div>
+                    )}
+                  </CardContent>
+                </Card>
+
+                <Card className="col-span-1">
+                  <CardHeader>
+                    <CardTitle>Stats</CardTitle>
+                    <CardDescription>Related records</CardDescription>
+                  </CardHeader>
+                  <CardContent className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Users className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">People</span>
+                      </div>
+                      <Badge variant="outline">{organization.people_count ?? 0}</Badge>
+                    </div>
+                    <Separator />
+                    <div className="flex items-center justify-between">
+                      <div className="flex items-center gap-2">
+                        <Target className="h-4 w-4 text-muted-foreground" />
+                        <span className="text-sm">Opportunities</span>
+                      </div>
+                      <Badge variant="outline">{organization.opportunities_count ?? 0}</Badge>
+                    </div>
+                  </CardContent>
+                </Card>
+              </div>
+
+              {organization.custom_fields && Object.keys(organization.custom_fields).length > 0 && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle>Custom Fields</CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                      {Object.entries(organization.custom_fields).map(([key, value]) => (
+                        <div key={key}>
+                          <p className="text-sm font-medium text-muted-foreground">{key}</p>
+                          <p>{String(value)}</p>
+                        </div>
+                      ))}
+                    </div>
+                  </CardContent>
+                </Card>
+              )}
+            </>
+          )}
+        </TabsContent>
+
+        {/* People Tab */}
+        <TabsContent value="people" className="space-y-6">
           <div className="flex items-center justify-between">
-            <CardTitle className="flex items-center gap-2">
-              <Users className="h-5 w-5" />
-              People
-            </CardTitle>
-            <Button size="sm" onClick={() => setShowAddPersonDialog(true)}>
+            <div>
+              <h3 className="text-lg font-semibold">People</h3>
+              <p className="text-sm text-muted-foreground">
+                Contacts associated with this organization
+              </p>
+            </div>
+            <Button onClick={() => setShowAddPersonDialog(true)}>
               <Plus className="mr-2 h-4 w-4" />
               Add Person
             </Button>
           </div>
-          <CardDescription>
-            Contacts associated with this organization
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
+
           {peopleLoading ? (
-            <div className="text-center py-4 text-muted-foreground">Loading...</div>
+            <div className="text-center py-8 text-muted-foreground">Loading...</div>
           ) : people.length === 0 ? (
-            <div className="text-center py-8">
-              <Users className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
-              <p className="text-muted-foreground">No people yet</p>
-              <Button
-                variant="outline"
-                size="sm"
-                className="mt-2"
-                onClick={() => setShowAddPersonDialog(true)}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add your first person
-              </Button>
-            </div>
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <Users className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No people yet</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Add contacts associated with this organization
+                  </p>
+                  <Button onClick={() => setShowAddPersonDialog(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add your first person
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
           ) : (
-            <div className="space-y-3">
+            <div className="grid gap-3">
               {people.map((person) => (
                 <Link
                   key={person.id}
                   href={`/projects/${slug}/people/${person.id}`}
-                  className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                  className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
                 >
-                  <Avatar className="h-10 w-10">
+                  <Avatar className="h-12 w-12">
                     <AvatarImage src={person.avatar_url ?? undefined} alt={getFullName(person.first_name, person.last_name)} />
                     <AvatarFallback>{getPersonInitials(person.first_name, person.last_name)}</AvatarFallback>
                   </Avatar>
                   <div className="flex-1 min-w-0">
-                    <div className="font-medium truncate">
+                    <div className="font-medium">
                       {getFullName(person.first_name, person.last_name)}
                     </div>
                     {person.job_title && (
-                      <div className="text-sm text-muted-foreground truncate">
+                      <div className="text-sm text-muted-foreground">
                         {person.job_title}
                       </div>
                     )}
                   </div>
                   {person.email && (
-                    <div className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground">
-                      <Mail className="h-3 w-3" />
-                      <span className="truncate max-w-[200px]">{person.email}</span>
+                    <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
+                      <Mail className="h-4 w-4" />
+                      <span>{person.email}</span>
+                    </div>
+                  )}
+                  {person.phone && (
+                    <div className="hidden lg:flex items-center gap-2 text-sm text-muted-foreground">
+                      <Phone className="h-4 w-4" />
+                      <span>{person.phone}</span>
                     </div>
                   )}
                 </Link>
               ))}
             </div>
           )}
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      <ResearchPanel
-        entityType="organization"
-        entityId={organizationId}
-        entityName={organization.name}
-        onResearchComplete={handleResearchComplete}
-      />
+        {/* AI Research Tab */}
+        <TabsContent value="research" className="space-y-6">
+          <ResearchPanel
+            entityType="organization"
+            entityId={organizationId}
+            entityName={organization.name}
+            onResearchComplete={handleResearchComplete}
+          />
+        </TabsContent>
+      </Tabs>
 
+      {/* Dialogs */}
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
