@@ -48,6 +48,7 @@ export interface FieldMapping {
   confidence: number;
   current_value?: unknown;
   should_update: boolean;
+  is_null?: boolean; // True if AI returned null (not found)
 }
 
 // Research application - what to apply from research to entity
@@ -297,8 +298,11 @@ export function createFieldMappings(
   if (customFields) {
     for (const fieldName of customFieldNames) {
       const value = customFields[fieldName];
-      console.log('[DEBUG research] checking custom field:', { fieldName, value, hasValue: value !== undefined && value !== null });
-      if (value === undefined || value === null) continue;
+      const isNull = value === null;
+      console.log('[DEBUG research] checking custom field:', { fieldName, value, isNull });
+
+      // Skip undefined (field not returned at all), but include null (field returned as not found)
+      if (value === undefined) continue;
 
       const confidenceScores = (result as Record<string, unknown>).confidence_scores as Record<string, number> | undefined;
       // Try multiple formats: custom_fields.fieldName (AI returns this), custom_fieldName (alternative)
@@ -312,10 +316,11 @@ export function createFieldMappings(
         source_field: `custom_fields.${fieldName}`,
         target_field: fieldName,
         target_is_custom: true,
-        value,
+        value: isNull ? null : value,
         confidence,
         current_value: currentCustomFields[fieldName],
-        should_update: currentCustomFields[fieldName] === null || currentCustomFields[fieldName] === undefined,
+        should_update: !isNull && (currentCustomFields[fieldName] === null || currentCustomFields[fieldName] === undefined),
+        is_null: isNull,
       });
     }
   }

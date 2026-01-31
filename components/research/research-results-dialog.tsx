@@ -64,9 +64,9 @@ export function ResearchResultsDialog({
       const mappings = data.field_mappings ?? [];
       setFieldMappings(mappings);
 
-      // Pre-select fields that should be updated
+      // Pre-select fields that should be updated (exclude null values)
       const preSelectedKeys = mappings
-        .filter((m: FieldMapping) => m.should_update && m.confidence >= 0.5)
+        .filter((m: FieldMapping) => m.should_update && m.confidence >= 0.5 && !m.is_null)
         .map((m: FieldMapping) => `${m.target_field}-${m.target_is_custom}`);
       setSelectedFields(new Set<string>(preSelectedKeys));
     } catch (err) {
@@ -89,8 +89,9 @@ export function ResearchResultsDialog({
   };
 
   const selectAll = () => {
+    // Only select fields that are not null
     setSelectedFields(
-      new Set(fieldMappings.map((m) => `${m.target_field}-${m.target_is_custom}`))
+      new Set(fieldMappings.filter((m) => !m.is_null).map((m) => `${m.target_field}-${m.target_is_custom}`))
     );
   };
 
@@ -147,12 +148,16 @@ export function ResearchResultsDialog({
     }
   };
 
-  const formatValue = (value: unknown): string => {
+  const formatValue = (value: unknown, isNull?: boolean): string => {
+    if (isNull) return 'Not found';
     if (value === null || value === undefined) return '-';
     if (typeof value === 'boolean') return value ? 'Yes' : 'No';
     if (typeof value === 'object') return JSON.stringify(value);
     return String(value);
   };
+
+  // Count of selectable (non-null) fields
+  const selectableFieldsCount = fieldMappings.filter((m) => !m.is_null).length;
 
   if (!job) return null;
 
@@ -183,7 +188,7 @@ export function ResearchResultsDialog({
           <>
             <div className="flex items-center justify-between border-b pb-2">
               <span className="text-sm text-muted-foreground">
-                {selectedFields.size} of {fieldMappings.length} fields selected
+                {selectedFields.size} of {selectableFieldsCount} fields selected
               </span>
               <div className="flex gap-2">
                 <Button variant="ghost" size="sm" onClick={selectAll}>
@@ -201,12 +206,13 @@ export function ResearchResultsDialog({
                   const key = `${mapping.target_field}-${mapping.target_is_custom}`;
                   const isSelected = selectedFields.has(key);
                   const hasCurrentValue = mapping.current_value !== null && mapping.current_value !== undefined;
+                  const isNull = mapping.is_null === true;
 
                   return (
                     <div
                       key={key}
                       className={`rounded-lg border p-3 transition-colors ${
-                        isSelected ? 'border-primary bg-primary/5' : ''
+                        isNull ? 'opacity-60 bg-muted/30' : isSelected ? 'border-primary bg-primary/5' : ''
                       }`}
                     >
                       <div className="flex items-start gap-3">
@@ -214,11 +220,12 @@ export function ResearchResultsDialog({
                           id={key}
                           checked={isSelected}
                           onCheckedChange={() => toggleField(mapping)}
+                          disabled={isNull}
                           className="mt-1"
                         />
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center gap-2">
-                            <Label htmlFor={key} className="font-medium cursor-pointer">
+                            <Label htmlFor={key} className={`font-medium ${isNull ? 'text-muted-foreground' : 'cursor-pointer'}`}>
                               {mapping.target_field}
                             </Label>
                             {mapping.target_is_custom && (
@@ -226,14 +233,20 @@ export function ResearchResultsDialog({
                                 Custom
                               </Badge>
                             )}
-                            {getConfidenceBadge(mapping.confidence)}
+                            {isNull ? (
+                              <Badge variant="outline" className="text-xs text-muted-foreground">
+                                Not found
+                              </Badge>
+                            ) : (
+                              getConfidenceBadge(mapping.confidence)
+                            )}
                           </div>
 
                           <div className="mt-2 grid grid-cols-2 gap-4 text-sm">
                             <div>
                               <p className="text-muted-foreground text-xs">New Value</p>
-                              <p className="font-medium truncate" title={formatValue(mapping.value)}>
-                                {formatValue(mapping.value)}
+                              <p className={`font-medium truncate ${isNull ? 'text-muted-foreground italic' : ''}`} title={formatValue(mapping.value, isNull)}>
+                                {formatValue(mapping.value, isNull)}
                               </p>
                             </div>
                             <div>

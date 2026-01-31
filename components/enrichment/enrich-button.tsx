@@ -45,9 +45,9 @@ export function EnrichButton({
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
       try {
-        // Check job status
+        // Check job status (with poll=true to actively check FullEnrich)
         const response = await fetch(
-          `/api/projects/${slug}/enrich?person_id=${personId}&limit=1`
+          `/api/projects/${slug}/enrich?person_id=${personId}&limit=1&poll=true`
         );
 
         if (!response.ok) continue;

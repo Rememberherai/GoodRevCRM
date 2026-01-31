@@ -30,7 +30,7 @@ interface EnrichmentJobRow {
   created_at: string;
 }
 
-// GET /api/projects/[slug]/enrich - Get enrichment history
+// GET /api/projects/[slug]/enrich - Get enrichment history (also polls FullEnrich for processing jobs)
 export async function GET(request: Request, context: RouteContext) {
   try {
     const { slug } = await context.params;
@@ -58,6 +58,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
+    const poll = searchParams.get('poll') === 'true';
     const queryResult = enrichmentHistoryQuerySchema.safeParse({
       person_id: searchParams.get('person_id') ?? undefined,
       status: searchParams.get('status') ?? undefined,
@@ -90,13 +91,83 @@ export async function GET(request: Request, context: RouteContext) {
       queryBuilder = queryBuilder.eq('status', status);
     }
 
-    const { data: jobs, error } = await queryBuilder
+    let { data: jobs, error } = await queryBuilder
       .order('created_at', { ascending: false })
       .range(offset, offset + limit - 1);
 
     if (error) {
       console.error('Error fetching enrichment jobs:', error);
       return NextResponse.json({ error: 'Failed to fetch enrichment history' }, { status: 500 });
+    }
+
+    // If poll=true, check FullEnrich for updates on processing jobs
+    if (poll && jobs && jobs.length > 0) {
+      const processingJobs = (jobs as EnrichmentJobRow[]).filter(
+        (j) => j.status === 'processing' && j.external_job_id
+      );
+
+      if (processingJobs.length > 0) {
+        try {
+          const client = getFullEnrichClient();
+          const { mapEnrichmentToPerson } = await import('@/lib/fullenrich/client');
+
+          for (const job of processingJobs) {
+            try {
+              const result = await client.getJobStatus(job.external_job_id!);
+
+              // Check if job is finished
+              if (result.status === 'completed' && result.results && result.results.length > 0) {
+                const enrichmentResult = result.results[0]!;
+
+                // Update job in database
+                await supabaseQuery
+                  .from('enrichment_jobs')
+                  .update({
+                    status: 'completed',
+                    result: enrichmentResult,
+                    credits_used: result.credits_used ?? 1,
+                    completed_at: new Date().toISOString(),
+                  })
+                  .eq('id', job.id);
+
+                // Update person with enriched data
+                const { data: person } = await supabase
+                  .from('people')
+                  .select('*')
+                  .eq('id', job.person_id)
+                  .single();
+
+                if (person) {
+                  const updates = mapEnrichmentToPerson(enrichmentResult, person);
+                  if (Object.keys(updates).length > 0) {
+                    await supabase
+                      .from('people')
+                      .update(updates)
+                      .eq('id', job.person_id);
+                  }
+                }
+
+                // Update job in response
+                const jobIndex = jobs.findIndex((j: EnrichmentJobRow) => j.id === job.id);
+                if (jobIndex !== -1) {
+                  jobs[jobIndex] = {
+                    ...jobs[jobIndex],
+                    status: 'completed',
+                    result: enrichmentResult,
+                    completed_at: new Date().toISOString(),
+                  };
+                }
+              }
+            } catch (pollError) {
+              console.error('Error polling FullEnrich for job:', job.id, pollError);
+              // Continue with other jobs
+            }
+          }
+        } catch (clientError) {
+          console.error('Error creating FullEnrich client for polling:', clientError);
+          // Continue without polling
+        }
+      }
     }
 
     return NextResponse.json({
