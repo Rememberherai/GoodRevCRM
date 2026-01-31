@@ -161,8 +161,14 @@ export function buildOrganizationResearchPrompt(
       prompt += `\n${customFieldsSection}`;
     }
 
-    if (customFieldsSchema) {
-      prompt += `\n\nThe custom_fields object in your response should match this schema:\n${JSON.stringify(customFieldsSchema, null, 2)}`;
+    // Build custom_fields example for the JSON schema
+    let customFieldsExampleCustom = '{}';
+    if (customFields.length > 0) {
+      const exampleObj: Record<string, string> = {};
+      for (const field of customFields) {
+        exampleObj[field.name] = `value for ${field.label}`;
+      }
+      customFieldsExampleCustom = JSON.stringify(exampleObj);
     }
 
     prompt += `
@@ -180,7 +186,7 @@ Your response MUST be a JSON object with these EXACT field names:
   "key_products": ["array of strings"] or null,
   "competitors": ["array of strings"] or null,
   "recent_news": [{"title": "string", "date": "string", "summary": "string"}] or null,
-  "custom_fields": {},
+  "custom_fields": ${customFieldsExampleCustom},
   "confidence_scores": {"field_name": 0.95, ...}
 }
 
@@ -214,11 +220,14 @@ ${customFieldsSection}
 
 For each field, provide a confidence score (0-1) indicating how certain you are about the data.`;
 
-  if (customFieldsSchema) {
-    prompt += `
-
-The custom_fields object in your response should match this schema:
-${JSON.stringify(customFieldsSchema, null, 2)}`;
+  // Build custom_fields example based on actual custom fields
+  let customFieldsExample = '{}';
+  if (customFields.length > 0) {
+    const exampleObj: Record<string, string> = {};
+    for (const field of customFields) {
+      exampleObj[field.name] = `value for ${field.label}`;
+    }
+    customFieldsExample = JSON.stringify(exampleObj, null, 4).replace(/\n/g, '\n    ');
   }
 
   prompt += `
@@ -243,7 +252,7 @@ Your response MUST be a JSON object with these EXACT field names:
   "recent_news": [
     {"title": "News headline", "date": "2024-01-15", "summary": "Brief summary of the news..."}
   ],
-  "custom_fields": {},
+  "custom_fields": ${customFieldsExample},
   "confidence_scores": {
     "company_name": 0.95,
     "website": 0.9,
@@ -288,8 +297,14 @@ export function buildPersonResearchPrompt(
       prompt += `\n${customFieldsSection}`;
     }
 
-    if (customFieldsSchema) {
-      prompt += `\n\nThe custom_fields object in your response should match this schema:\n${JSON.stringify(customFieldsSchema, null, 2)}`;
+    // Build custom_fields example for the JSON schema
+    let customFieldsExampleCustom = '{}';
+    if (customFields.length > 0) {
+      const exampleObj: Record<string, string> = {};
+      for (const field of customFields) {
+        exampleObj[field.name] = `value for ${field.label}`;
+      }
+      customFieldsExampleCustom = JSON.stringify(exampleObj);
     }
 
     prompt += `
@@ -307,7 +322,7 @@ Your response MUST be a JSON object with these EXACT field names:
   "work_history": [{"company": "string", "title": "string", "start_year": number, "end_year": number}] or null,
   "skills": ["array of strings"] or null,
   "bio": "string or null",
-  "custom_fields": {},
+  "custom_fields": ${customFieldsExampleCustom},
   "confidence_scores": {"field_name": 0.95, ...}
 }
 
@@ -343,11 +358,14 @@ IMPORTANT: Only include publicly available professional information. Do not incl
 
 For each field, provide a confidence score (0-1) indicating how certain you are about the data.`;
 
-  if (customFieldsSchema) {
-    prompt += `
-
-The custom_fields object in your response should match this schema:
-${JSON.stringify(customFieldsSchema, null, 2)}`;
+  // Build custom_fields example based on actual custom fields
+  let customFieldsExample = '{}';
+  if (customFields.length > 0) {
+    const exampleObj: Record<string, string> = {};
+    for (const field of customFields) {
+      exampleObj[field.name] = `value for ${field.label}`;
+    }
+    customFieldsExample = JSON.stringify(exampleObj, null, 4).replace(/\n/g, '\n    ');
   }
 
   prompt += `
@@ -374,7 +392,7 @@ Your response MUST be a JSON object with these EXACT field names:
   ],
   "skills": ["Skill 1", "Skill 2", "Skill 3"],
   "bio": "Brief professional biography...",
-  "custom_fields": {},
+  "custom_fields": ${customFieldsExample},
   "confidence_scores": {
     "full_name": 0.95,
     "current_title": 0.9,
