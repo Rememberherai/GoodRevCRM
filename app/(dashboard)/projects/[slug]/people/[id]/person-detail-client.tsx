@@ -17,6 +17,7 @@ import {
   Target,
   User,
 } from 'lucide-react';
+import { EnrichButton } from '@/components/enrichment';
 import { usePerson } from '@/hooks/use-people';
 import { usePersonStore, deletePerson } from '@/stores/person';
 import { Button } from '@/components/ui/button';
@@ -132,6 +133,11 @@ export function PersonDetailClient({ personId }: PersonDetailClientProps) {
           </Link>
         </Button>
         <div className="flex items-center gap-2">
+          <EnrichButton
+            personId={personId}
+            personName={getFullName(person.first_name, person.last_name)}
+            onEnriched={() => refresh()}
+          />
           <Button variant="outline" onClick={() => setIsEditing(true)}>
             <Pencil className="mr-2 h-4 w-4" />
             Edit

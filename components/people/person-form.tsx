@@ -56,20 +56,29 @@ export function PersonForm({ person, organizationId, onSuccess, onCancel }: Pers
   });
 
   const onSubmit = async (data: CreatePersonInput) => {
+    setIsLoading(true);
+    setError(null);
     try {
       if (person) {
-        await update(person.id, data);
+        await updatePersonApi(projectSlug, person.id, data);
       } else {
-        await create(data);
+        await createPerson(projectSlug, { ...data, organization_id: organizationId });
       }
       onSuccess?.();
-    } catch {
-      // Error is handled by the hook
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'An error occurred');
+    } finally {
+      setIsLoading(false);
     }
   };
 
   return (
     <form onSubmit={handleSubmit(onSubmit)} className="space-y-6">
+      {error && (
+        <div className="rounded-md bg-destructive/15 p-4 text-destructive">
+          {error}
+        </div>
+      )}
       <Card>
         <CardHeader>
           <CardTitle>Basic Information</CardTitle>
