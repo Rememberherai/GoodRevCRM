@@ -59,16 +59,17 @@ interface EntitySettings {
   high_confidence_threshold: number;
 }
 
-const DEFAULT_SETTINGS: EntitySettings = {
-  system_prompt: '',
-  user_prompt_template: '',
+// Helper to get default settings for an entity type
+const getDefaultSettings = (entityType: EntityType): EntitySettings => ({
+  system_prompt: DEFAULT_SYSTEM_PROMPTS[entityType] ?? '',
+  user_prompt_template: DEFAULT_USER_PROMPT_TEMPLATES[entityType] ?? '',
   model_id: 'anthropic/claude-3.5-sonnet',
   temperature: 0.3,
   max_tokens: 4096,
   default_confidence_threshold: 0.7,
   auto_apply_high_confidence: true,
   high_confidence_threshold: 0.85,
-};
+});
 
 export function ResearchSettingsDialog({
   slug,
@@ -76,7 +77,8 @@ export function ResearchSettingsDialog({
   open,
   onOpenChange,
 }: ResearchSettingsDialogProps) {
-  const [settings, setSettings] = useState<EntitySettings>(DEFAULT_SETTINGS);
+  const defaultSettings = getDefaultSettings(entityType);
+  const [settings, setSettings] = useState<EntitySettings>(defaultSettings);
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [expandedPrompts, setExpandedPrompts] = useState(false);
@@ -87,6 +89,7 @@ export function ResearchSettingsDialog({
 
     const loadSettings = async () => {
       setIsLoading(true);
+      const defaults = getDefaultSettings(entityType);
       try {
         const response = await fetch(`/api/projects/${slug}/research-settings`);
         if (response.ok) {
@@ -96,9 +99,10 @@ export function ResearchSettingsDialog({
           );
 
           if (entitySettings) {
+            // Use saved values, falling back to defaults for prompts if empty/null
             setSettings({
-              system_prompt: entitySettings.system_prompt ?? '',
-              user_prompt_template: entitySettings.user_prompt_template ?? '',
+              system_prompt: entitySettings.system_prompt || defaults.system_prompt,
+              user_prompt_template: entitySettings.user_prompt_template || defaults.user_prompt_template,
               model_id: entitySettings.model_id ?? 'anthropic/claude-3.5-sonnet',
               temperature: entitySettings.temperature ?? 0.3,
               max_tokens: entitySettings.max_tokens ?? 4096,
@@ -107,11 +111,14 @@ export function ResearchSettingsDialog({
               high_confidence_threshold: entitySettings.high_confidence_threshold ?? 0.85,
             });
           } else {
-            setSettings(DEFAULT_SETTINGS);
+            setSettings(defaults);
           }
+        } else {
+          setSettings(defaults);
         }
       } catch (error) {
         console.error('Error loading research settings:', error);
+        setSettings(defaults);
       } finally {
         setIsLoading(false);
       }
@@ -327,8 +334,7 @@ export function ResearchSettingsDialog({
                   <Textarea
                     value={settings.system_prompt}
                     onChange={(e) => updateSettings({ system_prompt: e.target.value })}
-                    placeholder={DEFAULT_SYSTEM_PROMPTS[entityType]}
-                    rows={4}
+                    rows={6}
                     className="font-mono text-sm"
                   />
                 </div>
@@ -348,8 +354,7 @@ export function ResearchSettingsDialog({
                   <Textarea
                     value={settings.user_prompt_template}
                     onChange={(e) => updateSettings({ user_prompt_template: e.target.value })}
-                    placeholder={DEFAULT_USER_PROMPT_TEMPLATES[entityType]}
-                    rows={6}
+                    rows={10}
                     className="font-mono text-sm"
                   />
                 </div>

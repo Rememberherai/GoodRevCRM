@@ -17,10 +17,16 @@ import {
   Plus,
   Mail,
   Bot,
+  Check,
+  X,
+  Settings,
 } from 'lucide-react';
 import { useOrganization } from '@/hooks/use-organizations';
-import { useOrganizationStore, deleteOrganization } from '@/stores/organization';
+import { useOrganizationStore, deleteOrganization, updateOrganizationApi } from '@/stores/organization';
+import { useEntityCustomFields } from '@/hooks/use-custom-fields';
 import { Button } from '@/components/ui/button';
+import { Input } from '@/components/ui/input';
+import { Textarea } from '@/components/ui/textarea';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -36,16 +42,127 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { OrganizationForm } from '@/components/organizations/organization-form';
 import { AddPersonDialog } from '@/components/organizations/add-person-dialog';
 import { ResearchPanel } from '@/components/research/research-panel';
 import { ResearchResultsDialog } from '@/components/research/research-results-dialog';
+import { AddFieldDialog } from '@/components/schema/add-field-dialog';
+import { EditFieldDialog } from '@/components/schema/edit-field-dialog';
+import { DeleteFieldDialog } from '@/components/schema/delete-field-dialog';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
 import type { Person } from '@/types/person';
+import type { CustomFieldDefinition } from '@/types/custom-field';
 
 interface OrganizationDetailClientProps {
   organizationId: string;
+}
+
+interface EditableFieldProps {
+  label: string;
+  value: string | number | null | undefined;
+  fieldKey: string;
+  type?: 'text' | 'number' | 'url' | 'textarea';
+  onSave: (key: string, value: string | number | null) => Promise<void>;
+  prefix?: string;
+  suffix?: string;
+}
+
+function EditableField({ label, value, fieldKey, type = 'text', onSave, prefix, suffix }: EditableFieldProps) {
+  const [isEditing, setIsEditing] = useState(false);
+  const [editValue, setEditValue] = useState(value?.toString() ?? '');
+  const [isSaving, setIsSaving] = useState(false);
+
+  const handleSave = async () => {
+    setIsSaving(true);
+    try {
+      let finalValue: string | number | null = editValue || null;
+      if (type === 'number' && editValue) {
+        finalValue = parseFloat(editValue);
+      }
+      await onSave(fieldKey, finalValue);
+      setIsEditing(false);
+    } finally {
+      setIsSaving(false);
+    }
+  };
+
+  const handleCancel = () => {
+    setEditValue(value?.toString() ?? '');
+    setIsEditing(false);
+  };
+
+  const handleKeyDown = (e: React.KeyboardEvent) => {
+    if (e.key === 'Enter' && type !== 'textarea') {
+      handleSave();
+    } else if (e.key === 'Escape') {
+      handleCancel();
+    }
+  };
+
+  if (isEditing) {
+    return (
+      <div className="space-y-1">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <div className="flex items-center gap-2">
+          {type === 'textarea' ? (
+            <Textarea
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="text-sm"
+              rows={3}
+              autoFocus
+            />
+          ) : (
+            <Input
+              type={type === 'number' ? 'number' : type === 'url' ? 'url' : 'text'}
+              value={editValue}
+              onChange={(e) => setEditValue(e.target.value)}
+              onKeyDown={handleKeyDown}
+              className="h-8 text-sm"
+              autoFocus
+            />
+          )}
+          <Button size="sm" variant="ghost" onClick={handleSave} disabled={isSaving}>
+            <Check className="h-4 w-4 text-green-600" />
+          </Button>
+          <Button size="sm" variant="ghost" onClick={handleCancel} disabled={isSaving}>
+            <X className="h-4 w-4 text-red-600" />
+          </Button>
+        </div>
+      </div>
+    );
+  }
+
+  const displayValue = value !== null && value !== undefined && value !== ''
+    ? `${prefix ?? ''}${type === 'number' ? Number(value).toLocaleString() : value}${suffix ?? ''}`
+    : '—';
+
+  return (
+    <div
+      className="space-y-1 p-2 -m-2 rounded cursor-pointer hover:bg-muted/50 transition-colors group"
+      onDoubleClick={() => setIsEditing(true)}
+      title="Double-click to edit"
+    >
+      <div className="flex items-center justify-between">
+        <p className="text-sm font-medium text-muted-foreground">{label}</p>
+        <Pencil className="h-3 w-3 text-muted-foreground opacity-0 group-hover:opacity-100 transition-opacity" />
+      </div>
+      {type === 'url' && value ? (
+        <a
+          href={value.toString()}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="text-primary hover:underline text-sm"
+          onClick={(e) => e.stopPropagation()}
+        >
+          {value.toString()}
+        </a>
+      ) : (
+        <p className={`text-sm ${!value ? 'text-muted-foreground' : ''}`}>{displayValue}</p>
+      )}
+    </div>
+  );
 }
 
 export function OrganizationDetailClient({ organizationId }: OrganizationDetailClientProps) {
@@ -53,7 +170,6 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
   const router = useRouter();
   const slug = params.slug as string;
   const [activeTab, setActiveTab] = useState('info');
-  const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showResearchResults, setShowResearchResults] = useState(false);
@@ -62,7 +178,15 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
   const [people, setPeople] = useState<Person[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
 
+  // Custom field dialog states
+  const [showAddFieldDialog, setShowAddFieldDialog] = useState(false);
+  const [showEditFieldDialog, setShowEditFieldDialog] = useState(false);
+  const [showDeleteFieldDialog, setShowDeleteFieldDialog] = useState(false);
+  const [selectedField, setSelectedField] = useState<CustomFieldDefinition | null>(null);
+
   const { organization, isLoading, error, refresh } = useOrganization(organizationId);
+  const { fields: customFields } = useEntityCustomFields('organization');
+  const setCurrentOrganization = useOrganizationStore((s) => s.setCurrentOrganization);
 
   const loadPeople = useCallback(async () => {
     if (!slug) return;
@@ -96,6 +220,34 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
     } catch {
       setIsDeleting(false);
     }
+  };
+
+  const handleFieldSave = async (key: string, value: string | number | null) => {
+    if (!organization) return;
+
+    const updateData = { [key]: value };
+    const updated = await updateOrganizationApi(slug, organizationId, updateData);
+    setCurrentOrganization({ ...updated, people_count: organization.people_count ?? 0, opportunities_count: organization.opportunities_count ?? 0 });
+  };
+
+  const handleCustomFieldSave = async (fieldName: string, value: unknown) => {
+    if (!organization) return;
+
+    const currentCustomFields = (organization.custom_fields as Record<string, unknown>) ?? {};
+    const updatedCustomFields = { ...currentCustomFields, [fieldName]: value };
+
+    const updated = await updateOrganizationApi(slug, organizationId, { custom_fields: updatedCustomFields });
+    setCurrentOrganization({ ...updated, people_count: organization.people_count ?? 0, opportunities_count: organization.opportunities_count ?? 0 });
+  };
+
+  const handleEditField = (field: CustomFieldDefinition) => {
+    setSelectedField(field);
+    setShowEditFieldDialog(true);
+  };
+
+  const handleDeleteField = (field: CustomFieldDefinition) => {
+    setSelectedField(field);
+    setShowDeleteFieldDialog(true);
   };
 
   const getInitials = (name: string) => {
@@ -144,13 +296,7 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
     );
   }
 
-  const addressParts = [
-    organization.address_street,
-    organization.address_city,
-    organization.address_state,
-    organization.address_postal_code,
-    organization.address_country,
-  ].filter(Boolean);
+  const customFieldValues = (organization.custom_fields as Record<string, unknown>) ?? {};
 
   return (
     <div className="space-y-6">
@@ -217,155 +363,237 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
 
         {/* Info Tab */}
         <TabsContent value="info" className="space-y-6">
-          {isEditing ? (
-            <div className="space-y-4">
-              <div className="flex items-center justify-between">
-                <h3 className="text-lg font-semibold">Edit Organization</h3>
-                <Button variant="ghost" size="sm" onClick={() => setIsEditing(false)}>
-                  Cancel
-                </Button>
+          {/* Summary Cards */}
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Building2 className="h-5 w-5" />
+                  Overview
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <EditableField
+                  label="Description"
+                  value={organization.description}
+                  fieldKey="description"
+                  type="textarea"
+                  onSave={handleFieldSave}
+                />
+                <EditableField
+                  label="Employees"
+                  value={organization.employee_count}
+                  fieldKey="employee_count"
+                  type="number"
+                  onSave={handleFieldSave}
+                />
+                <EditableField
+                  label="Annual Revenue"
+                  value={organization.annual_revenue}
+                  fieldKey="annual_revenue"
+                  type="number"
+                  onSave={handleFieldSave}
+                  prefix="$"
+                />
+              </CardContent>
+            </Card>
+
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Globe className="h-5 w-5" />
+                  Contact
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <EditableField
+                  label="Website"
+                  value={organization.website}
+                  fieldKey="website"
+                  type="url"
+                  onSave={handleFieldSave}
+                />
+                <EditableField
+                  label="LinkedIn"
+                  value={organization.linkedin_url}
+                  fieldKey="linkedin_url"
+                  type="url"
+                  onSave={handleFieldSave}
+                />
+                <EditableField
+                  label="Phone"
+                  value={organization.phone}
+                  fieldKey="phone"
+                  onSave={handleFieldSave}
+                />
+              </CardContent>
+            </Card>
+
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle>Stats</CardTitle>
+                <CardDescription>Related records</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Users className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">People</span>
+                  </div>
+                  <Badge variant="outline">{organization.people_count ?? 0}</Badge>
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Opportunities</span>
+                  </div>
+                  <Badge variant="outline">{organization.opportunities_count ?? 0}</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {/* All Fields - Read Only with Double Click to Edit */}
+          <Card>
+            <CardHeader>
+              <CardTitle>Organization Details</CardTitle>
+              <CardDescription>Double-click any field to edit</CardDescription>
+            </CardHeader>
+            <CardContent>
+              <div className="grid gap-x-8 gap-y-4 sm:grid-cols-2 lg:grid-cols-3">
+                <EditableField
+                  label="Name"
+                  value={organization.name}
+                  fieldKey="name"
+                  onSave={handleFieldSave}
+                />
+                <EditableField
+                  label="Domain"
+                  value={organization.domain}
+                  fieldKey="domain"
+                  onSave={handleFieldSave}
+                />
+                <EditableField
+                  label="Industry"
+                  value={organization.industry}
+                  fieldKey="industry"
+                  onSave={handleFieldSave}
+                />
+                <EditableField
+                  label="Logo URL"
+                  value={organization.logo_url}
+                  fieldKey="logo_url"
+                  type="url"
+                  onSave={handleFieldSave}
+                />
+                <EditableField
+                  label="Street Address"
+                  value={organization.address_street}
+                  fieldKey="address_street"
+                  onSave={handleFieldSave}
+                />
+                <EditableField
+                  label="City"
+                  value={organization.address_city}
+                  fieldKey="address_city"
+                  onSave={handleFieldSave}
+                />
+                <EditableField
+                  label="State"
+                  value={organization.address_state}
+                  fieldKey="address_state"
+                  onSave={handleFieldSave}
+                />
+                <EditableField
+                  label="Postal Code"
+                  value={organization.address_postal_code}
+                  fieldKey="address_postal_code"
+                  onSave={handleFieldSave}
+                />
+                <EditableField
+                  label="Country"
+                  value={organization.address_country}
+                  fieldKey="address_country"
+                  onSave={handleFieldSave}
+                />
               </div>
-              <OrganizationForm
-                organization={organization}
-                onSuccess={() => {
-                  setIsEditing(false);
-                  refresh();
-                }}
-                onCancel={() => setIsEditing(false)}
-              />
-            </div>
-          ) : (
-            <>
-              <div className="flex justify-end">
-                <Button variant="outline" onClick={() => setIsEditing(true)}>
-                  <Pencil className="mr-2 h-4 w-4" />
-                  Edit
-                </Button>
+            </CardContent>
+          </Card>
+
+          {/* Custom Fields with CRUD */}
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between space-y-0">
+              <div>
+                <CardTitle>Custom Fields</CardTitle>
+                <CardDescription>Custom data fields for this organization</CardDescription>
               </div>
-
-              <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-                <Card className="col-span-1">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Building2 className="h-5 w-5" />
-                      Overview
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {organization.description && (
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Description</p>
-                        <p className="text-sm">{organization.description}</p>
-                      </div>
-                    )}
-                    {organization.employee_count && (
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Employees</p>
-                        <p>{organization.employee_count.toLocaleString()}</p>
-                      </div>
-                    )}
-                    {organization.annual_revenue && (
-                      <div>
-                        <p className="text-sm font-medium text-muted-foreground">Annual Revenue</p>
-                        <p>${organization.annual_revenue.toLocaleString()}</p>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="col-span-1">
-                  <CardHeader>
-                    <CardTitle className="flex items-center gap-2">
-                      <Globe className="h-5 w-5" />
-                      Contact
-                    </CardTitle>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    {organization.website && (
-                      <div className="flex items-center gap-2">
-                        <Globe className="h-4 w-4 text-muted-foreground" />
-                        <a
-                          href={organization.website}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline"
-                        >
-                          {organization.website}
-                        </a>
-                      </div>
-                    )}
-                    {organization.linkedin_url && (
-                      <div className="flex items-center gap-2">
-                        <Linkedin className="h-4 w-4 text-muted-foreground" />
-                        <a
-                          href={organization.linkedin_url}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-primary hover:underline"
-                        >
-                          LinkedIn Profile
-                        </a>
-                      </div>
-                    )}
-                    {organization.phone && (
-                      <div className="flex items-center gap-2">
-                        <Phone className="h-4 w-4 text-muted-foreground" />
-                        <span>{organization.phone}</span>
-                      </div>
-                    )}
-                    {addressParts.length > 0 && (
-                      <div className="flex items-start gap-2">
-                        <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                        <span>{addressParts.join(', ')}</span>
-                      </div>
-                    )}
-                  </CardContent>
-                </Card>
-
-                <Card className="col-span-1">
-                  <CardHeader>
-                    <CardTitle>Stats</CardTitle>
-                    <CardDescription>Related records</CardDescription>
-                  </CardHeader>
-                  <CardContent className="space-y-4">
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Users className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">People</span>
-                      </div>
-                      <Badge variant="outline">{organization.people_count ?? 0}</Badge>
-                    </div>
-                    <Separator />
-                    <div className="flex items-center justify-between">
-                      <div className="flex items-center gap-2">
-                        <Target className="h-4 w-4 text-muted-foreground" />
-                        <span className="text-sm">Opportunities</span>
-                      </div>
-                      <Badge variant="outline">{organization.opportunities_count ?? 0}</Badge>
-                    </div>
-                  </CardContent>
-                </Card>
-              </div>
-
-              {organization.custom_fields && Object.keys(organization.custom_fields).length > 0 && (
-                <Card>
-                  <CardHeader>
-                    <CardTitle>Custom Fields</CardTitle>
-                  </CardHeader>
-                  <CardContent>
-                    <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-                      {Object.entries(organization.custom_fields).map(([key, value]) => (
-                        <div key={key}>
-                          <p className="text-sm font-medium text-muted-foreground">{key}</p>
-                          <p>{String(value)}</p>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAddFieldDialog(true)}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add Field
+              </Button>
+            </CardHeader>
+            <CardContent>
+              {customFields.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">
+                  No custom fields defined yet. Click &quot;Add Field&quot; to create one.
+                </p>
+              ) : (
+                <div className="space-y-4">
+                  {customFields.map((field) => {
+                    const value = customFieldValues[field.name];
+                    return (
+                      <div key={field.id} className="flex items-start gap-4 p-3 rounded-lg border">
+                        <div className="flex-1">
+                          <div className="flex items-center gap-2 mb-1">
+                            <p className="text-sm font-medium">{field.label}</p>
+                            {field.is_required && (
+                              <Badge variant="secondary" className="text-xs">Required</Badge>
+                            )}
+                          </div>
+                          <EditableField
+                            label=""
+                            value={value as string | number | null | undefined}
+                            fieldKey={field.name}
+                            type={field.field_type === 'textarea' ? 'textarea' : field.field_type === 'number' || field.field_type === 'currency' || field.field_type === 'percentage' ? 'number' : field.field_type === 'url' ? 'url' : 'text'}
+                            onSave={(_, val) => handleCustomFieldSave(field.name, val)}
+                            prefix={field.field_type === 'currency' ? '$' : undefined}
+                            suffix={field.field_type === 'percentage' ? '%' : undefined}
+                          />
+                          {field.description && (
+                            <p className="text-xs text-muted-foreground mt-1">{field.description}</p>
+                          )}
                         </div>
-                      ))}
-                    </div>
-                  </CardContent>
-                </Card>
+                        <div className="flex items-center gap-1">
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleEditField(field)}
+                            title="Edit field definition"
+                          >
+                            <Settings className="h-4 w-4" />
+                          </Button>
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            onClick={() => handleDeleteField(field)}
+                            className="text-destructive hover:text-destructive"
+                            title="Delete field"
+                          >
+                            <Trash2 className="h-4 w-4" />
+                          </Button>
+                        </div>
+                      </div>
+                    );
+                  })}
+                </div>
               )}
-            </>
-          )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* People Tab */}
@@ -488,6 +716,24 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
         organizationId={organizationId}
         organizationName={organization.name}
         onPersonAdded={handlePersonAdded}
+      />
+
+      <AddFieldDialog
+        open={showAddFieldDialog}
+        onOpenChange={setShowAddFieldDialog}
+        entityType="organization"
+      />
+
+      <EditFieldDialog
+        open={showEditFieldDialog}
+        onOpenChange={setShowEditFieldDialog}
+        field={selectedField}
+      />
+
+      <DeleteFieldDialog
+        open={showDeleteFieldDialog}
+        onOpenChange={setShowDeleteFieldDialog}
+        field={selectedField}
       />
     </div>
   );
