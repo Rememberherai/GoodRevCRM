@@ -25,6 +25,38 @@ const PERSON_STANDARD_FIELDS = new Set([
   'address_street', 'address_city', 'address_state', 'address_postal_code', 'address_country',
 ]);
 
+// Helper to parse revenue string to number (e.g., "$50B" -> 50000000000)
+function parseRevenueToNumber(value: unknown): number | null {
+  if (value === null || value === undefined) return null;
+  if (typeof value === 'number') return value;
+  if (typeof value !== 'string') return null;
+
+  // Remove currency symbols and spaces
+  const cleaned = value.replace(/[$,\s]/g, '').toLowerCase();
+  if (!cleaned) return null;
+
+  // Parse multipliers
+  let multiplier = 1;
+  let numStr = cleaned;
+
+  if (cleaned.endsWith('t') || cleaned.endsWith('trillion')) {
+    multiplier = 1_000_000_000_000;
+    numStr = cleaned.replace(/t(rillion)?$/, '');
+  } else if (cleaned.endsWith('b') || cleaned.endsWith('billion')) {
+    multiplier = 1_000_000_000;
+    numStr = cleaned.replace(/b(illion)?$/, '');
+  } else if (cleaned.endsWith('m') || cleaned.endsWith('million')) {
+    multiplier = 1_000_000;
+    numStr = cleaned.replace(/m(illion)?$/, '');
+  } else if (cleaned.endsWith('k') || cleaned.endsWith('thousand')) {
+    multiplier = 1_000;
+    numStr = cleaned.replace(/k|(thousand)$/, '');
+  }
+
+  const num = parseFloat(numStr);
+  return isNaN(num) ? null : Math.round(num * multiplier);
+}
+
 // POST /api/projects/[slug]/research/[id]/apply - Apply research results to entity
 export async function POST(request: Request, context: RouteContext) {
   try {
@@ -106,7 +138,16 @@ export async function POST(request: Request, context: RouteContext) {
       if (update.is_custom) {
         customFieldUpdates[update.field_name] = update.value;
       } else if (standardFields.has(update.field_name)) {
-        standardUpdates[update.field_name] = update.value;
+        // Handle type conversions for specific fields
+        let processedValue = update.value;
+
+        if (update.field_name === 'annual_revenue' && typedJob.entity_type === 'organization') {
+          // Convert revenue string to number
+          processedValue = parseRevenueToNumber(update.value);
+          console.log('Converted annual_revenue:', update.value, '->', processedValue);
+        }
+
+        standardUpdates[update.field_name] = processedValue;
       } else {
         console.log('WARNING: Field not in standard fields list:', update.field_name);
       }
