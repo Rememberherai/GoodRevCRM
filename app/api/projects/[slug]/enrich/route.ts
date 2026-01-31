@@ -103,16 +103,20 @@ export async function GET(request: Request, context: RouteContext) {
     // If poll=true, check FullEnrich for updates on processing jobs
     // Note: We only update the enrichment_jobs table, NOT the people table
     // User must review and select which fields to apply via the review modal
+    console.log('Poll check:', { poll, jobsLength: jobs?.length });
     if (poll && jobs && jobs.length > 0) {
       const processingJobs = (jobs as EnrichmentJobRow[]).filter(
         (j) => j.status === 'processing' && j.external_job_id
       );
+      console.log('Processing jobs found:', processingJobs.length);
 
       if (processingJobs.length > 0) {
         try {
           const client = getFullEnrichClient();
+          console.log('FullEnrich client created, polling jobs...');
 
           for (const job of processingJobs) {
+            console.log('Polling job:', job.id, 'external_job_id:', job.external_job_id);
             try {
               const result = await client.getJobStatus(job.external_job_id!);
               console.log('FullEnrich poll result:', JSON.stringify(result, null, 2));
@@ -164,12 +168,12 @@ export async function GET(request: Request, context: RouteContext) {
                 }
               }
             } catch (pollError) {
-              console.error('Error polling FullEnrich for job:', job.id, pollError);
+              console.error('Error polling FullEnrich for job:', job.id, 'Error:', pollError instanceof Error ? pollError.message : pollError);
               // Continue with other jobs
             }
           }
         } catch (clientError) {
-          console.error('Error creating FullEnrich client for polling:', clientError);
+          console.error('Error creating FullEnrich client for polling:', clientError instanceof Error ? clientError.message : clientError);
           // Continue without polling
         }
       }

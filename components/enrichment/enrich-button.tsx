@@ -56,42 +56,59 @@ export function EnrichButton({
     const maxAttempts = 20; // Poll for up to ~2 minutes
     const pollInterval = 6000; // 6 seconds between polls
 
+    console.log('[Enrich] Starting poll for job:', jobId);
+
     for (let attempt = 0; attempt < maxAttempts; attempt++) {
+      console.log(`[Enrich] Poll attempt ${attempt + 1}/${maxAttempts}`);
       await new Promise((resolve) => setTimeout(resolve, pollInterval));
 
       try {
         // Check job status (with poll=true to actively check FullEnrich)
-        const response = await fetch(
-          `/api/projects/${slug}/enrich?person_id=${personId}&limit=1&poll=true`
-        );
+        const url = `/api/projects/${slug}/enrich?person_id=${personId}&limit=1&poll=true`;
+        console.log('[Enrich] Fetching:', url);
+        const response = await fetch(url);
 
-        if (!response.ok) continue;
+        if (!response.ok) {
+          console.log('[Enrich] Response not ok:', response.status);
+          continue;
+        }
 
         const data = await response.json();
+        console.log('[Enrich] Poll response:', JSON.stringify(data, null, 2));
         const jobs = data.jobs as EnrichmentJob[];
         const latestJob = jobs?.find((j) => j.id === jobId);
 
-        if (!latestJob) continue;
+        if (!latestJob) {
+          console.log('[Enrich] Job not found in response');
+          continue;
+        }
+
+        console.log('[Enrich] Job status:', latestJob.status, 'Result:', latestJob.result ? 'present' : 'null');
 
         if (latestJob.status === 'completed' && latestJob.result) {
+          console.log('[Enrich] Job completed with result, opening modal');
           // Open review modal with the enrichment data
           setEnrichmentData(latestJob.result as EnrichmentPerson);
           setShowReviewModal(true);
           setIsEnriching(false);
           return;
         } else if (latestJob.status === 'failed') {
+          console.log('[Enrich] Job failed:', latestJob.error);
           setLastResult('failed');
           toast.error(`Enrichment failed: ${latestJob.error ?? 'Unknown error'}`);
           setIsEnriching(false);
           return;
         }
         // Still processing, continue polling
-      } catch {
+        console.log('[Enrich] Still processing, continuing...');
+      } catch (err) {
+        console.error('[Enrich] Poll error:', err);
         // Ignore polling errors, continue trying
       }
     }
 
     // Timed out - job may still complete via webhook
+    console.log('[Enrich] Timed out after max attempts');
     setIsEnriching(false);
     toast.info(`Enrichment is taking longer than expected. Results will appear when ready.`);
   }, [slug, personId]);
