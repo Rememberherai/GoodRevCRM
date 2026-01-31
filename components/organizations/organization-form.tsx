@@ -10,13 +10,15 @@ import {
   updateOrganizationApi,
   useOrganizationStore,
 } from '@/stores/organization';
+import { useEntityCustomFields } from '@/hooks/use-custom-fields';
 import type { Organization } from '@/types/organization';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { CustomFieldsRenderer } from '@/components/forms/custom-fields-renderer';
 
 interface OrganizationFormProps {
   organization?: Organization;
@@ -29,8 +31,12 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
   const projectSlug = params.slug as string;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
+    (organization?.custom_fields as Record<string, unknown>) ?? {}
+  );
   const addOrganization = useOrganizationStore((s) => s.addOrganization);
   const updateOrganizationInStore = useOrganizationStore((s) => s.updateOrganization);
+  const { fields: customFields } = useEntityCustomFields('organization');
 
   const {
     register,
@@ -57,15 +63,23 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
     },
   });
 
+  const handleCustomFieldChange = (name: string, value: unknown) => {
+    setCustomFieldValues((prev) => ({ ...prev, [name]: value }));
+  };
+
   const onSubmit = async (data: CreateOrganizationInput) => {
     setIsLoading(true);
     setError(null);
     try {
+      const submitData = {
+        ...data,
+        custom_fields: customFieldValues,
+      };
       if (organization) {
-        const updated = await updateOrganizationApi(projectSlug, organization.id, data);
+        const updated = await updateOrganizationApi(projectSlug, organization.id, submitData);
         updateOrganizationInStore(organization.id, updated);
       } else {
-        const created = await createOrganization(projectSlug, data);
+        const created = await createOrganization(projectSlug, submitData);
         addOrganization(created);
       }
       onSuccess?.();
@@ -305,6 +319,22 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
           </div>
         </CardContent>
       </Card>
+
+      {customFields.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle>Custom Fields</CardTitle>
+            <CardDescription>Additional fields configured for organizations</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <CustomFieldsRenderer
+              fields={customFields}
+              values={customFieldValues}
+              onChange={handleCustomFieldChange}
+            />
+          </CardContent>
+        </Card>
+      )}
 
       <div className="flex items-center justify-end gap-4">
         {onCancel && (
