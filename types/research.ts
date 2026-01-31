@@ -301,7 +301,10 @@ export function createFieldMappings(
       if (value === undefined || value === null) continue;
 
       const confidenceScores = (result as Record<string, unknown>).confidence_scores as Record<string, number> | undefined;
-      const confidence = confidenceScores?.[`custom_${fieldName}`] ?? 0.5;
+      // Try multiple formats: custom_fields.fieldName (AI returns this), custom_fieldName (alternative)
+      const confidence = confidenceScores?.[`custom_fields.${fieldName}`]
+        ?? confidenceScores?.[`custom_${fieldName}`]
+        ?? 0.5;
 
       const currentCustomFields = (currentEntity.custom_fields as Record<string, unknown>) ?? {};
 
