@@ -52,7 +52,10 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     // Fetch research job
-    const { data: job, error: jobError } = await supabase
+    // Use type assertion since research_jobs table isn't in generated types
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabaseAny = supabase as any;
+    const { data: job, error: jobError } = await supabaseAny
       .from('research_jobs')
       .select('*')
       .eq('id', id)
@@ -60,6 +63,7 @@ export async function POST(request: Request, context: RouteContext) {
       .single();
 
     if (jobError || !job) {
+      console.error('Error fetching research job:', jobError);
       return NextResponse.json({ error: 'Research job not found' }, { status: 404 });
     }
 
@@ -124,10 +128,14 @@ export async function POST(request: Request, context: RouteContext) {
     const mergedCustomFields = { ...existingCustomFields, ...customFieldUpdates };
 
     // Build the final update object
-    const updateData = {
+    // Only include custom_fields if there are custom field updates
+    const updateData: Record<string, unknown> = {
       ...standardUpdates,
-      custom_fields: mergedCustomFields,
     };
+
+    if (Object.keys(customFieldUpdates).length > 0) {
+      updateData.custom_fields = mergedCustomFields;
+    }
 
     // Update the entity
     if (typedJob.entity_type === 'organization') {
