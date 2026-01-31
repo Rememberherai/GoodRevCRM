@@ -106,7 +106,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     const updates = validationResult.data;
 
     // Build the update object
-    const updateData: CustomFieldDefinitionUpdate = {};
+    // Use any type for fields not in generated types
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updateData: CustomFieldDefinitionUpdate & Record<string, any> = {};
     if (updates.label !== undefined) updateData.label = updates.label;
     if (updates.description !== undefined) updateData.description = updates.description;
     if (updates.is_required !== undefined) updateData.is_required = updates.is_required;
@@ -119,6 +121,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (updates.options !== undefined) updateData.options = updates.options;
     if (updates.default_value !== undefined) updateData.default_value = updates.default_value;
     if (updates.validation_rules !== undefined) updateData.validation_rules = updates.validation_rules;
+    // AI extraction settings (not in generated types yet)
+    if (updates.is_ai_extractable !== undefined) updateData.is_ai_extractable = updates.is_ai_extractable;
+    if (updates.ai_extraction_hint !== undefined) updateData.ai_extraction_hint = updates.ai_extraction_hint;
+    if (updates.ai_confidence_threshold !== undefined) updateData.ai_confidence_threshold = updates.ai_confidence_threshold;
 
     const { data: field, error } = await supabase
       .from('custom_field_definitions')
