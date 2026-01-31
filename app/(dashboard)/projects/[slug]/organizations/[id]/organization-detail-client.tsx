@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -14,6 +14,8 @@ import {
   Trash2,
   Users,
   Target,
+  Plus,
+  Mail,
 } from 'lucide-react';
 import { useOrganization } from '@/hooks/use-organizations';
 import { useOrganizationStore, deleteOrganization } from '@/stores/organization';
@@ -33,9 +35,12 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { OrganizationForm } from '@/components/organizations/organization-form';
+import { AddPersonDialog } from '@/components/organizations/add-person-dialog';
 import { ResearchPanel } from '@/components/research/research-panel';
 import { ResearchResultsDialog } from '@/components/research/research-results-dialog';
+import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
+import type { Person } from '@/types/person';
 
 interface OrganizationDetailClientProps {
   organizationId: string;
@@ -50,8 +55,28 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
   const [isDeleting, setIsDeleting] = useState(false);
   const [showResearchResults, setShowResearchResults] = useState(false);
   const [researchJob, setResearchJob] = useState<ResearchJob | null>(null);
+  const [showAddPersonDialog, setShowAddPersonDialog] = useState(false);
+  const [people, setPeople] = useState<Person[]>([]);
+  const [peopleLoading, setPeopleLoading] = useState(false);
 
   const { organization, isLoading, error, refresh } = useOrganization(organizationId);
+
+  const loadPeople = useCallback(async () => {
+    if (!slug) return;
+    setPeopleLoading(true);
+    try {
+      const result = await fetchPeople(slug, { organizationId });
+      setPeople(result.people);
+    } catch {
+      // Silently fail, people section will show empty
+    } finally {
+      setPeopleLoading(false);
+    }
+  }, [slug, organizationId]);
+
+  useEffect(() => {
+    loadPeople();
+  }, [loadPeople]);
 
   const handleResearchComplete = (job: ResearchJob) => {
     setResearchJob(job);
@@ -77,6 +102,19 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
       .join('')
       .toUpperCase()
       .slice(0, 2);
+  };
+
+  const getPersonInitials = (firstName: string, lastName: string) => {
+    return `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
+  };
+
+  const getFullName = (firstName: string, lastName: string) => {
+    return `${firstName} ${lastName}`.trim();
+  };
+
+  const handlePersonAdded = () => {
+    loadPeople();
+    refresh();
   };
 
   if (isLoading) {
@@ -298,6 +336,74 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
         </Card>
       )}
 
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <CardTitle className="flex items-center gap-2">
+              <Users className="h-5 w-5" />
+              People
+            </CardTitle>
+            <Button size="sm" onClick={() => setShowAddPersonDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Person
+            </Button>
+          </div>
+          <CardDescription>
+            Contacts associated with this organization
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          {peopleLoading ? (
+            <div className="text-center py-4 text-muted-foreground">Loading...</div>
+          ) : people.length === 0 ? (
+            <div className="text-center py-8">
+              <Users className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
+              <p className="text-muted-foreground">No people yet</p>
+              <Button
+                variant="outline"
+                size="sm"
+                className="mt-2"
+                onClick={() => setShowAddPersonDialog(true)}
+              >
+                <Plus className="mr-2 h-4 w-4" />
+                Add your first person
+              </Button>
+            </div>
+          ) : (
+            <div className="space-y-3">
+              {people.map((person) => (
+                <Link
+                  key={person.id}
+                  href={`/projects/${slug}/people/${person.id}`}
+                  className="flex items-center gap-3 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                >
+                  <Avatar className="h-10 w-10">
+                    <AvatarImage src={person.avatar_url ?? undefined} alt={getFullName(person.first_name, person.last_name)} />
+                    <AvatarFallback>{getPersonInitials(person.first_name, person.last_name)}</AvatarFallback>
+                  </Avatar>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium truncate">
+                      {getFullName(person.first_name, person.last_name)}
+                    </div>
+                    {person.job_title && (
+                      <div className="text-sm text-muted-foreground truncate">
+                        {person.job_title}
+                      </div>
+                    )}
+                  </div>
+                  {person.email && (
+                    <div className="hidden sm:flex items-center gap-1 text-sm text-muted-foreground">
+                      <Mail className="h-3 w-3" />
+                      <span className="truncate max-w-[200px]">{person.email}</span>
+                    </div>
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <ResearchPanel
         entityType="organization"
         entityId={organizationId}
@@ -332,6 +438,14 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
         onOpenChange={setShowResearchResults}
         job={researchJob}
         onApplied={refresh}
+      />
+
+      <AddPersonDialog
+        open={showAddPersonDialog}
+        onOpenChange={setShowAddPersonDialog}
+        organizationId={organizationId}
+        organizationName={organization.name}
+        onPersonAdded={handlePersonAdded}
       />
     </div>
   );

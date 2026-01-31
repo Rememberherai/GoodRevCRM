@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Search, Users, Mail, Phone, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Search, Users, Mail, Phone, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { usePeople } from '@/hooks/use-people';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,12 +33,10 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
-import { NewPersonDialog } from '@/components/people/new-person-dialog';
 
 export function PeoplePageClient() {
   const params = useParams();
   const slug = params.slug as string;
-  const [showNewDialog, setShowNewDialog] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
@@ -84,10 +82,6 @@ export function PeoplePageClient() {
             Manage contacts and individuals in your CRM
           </p>
         </div>
-        <Button onClick={() => setShowNewDialog(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          Add Person
-        </Button>
       </div>
 
       <form onSubmit={handleSearch} className="flex items-center gap-4">
@@ -135,14 +129,9 @@ export function PeoplePageClient() {
                   <div className="flex flex-col items-center gap-2">
                     <Users className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">No people yet</p>
-                    <Button
-                      variant="outline"
-                      size="sm"
-                      onClick={() => setShowNewDialog(true)}
-                    >
-                      <Plus className="mr-2 h-4 w-4" />
-                      Add your first person
-                    </Button>
+                    <p className="text-sm text-muted-foreground">
+                      Add people from an organization&apos;s detail page
+                    </p>
                   </div>
                 </TableCell>
               </TableRow>
@@ -262,8 +251,7 @@ export function PeoplePageClient() {
         </div>
       )}
 
-      <NewPersonDialog open={showNewDialog} onOpenChange={setShowNewDialog} />
-
+      
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

@@ -138,7 +138,8 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const body = await request.json();
-    const validationResult = createPersonSchema.safeParse(body);
+    const { organization_id, ...personFields } = body;
+    const validationResult = createPersonSchema.safeParse(personFields);
 
     if (!validationResult.success) {
       return NextResponse.json(
@@ -163,6 +164,22 @@ export async function POST(request: Request, context: RouteContext) {
     if (error) {
       console.error('Error creating person:', error);
       return NextResponse.json({ error: 'Failed to create person' }, { status: 500 });
+    }
+
+    // If organization_id is provided, create the person-organization link
+    if (organization_id && person) {
+      const { error: linkError } = await supabase
+        .from('person_organizations')
+        .insert({
+          person_id: (person as Person).id,
+          organization_id: organization_id as string,
+          is_primary: true,
+        });
+
+      if (linkError) {
+        console.error('Error linking person to organization:', linkError);
+        // Don't fail the request, person was created successfully
+      }
     }
 
     return NextResponse.json({ person: person as Person }, { status: 201 });

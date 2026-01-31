@@ -68,7 +68,7 @@ export function usePeople() {
   ]);
 
   const create = useCallback(
-    async (data: CreatePersonInput) => {
+    async (data: CreatePersonInput & { organization_id?: string }) => {
       if (!projectSlug) throw new Error('No project selected');
 
       setLoading(true);

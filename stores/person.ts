@@ -165,7 +165,7 @@ export async function fetchPerson(
 
 export async function createPerson(
   projectSlug: string,
-  data: CreatePersonInput
+  data: CreatePersonInput & { organization_id?: string }
 ): Promise<Person> {
   const response = await fetch(`/api/projects/${projectSlug}/people`, {
     method: 'POST',

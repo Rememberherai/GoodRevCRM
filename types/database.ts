@@ -530,6 +530,57 @@ export type Database = {
           }
         ];
       };
+      person_organizations: {
+        Row: {
+          id: string;
+          person_id: string;
+          organization_id: string;
+          title: string | null;
+          department: string | null;
+          is_primary: boolean;
+          start_date: string | null;
+          end_date: string | null;
+          created_at: string;
+        };
+        Insert: {
+          id?: string;
+          person_id: string;
+          organization_id: string;
+          title?: string | null;
+          department?: string | null;
+          is_primary?: boolean;
+          start_date?: string | null;
+          end_date?: string | null;
+          created_at?: string;
+        };
+        Update: {
+          id?: string;
+          person_id?: string;
+          organization_id?: string;
+          title?: string | null;
+          department?: string | null;
+          is_primary?: boolean;
+          start_date?: string | null;
+          end_date?: string | null;
+          created_at?: string;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "person_organizations_person_id_fkey";
+            columns: ["person_id"];
+            isOneToOne: false;
+            referencedRelation: "people";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "person_organizations_organization_id_fkey";
+            columns: ["organization_id"];
+            isOneToOne: false;
+            referencedRelation: "organizations";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       custom_field_definitions: {
         Row: {
           id: string;
