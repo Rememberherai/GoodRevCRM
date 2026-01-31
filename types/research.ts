@@ -288,9 +288,16 @@ export function createFieldMappings(
 
   // Map custom fields
   const customFields = (result as Record<string, unknown>).custom_fields as Record<string, unknown> | undefined;
+  console.log('[DEBUG research] createFieldMappings custom fields:', {
+    hasCustomFields: !!customFields,
+    customFieldsKeys: customFields ? Object.keys(customFields) : [],
+    customFieldsValues: customFields,
+    expectedFieldNames: customFieldNames,
+  });
   if (customFields) {
     for (const fieldName of customFieldNames) {
       const value = customFields[fieldName];
+      console.log('[DEBUG research] checking custom field:', { fieldName, value, hasValue: value !== undefined && value !== null });
       if (value === undefined || value === null) continue;
 
       const confidenceScores = (result as Record<string, unknown>).confidence_scores as Record<string, number> | undefined;

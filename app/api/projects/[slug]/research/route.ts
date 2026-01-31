@@ -14,6 +14,9 @@ import {
 import type { CustomFieldDefinition, EntityType } from '@/types/custom-field';
 import type { ResearchJob } from '@/types/research';
 import type { OrganizationResearch, PersonResearch } from '@/lib/openrouter/structured-output';
+import { createDebugger } from '@/lib/debug';
+
+const log = createDebugger('research-route');
 
 // Type for research settings from DB
 interface ResearchSettingsDB {
@@ -218,14 +221,21 @@ export async function POST(request: Request, context: RouteContext) {
     // Fetch custom fields if requested (only AI-extractable ones)
     let customFields: CustomFieldDefinition[] = [];
     if (include_custom_fields) {
-      const { data: fields } = await supabase
+      const { data: fields, error: fieldsError } = await supabase
         .from('custom_field_definitions')
         .select('*')
         .eq('project_id', project.id)
         .eq('entity_type', entity_type);
 
+      log.log('Fetched custom field definitions', {
+        count: fields?.length ?? 0,
+        error: fieldsError,
+        fields: fields?.map((f: Record<string, unknown>) => ({ name: f.name, is_ai_extractable: f.is_ai_extractable }))
+      });
+
       // Filter to only AI-extractable fields
       customFields = getAIExtractableFields((fields ?? []) as CustomFieldDefinition[]);
+      log.log('AI-extractable custom fields', { count: customFields.length, names: customFields.map(f => f.name) });
     }
 
     // Fetch research settings for this entity type
@@ -278,6 +288,14 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    log.log('Built research prompt', {
+      entity_type,
+      customFieldCount: customFields.length,
+      promptLength: prompt.length,
+      promptPreview: prompt.substring(0, 500),
+      customFieldsInPrompt: prompt.includes('custom_fields'),
+    });
+
     // Create the research job record
     const { data: job, error: insertError } = await supabaseAny
       .from('research_jobs')
@@ -320,6 +338,12 @@ export async function POST(request: Request, context: RouteContext) {
           systemPrompt,
         });
       }
+
+      log.log('AI research result', {
+        hasCustomFields: !!result.custom_fields,
+        customFieldsKeys: result.custom_fields ? Object.keys(result.custom_fields) : [],
+        customFieldsValues: result.custom_fields,
+      });
 
       // Update the job with results
       const { data: updatedJob, error: updateError } = await supabaseAny

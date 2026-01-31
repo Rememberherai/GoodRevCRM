@@ -2,6 +2,9 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import type { ResearchJob, ResearchResult } from '@/types/research';
 import { createFieldMappings } from '@/types/research';
+import { createDebugger } from '@/lib/debug';
+
+const log = createDebugger('research-get');
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
@@ -81,6 +84,16 @@ export async function GET(_request: Request, context: RouteContext) {
         .is('deleted_at', null);
 
       const customFieldNames = (customFieldDefs ?? []).map((f: { name: string }) => f.name);
+
+      log.log('Custom field definitions from DB', {
+        count: customFieldNames.length,
+        names: customFieldNames,
+      });
+
+      log.log('Research result custom_fields', {
+        hasCustomFields: !!(typedJob.result as Record<string, unknown>)?.custom_fields,
+        customFieldsContent: (typedJob.result as Record<string, unknown>)?.custom_fields,
+      });
 
       // Generate field mappings
       const fieldMappings = createFieldMappings(

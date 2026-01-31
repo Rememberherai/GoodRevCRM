@@ -68,6 +68,17 @@ export function formatCustomFieldsForPrompt(fields: CustomFieldDefinition[]): st
     f => f.is_ai_extractable !== false
   );
 
+  console.log('[DEBUG prompts] formatCustomFieldsForPrompt input:', {
+    inputCount: fields.length,
+    extractableCount: extractableFields.length,
+    fieldDetails: extractableFields.map(f => ({
+      name: f.name,
+      label: f.label,
+      is_ai_extractable: f.is_ai_extractable,
+      ai_extraction_hint: f.ai_extraction_hint,
+    })),
+  });
+
   if (extractableFields.length === 0) return '';
 
   const fieldDescriptions = extractableFields.map(field => {
@@ -226,6 +237,12 @@ For each field, provide a confidence score (0-1) indicating how certain you are 
     }
     customFieldsExample = JSON.stringify(exampleObj, null, 4).replace(/\n/g, '\n    ');
   }
+
+  console.log('[DEBUG prompts] Organization prompt customFields:', {
+    customFieldsCount: customFields.length,
+    customFieldsExample,
+    customFieldNames: customFields.map(f => f.name),
+  });
 
   prompt += `
 
