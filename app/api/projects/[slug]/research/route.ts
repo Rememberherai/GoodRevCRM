@@ -14,9 +14,6 @@ import {
 import type { CustomFieldDefinition, EntityType } from '@/types/custom-field';
 import type { ResearchJob } from '@/types/research';
 import type { OrganizationResearch, PersonResearch } from '@/lib/openrouter/structured-output';
-import { createDebugger } from '@/lib/debug';
-
-const log = createDebugger('research-route');
 
 // Type for research settings from DB
 interface ResearchSettingsDB {

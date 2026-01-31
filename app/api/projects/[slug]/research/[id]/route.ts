@@ -2,9 +2,6 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import type { ResearchJob, ResearchResult } from '@/types/research';
 import { createFieldMappings } from '@/types/research';
-import { createDebugger } from '@/lib/debug';
-
-const log = createDebugger('research-get');
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;

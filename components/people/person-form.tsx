@@ -1,9 +1,11 @@
 'use client';
 
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { usePeople } from '@/hooks/use-people';
+import { useParams } from 'next/navigation';
 import { personSchema, type CreatePersonInput } from '@/lib/validators/person';
+import { createPerson, updatePersonApi } from '@/stores/person';
 import type { Person } from '@/types/person';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -14,12 +16,16 @@ import { Separator } from '@/components/ui/separator';
 
 interface PersonFormProps {
   person?: Person;
+  organizationId?: string;
   onSuccess?: () => void;
   onCancel?: () => void;
 }
 
-export function PersonForm({ person, onSuccess, onCancel }: PersonFormProps) {
-  const { create, update, isLoading } = usePeople();
+export function PersonForm({ person, organizationId, onSuccess, onCancel }: PersonFormProps) {
+  const params = useParams();
+  const projectSlug = params.slug as string;
+  const [isLoading, setIsLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   const {
     register,
