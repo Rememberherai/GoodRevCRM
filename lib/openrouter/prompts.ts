@@ -141,9 +141,6 @@ export function buildOrganizationResearchPrompt(
   customPromptTemplate?: string
 ): string {
   const customFieldsSection = formatCustomFieldsForPrompt(customFields);
-  const customFieldsSchema = customFields.length > 0
-    ? buildCustomFieldsSchema(customFields)
-    : null;
 
   // If custom prompt template is provided, use it
   if (customPromptTemplate) {
@@ -275,9 +272,6 @@ export function buildPersonResearchPrompt(
 ): string {
   const fullName = `${person.first_name} ${person.last_name}`;
   const customFieldsSection = formatCustomFieldsForPrompt(customFields);
-  const customFieldsSchema = customFields.length > 0
-    ? buildCustomFieldsSchema(customFields)
-    : null;
 
   // If custom prompt template is provided, use it
   if (customPromptTemplate) {
