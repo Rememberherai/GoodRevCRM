@@ -12,10 +12,21 @@ import {
 } from '@/components/ui/tooltip';
 import { toast } from 'sonner';
 import type { EnrichmentJob } from '@/types/enrichment';
+import type { EnrichmentPerson } from '@/lib/fullenrich/client';
+import { EnrichmentReviewModal } from './enrichment-review-modal';
 
 interface EnrichButtonProps {
   personId: string;
   personName: string;
+  currentPerson?: {
+    email?: string | null;
+    phone?: string | null;
+    job_title?: string | null;
+    linkedin_url?: string | null;
+    address_city?: string | null;
+    address_state?: string | null;
+    address_country?: string | null;
+  };
   onEnriched?: (job: EnrichmentJob, fieldsUpdated: number) => void;
   variant?: 'default' | 'outline' | 'ghost' | 'secondary';
   size?: 'default' | 'sm' | 'lg' | 'icon';
@@ -25,6 +36,7 @@ interface EnrichButtonProps {
 export function EnrichButton({
   personId,
   personName,
+  currentPerson = {},
   onEnriched,
   variant = 'outline',
   size = 'sm',
@@ -35,6 +47,9 @@ export function EnrichButton({
   const slug = params?.slug as string;
   const [isEnriching, setIsEnriching] = useState(false);
   const [lastResult, setLastResult] = useState<'success' | 'failed' | null>(null);
+  const [showReviewModal, setShowReviewModal] = useState(false);
+  const [enrichmentData, setEnrichmentData] = useState<EnrichmentPerson | null>(null);
+  const [isApplying, setIsApplying] = useState(false);
 
   // Poll for job completion
   const pollForResults = useCallback(async (jobId: string, _externalJobId: string) => {
@@ -58,15 +73,16 @@ export function EnrichButton({
 
         if (!latestJob) continue;
 
-        if (latestJob.status === 'completed') {
-          setLastResult('success');
-          toast.success(`Enriched ${personName} successfully!`);
-          onEnriched?.(latestJob, 1);
-          router.refresh();
+        if (latestJob.status === 'completed' && latestJob.result) {
+          // Open review modal with the enrichment data
+          setEnrichmentData(latestJob.result as EnrichmentPerson);
+          setShowReviewModal(true);
+          setIsEnriching(false);
           return;
         } else if (latestJob.status === 'failed') {
           setLastResult('failed');
           toast.error(`Enrichment failed: ${latestJob.error ?? 'Unknown error'}`);
+          setIsEnriching(false);
           return;
         }
         // Still processing, continue polling
@@ -76,8 +92,9 @@ export function EnrichButton({
     }
 
     // Timed out - job may still complete via webhook
+    setIsEnriching(false);
     toast.info(`Enrichment is taking longer than expected. Results will appear when ready.`);
-  }, [slug, personId, personName, onEnriched, router]);
+  }, [slug, personId]);
 
   const handleEnrich = async () => {
     if (!slug || isEnriching) return;
@@ -99,30 +116,57 @@ export function EnrichButton({
       }
 
       const job = data.job as EnrichmentJob;
-      const fieldsUpdated = data.fields_updated ?? 0;
 
-      if (job.status === 'completed') {
-        setLastResult('success');
-        if (fieldsUpdated > 0) {
-          toast.success(`Enriched ${personName} - ${fieldsUpdated} fields updated`);
-        } else {
-          toast.info(`${personName} already has complete data`);
-        }
-        onEnriched?.(job, fieldsUpdated);
+      if (job.status === 'completed' && job.result) {
+        // Open review modal with the enrichment data
+        setEnrichmentData(job.result as EnrichmentPerson);
+        setShowReviewModal(true);
+        setIsEnriching(false);
       } else if (job.status === 'processing') {
         toast.info(`Enriching ${personName}...`);
-        // Start polling for results in background
+        // Start polling for results in background (don't set isEnriching to false)
         pollForResults(job.id, job.external_job_id ?? '');
       } else if (job.status === 'failed') {
         setLastResult('failed');
+        setIsEnriching(false);
         toast.error(`Enrichment failed: ${job.error ?? 'Unknown error'}`);
       }
     } catch (error) {
       setLastResult('failed');
+      setIsEnriching(false);
       const message = error instanceof Error ? error.message : 'Enrichment failed';
       toast.error(message);
+    }
+  };
+
+  // Handle applying selected enrichment fields
+  const handleApplyEnrichment = async (selectedFields: Record<string, string | null>) => {
+    if (!slug || Object.keys(selectedFields).length === 0) return;
+
+    setIsApplying(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/people/${personId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(selectedFields),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error ?? 'Failed to apply enrichment');
+      }
+
+      setLastResult('success');
+      setShowReviewModal(false);
+      setEnrichmentData(null);
+      toast.success(`Applied ${Object.keys(selectedFields).length} field${Object.keys(selectedFields).length !== 1 ? 's' : ''} to ${personName}`);
+      router.refresh();
+      onEnriched?.(null as unknown as EnrichmentJob, Object.keys(selectedFields).length);
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to apply enrichment';
+      toast.error(message);
     } finally {
-      setIsEnriching(false);
+      setIsApplying(false);
     }
   };
 
@@ -157,16 +201,44 @@ export function EnrichButton({
 
   if (size === 'icon' || !showLabel) {
     return (
-      <TooltipProvider>
-        <Tooltip>
-          <TooltipTrigger asChild>{button}</TooltipTrigger>
-          <TooltipContent>
-            <p>Enrich {personName}</p>
-          </TooltipContent>
-        </Tooltip>
-      </TooltipProvider>
+      <>
+        <TooltipProvider>
+          <Tooltip>
+            <TooltipTrigger asChild>{button}</TooltipTrigger>
+            <TooltipContent>
+              <p>Enrich {personName}</p>
+            </TooltipContent>
+          </Tooltip>
+        </TooltipProvider>
+        <EnrichmentReviewModal
+          open={showReviewModal}
+          onClose={() => {
+            setShowReviewModal(false);
+            setEnrichmentData(null);
+          }}
+          enrichmentData={enrichmentData}
+          currentPerson={currentPerson}
+          onApply={handleApplyEnrichment}
+          isApplying={isApplying}
+        />
+      </>
     );
   }
 
-  return button;
+  return (
+    <>
+      {button}
+      <EnrichmentReviewModal
+        open={showReviewModal}
+        onClose={() => {
+          setShowReviewModal(false);
+          setEnrichmentData(null);
+        }}
+        enrichmentData={enrichmentData}
+        currentPerson={currentPerson}
+        onApply={handleApplyEnrichment}
+        isApplying={isApplying}
+      />
+    </>
+  );
 }

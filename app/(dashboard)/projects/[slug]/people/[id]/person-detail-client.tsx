@@ -136,6 +136,15 @@ export function PersonDetailClient({ personId }: PersonDetailClientProps) {
           <EnrichButton
             personId={personId}
             personName={getFullName(person.first_name, person.last_name)}
+            currentPerson={{
+              email: person.email,
+              phone: person.phone,
+              job_title: person.job_title,
+              linkedin_url: person.linkedin_url,
+              address_city: person.address_city,
+              address_state: person.address_state,
+              address_country: person.address_country,
+            }}
             onEnriched={() => refresh()}
           />
           <Button variant="outline" onClick={() => setIsEditing(true)}>

@@ -101,6 +101,8 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     // If poll=true, check FullEnrich for updates on processing jobs
+    // Note: We only update the enrichment_jobs table, NOT the people table
+    // User must review and select which fields to apply via the review modal
     if (poll && jobs && jobs.length > 0) {
       const processingJobs = (jobs as EnrichmentJobRow[]).filter(
         (j) => j.status === 'processing' && j.external_job_id
@@ -109,7 +111,6 @@ export async function GET(request: Request, context: RouteContext) {
       if (processingJobs.length > 0) {
         try {
           const client = getFullEnrichClient();
-          const { mapEnrichmentToPerson } = await import('@/lib/fullenrich/client');
 
           for (const job of processingJobs) {
             try {
@@ -119,7 +120,7 @@ export async function GET(request: Request, context: RouteContext) {
               if (result.status === 'completed' && result.results && result.results.length > 0) {
                 const enrichmentResult = result.results[0]!;
 
-                // Update job in database
+                // Update job in database with enrichment results (but NOT the person record)
                 await supabaseQuery
                   .from('enrichment_jobs')
                   .update({
@@ -130,23 +131,6 @@ export async function GET(request: Request, context: RouteContext) {
                   })
                   .eq('id', job.id);
 
-                // Update person with enriched data
-                const { data: person } = await supabase
-                  .from('people')
-                  .select('*')
-                  .eq('id', job.person_id)
-                  .single();
-
-                if (person) {
-                  const updates = mapEnrichmentToPerson(enrichmentResult, person);
-                  if (Object.keys(updates).length > 0) {
-                    await supabase
-                      .from('people')
-                      .update(updates)
-                      .eq('id', job.person_id);
-                  }
-                }
-
                 // Update job in response
                 const jobIndex = jobs.findIndex((j: EnrichmentJobRow) => j.id === job.id);
                 if (jobIndex !== -1) {
@@ -154,6 +138,26 @@ export async function GET(request: Request, context: RouteContext) {
                     ...jobs[jobIndex],
                     status: 'completed',
                     result: enrichmentResult,
+                    completed_at: new Date().toISOString(),
+                  };
+                }
+              } else if (result.status === 'failed') {
+                // Mark job as failed
+                await supabaseQuery
+                  .from('enrichment_jobs')
+                  .update({
+                    status: 'failed',
+                    error: result.error ?? 'Enrichment failed',
+                    completed_at: new Date().toISOString(),
+                  })
+                  .eq('id', job.id);
+
+                const jobIndex = jobs.findIndex((j: EnrichmentJobRow) => j.id === job.id);
+                if (jobIndex !== -1) {
+                  jobs[jobIndex] = {
+                    ...jobs[jobIndex],
+                    status: 'failed',
+                    error: result.error ?? 'Enrichment failed',
                     completed_at: new Date().toISOString(),
                   };
                 }
