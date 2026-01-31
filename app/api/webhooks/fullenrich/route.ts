@@ -1,7 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { enrichmentWebhookSchema, type EnrichmentRecord } from '@/lib/validators/enrichment';
-import { mapEnrichmentToPerson, type EnrichmentPerson } from '@/lib/fullenrich/client';
+import type { EnrichmentPerson } from '@/lib/fullenrich/client';
 
 // Create admin client for webhook processing (bypasses RLS)
 function createAdminClient() {
@@ -193,9 +193,12 @@ export async function POST(request: Request) {
         mobile_phone: contactInfo?.phones?.find(p => p.type === 'mobile')?.phone ?? null,
         work_phone: contactInfo?.phones?.find(p => p.type === 'work')?.phone ?? null,
         confidence_score: null,
+        // Include raw arrays for user selection in review modal
+        all_emails: contactInfo?.emails ?? [],
+        all_phones: contactInfo?.phones ?? [],
       };
 
-      // Update job with results
+      // Update job with results (user will review and apply via modal)
       await supabase
         .from('enrichment_jobs')
         .update({
@@ -206,24 +209,8 @@ export async function POST(request: Request) {
         })
         .eq('id', job.id);
 
-      // Fetch current person data
-      const { data: person } = await supabase
-        .from('people')
-        .select('*')
-        .eq('id', job.person_id)
-        .single();
-
-      if (person) {
-        // Apply enrichment updates to person
-        const updates = mapEnrichmentToPerson(enrichmentResult, person);
-        console.log('Applying enrichment updates to person:', { personId: job.person_id, updates });
-        if (Object.keys(updates).length > 0) {
-          await supabase
-            .from('people')
-            .update(updates)
-            .eq('id', job.person_id);
-        }
-      }
+      // Note: We do NOT auto-apply to person record here
+      // User must review and select which fields to apply via the review modal
     }
 
     return NextResponse.json({
