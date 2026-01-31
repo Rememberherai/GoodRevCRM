@@ -56,10 +56,10 @@ export const usePersonStore = create<PersonState>((set) => ({
   ...initialState,
 
   setPeople: (people, pagination) =>
-    set({ people, pagination, error: null }),
+    set({ people, pagination, error: null, isLoading: false }),
 
   setCurrentPerson: (person) =>
-    set({ currentPerson: person, error: null }),
+    set({ currentPerson: person, error: null, isLoading: false }),
 
   addPerson: (person) =>
     set((state) => ({

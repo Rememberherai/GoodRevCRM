@@ -68,7 +68,7 @@ export const useCustomFieldStore = create<CustomFieldState>((set, get) => ({
 
   setFields: (fields) => {
     const fieldsByEntity = groupFieldsByEntity(fields);
-    set({ fields, fieldsByEntity });
+    set({ fields, fieldsByEntity, isLoading: false });
   },
 
   addField: (field) => {

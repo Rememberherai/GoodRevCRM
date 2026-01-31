@@ -53,10 +53,10 @@ export const useOrganizationStore = create<OrganizationState>((set) => ({
   ...initialState,
 
   setOrganizations: (organizations, pagination) =>
-    set({ organizations, pagination, error: null }),
+    set({ organizations, pagination, error: null, isLoading: false }),
 
   setCurrentOrganization: (organization) =>
-    set({ currentOrganization: organization, error: null }),
+    set({ currentOrganization: organization, error: null, isLoading: false }),
 
   addOrganization: (organization) =>
     set((state) => ({

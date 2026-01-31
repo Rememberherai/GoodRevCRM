@@ -59,10 +59,10 @@ export const useRfpStore = create<RfpState>((set) => ({
   ...initialState,
 
   setRfps: (rfps, pagination) =>
-    set({ rfps, pagination, error: null }),
+    set({ rfps, pagination, error: null, isLoading: false }),
 
   setCurrentRfp: (rfp) =>
-    set({ currentRfp: rfp, error: null }),
+    set({ currentRfp: rfp, error: null, isLoading: false }),
 
   addRfp: (rfp) =>
     set((state) => ({

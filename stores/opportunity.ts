@@ -59,10 +59,10 @@ export const useOpportunityStore = create<OpportunityState>((set) => ({
   ...initialState,
 
   setOpportunities: (opportunities, pagination) =>
-    set({ opportunities, pagination, error: null }),
+    set({ opportunities, pagination, error: null, isLoading: false }),
 
   setCurrentOpportunity: (opportunity) =>
-    set({ currentOpportunity: opportunity, error: null }),
+    set({ currentOpportunity: opportunity, error: null, isLoading: false }),
 
   addOpportunity: (opportunity) =>
     set((state) => ({
