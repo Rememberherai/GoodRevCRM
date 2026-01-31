@@ -115,6 +115,7 @@ export async function GET(request: Request, context: RouteContext) {
           for (const job of processingJobs) {
             try {
               const result = await client.getJobStatus(job.external_job_id!);
+              console.log('FullEnrich poll result:', JSON.stringify(result, null, 2));
 
               // Check if job is finished
               if (result.status === 'completed' && result.results && result.results.length > 0) {
