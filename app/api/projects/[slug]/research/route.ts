@@ -227,15 +227,15 @@ export async function POST(request: Request, context: RouteContext) {
         .eq('project_id', project.id)
         .eq('entity_type', entity_type);
 
-      log.log('Fetched custom field definitions', {
+      console.log('[RESEARCH] Fetched custom field definitions', JSON.stringify({
         count: fields?.length ?? 0,
         error: fieldsError,
         fields: fields?.map((f: Record<string, unknown>) => ({ name: f.name, is_ai_extractable: f.is_ai_extractable }))
-      });
+      }, null, 2));
 
       // Filter to only AI-extractable fields
       customFields = getAIExtractableFields((fields ?? []) as CustomFieldDefinition[]);
-      log.log('AI-extractable custom fields', { count: customFields.length, names: customFields.map(f => f.name) });
+      console.log('[RESEARCH] AI-extractable custom fields', JSON.stringify({ count: customFields.length, names: customFields.map(f => f.name) }));
     }
 
     // Fetch research settings for this entity type
@@ -288,13 +288,13 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    log.log('Built research prompt', {
+    console.log('[RESEARCH] Built research prompt', JSON.stringify({
       entity_type,
       customFieldCount: customFields.length,
       promptLength: prompt.length,
       promptPreview: prompt.substring(0, 500),
       customFieldsInPrompt: prompt.includes('custom_fields'),
-    });
+    }, null, 2));
 
     // Create the research job record
     const { data: job, error: insertError } = await supabaseAny
@@ -339,11 +339,11 @@ export async function POST(request: Request, context: RouteContext) {
         });
       }
 
-      log.log('AI research result', {
+      console.log('[RESEARCH] AI research result', JSON.stringify({
         hasCustomFields: !!result.custom_fields,
         customFieldsKeys: result.custom_fields ? Object.keys(result.custom_fields) : [],
         customFieldsValues: result.custom_fields,
-      });
+      }, null, 2));
 
       // Update the job with results
       const { data: updatedJob, error: updateError } = await supabaseAny

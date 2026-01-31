@@ -85,15 +85,15 @@ export async function GET(_request: Request, context: RouteContext) {
 
       const customFieldNames = (customFieldDefs ?? []).map((f: { name: string }) => f.name);
 
-      log.log('Custom field definitions from DB', {
+      console.log('[RESEARCH-GET] Custom field definitions from DB', JSON.stringify({
         count: customFieldNames.length,
         names: customFieldNames,
-      });
+      }));
 
-      log.log('Research result custom_fields', {
+      console.log('[RESEARCH-GET] Research result custom_fields', JSON.stringify({
         hasCustomFields: !!(typedJob.result as Record<string, unknown>)?.custom_fields,
         customFieldsContent: (typedJob.result as Record<string, unknown>)?.custom_fields,
-      });
+      }, null, 2));
 
       // Generate field mappings
       const fieldMappings = createFieldMappings(
