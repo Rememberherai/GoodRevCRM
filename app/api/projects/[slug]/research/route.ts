@@ -222,8 +222,7 @@ export async function POST(request: Request, context: RouteContext) {
         .from('custom_field_definitions')
         .select('*')
         .eq('project_id', project.id)
-        .eq('entity_type', entity_type)
-        .is('deleted_at', null);
+        .eq('entity_type', entity_type);
 
       // Filter to only AI-extractable fields
       customFields = getAIExtractableFields((fields ?? []) as CustomFieldDefinition[]);

@@ -55,7 +55,7 @@ export async function GET(_request: Request, context: RouteContext) {
       .select(
         `
         id,
-        title,
+        job_title,
         department,
         is_primary,
         start_date,

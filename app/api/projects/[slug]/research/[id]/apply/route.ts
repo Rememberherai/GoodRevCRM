@@ -3,6 +3,9 @@ import { NextResponse } from 'next/server';
 import { applyResearchSchema } from '@/lib/validators/research';
 import type { ResearchJob } from '@/types/research';
 import type { Database } from '@/types/database';
+import { createDebugger } from '@/lib/debug';
+
+const log = createDebugger('research-apply');
 
 type OrganizationUpdate = Database['public']['Tables']['organizations']['Update'];
 type PersonUpdate = Database['public']['Tables']['people']['Update'];
@@ -95,7 +98,7 @@ export async function POST(request: Request, context: RouteContext) {
       .single();
 
     if (jobError || !job) {
-      console.error('Error fetching research job:', jobError);
+      log.error('Error fetching research job', jobError);
       return NextResponse.json({ error: 'Research job not found' }, { status: 404 });
     }
 
@@ -109,12 +112,12 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const body = await request.json();
-    console.log('Apply request body:', JSON.stringify(body, null, 2));
+    log.log('Apply request body', body);
 
     const validationResult = applyResearchSchema.safeParse(body);
 
     if (!validationResult.success) {
-      console.error('Validation failed:', validationResult.error.flatten());
+      log.error('Validation failed', validationResult.error.flatten());
       return NextResponse.json(
         { error: 'Validation failed', details: validationResult.error.flatten() },
         { status: 400 }
@@ -131,10 +134,9 @@ export async function POST(request: Request, context: RouteContext) {
       ? ORGANIZATION_STANDARD_FIELDS
       : PERSON_STANDARD_FIELDS;
 
-    console.log('Processing', field_updates.length, 'field updates');
-    console.log('Standard fields allowed:', Array.from(standardFields));
+    log.log('Processing field updates', { count: field_updates.length, standardFields: Array.from(standardFields) });
     for (const update of field_updates) {
-      console.log('Field:', update.field_name, 'is_custom:', update.is_custom, 'value type:', typeof update.value);
+      log.log('Processing field', { field: update.field_name, is_custom: update.is_custom, valueType: typeof update.value });
       if (update.is_custom) {
         customFieldUpdates[update.field_name] = update.value;
       } else if (standardFields.has(update.field_name)) {
@@ -144,12 +146,12 @@ export async function POST(request: Request, context: RouteContext) {
         if (update.field_name === 'annual_revenue' && typedJob.entity_type === 'organization') {
           // Convert revenue string to number
           processedValue = parseRevenueToNumber(update.value);
-          console.log('Converted annual_revenue:', update.value, '->', processedValue);
+          log.log('Converted annual_revenue', { from: update.value, to: processedValue });
         }
 
         standardUpdates[update.field_name] = processedValue;
       } else {
-        console.log('WARNING: Field not in standard fields list:', update.field_name);
+        log.log('Field not in standard fields list', update.field_name);
       }
     }
 
@@ -186,14 +188,17 @@ export async function POST(request: Request, context: RouteContext) {
       updateData.custom_fields = mergedCustomFields;
     }
 
-    console.log('Standard updates:', JSON.stringify(standardUpdates, null, 2));
-    console.log('Custom field updates:', JSON.stringify(customFieldUpdates, null, 2));
-    console.log('Final update data:', JSON.stringify(updateData, null, 2));
-    console.log('Entity type:', typedJob.entity_type, 'Entity ID:', typedJob.entity_id);
+    log.log('Update summary', {
+      standardUpdates,
+      customFieldUpdates,
+      finalUpdateData: updateData,
+      entityType: typedJob.entity_type,
+      entityId: typedJob.entity_id
+    });
 
     // Check if there's actually anything to update
     if (Object.keys(updateData).length === 0) {
-      console.log('No fields to update');
+      log.log('No fields to update');
       return NextResponse.json({
         success: true,
         fields_updated: 0,
@@ -210,13 +215,19 @@ export async function POST(request: Request, context: RouteContext) {
         .update(updateData as OrganizationUpdate)
         .eq('id', typedJob.entity_id)
         .eq('project_id', project.id)
+        .is('deleted_at', null)
         .select();
 
-      console.log('Organization update result:', updateResult, 'Error:', updateError);
+      log.log('Organization update result', { result: updateResult, error: updateError });
 
       if (updateError) {
-        console.error('Error updating organization:', updateError);
-        return NextResponse.json({ error: 'Failed to apply research results', details: updateError.message }, { status: 500 });
+        log.error('Error updating organization', updateError);
+        return NextResponse.json({ error: 'Failed to apply research results', details: updateError.message, code: updateError.code }, { status: 500 });
+      }
+
+      if (!updateResult || updateResult.length === 0) {
+        log.error('No rows updated - organization not found or deleted');
+        return NextResponse.json({ error: 'Organization not found or has been deleted' }, { status: 404 });
       }
     } else if (typedJob.entity_type === 'person') {
       const { data: updateResult, error: updateError } = await supabase
@@ -224,13 +235,19 @@ export async function POST(request: Request, context: RouteContext) {
         .update(updateData as PersonUpdate)
         .eq('id', typedJob.entity_id)
         .eq('project_id', project.id)
+        .is('deleted_at', null)
         .select();
 
-      console.log('Person update result:', updateResult, 'Error:', updateError);
+      log.log('Person update result', { result: updateResult, error: updateError });
 
       if (updateError) {
-        console.error('Error updating person:', updateError);
-        return NextResponse.json({ error: 'Failed to apply research results', details: updateError.message }, { status: 500 });
+        log.error('Error updating person', updateError);
+        return NextResponse.json({ error: 'Failed to apply research results', details: updateError.message, code: updateError.code }, { status: 500 });
+      }
+
+      if (!updateResult || updateResult.length === 0) {
+        log.error('No rows updated - person not found or deleted');
+        return NextResponse.json({ error: 'Person not found or has been deleted' }, { status: 404 });
       }
     }
 
@@ -244,7 +261,14 @@ export async function POST(request: Request, context: RouteContext) {
       custom_fields: Object.keys(customFieldUpdates),
     });
   } catch (error) {
-    console.error('Error in POST /api/projects/[slug]/research/[id]/apply:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    log.error('Unhandled error in research apply', error);
+    const errorMessage = error instanceof Error ? error.message : 'Unknown error';
+    const errorStack = error instanceof Error ? error.stack : undefined;
+    log.error('Error stack', errorStack);
+    return NextResponse.json({
+      error: 'Internal server error',
+      details: errorMessage,
+      stack: process.env.NODE_ENV === 'development' ? errorStack : undefined
+    }, { status: 500 });
   }
 }
