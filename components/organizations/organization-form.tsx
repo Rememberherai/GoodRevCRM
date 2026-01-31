@@ -4,6 +4,7 @@ import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Plus } from 'lucide-react';
 import { organizationSchema, type CreateOrganizationInput } from '@/lib/validators/organization';
 import {
   createOrganization,
@@ -19,6 +20,7 @@ import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
 import { CustomFieldsRenderer } from '@/components/forms/custom-fields-renderer';
+import { AddFieldDialog } from '@/components/schema/add-field-dialog';
 
 interface OrganizationFormProps {
   organization?: Organization;
@@ -34,6 +36,7 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
     (organization?.custom_fields as Record<string, unknown>) ?? {}
   );
+  const [showAddFieldDialog, setShowAddFieldDialog] = useState(false);
   const addOrganization = useOrganizationStore((s) => s.addOrganization);
   const updateOrganizationInStore = useOrganizationStore((s) => s.updateOrganization);
   const { fields: customFields } = useEntityCustomFields('organization');
@@ -320,21 +323,42 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
         </CardContent>
       </Card>
 
-      {customFields.length > 0 && (
-        <Card>
-          <CardHeader>
+      <Card>
+        <CardHeader className="flex flex-row items-center justify-between space-y-0">
+          <div>
             <CardTitle>Custom Fields</CardTitle>
             <CardDescription>Additional fields configured for organizations</CardDescription>
-          </CardHeader>
-          <CardContent>
+          </div>
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            onClick={() => setShowAddFieldDialog(true)}
+          >
+            <Plus className="mr-2 h-4 w-4" />
+            Add Field
+          </Button>
+        </CardHeader>
+        <CardContent>
+          {customFields.length > 0 ? (
             <CustomFieldsRenderer
               fields={customFields}
               values={customFieldValues}
               onChange={handleCustomFieldChange}
             />
-          </CardContent>
-        </Card>
-      )}
+          ) : (
+            <p className="text-sm text-muted-foreground">
+              No custom fields defined yet. Click &quot;Add Field&quot; to create one.
+            </p>
+          )}
+        </CardContent>
+      </Card>
+
+      <AddFieldDialog
+        open={showAddFieldDialog}
+        onOpenChange={setShowAddFieldDialog}
+        entityType="organization"
+      />
 
       <div className="flex items-center justify-end gap-4">
         {onCancel && (
