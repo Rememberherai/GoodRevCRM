@@ -51,16 +51,17 @@ export function EnrichButton({
   const [enrichmentData, setEnrichmentData] = useState<EnrichmentPerson | null>(null);
   const [isApplying, setIsApplying] = useState(false);
 
-  // Poll for job completion
+  // Poll for job completion with increasing delays
   const pollForResults = useCallback(async (jobId: string, _externalJobId: string) => {
-    const maxAttempts = 20; // Poll for up to ~2 minutes
-    const pollInterval = 6000; // 6 seconds between polls
+    // Delays: 30s, 30s, 45s, 60s, 60s, 90s, 90s, 120s... (total ~10 minutes)
+    const pollDelays = [30000, 30000, 45000, 60000, 60000, 90000, 90000, 120000, 120000, 120000];
 
     console.log('[Enrich] Starting poll for job:', jobId);
 
-    for (let attempt = 0; attempt < maxAttempts; attempt++) {
-      console.log(`[Enrich] Poll attempt ${attempt + 1}/${maxAttempts}`);
-      await new Promise((resolve) => setTimeout(resolve, pollInterval));
+    for (let attempt = 0; attempt < pollDelays.length; attempt++) {
+      const delay = pollDelays[attempt]!;
+      console.log(`[Enrich] Poll attempt ${attempt + 1}/${pollDelays.length} - waiting ${delay / 1000}s...`);
+      await new Promise((resolve) => setTimeout(resolve, delay));
 
       try {
         // Check job status (with poll=true to actively check FullEnrich)
