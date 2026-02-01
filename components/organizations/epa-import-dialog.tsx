@@ -59,7 +59,7 @@ interface EPAFacility {
 type DialogStep = 'configure' | 'searching' | 'preview' | 'importing' | 'complete';
 
 const US_STATES = [
-  { value: '', label: 'All States' },
+  { value: 'ALL', label: 'All States' },
   { value: 'AL', label: 'Alabama' },
   { value: 'AK', label: 'Alaska' },
   { value: 'AZ', label: 'Arizona' },
@@ -121,7 +121,7 @@ export function EPAImportDialog({
   const slug = params.slug as string;
 
   const [step, setStep] = useState<DialogStep>('configure');
-  const [state, setState] = useState('');
+  const [state, setState] = useState('ALL');
   const [minDesignFlow, setMinDesignFlow] = useState('');
   const [maxResults, setMaxResults] = useState('250');
   const [sortBy, setSortBy] = useState<'design_flow' | 'name' | 'city'>('design_flow');
@@ -138,7 +138,7 @@ export function EPAImportDialog({
   useEffect(() => {
     if (open) {
       setStep('configure');
-      setState('');
+      setState('ALL');
       setMinDesignFlow('');
       setMaxResults('250');
       setSortBy('design_flow');
@@ -157,7 +157,7 @@ export function EPAImportDialog({
 
     try {
       const searchParams = new URLSearchParams();
-      if (state) searchParams.set('state', state);
+      if (state && state !== 'ALL') searchParams.set('state', state);
       if (minDesignFlow) searchParams.set('min_design_flow', minDesignFlow);
       searchParams.set('max_results', maxResults);
       searchParams.set('sort_by', sortBy);
@@ -298,7 +298,7 @@ export function EPAImportDialog({
                   </SelectTrigger>
                   <SelectContent>
                     {US_STATES.map((s) => (
-                      <SelectItem key={s.value || 'all'} value={s.value}>
+                      <SelectItem key={s.value} value={s.value}>
                         {s.label}
                       </SelectItem>
                     ))}
