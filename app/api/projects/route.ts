@@ -74,14 +74,18 @@ export async function POST(request: Request) {
       .single();
 
     if (error) {
+      console.error('Error creating project:', error);
       if (error.code === '23505') {
         return NextResponse.json(
           { error: 'A project with this slug already exists' },
           { status: 409 }
         );
       }
-      console.error('Error creating project:', error);
-      return NextResponse.json({ error: 'Failed to create project' }, { status: 500 });
+      // Return the actual error message for debugging
+      return NextResponse.json(
+        { error: error.message || 'Failed to create project', code: error.code },
+        { status: 500 }
+      );
     }
 
     return NextResponse.json({ project }, { status: 201 });
