@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { OrganizationCombobox } from '@/components/ui/organization-combobox';
 
 interface NewOpportunityDialogProps {
   open: boolean;
@@ -45,10 +46,12 @@ export function NewOpportunityDialog({ open, onOpenChange }: NewOpportunityDialo
       name: '',
       stage: 'prospecting',
       currency: 'USD',
+      organization_id: null,
     },
   });
 
   const currentStage = watch('stage');
+  const organizationId = watch('organization_id');
 
   const onSubmit = async (data: CreateOpportunityInput) => {
     try {
@@ -58,6 +61,7 @@ export function NewOpportunityDialog({ open, onOpenChange }: NewOpportunityDialo
         amount: data.amount || null,
         probability: data.probability || null,
         expected_close_date: data.expected_close_date || null,
+        organization_id: data.organization_id || null,
       };
 
       await create(cleanedData);
@@ -95,6 +99,15 @@ export function NewOpportunityDialog({ open, onOpenChange }: NewOpportunityDialo
             {errors.name && (
               <p className="text-sm text-destructive">{errors.name.message}</p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Organization</Label>
+            <OrganizationCombobox
+              value={organizationId ?? null}
+              onValueChange={(value) => setValue('organization_id', value)}
+              placeholder="Select organization (optional)"
+            />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">

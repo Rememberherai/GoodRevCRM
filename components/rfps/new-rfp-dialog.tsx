@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { OrganizationCombobox } from '@/components/ui/organization-combobox';
 
 interface NewRfpDialogProps {
   open: boolean;
@@ -45,10 +46,12 @@ export function NewRfpDialog({ open, onOpenChange }: NewRfpDialogProps) {
       title: '',
       status: 'identified',
       currency: 'USD',
+      organization_id: null,
     },
   });
 
   const currentStatus = watch('status');
+  const organizationId = watch('organization_id');
 
   const onSubmit = async (data: CreateRfpInput) => {
     try {
@@ -57,6 +60,7 @@ export function NewRfpDialog({ open, onOpenChange }: NewRfpDialogProps) {
         ...data,
         estimated_value: data.estimated_value || null,
         due_date: data.due_date || null,
+        organization_id: data.organization_id || null,
       };
 
       await create(cleanedData);
@@ -94,6 +98,15 @@ export function NewRfpDialog({ open, onOpenChange }: NewRfpDialogProps) {
             {errors.title && (
               <p className="text-sm text-destructive">{errors.title.message}</p>
             )}
+          </div>
+
+          <div className="space-y-2">
+            <Label>Organization</Label>
+            <OrganizationCombobox
+              value={organizationId ?? null}
+              onValueChange={(value) => setValue('organization_id', value)}
+              placeholder="Select organization (optional)"
+            />
           </div>
 
           <div className="grid gap-4 sm:grid-cols-2">
