@@ -1,40 +1,44 @@
-import { Mail, Plus } from 'lucide-react';
-import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { createClient } from '@/lib/supabase/server';
+import { SequencesPageClient } from './sequences-page-client';
 
-export default function SequencesPage() {
+interface PageProps {
+  params: Promise<{ slug: string }>;
+}
+
+export default async function SequencesPage({ params }: PageProps) {
+  const { slug } = await params;
+  const supabase = await createClient();
+
+  // Get project
+  const { data: project } = await supabase
+    .from('projects')
+    .select('id')
+    .eq('slug', slug)
+    .is('deleted_at', null)
+    .single();
+
+  if (!project) {
+    return <div>Project not found</div>;
+  }
+
+  // Fetch initial sequences
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabaseAny = supabase as any;
+
+  const { data: sequences } = await supabaseAny
+    .from('sequences')
+    .select(`
+      *,
+      steps:sequence_steps(count),
+      enrollments:sequence_enrollments(count)
+    `)
+    .eq('project_id', project.id)
+    .order('created_at', { ascending: false });
+
   return (
-    <div className="space-y-6">
-      <div className="flex items-center justify-between">
-        <div>
-          <h2 className="text-2xl font-bold">Email Sequences</h2>
-          <p className="text-muted-foreground">
-            Automate your outreach with multi-step email sequences
-          </p>
-        </div>
-        <Button disabled>
-          <Plus className="mr-2 h-4 w-4" />
-          New Sequence
-        </Button>
-      </div>
-
-      <Card>
-        <CardHeader className="text-center">
-          <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-full bg-muted">
-            <Mail className="h-6 w-6 text-muted-foreground" />
-          </div>
-          <CardTitle>Coming Soon</CardTitle>
-          <CardDescription>
-            Email sequences will allow you to create automated multi-step outreach campaigns.
-            This feature is currently under development.
-          </CardDescription>
-        </CardHeader>
-        <CardContent className="text-center">
-          <p className="text-sm text-muted-foreground">
-            Features planned: sequence builder, enrollment rules, A/B testing, and analytics.
-          </p>
-        </CardContent>
-      </Card>
-    </div>
+    <SequencesPageClient
+      projectSlug={slug}
+      initialSequences={sequences ?? []}
+    />
   );
 }

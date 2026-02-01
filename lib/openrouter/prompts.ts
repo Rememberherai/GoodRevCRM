@@ -612,3 +612,295 @@ Respond with JSON containing "subject" and "body" fields.`;
 
   return prompt;
 }
+
+// ============================================
+// Sequence Generation Prompts
+// ============================================
+
+export interface SequenceGenerationContext {
+  sequenceType: 'cold_outreach' | 'follow_up' | 're_engagement' | 'event_invitation' | 'nurture' | 'onboarding';
+  tone: 'formal' | 'professional' | 'casual';
+  numberOfSteps: number;
+  companyContext: {
+    name: string;
+    description: string;
+    products?: string[];
+    valuePropositions?: string[];
+  };
+  targetAudience: {
+    description: string;
+    painPoints?: string[];
+    jobTitles?: string[];
+  };
+  campaignGoals: {
+    primaryCta: string;
+    secondaryCtas?: string[];
+    keyMessages?: string[];
+  };
+  delayPreferences?: {
+    minDays: number;
+    maxDays: number;
+  };
+}
+
+const SEQUENCE_TYPE_GUIDANCE: Record<string, string> = {
+  cold_outreach: `This is a cold outreach sequence. The recipient has never heard from this company before.
+- Email 1: Introduction and value proposition. Create curiosity.
+- Email 2-3: Elaborate on specific benefits. Share a relevant insight or case study.
+- Email 4+: Create urgency with a soft deadline or limited offer. Ask for a specific action.
+- Keep each email progressively shorter. The final email should be very brief.`,
+
+  follow_up: `This is a follow-up sequence after initial contact or meeting.
+- Email 1: Recap the conversation and next steps. Be specific about what was discussed.
+- Email 2: Share additional value (resource, case study, or insight).
+- Email 3+: Gentle nudges toward the agreed action. Reference the relationship.`,
+
+  re_engagement: `This is a re-engagement sequence for contacts who have gone cold.
+- Email 1: Acknowledge the gap in communication. Lead with new value.
+- Email 2: Share what's changed or improved since last contact.
+- Email 3: Create FOMO with success stories or new features.
+- Final: Offer an easy low-commitment way to reconnect.`,
+
+  event_invitation: `This is an event invitation sequence.
+- Email 1: Announce the event with key details and why they should attend.
+- Email 2: Share the agenda or highlight specific speakers/topics.
+- Email 3: Social proof - who else is attending, testimonials from past events.
+- Final: Last chance reminder with urgency.`,
+
+  nurture: `This is a long-term nurture sequence to build relationships.
+- Space emails further apart (5-14 days between).
+- Focus on providing value, not selling.
+- Share educational content, industry insights, and helpful resources.
+- Soft CTAs like "reply if interested" rather than hard asks.`,
+
+  onboarding: `This is an onboarding sequence for new customers/users.
+- Email 1: Welcome message with immediate next steps.
+- Email 2: Getting started guide or quick win tutorial.
+- Email 3: Feature highlight or advanced tip.
+- Email 4: Check-in and offer for support/demo.`,
+};
+
+const TONE_GUIDANCE: Record<string, string> = {
+  formal: `Use formal business language:
+- Full sentences, no contractions
+- Professional salutations ("Dear [Name]")
+- Formal closings ("Best regards", "Sincerely")
+- No emojis or casual language`,
+
+  professional: `Use professional but friendly language:
+- Contractions are fine
+- Casual salutations ("Hi [Name]", "Hello [Name]")
+- Friendly closings ("Best", "Thanks", "Cheers")
+- Warm but business-appropriate`,
+
+  casual: `Use conversational language:
+- Short, punchy sentences
+- Contractions encouraged
+- Informal salutations ("Hey [Name]")
+- Casual closings ("Talk soon", "Looking forward")
+- Can use occasional emojis if appropriate`,
+};
+
+// Build the sequence generation prompt
+export function buildSequenceGenerationPrompt(context: SequenceGenerationContext): string {
+  const {
+    sequenceType,
+    tone,
+    numberOfSteps,
+    companyContext,
+    targetAudience,
+    campaignGoals,
+    delayPreferences,
+  } = context;
+
+  const minDelay = delayPreferences?.minDays ?? 1;
+  const maxDelay = delayPreferences?.maxDays ?? 5;
+
+  let prompt = `You are an expert B2B email copywriter. Generate a ${numberOfSteps}-step email sequence for outbound sales.
+
+## PERSONALIZATION VARIABLES
+Use these variables in your emails (they will be replaced with actual data):
+- {{first_name}} - Recipient's first name
+- {{last_name}} - Recipient's last name
+- {{full_name}} - Recipient's full name
+- {{job_title}} - Recipient's job title
+- {{email}} - Recipient's email
+- {{company_name}} - Recipient's company name
+- {{company_domain}} - Recipient's company domain
+- {{sender_name}} - Sender's name
+- {{sender_email}} - Sender's email
+
+IMPORTANT: Always use {{first_name}} in greetings. Use other variables where appropriate for personalization.
+
+## SEQUENCE TYPE
+${SEQUENCE_TYPE_GUIDANCE[sequenceType]}
+
+## TONE
+${TONE_GUIDANCE[tone]}
+
+## SENDER COMPANY CONTEXT
+Company: ${companyContext.name}
+Description: ${companyContext.description}`;
+
+  if (companyContext.products && companyContext.products.length > 0) {
+    prompt += `\nProducts/Services: ${companyContext.products.join(', ')}`;
+  }
+
+  if (companyContext.valuePropositions && companyContext.valuePropositions.length > 0) {
+    prompt += `\nValue Propositions:\n${companyContext.valuePropositions.map(vp => `- ${vp}`).join('\n')}`;
+  }
+
+  prompt += `
+
+## TARGET AUDIENCE
+${targetAudience.description}`;
+
+  if (targetAudience.jobTitles && targetAudience.jobTitles.length > 0) {
+    prompt += `\nTypical Job Titles: ${targetAudience.jobTitles.join(', ')}`;
+  }
+
+  if (targetAudience.painPoints && targetAudience.painPoints.length > 0) {
+    prompt += `\nPain Points:\n${targetAudience.painPoints.map(pp => `- ${pp}`).join('\n')}`;
+  }
+
+  prompt += `
+
+## CAMPAIGN GOALS
+Primary Call-to-Action: ${campaignGoals.primaryCta}`;
+
+  if (campaignGoals.secondaryCtas && campaignGoals.secondaryCtas.length > 0) {
+    prompt += `\nSecondary CTAs: ${campaignGoals.secondaryCtas.join(', ')}`;
+  }
+
+  if (campaignGoals.keyMessages && campaignGoals.keyMessages.length > 0) {
+    prompt += `\nKey Messages to Include:\n${campaignGoals.keyMessages.map(msg => `- ${msg}`).join('\n')}`;
+  }
+
+  prompt += `
+
+## EMAIL BEST PRACTICES
+1. Subject lines: 3-8 words, create curiosity, avoid spam triggers
+2. First line: Hook that relates to recipient, not about sender
+3. Body: Short paragraphs (2-3 sentences max), clear value proposition
+4. CTA: One clear action per email
+5. Length: Emails 1-3 can be 100-150 words. Later emails should be shorter (50-100 words).
+6. Each email should be self-contained but reference previous context
+7. Use a P.S. line strategically in 1-2 emails
+
+## TIMING
+Include delay steps between emails:
+- Minimum delay: ${minDelay} days
+- Maximum delay: ${maxDelay} days
+- Vary delays naturally (not all the same)
+
+## OUTPUT FORMAT
+Generate a JSON object with this exact structure:
+{
+  "sequence": {
+    "name": "A short, descriptive name for this sequence",
+    "description": "A 1-2 sentence description of the sequence purpose"
+  },
+  "steps": [
+    {
+      "step_number": 1,
+      "step_type": "email",
+      "subject": "Subject line here",
+      "body_html": "<p>Email body in HTML format</p>",
+      "body_text": "Email body in plain text"
+    },
+    {
+      "step_number": 2,
+      "step_type": "delay",
+      "delay_amount": 2,
+      "delay_unit": "days"
+    },
+    // ... more steps alternating between email and delay
+  ]
+}
+
+Generate exactly ${numberOfSteps} email steps with appropriate delays between them.
+Start with an email (step_number: 1) and end with an email.
+Delays go between emails.`;
+
+  return prompt;
+}
+
+// Build prompt for regenerating a single step
+export function buildStepRegenerationPrompt(context: {
+  sequenceName: string;
+  sequenceDescription: string;
+  tone: string;
+  sequenceType: string;
+  previousSteps: Array<{ step_number: number; subject?: string; body_preview?: string }>;
+  nextSteps: Array<{ step_number: number; subject?: string; body_preview?: string }>;
+  targetStep: { step_number: number; subject?: string; body?: string };
+  instructions?: string;
+}): string {
+  const {
+    sequenceName,
+    sequenceDescription,
+    tone,
+    sequenceType,
+    previousSteps,
+    nextSteps,
+    targetStep,
+    instructions,
+  } = context;
+
+  let prompt = `You are regenerating email step ${targetStep.step_number} in an email sequence.
+
+## SEQUENCE CONTEXT
+Name: ${sequenceName}
+Description: ${sequenceDescription}
+Type: ${sequenceType}
+Tone: ${tone}
+
+## PERSONALIZATION VARIABLES
+Use these variables in your email:
+- {{first_name}}, {{last_name}}, {{full_name}}
+- {{job_title}}, {{email}}
+- {{company_name}}, {{company_domain}}
+- {{sender_name}}, {{sender_email}}`;
+
+  if (previousSteps.length > 0) {
+    prompt += `\n\n## PREVIOUS EMAILS (for context)`;
+    previousSteps.forEach(step => {
+      prompt += `\nEmail ${step.step_number}: "${step.subject || 'No subject'}"`;
+      if (step.body_preview) {
+        prompt += `\nPreview: ${step.body_preview}...`;
+      }
+    });
+  }
+
+  if (nextSteps.length > 0) {
+    prompt += `\n\n## FOLLOWING EMAILS (for context)`;
+    nextSteps.forEach(step => {
+      prompt += `\nEmail ${step.step_number}: "${step.subject || 'No subject'}"`;
+    });
+  }
+
+  if (targetStep.subject || targetStep.body) {
+    prompt += `\n\n## CURRENT VERSION (to improve)`;
+    if (targetStep.subject) prompt += `\nSubject: ${targetStep.subject}`;
+    if (targetStep.body) prompt += `\nBody: ${targetStep.body}`;
+  }
+
+  if (instructions) {
+    prompt += `\n\n## SPECIFIC INSTRUCTIONS
+${instructions}`;
+  }
+
+  prompt += `
+
+## OUTPUT FORMAT
+Generate a JSON object:
+{
+  "subject": "New subject line",
+  "body_html": "<p>Email body in HTML</p>",
+  "body_text": "Email body in plain text"
+}
+
+Ensure this email fits naturally in the sequence flow.`;
+
+  return prompt;
+}

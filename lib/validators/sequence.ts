@@ -127,3 +127,131 @@ export const enrollmentQuerySchema = z.object({
 });
 
 export type EnrollmentQuery = z.infer<typeof enrollmentQuerySchema>;
+
+// ============================================
+// AI Sequence Generation Schemas
+// ============================================
+
+// Sequence types for AI generation
+export const sequenceTypeSchema = z.enum([
+  'cold_outreach',
+  'follow_up',
+  're_engagement',
+  'event_invitation',
+  'nurture',
+  'onboarding',
+]);
+
+export type SequenceType = z.infer<typeof sequenceTypeSchema>;
+
+// Tone options for generated emails
+export const toneSchema = z.enum(['formal', 'professional', 'casual']);
+
+export type Tone = z.infer<typeof toneSchema>;
+
+// Company context for AI generation
+const companyContextSchema = z.object({
+  name: z.string().min(1, 'Company name is required'),
+  description: z.string().min(10, 'Please provide a brief company description').max(2000),
+  products: z.array(z.string()).optional(),
+  valuePropositions: z.array(z.string()).optional(),
+});
+
+// Target audience for AI generation
+const targetAudienceSchema = z.object({
+  description: z.string().min(10, 'Please describe your target audience').max(1000),
+  painPoints: z.array(z.string()).optional(),
+  jobTitles: z.array(z.string()).optional(),
+});
+
+// Campaign goals for AI generation
+const campaignGoalsSchema = z.object({
+  primaryCta: z.string().min(1, 'Primary CTA is required').max(200),
+  secondaryCtas: z.array(z.string()).optional(),
+  keyMessages: z.array(z.string()).optional(),
+});
+
+// Delay preferences for sequence timing
+const delayPreferencesSchema = z.object({
+  minDays: z.number().min(1).max(14).default(1),
+  maxDays: z.number().min(1).max(30).default(7),
+});
+
+// Main AI sequence generation input schema
+export const generateSequenceInputSchema = z.object({
+  sequenceType: sequenceTypeSchema,
+  tone: toneSchema,
+  numberOfSteps: z.number().min(2).max(10),
+  companyContext: companyContextSchema,
+  targetAudience: targetAudienceSchema,
+  campaignGoals: campaignGoalsSchema,
+  delayPreferences: delayPreferencesSchema.optional(),
+  preview: z.boolean().optional().default(true),
+});
+
+export type GenerateSequenceInput = z.infer<typeof generateSequenceInputSchema>;
+
+// Generated step schema (for AI response validation)
+const generatedStepSchema = z.object({
+  step_number: z.number().int().min(1),
+  step_type: z.enum(['email', 'delay']),
+  subject: z.string().nullable().optional(),
+  body_html: z.string().nullable().optional(),
+  body_text: z.string().nullable().optional(),
+  delay_amount: z.number().int().min(1).nullable().optional(),
+  delay_unit: z.enum(['hours', 'days', 'weeks']).nullable().optional(),
+});
+
+// Generated sequence schema (for AI response validation)
+export const generatedSequenceSchema = z.object({
+  sequence: z.object({
+    name: z.string(),
+    description: z.string(),
+  }),
+  steps: z.array(generatedStepSchema).min(2),
+});
+
+export type GeneratedSequence = z.infer<typeof generatedSequenceSchema>;
+
+// Regenerate single step input
+export const regenerateStepInputSchema = z.object({
+  instructions: z.string().max(500).optional(),
+  keepSubject: z.boolean().optional().default(false),
+  keepTone: z.boolean().optional().default(true),
+});
+
+export type RegenerateStepInput = z.infer<typeof regenerateStepInputSchema>;
+
+// Sequence type labels for UI
+export const SEQUENCE_TYPE_LABELS: Record<SequenceType, string> = {
+  cold_outreach: 'Cold Outreach',
+  follow_up: 'Follow-up',
+  re_engagement: 'Re-engagement',
+  event_invitation: 'Event Invitation',
+  nurture: 'Nurture Campaign',
+  onboarding: 'Onboarding',
+};
+
+// Sequence type descriptions for UI
+export const SEQUENCE_TYPE_DESCRIPTIONS: Record<SequenceType, string> = {
+  cold_outreach: 'Initial outreach to prospects who haven\'t heard from you before',
+  follow_up: 'Follow up after an initial contact or meeting',
+  re_engagement: 'Re-engage with contacts who have gone cold',
+  event_invitation: 'Invite contacts to webinars, demos, or events',
+  nurture: 'Long-term nurture campaign to build relationships',
+  onboarding: 'Welcome and onboard new customers or users',
+};
+
+// Tone labels for UI
+export const TONE_LABELS: Record<Tone, string> = {
+  formal: 'Formal',
+  professional: 'Professional',
+  casual: 'Casual',
+};
+
+// Tone descriptions for UI
+export const TONE_DESCRIPTIONS: Record<Tone, string> = {
+  formal: 'Traditional business language, appropriate for executives and enterprise',
+  professional: 'Friendly but business-appropriate, good for most B2B contexts',
+  casual: 'Conversational and relaxed, good for startups and SMBs',
+};
