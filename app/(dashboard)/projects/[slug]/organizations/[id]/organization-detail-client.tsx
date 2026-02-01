@@ -18,6 +18,9 @@ import {
   Check,
   X,
   Settings,
+  FileText,
+  DollarSign,
+  Calendar,
 } from 'lucide-react';
 import { useOrganization } from '@/hooks/use-organizations';
 import { useOrganizationStore, deleteOrganization, updateOrganizationApi } from '@/stores/organization';
@@ -41,6 +44,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { AddPersonDialog } from '@/components/organizations/add-person-dialog';
+import { AddOpportunityDialog } from '@/components/organizations/add-opportunity-dialog';
+import { AddRfpDialog } from '@/components/organizations/add-rfp-dialog';
 import { ContactDiscoveryDialog } from '@/components/organizations/contact-discovery-dialog';
 import { ResearchPanel } from '@/components/research/research-panel';
 import { ResearchResultsDialog } from '@/components/research/research-results-dialog';
@@ -50,7 +55,11 @@ import { DeleteFieldDialog } from '@/components/schema/delete-field-dialog';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
 import type { Person } from '@/types/person';
+import type { Opportunity } from '@/types/opportunity';
+import type { Rfp } from '@/types/rfp';
 import type { CustomFieldDefinition } from '@/types/custom-field';
+import { STAGE_LABELS } from '@/types/opportunity';
+import { STATUS_LABELS } from '@/types/rfp';
 
 interface OrganizationDetailClientProps {
   organizationId: string;
@@ -174,9 +183,15 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
   const [showResearchResults, setShowResearchResults] = useState(false);
   const [researchJob, setResearchJob] = useState<ResearchJob | null>(null);
   const [showAddPersonDialog, setShowAddPersonDialog] = useState(false);
+  const [showAddOpportunityDialog, setShowAddOpportunityDialog] = useState(false);
+  const [showAddRfpDialog, setShowAddRfpDialog] = useState(false);
   const [showContactDiscovery, setShowContactDiscovery] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
+  const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
+  const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
+  const [rfps, setRfps] = useState<Rfp[]>([]);
+  const [rfpsLoading, setRfpsLoading] = useState(false);
 
   // Custom field dialog states
   const [showAddFieldDialog, setShowAddFieldDialog] = useState(false);
@@ -201,9 +216,43 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
     }
   }, [slug, organizationId]);
 
+  const loadOpportunities = useCallback(async () => {
+    if (!slug) return;
+    setOpportunitiesLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/opportunities?organizationId=${organizationId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setOpportunities(data.opportunities);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setOpportunitiesLoading(false);
+    }
+  }, [slug, organizationId]);
+
+  const loadRfps = useCallback(async () => {
+    if (!slug) return;
+    setRfpsLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/rfps?organizationId=${organizationId}`);
+      if (response.ok) {
+        const data = await response.json();
+        setRfps(data.rfps);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setRfpsLoading(false);
+    }
+  }, [slug, organizationId]);
+
   useEffect(() => {
     loadPeople();
-  }, [loadPeople]);
+    loadOpportunities();
+    loadRfps();
+  }, [loadPeople, loadOpportunities, loadRfps]);
 
   const handleResearchComplete = (job: ResearchJob) => {
     setResearchJob(job);
@@ -269,6 +318,16 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
 
   const handlePersonAdded = () => {
     loadPeople();
+    refresh();
+  };
+
+  const handleOpportunityAdded = () => {
+    loadOpportunities();
+    refresh();
+  };
+
+  const handleRfpAdded = () => {
+    loadRfps();
     refresh();
   };
 
@@ -352,6 +411,24 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
             {(organization.people_count ?? 0) > 0 && (
               <Badge variant="secondary" className="ml-1 h-5 px-1.5">
                 {organization.people_count}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="opportunities" className="gap-2">
+            <Target className="h-4 w-4" />
+            Opportunities
+            {(organization.opportunities_count ?? 0) > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {organization.opportunities_count}
+              </Badge>
+            )}
+          </TabsTrigger>
+          <TabsTrigger value="rfps" className="gap-2">
+            <FileText className="h-4 w-4" />
+            RFPs
+            {rfps.length > 0 && (
+              <Badge variant="secondary" className="ml-1 h-5 px-1.5">
+                {rfps.length}
               </Badge>
             )}
           </TabsTrigger>
@@ -675,6 +752,166 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
           )}
         </TabsContent>
 
+        {/* Opportunities Tab */}
+        <TabsContent value="opportunities" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">Opportunities</h3>
+              <p className="text-sm text-muted-foreground">
+                Sales opportunities associated with this organization
+              </p>
+            </div>
+            <Button onClick={() => setShowAddOpportunityDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Opportunity
+            </Button>
+          </div>
+
+          {opportunitiesLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+          ) : opportunities.length === 0 ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <Target className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No opportunities yet</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Track sales opportunities for this organization
+                  </p>
+                  <Button onClick={() => setShowAddOpportunityDialog(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add your first opportunity
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3">
+              {opportunities.map((opp) => (
+                <Link
+                  key={opp.id}
+                  href={`/projects/${slug}/opportunities/${opp.id}`}
+                  className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                    <Target className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium">{opp.name}</div>
+                    <Badge
+                      variant="secondary"
+                      className={
+                        opp.stage === 'closed_won' ? 'bg-green-100 text-green-800' :
+                        opp.stage === 'closed_lost' ? 'bg-red-100 text-red-800' :
+                        opp.stage === 'negotiation' ? 'bg-orange-100 text-orange-800' :
+                        opp.stage === 'proposal' ? 'bg-amber-100 text-amber-800' :
+                        opp.stage === 'qualification' ? 'bg-purple-100 text-purple-800' :
+                        'bg-blue-100 text-blue-800'
+                      }
+                    >
+                      {STAGE_LABELS[opp.stage]}
+                    </Badge>
+                  </div>
+                  {opp.amount && (
+                    <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
+                      <DollarSign className="h-4 w-4" />
+                      <span>{opp.currency ?? 'USD'} {Number(opp.amount).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {opp.expected_close_date && (
+                    <div className="hidden lg:flex items-center gap-2 text-sm text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                      <span>{new Date(opp.expected_close_date).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
+        {/* RFPs Tab */}
+        <TabsContent value="rfps" className="space-y-6">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="text-lg font-semibold">RFPs</h3>
+              <p className="text-sm text-muted-foreground">
+                Request for Proposals associated with this organization
+              </p>
+            </div>
+            <Button onClick={() => setShowAddRfpDialog(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add RFP
+            </Button>
+          </div>
+
+          {rfpsLoading ? (
+            <div className="text-center py-8 text-muted-foreground">Loading...</div>
+          ) : rfps.length === 0 ? (
+            <Card>
+              <CardContent className="py-12">
+                <div className="text-center">
+                  <FileText className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
+                  <h3 className="text-lg font-semibold mb-2">No RFPs yet</h3>
+                  <p className="text-muted-foreground mb-4">
+                    Track RFPs from this organization
+                  </p>
+                  <Button onClick={() => setShowAddRfpDialog(true)}>
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add your first RFP
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          ) : (
+            <div className="grid gap-3">
+              {rfps.map((rfp) => (
+                <Link
+                  key={rfp.id}
+                  href={`/projects/${slug}/rfps/${rfp.id}`}
+                  className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
+                    <FileText className="h-6 w-6 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium">{rfp.title}</div>
+                    {rfp.rfp_number && (
+                      <div className="text-sm text-muted-foreground">{rfp.rfp_number}</div>
+                    )}
+                    <Badge
+                      variant="secondary"
+                      className={
+                        rfp.status === 'won' ? 'bg-green-100 text-green-800' :
+                        rfp.status === 'lost' ? 'bg-red-100 text-red-800' :
+                        rfp.status === 'no_bid' ? 'bg-slate-100 text-slate-800' :
+                        rfp.status === 'submitted' ? 'bg-purple-100 text-purple-800' :
+                        rfp.status === 'preparing' ? 'bg-amber-100 text-amber-800' :
+                        rfp.status === 'reviewing' ? 'bg-blue-100 text-blue-800' :
+                        'bg-gray-100 text-gray-800'
+                      }
+                    >
+                      {STATUS_LABELS[rfp.status]}
+                    </Badge>
+                  </div>
+                  {rfp.estimated_value && (
+                    <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
+                      <DollarSign className="h-4 w-4" />
+                      <span>{rfp.currency ?? 'USD'} {Number(rfp.estimated_value).toLocaleString()}</span>
+                    </div>
+                  )}
+                  {rfp.due_date && (
+                    <div className="hidden lg:flex items-center gap-2 text-sm text-muted-foreground">
+                      <Calendar className="h-4 w-4" />
+                      <span>{new Date(rfp.due_date).toLocaleDateString()}</span>
+                    </div>
+                  )}
+                </Link>
+              ))}
+            </div>
+          )}
+        </TabsContent>
+
         {/* AI Research Tab */}
         <TabsContent value="research" className="space-y-6">
           <ResearchPanel
@@ -730,6 +967,22 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
         organizationId={organizationId}
         organizationName={organization.name}
         onContactsAdded={handlePersonAdded}
+      />
+
+      <AddOpportunityDialog
+        open={showAddOpportunityDialog}
+        onOpenChange={setShowAddOpportunityDialog}
+        organizationId={organizationId}
+        organizationName={organization.name}
+        onOpportunityAdded={handleOpportunityAdded}
+      />
+
+      <AddRfpDialog
+        open={showAddRfpDialog}
+        onOpenChange={setShowAddRfpDialog}
+        organizationId={organizationId}
+        organizationName={organization.name}
+        onRfpAdded={handleRfpAdded}
       />
 
       <AddFieldDialog
