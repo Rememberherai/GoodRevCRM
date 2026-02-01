@@ -8,10 +8,11 @@ const EPA_ECHO_BASE_URL = 'https://echodata.epa.gov/echo';
 const facilitiesQueryResponseSchema = z.object({
   Results: z.object({
     QueryID: z.string(),
-    QueryRows: z.string().transform(Number).optional(),
-  }),
+    QueryRows: z.union([z.string(), z.number()]).optional().transform(v => v ? Number(v) : 0),
+  }).passthrough(),
 });
 
+// Schema is permissive to handle varying EPA response formats
 const facilitySchema = z.object({
   CWPName: z.string().nullable().optional(),
   SourceID: z.string().nullable().optional(),
@@ -25,14 +26,15 @@ const facilitySchema = z.object({
   CWPActualAverageFlowNmbr: z.union([z.string(), z.number()]).nullable().optional(),
   FacLat: z.union([z.string(), z.number()]).nullable().optional(),
   FacLong: z.union([z.string(), z.number()]).nullable().optional(),
-});
+  CWPPermitStatusDesc: z.string().nullable().optional(),
+}).passthrough(); // Allow additional fields from EPA
 
 const qidResponseSchema = z.object({
   Results: z.object({
     Facilities: z.array(facilitySchema).optional(),
-    PageNo: z.string().transform(Number).optional(),
-    QueryRows: z.string().transform(Number).optional(),
-  }),
+    PageNo: z.union([z.string(), z.number()]).optional().transform(v => v ? Number(v) : undefined),
+    QueryRows: z.union([z.string(), z.number()]).optional().transform(v => v ? Number(v) : undefined),
+  }).passthrough(),
 });
 
 export type EPAFacilityRaw = z.infer<typeof facilitySchema>;
@@ -151,23 +153,11 @@ export class EPAEchoClient {
    */
   async queryFacilities(options: EPAQueryOptions): Promise<{ qid: string; totalRows: number }> {
     const params: Record<string, string> = {
-      // Request POTW facilities (Publicly Owned Treatment Works)
-      p_ptype: 'POT',
-      // Request specific columns
-      p_qcolumns: [
-        'CWPName',
-        'SourceID',
-        'CWPCity',
-        'CWPState',
-        'CWPZip',
-        'CWPStreet',
-        'CWPCounty',
-        'CWPFacilityTypeIndicator',
-        'CWPTotalDesignFlowNmbr',
-        'CWPActualAverageFlowNmbr',
-        'FacLat',
-        'FacLong',
-      ].join(','),
+      // Use SIC code 4952 (Sewerage Systems) to find wastewater treatment plants
+      // This is more reliable than p_ptype=POT which returns no results
+      p_sic: '4952',
+      // Only major dischargers (larger facilities with more complete data)
+      p_maj: 'Y',
     };
 
     if (options.state) {
