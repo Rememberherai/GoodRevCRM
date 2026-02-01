@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Search, Building2, ExternalLink, MoreHorizontal, Pencil, Trash2, Upload, ClipboardPaste } from 'lucide-react';
+import { Plus, Search, Building2, ExternalLink, MoreHorizontal, Pencil, Trash2, Upload, ClipboardPaste, Sparkles } from 'lucide-react';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -33,9 +33,11 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import { NewOrganizationDialog } from '@/components/organizations/new-organization-dialog';
 import { BulkAddDialog } from '@/components/organizations/bulk-add-dialog';
 import { ImportWizard } from '@/components/import-export';
+import { BulkResearchDialog } from '@/components/research/bulk-research-dialog';
 import {
   Dialog,
   DialogContent,
@@ -49,8 +51,32 @@ export function OrganizationsPageClient() {
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showBulkAddDialog, setShowBulkAddDialog] = useState(false);
+  const [showBulkResearchDialog, setShowBulkResearchDialog] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === organizations.length && organizations.length > 0) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(organizations.map(org => org.id)));
+    }
+  };
+
+  const clearSelection = () => setSelectedIds(new Set());
 
   const {
     organizations,
@@ -97,6 +123,12 @@ export function OrganizationsPageClient() {
           </p>
         </div>
         <div className="flex items-center gap-2">
+          {selectedIds.size > 0 && (
+            <Button variant="outline" onClick={() => setShowBulkResearchDialog(true)}>
+              <Sparkles className="mr-2 h-4 w-4" />
+              Research ({selectedIds.size})
+            </Button>
+          )}
           <Button variant="outline" onClick={() => setShowBulkAddDialog(true)}>
             <ClipboardPaste className="mr-2 h-4 w-4" />
             Bulk Add
@@ -137,6 +169,13 @@ export function OrganizationsPageClient() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={selectedIds.size === organizations.length && organizations.length > 0}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Select all"
+                />
+              </TableHead>
               <TableHead>Organization</TableHead>
               <TableHead>Industry</TableHead>
               <TableHead>Website</TableHead>
@@ -147,13 +186,13 @@ export function OrganizationsPageClient() {
           <TableBody>
             {isLoading && organizations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : organizations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   <div className="flex flex-col items-center gap-2">
                     <Building2 className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">No organizations yet</p>
@@ -171,6 +210,14 @@ export function OrganizationsPageClient() {
             ) : (
               organizations.map((org) => (
                 <TableRow key={org.id}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(org.id)}
+                      onCheckedChange={() => toggleSelection(org.id)}
+                      aria-label={`Select ${org.name}`}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                  </TableCell>
                   <TableCell>
                     <Link
                       href={`/projects/${slug}/organizations/${org.id}`}
@@ -281,6 +328,16 @@ export function OrganizationsPageClient() {
       <NewOrganizationDialog open={showNewDialog} onOpenChange={setShowNewDialog} />
 
       <BulkAddDialog open={showBulkAddDialog} onOpenChange={setShowBulkAddDialog} />
+
+      <BulkResearchDialog
+        open={showBulkResearchDialog}
+        onOpenChange={setShowBulkResearchDialog}
+        organizationIds={Array.from(selectedIds)}
+        onComplete={() => {
+          clearSelection();
+          refresh();
+        }}
+      />
 
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
         <DialogContent className="sm:max-w-[600px]">
