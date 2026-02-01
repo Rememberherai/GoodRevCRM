@@ -76,8 +76,9 @@ export async function GET(request: Request, context: RouteContext) {
 
       switch (params.sort_by) {
         case 'design_flow':
-          aVal = a.design_flow_mgd ?? 0;
-          bVal = b.design_flow_mgd ?? 0;
+          // Use actual flow as primary (more data available), fall back to design flow
+          aVal = a.actual_flow_mgd ?? a.design_flow_mgd ?? 0;
+          bVal = b.actual_flow_mgd ?? b.design_flow_mgd ?? 0;
           break;
         case 'name':
           aVal = (a.name ?? '').toLowerCase();

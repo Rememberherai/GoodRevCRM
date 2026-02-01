@@ -345,7 +345,7 @@ export function EPAImportDialog({
                     <SelectValue />
                   </SelectTrigger>
                   <SelectContent>
-                    <SelectItem value="design_flow">Design Flow</SelectItem>
+                    <SelectItem value="design_flow">Flow (MGD)</SelectItem>
                     <SelectItem value="name">Name</SelectItem>
                     <SelectItem value="city">City</SelectItem>
                   </SelectContent>

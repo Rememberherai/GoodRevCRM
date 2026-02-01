@@ -257,9 +257,10 @@ export class EPAEchoClient {
       }
     }
 
-    // Sort by design flow (descending) and take top N
+    // Sort by actual flow (descending) and take top N
+    // Note: EPA has more data for actual_flow than design_flow
     const sorted = facilities
-      .sort((a, b) => (b.design_flow_mgd ?? 0) - (a.design_flow_mgd ?? 0))
+      .sort((a, b) => (b.actual_flow_mgd ?? 0) - (a.actual_flow_mgd ?? 0))
       .slice(0, maxResults);
 
     return sorted;
