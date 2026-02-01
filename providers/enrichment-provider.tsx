@@ -5,7 +5,7 @@ import { toast } from 'sonner';
 import { useEnrichmentStore } from '@/stores/enrichment';
 import type { EnrichmentJob } from '@/types/enrichment';
 
-const POLL_INTERVAL = 30000; // 30 seconds
+const POLL_INTERVAL = 15000; // 15 seconds
 
 export function EnrichmentProvider({ children }: { children: ReactNode }) {
   const {
@@ -32,7 +32,7 @@ export function EnrichmentProvider({ children }: { children: ReactNode }) {
       for (const enrichment of currentPending) {
         try {
           const response = await fetch(
-            `/api/projects/${enrichment.projectSlug}/enrich?person_id=${enrichment.personId}&limit=1`
+            `/api/projects/${enrichment.projectSlug}/enrich?person_id=${enrichment.personId}&limit=1&poll=true`
           );
 
           if (!response.ok) continue;
@@ -49,7 +49,7 @@ export function EnrichmentProvider({ children }: { children: ReactNode }) {
                   window.location.href = `/projects/${enrichment.projectSlug}/people/${enrichment.personId}`;
                 },
               },
-              duration: 10000,
+              duration: 15000,
             });
           } else if (job?.status === 'failed') {
             failEnrichment(enrichment.personId);
