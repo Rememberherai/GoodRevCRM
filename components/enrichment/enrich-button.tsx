@@ -22,6 +22,7 @@ interface EnrichButtonProps {
   currentPerson?: {
     email?: string | null;
     phone?: string | null;
+    mobile_phone?: string | null;
     job_title?: string | null;
     linkedin_url?: string | null;
     address_city?: string | null;

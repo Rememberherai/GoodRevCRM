@@ -23,6 +23,7 @@ interface EnrichmentReviewModalProps {
   currentPerson: {
     email?: string | null;
     phone?: string | null;
+    mobile_phone?: string | null;
     job_title?: string | null;
     linkedin_url?: string | null;
     address_city?: string | null;
@@ -83,16 +84,17 @@ export function EnrichmentReviewModal({
     });
   }
 
-  // Process phones
+  // Process phones - route mobile to mobile_phone field, others to phone field
   if (enrichmentData.all_phones && enrichmentData.all_phones.length > 0) {
     enrichmentData.all_phones.forEach((p, i) => {
+      const isMobile = p.type?.toLowerCase() === 'mobile';
       phoneFields.push({
-        key: `phone_${i}`,
-        label: p.type ? `${p.type} phone` : 'Phone',
+        key: isMobile ? `mobile_phone_${i}` : `phone_${i}`,
+        label: p.type ? `${p.type.charAt(0).toUpperCase() + p.type.slice(1)} Phone` : 'Phone',
         value: p.phone,
         type: p.type,
         icon: <Phone className="h-4 w-4" />,
-        currentValue: currentPerson.phone,
+        currentValue: isMobile ? currentPerson.mobile_phone : currentPerson.phone,
       });
     });
   } else if (enrichmentData.phone) {
@@ -165,11 +167,18 @@ export function EnrichmentReviewModal({
     // Convert selected fields to the format expected by the API
     const updates: Record<string, string | null> = {};
 
+    // Collect all selected values by field type for merging
+    const selectedEmails: string[] = [];
+    const selectedPhones: string[] = [];
+    const selectedMobilePhones: string[] = [];
+
     Object.entries(selectedFields).forEach(([key, value]) => {
       if (key.startsWith('email_')) {
-        updates.email = value;
+        selectedEmails.push(value);
+      } else if (key.startsWith('mobile_phone_')) {
+        selectedMobilePhones.push(value);
       } else if (key.startsWith('phone_')) {
-        updates.phone = value;
+        selectedPhones.push(value);
       } else if (key === 'job_title') {
         updates.job_title = value;
       } else if (key === 'linkedin_url') {
@@ -180,6 +189,21 @@ export function EnrichmentReviewModal({
         if (enrichmentData.location.country) updates.address_country = enrichmentData.location.country;
       }
     });
+
+    // Merge multiple emails with comma separation
+    if (selectedEmails.length > 0) {
+      updates.email = selectedEmails.join(', ');
+    }
+
+    // Merge multiple phones with comma separation
+    if (selectedPhones.length > 0) {
+      updates.phone = selectedPhones.join(', ');
+    }
+
+    // Merge multiple mobile phones with comma separation
+    if (selectedMobilePhones.length > 0) {
+      updates.mobile_phone = selectedMobilePhones.join(', ');
+    }
 
     await onApply(updates);
   };

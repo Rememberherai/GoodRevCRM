@@ -207,6 +207,7 @@ export function PersonDetailClient({ personId }: PersonDetailClientProps) {
             currentPerson={{
               email: person.email,
               phone: person.phone,
+              mobile_phone: person.mobile_phone,
               job_title: person.job_title,
               linkedin_url: person.linkedin_url,
               address_city: person.address_city,
@@ -424,6 +425,7 @@ export function PersonDetailClient({ personId }: PersonDetailClientProps) {
         currentPerson={{
           email: person.email,
           phone: person.phone,
+          mobile_phone: person.mobile_phone,
           job_title: person.job_title,
           linkedin_url: person.linkedin_url,
           address_city: person.address_city,
