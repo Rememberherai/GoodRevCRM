@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Search, Building2, ExternalLink, MoreHorizontal, Pencil, Trash2, Upload, ClipboardPaste, Sparkles } from 'lucide-react';
+import { Plus, Search, Building2, ExternalLink, MoreHorizontal, Pencil, Trash2, Upload, ClipboardPaste, Sparkles, Droplets } from 'lucide-react';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +38,7 @@ import { NewOrganizationDialog } from '@/components/organizations/new-organizati
 import { BulkAddDialog } from '@/components/organizations/bulk-add-dialog';
 import { ImportWizard } from '@/components/import-export';
 import { BulkResearchDialog } from '@/components/research/bulk-research-dialog';
+import { EPAImportDialog } from '@/components/organizations/epa-import-dialog';
 import {
   Dialog,
   DialogContent,
@@ -52,6 +53,7 @@ export function OrganizationsPageClient() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showBulkAddDialog, setShowBulkAddDialog] = useState(false);
   const [showBulkResearchDialog, setShowBulkResearchDialog] = useState(false);
+  const [showEPAImportDialog, setShowEPAImportDialog] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
@@ -127,6 +129,12 @@ export function OrganizationsPageClient() {
             <Button variant="outline" onClick={() => setShowBulkResearchDialog(true)}>
               <Sparkles className="mr-2 h-4 w-4" />
               Research ({selectedIds.size})
+            </Button>
+          )}
+          {slug === 'lillianah' && (
+            <Button variant="outline" onClick={() => setShowEPAImportDialog(true)}>
+              <Droplets className="mr-2 h-4 w-4" />
+              Import EPA POTWs
             </Button>
           )}
           <Button variant="outline" onClick={() => setShowBulkAddDialog(true)}>
@@ -338,6 +346,14 @@ export function OrganizationsPageClient() {
           refresh();
         }}
       />
+
+      {slug === 'lillianah' && (
+        <EPAImportDialog
+          open={showEPAImportDialog}
+          onOpenChange={setShowEPAImportDialog}
+          onComplete={refresh}
+        />
+      )}
 
       <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
         <DialogContent className="sm:max-w-[600px]">
