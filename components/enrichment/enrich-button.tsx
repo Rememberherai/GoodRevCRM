@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useCallback } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import { Sparkles, Loader2, Check, AlertCircle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -14,6 +14,7 @@ import { toast } from 'sonner';
 import type { EnrichmentJob } from '@/types/enrichment';
 import type { EnrichmentPerson } from '@/lib/fullenrich/client';
 import { EnrichmentReviewModal } from './enrichment-review-modal';
+import { useEnrichmentStore } from '@/stores/enrichment';
 
 interface EnrichButtonProps {
   personId: string;
@@ -51,71 +52,28 @@ export function EnrichButton({
   const [enrichmentData, setEnrichmentData] = useState<EnrichmentPerson | null>(null);
   const [isApplying, setIsApplying] = useState(false);
 
-  // Poll for job completion with increasing delays
-  const pollForResults = useCallback(async (jobId: string, _externalJobId: string) => {
-    // Delays: 30s, 30s, 45s, 60s, 60s, 90s, 90s, 120s... (total ~10 minutes)
-    const pollDelays = [30000, 30000, 45000, 60000, 60000, 90000, 90000, 120000, 120000, 120000];
+  const {
+    startEnrichment,
+    isEnriching: isEnrichingGlobal,
+    getCompletedEnrichment,
+    clearEnrichment,
+  } = useEnrichmentStore();
 
-    console.log('[Enrich] Starting poll for job:', jobId);
-
-    for (let attempt = 0; attempt < pollDelays.length; attempt++) {
-      const delay = pollDelays[attempt]!;
-      console.log(`[Enrich] Poll attempt ${attempt + 1}/${pollDelays.length} - waiting ${delay / 1000}s...`);
-      await new Promise((resolve) => setTimeout(resolve, delay));
-
-      try {
-        // Check job status (with poll=true to actively check FullEnrich)
-        const url = `/api/projects/${slug}/enrich?person_id=${personId}&limit=1&poll=true`;
-        console.log('[Enrich] Fetching:', url);
-        const response = await fetch(url);
-
-        if (!response.ok) {
-          console.log('[Enrich] Response not ok:', response.status);
-          continue;
-        }
-
-        const data = await response.json();
-        console.log('[Enrich] Poll response:', JSON.stringify(data, null, 2));
-        const jobs = data.jobs as EnrichmentJob[];
-        const latestJob = jobs?.find((j) => j.id === jobId);
-
-        if (!latestJob) {
-          console.log('[Enrich] Job not found in response');
-          continue;
-        }
-
-        console.log('[Enrich] Job status:', latestJob.status, 'Result:', latestJob.result ? 'present' : 'null');
-
-        if (latestJob.status === 'completed' && latestJob.result) {
-          console.log('[Enrich] Job completed with result, opening modal');
-          // Open review modal with the enrichment data
-          setEnrichmentData(latestJob.result as EnrichmentPerson);
-          setShowReviewModal(true);
-          setIsEnriching(false);
-          return;
-        } else if (latestJob.status === 'failed') {
-          console.log('[Enrich] Job failed:', latestJob.error);
-          setLastResult('failed');
-          toast.error(`Enrichment failed: ${latestJob.error ?? 'Unknown error'}`);
-          setIsEnriching(false);
-          return;
-        }
-        // Still processing, continue polling
-        console.log('[Enrich] Still processing, continuing...');
-      } catch (err) {
-        console.error('[Enrich] Poll error:', err);
-        // Ignore polling errors, continue trying
-      }
+  // Check for completed enrichment on mount or when global state changes
+  useEffect(() => {
+    const completedJob = getCompletedEnrichment(personId);
+    if (completedJob?.result) {
+      setEnrichmentData(completedJob.result as EnrichmentPerson);
+      setShowReviewModal(true);
     }
+  }, [personId, getCompletedEnrichment]);
 
-    // Timed out - job may still complete via webhook
-    console.log('[Enrich] Timed out after max attempts');
-    setIsEnriching(false);
-    toast.info(`Enrichment is taking longer than expected. Results will appear when ready.`);
-  }, [slug, personId]);
+  // Track whether this person is being enriched globally
+  const isEnrichingFromStore = isEnrichingGlobal(personId);
+  const isEnrichingState = isEnriching || isEnrichingFromStore;
 
   const handleEnrich = async () => {
-    if (!slug || isEnriching) return;
+    if (!slug || isEnrichingState) return;
 
     setIsEnriching(true);
     setLastResult(null);
@@ -141,9 +99,16 @@ export function EnrichButton({
         setShowReviewModal(true);
         setIsEnriching(false);
       } else if (job.status === 'processing') {
-        toast.info(`Enriching ${personName}...`);
-        // Start polling for results in background (don't set isEnriching to false)
-        pollForResults(job.id, job.external_job_id ?? '');
+        // Register with global store - provider will handle polling
+        startEnrichment({
+          jobId: job.id,
+          personId,
+          personName,
+          projectSlug: slug,
+          startedAt: new Date().toISOString(),
+        });
+        setIsEnriching(false);
+        toast.info(`Enriching ${personName}... You can navigate away.`);
       } else if (job.status === 'failed') {
         setLastResult('failed');
         setIsEnriching(false);
@@ -177,6 +142,7 @@ export function EnrichButton({
       setLastResult('success');
       setShowReviewModal(false);
       setEnrichmentData(null);
+      clearEnrichment(personId);
       toast.success(`Applied ${Object.keys(selectedFields).length} field${Object.keys(selectedFields).length !== 1 ? 's' : ''} to ${personName}`);
       router.refresh();
       onEnriched?.(null as unknown as EnrichmentJob, Object.keys(selectedFields).length);
@@ -188,8 +154,14 @@ export function EnrichButton({
     }
   };
 
+  const handleCloseModal = () => {
+    setShowReviewModal(false);
+    setEnrichmentData(null);
+    clearEnrichment(personId);
+  };
+
   const getIcon = () => {
-    if (isEnriching) {
+    if (isEnrichingState) {
       return <Loader2 className="h-4 w-4 animate-spin" />;
     }
     if (lastResult === 'success') {
@@ -206,12 +178,12 @@ export function EnrichButton({
       variant={variant}
       size={size}
       onClick={handleEnrich}
-      disabled={isEnriching}
+      disabled={isEnrichingState}
     >
       {getIcon()}
       {showLabel && size !== 'icon' && (
         <span className="ml-2">
-          {isEnriching ? 'Enriching...' : 'Enrich'}
+          {isEnrichingState ? 'Enriching...' : 'Enrich'}
         </span>
       )}
     </Button>
@@ -230,10 +202,7 @@ export function EnrichButton({
         </TooltipProvider>
         <EnrichmentReviewModal
           open={showReviewModal}
-          onClose={() => {
-            setShowReviewModal(false);
-            setEnrichmentData(null);
-          }}
+          onClose={handleCloseModal}
           enrichmentData={enrichmentData}
           currentPerson={currentPerson}
           onApply={handleApplyEnrichment}
@@ -248,10 +217,7 @@ export function EnrichButton({
       {button}
       <EnrichmentReviewModal
         open={showReviewModal}
-        onClose={() => {
-          setShowReviewModal(false);
-          setEnrichmentData(null);
-        }}
+        onClose={handleCloseModal}
         enrichmentData={enrichmentData}
         currentPerson={currentPerson}
         onApply={handleApplyEnrichment}

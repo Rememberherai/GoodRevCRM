@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -18,8 +18,11 @@ import {
   User,
 } from 'lucide-react';
 import { EnrichButton } from '@/components/enrichment';
+import { EnrichmentReviewModal } from '@/components/enrichment/enrichment-review-modal';
 import { usePerson } from '@/hooks/use-people';
 import { usePersonStore, deletePerson } from '@/stores/person';
+import { useEnrichmentStore } from '@/stores/enrichment';
+import type { EnrichmentPerson } from '@/lib/fullenrich/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -48,9 +51,48 @@ export function PersonDetailClient({ personId }: PersonDetailClientProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [pendingEnrichmentData, setPendingEnrichmentData] = useState<EnrichmentPerson | null>(null);
+  const [showPendingReviewModal, setShowPendingReviewModal] = useState(false);
+  const [isApplyingEnrichment, setIsApplyingEnrichment] = useState(false);
 
   const { person, isLoading, error, refresh } = usePerson(personId);
   const removePerson = usePersonStore((s) => s.removePerson);
+  const { completeEnrichment } = useEnrichmentStore();
+
+  // Check for completed but unreviewed enrichments on mount
+  useEffect(() => {
+    const checkForCompletedEnrichment = async () => {
+      try {
+        const response = await fetch(
+          `/api/projects/${slug}/enrich?person_id=${personId}&limit=1`
+        );
+        if (!response.ok) return;
+
+        const data = await response.json();
+        const latestJob = data.jobs?.[0];
+
+        // If there's a completed job with results, check if it's recent (within last hour)
+        // and show the review modal
+        if (latestJob?.status === 'completed' && latestJob.result) {
+          const completedAt = new Date(latestJob.completed_at || latestJob.created_at);
+          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
+
+          if (completedAt > oneHourAgo) {
+            setPendingEnrichmentData(latestJob.result as EnrichmentPerson);
+            setShowPendingReviewModal(true);
+            // Also add to global store so it's tracked
+            completeEnrichment(personId, latestJob);
+          }
+        }
+      } catch (err) {
+        console.error('Error checking for completed enrichment:', err);
+      }
+    };
+
+    if (slug && personId) {
+      checkForCompletedEnrichment();
+    }
+  }, [slug, personId, completeEnrichment]);
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -60,6 +102,32 @@ export function PersonDetailClient({ personId }: PersonDetailClientProps) {
       router.push(`/projects/${slug}/people`);
     } catch {
       setIsDeleting(false);
+    }
+  };
+
+  const handleApplyPendingEnrichment = async (selectedFields: Record<string, string | null>) => {
+    if (Object.keys(selectedFields).length === 0) return;
+
+    setIsApplyingEnrichment(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/people/${personId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(selectedFields),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error ?? 'Failed to apply enrichment');
+      }
+
+      setShowPendingReviewModal(false);
+      setPendingEnrichmentData(null);
+      refresh();
+    } catch (err) {
+      console.error('Error applying enrichment:', err);
+    } finally {
+      setIsApplyingEnrichment(false);
     }
   };
 
@@ -345,6 +413,26 @@ export function PersonDetailClient({ personId }: PersonDetailClientProps) {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <EnrichmentReviewModal
+        open={showPendingReviewModal}
+        onClose={() => {
+          setShowPendingReviewModal(false);
+          setPendingEnrichmentData(null);
+        }}
+        enrichmentData={pendingEnrichmentData}
+        currentPerson={{
+          email: person.email,
+          phone: person.phone,
+          job_title: person.job_title,
+          linkedin_url: person.linkedin_url,
+          address_city: person.address_city,
+          address_state: person.address_state,
+          address_country: person.address_country,
+        }}
+        onApply={handleApplyPendingEnrichment}
+        isApplying={isApplyingEnrichment}
+      />
     </div>
   );
 }
