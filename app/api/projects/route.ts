@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { createProjectSchema } from '@/lib/validators/project';
 import type { Database } from '@/types/database';
@@ -61,7 +61,10 @@ export async function POST(request: Request) {
 
     const { name, slug, description, settings } = validationResult.data;
 
-    const { data: project, error } = await supabase
+    // Use service client to bypass RLS for project creation
+    const serviceClient = createServiceClient();
+
+    const { data: project, error } = await serviceClient
       .from('projects')
       .insert({
         name,
