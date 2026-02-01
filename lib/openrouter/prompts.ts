@@ -503,6 +503,62 @@ Analyze and provide:
 Respond with valid JSON matching the expected structure.`;
 }
 
+// Contact discovery prompt
+export function buildContactDiscoveryPrompt(
+  organization: { name: string; domain?: string | null; website?: string | null; industry?: string | null },
+  roles: string[],
+  maxResults: number = 10
+): string {
+  const rolesFormatted = roles.map((r) => `- ${r}`).join('\n');
+
+  return `You are a professional business researcher specializing in finding key contacts at companies.
+
+Company Information:
+- Name: ${organization.name}
+${organization.domain ? `- Domain: ${organization.domain}` : ''}
+${organization.website ? `- Website: ${organization.website}` : ''}
+${organization.industry ? `- Industry: ${organization.industry}` : ''}
+
+Target Roles/Titles to find:
+${rolesFormatted}
+
+Instructions:
+1. Search for people with the specified roles or similar titles at this company
+2. For each person found, provide as much verified information as possible
+3. Only include people you are reasonably confident work at this company
+4. Include LinkedIn URLs when available (use format: https://linkedin.com/in/username)
+5. If you cannot find someone for a specific role, do not make up information
+6. Provide up to ${maxResults} contacts total
+
+IMPORTANT:
+- Only return contacts you have reasonable confidence about
+- Do not fabricate names or contact information
+- For each contact, indicate your confidence level (0-1)
+- If email patterns are known (e.g., firstname.lastname@domain.com), you may infer emails but mark confidence lower
+
+Your response MUST be a JSON object with this exact structure:
+\`\`\`json
+{
+  "contacts": [
+    {
+      "id": "1",
+      "name": "Full Name",
+      "first_name": "First",
+      "last_name": "Last",
+      "title": "Job Title",
+      "email": "email@domain.com or null",
+      "linkedin_url": "https://linkedin.com/in/username or null",
+      "confidence": 0.85,
+      "source_hint": "LinkedIn profile" or "Company website" etc.
+    }
+  ],
+  "notes": "Optional notes about the search, e.g., 'Could not find a dedicated Sales Director role'"
+}
+\`\`\`
+
+Respond ONLY with the JSON object, no additional text.`;
+}
+
 // Email generation prompt
 export function buildEmailGenerationPrompt(
   context: {

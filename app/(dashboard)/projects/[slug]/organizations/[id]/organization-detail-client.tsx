@@ -41,6 +41,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { AddPersonDialog } from '@/components/organizations/add-person-dialog';
+import { ContactDiscoveryDialog } from '@/components/organizations/contact-discovery-dialog';
 import { ResearchPanel } from '@/components/research/research-panel';
 import { ResearchResultsDialog } from '@/components/research/research-results-dialog';
 import { AddFieldDialog } from '@/components/schema/add-field-dialog';
@@ -173,6 +174,7 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
   const [showResearchResults, setShowResearchResults] = useState(false);
   const [researchJob, setResearchJob] = useState<ResearchJob | null>(null);
   const [showAddPersonDialog, setShowAddPersonDialog] = useState(false);
+  const [showContactDiscovery, setShowContactDiscovery] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
 
@@ -603,10 +605,16 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
                 Contacts associated with this organization
               </p>
             </div>
-            <Button onClick={() => setShowAddPersonDialog(true)}>
-              <Plus className="mr-2 h-4 w-4" />
-              Add Person
-            </Button>
+            <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setShowContactDiscovery(true)}>
+                <Bot className="mr-2 h-4 w-4" />
+                Find People
+              </Button>
+              <Button onClick={() => setShowAddPersonDialog(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Person
+              </Button>
+            </div>
           </div>
 
           {peopleLoading ? (
@@ -714,6 +722,14 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
         organizationId={organizationId}
         organizationName={organization.name}
         onPersonAdded={handlePersonAdded}
+      />
+
+      <ContactDiscoveryDialog
+        open={showContactDiscovery}
+        onOpenChange={setShowContactDiscovery}
+        organizationId={organizationId}
+        organizationName={organization.name}
+        onContactsAdded={handlePersonAdded}
       />
 
       <AddFieldDialog
