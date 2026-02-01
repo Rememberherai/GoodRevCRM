@@ -6,8 +6,6 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { z } from 'zod';
 import { Loader2 } from 'lucide-react';
-import { createClient } from '@/lib/supabase/client';
-import type { Database } from '@/types/database';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -67,46 +65,38 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
     setIsLoading(true);
 
     try {
-      const supabase = createClient();
-
-      const {
-        data: { user },
-      } = await supabase.auth.getUser();
-
-      if (!user) {
-        throw new Error('Not authenticated');
-      }
-
-      const { data, error } = await supabase
-        .from('projects')
-        .insert({
+      const response = await fetch('/api/projects', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
           name: values.name,
           slug: values.slug,
           description: values.description || null,
-          owner_id: user.id,
-        } as Database['public']['Tables']['projects']['Insert'])
-        .select()
-        .single();
+        }),
+      });
 
-      if (error) {
-        if (error.code === '23505') {
+      const data = await response.json();
+
+      if (!response.ok) {
+        if (response.status === 409) {
           form.setError('slug', {
             message: 'This slug is already taken',
           });
           return;
         }
-        throw error;
+        throw new Error(data.error || 'Failed to create project');
       }
 
-      const project = data as Database['public']['Tables']['projects']['Row'];
       toast.success('Project created successfully');
       onOpenChange(false);
       form.reset();
-      router.push(`/projects/${project.slug}`);
+      router.push(`/projects/${data.project.slug}`);
       router.refresh();
     } catch (error) {
       console.error('Error creating project:', error);
-      toast.error('Failed to create project');
+      toast.error(error instanceof Error ? error.message : 'Failed to create project');
     } finally {
       setIsLoading(false);
     }
