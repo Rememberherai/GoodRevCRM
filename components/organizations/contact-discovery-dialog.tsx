@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useMemo } from 'react';
+import { useState, useMemo, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import {
   Loader2,
@@ -29,9 +29,7 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import type { DiscoveredContact } from '@/types/contact-discovery';
-import { useProjectStore } from '@/stores/project';
 import type { ProjectSettings } from '@/types/project';
-import type { Json } from '@/types/database';
 
 interface ContactDiscoveryDialogProps {
   open: boolean;
@@ -67,12 +65,24 @@ export function ContactDiscoveryDialog({
 }: ContactDiscoveryDialogProps) {
   const params = useParams();
   const slug = params.slug as string;
-  const currentProject = useProjectStore((state) => state.currentProject);
-  const updateProject = useProjectStore((state) => state.updateProject);
 
-  // Get custom roles from project settings
-  const projectSettings = currentProject?.settings as ProjectSettings | undefined;
-  const customRoles = projectSettings?.customRoles ?? [];
+  // State for custom roles fetched from project settings
+  const [customRoles, setCustomRoles] = useState<string[]>([]);
+
+  // Fetch custom roles when dialog opens
+  useEffect(() => {
+    if (open) {
+      fetch(`/api/projects/${slug}/settings`)
+        .then((res) => res.json())
+        .then((data) => {
+          const settings = data.settings as ProjectSettings | undefined;
+          setCustomRoles(settings?.customRoles ?? []);
+        })
+        .catch((err) => {
+          console.error('Failed to fetch project settings:', err);
+        });
+    }
+  }, [open, slug]);
 
   // Merge custom roles with standard suggestions (custom first, then standard)
   const roleSuggestions = useMemo(() => {
@@ -121,25 +131,17 @@ export function ContactDiscoveryDialog({
       );
 
       if (!isStandard && !isAlreadySaved) {
+        // Update local state immediately so it shows in suggestions
+        setCustomRoles((prev) => [...prev, trimmed]);
+
         // Fire-and-forget save to project settings
         fetch(`/api/projects/${slug}/settings/custom-roles`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({ role: trimmed }),
-        })
-          .then((res) => {
-            if (res.ok) {
-              // Update local store so the role appears immediately in suggestions
-              const updatedSettings = {
-                ...projectSettings,
-                customRoles: [...customRoles, trimmed],
-              };
-              updateProject(slug, { settings: updatedSettings as Json });
-            }
-          })
-          .catch((err) => {
-            console.error('Failed to save custom role:', err);
-          });
+        }).catch((err) => {
+          console.error('Failed to save custom role:', err);
+        });
       }
     }
     setRoleInput('');
