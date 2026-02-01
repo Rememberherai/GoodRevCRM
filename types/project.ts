@@ -1,5 +1,10 @@
 import type { Database } from './database';
 
+// Project settings stored in the settings JSONB column
+export interface ProjectSettings {
+  customRoles?: string[];
+}
+
 export type Project = Database['public']['Tables']['projects']['Row'];
 export type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
 export type ProjectUpdate = Database['public']['Tables']['projects']['Update'];

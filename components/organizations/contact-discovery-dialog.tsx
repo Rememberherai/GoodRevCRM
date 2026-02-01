@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import {
   Loader2,
@@ -29,6 +29,9 @@ import {
 } from '@/components/ui/dialog';
 import { toast } from 'sonner';
 import type { DiscoveredContact } from '@/types/contact-discovery';
+import { useProjectStore } from '@/stores/project';
+import type { ProjectSettings } from '@/types/project';
+import type { Json } from '@/types/database';
 
 interface ContactDiscoveryDialogProps {
   open: boolean;
@@ -40,7 +43,7 @@ interface ContactDiscoveryDialogProps {
 
 type DialogStep = 'input' | 'searching' | 'results' | 'adding' | 'success';
 
-const ROLE_SUGGESTIONS = [
+const STANDARD_ROLE_SUGGESTIONS = [
   'CEO',
   'CTO',
   'CFO',
@@ -64,6 +67,23 @@ export function ContactDiscoveryDialog({
 }: ContactDiscoveryDialogProps) {
   const params = useParams();
   const slug = params.slug as string;
+  const currentProject = useProjectStore((state) => state.currentProject);
+  const updateProject = useProjectStore((state) => state.updateProject);
+
+  // Get custom roles from project settings
+  const projectSettings = currentProject?.settings as ProjectSettings | undefined;
+  const customRoles = projectSettings?.customRoles ?? [];
+
+  // Merge custom roles with standard suggestions (custom first, then standard)
+  const roleSuggestions = useMemo(() => {
+    const combined = [...customRoles];
+    for (const role of STANDARD_ROLE_SUGGESTIONS) {
+      if (!combined.some((r) => r.toLowerCase() === role.toLowerCase())) {
+        combined.push(role);
+      }
+    }
+    return combined;
+  }, [customRoles]);
 
   const [step, setStep] = useState<DialogStep>('input');
   const [roles, setRoles] = useState<string[]>([]);
@@ -91,6 +111,36 @@ export function ContactDiscoveryDialog({
     const trimmed = role.trim();
     if (trimmed && !roles.includes(trimmed) && roles.length < 20) {
       setRoles([...roles, trimmed]);
+
+      // Auto-save custom role if it's not in the standard suggestions
+      const isStandard = STANDARD_ROLE_SUGGESTIONS.some(
+        (r) => r.toLowerCase() === trimmed.toLowerCase()
+      );
+      const isAlreadySaved = customRoles.some(
+        (r) => r.toLowerCase() === trimmed.toLowerCase()
+      );
+
+      if (!isStandard && !isAlreadySaved) {
+        // Fire-and-forget save to project settings
+        fetch(`/api/projects/${slug}/settings/custom-roles`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ role: trimmed }),
+        })
+          .then((res) => {
+            if (res.ok) {
+              // Update local store so the role appears immediately in suggestions
+              const updatedSettings = {
+                ...projectSettings,
+                customRoles: [...customRoles, trimmed],
+              };
+              updateProject(slug, { settings: updatedSettings as Json });
+            }
+          })
+          .catch((err) => {
+            console.error('Failed to save custom role:', err);
+          });
+      }
     }
     setRoleInput('');
   };
@@ -289,7 +339,7 @@ export function ContactDiscoveryDialog({
             <div className="space-y-2">
               <Label className="text-muted-foreground text-xs">Quick add suggestions</Label>
               <div className="flex flex-wrap gap-1">
-                {ROLE_SUGGESTIONS.filter((r) => !roles.includes(r)).map((suggestion) => (
+                {roleSuggestions.filter((r) => !roles.includes(r)).map((suggestion) => (
                   <Button
                     key={suggestion}
                     type="button"
