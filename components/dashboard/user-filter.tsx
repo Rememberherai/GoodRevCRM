@@ -38,8 +38,8 @@ export function UserFilter({
 
   return (
     <Select
-      value={value ?? ""}
-      onValueChange={(v) => onChange(v === "" ? null : v)}
+      value={value ?? "__all__"}
+      onValueChange={(v) => onChange(v === "__all__" ? null : v)}
     >
       <SelectTrigger className="w-[200px]">
         <SelectValue placeholder={
@@ -50,7 +50,7 @@ export function UserFilter({
         } />
       </SelectTrigger>
       <SelectContent>
-        <SelectItem value="">
+        <SelectItem value="__all__">
           <span className="flex items-center gap-2">
             <Users className="size-4" />
             All Team

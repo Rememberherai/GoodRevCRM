@@ -21,7 +21,7 @@ CREATE TABLE rfp_content_library (
 
 -- Add FK from rfp_questions to content library
 ALTER TABLE rfp_questions
-ADD COLUMN content_library_source_id UUID REFERENCES rfp_content_library(id) ON DELETE SET NULL;
+ADD COLUMN IF NOT EXISTS content_library_source_id UUID REFERENCES rfp_content_library(id) ON DELETE SET NULL;
 
 -- Indexes
 CREATE INDEX idx_rfp_content_library_project_id ON rfp_content_library(project_id);
@@ -58,4 +58,4 @@ USING (has_project_role(project_id, 'admin'));
 CREATE TRIGGER set_rfp_content_library_updated_at
     BEFORE UPDATE ON rfp_content_library
     FOR EACH ROW
-    EXECUTE FUNCTION update_updated_at_column();
+    EXECUTE FUNCTION handle_updated_at();
