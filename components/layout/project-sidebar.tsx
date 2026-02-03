@@ -11,6 +11,7 @@ import {
   Settings,
   Mail,
   Search,
+  Library,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { Project } from '@/types/project';
@@ -49,6 +50,11 @@ const navItems = [
     title: 'Sequences',
     href: '/sequences',
     icon: Mail,
+  },
+  {
+    title: 'Content Library',
+    href: '/content-library',
+    icon: Library,
   },
 ];
 

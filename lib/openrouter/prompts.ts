@@ -447,6 +447,192 @@ Include confidence scores for custom fields as "custom_fields.field_name" in con
   return prompt;
 }
 
+// Content extraction from documents
+export function buildContentExtractionPrompt(
+  documentText: string,
+  companyContext?: { name: string; description?: string; products?: string[] },
+  suggestedCategory?: string
+): string {
+  let prompt = `You are a content extraction specialist. Extract reusable Q&A pairs from this document that could answer future RFP (Request for Proposal) questions.`;
+
+  if (companyContext?.name) {
+    prompt += `\n\nCompany Context:
+- Name: ${companyContext.name}`;
+    if (companyContext.description) {
+      prompt += `\n- Description: ${companyContext.description}`;
+    }
+    if (companyContext.products && companyContext.products.length > 0) {
+      prompt += `\n- Products/Services: ${companyContext.products.join(', ')}`;
+    }
+    prompt += `\n\nFocus on extracting content relevant to this company's capabilities and offerings.`;
+  }
+
+  prompt += `\n\n## DOCUMENT TEXT
+${documentText.slice(0, 50000)}`;
+
+  if (suggestedCategory) {
+    prompt += `\n\n## SUGGESTED CATEGORY
+${suggestedCategory}`;
+  }
+
+  prompt += `\n\n## INSTRUCTIONS
+1. Extract distinct, reusable Q&A pairs from this document
+2. Each pair should be self-contained and useful for future RFP responses
+3. Convert lengthy prose into concise, factual answers
+4. If the document contains actual Q&A pairs, extract them directly
+5. If the document is a narrative (policy, whitepaper, etc.), synthesize relevant Q&A pairs
+6. Assign a relevant category to each: security, compliance, technical, company_overview, pricing, support, implementation, integration, or other
+7. Add descriptive tags (2-5 per entry) for searchability
+8. Create a short, descriptive title for each entry
+
+## OUTPUT FORMAT
+Respond with a JSON object:
+{
+  "entries": [
+    {
+      "title": "Short descriptive title",
+      "question_text": "What question does this answer? (phrased as a typical RFP question)",
+      "answer_text": "The extracted/synthesized answer",
+      "category": "one of the valid categories",
+      "tags": ["tag1", "tag2", "tag3"]
+    }
+  ]
+}
+
+Extract as many relevant Q&A pairs as possible (up to 50). Quality over quantity.
+Respond ONLY with the JSON object.`;
+
+  return prompt;
+}
+
+// RFP response generation context
+export interface RfpResponseContext {
+  questionText: string;
+  questionNumber?: string;
+  sectionName?: string;
+  rfpTitle: string;
+  rfpDescription?: string;
+  companyContext?: {
+    name: string;
+    description: string;
+    products?: string[];
+    valuePropositions?: string[];
+  };
+  organizationContext?: {
+    name: string;
+    domain?: string | null;
+    industry?: string | null;
+    description?: string | null;
+  };
+  existingApprovedAnswers?: Array<{
+    question: string;
+    answer: string;
+    tags?: string[];
+  }>;
+  additionalInstructions?: string;
+}
+
+// Build prompt for generating an RFP question response
+export function buildRfpResponsePrompt(context: RfpResponseContext): string {
+  const {
+    questionText,
+    questionNumber,
+    sectionName,
+    rfpTitle,
+    rfpDescription,
+    companyContext,
+    organizationContext,
+    existingApprovedAnswers,
+    additionalInstructions,
+  } = context;
+
+  let prompt = `You are an expert RFP response writer`;
+  if (companyContext?.name) {
+    prompt += ` for ${companyContext.name}`;
+  }
+  prompt += `. Your task is to write a professional, compelling answer to an RFP question.`;
+
+  prompt += `\n\n## RFP CONTEXT
+Title: ${rfpTitle}`;
+  if (rfpDescription) {
+    prompt += `\nDescription: ${rfpDescription}`;
+  }
+
+  prompt += `\n\n## QUESTION TO ANSWER`;
+  if (sectionName) {
+    prompt += `\nSection: ${sectionName}`;
+  }
+  if (questionNumber) {
+    prompt += `\nQuestion Number: ${questionNumber}`;
+  }
+  prompt += `\nQuestion: ${questionText}`;
+
+  if (companyContext) {
+    prompt += `\n\n## COMPANY CONTEXT
+Company: ${companyContext.name}
+Description: ${companyContext.description}`;
+    if (companyContext.products && companyContext.products.length > 0) {
+      prompt += `\nProducts/Services: ${companyContext.products.join(', ')}`;
+    }
+    if (companyContext.valuePropositions && companyContext.valuePropositions.length > 0) {
+      prompt += `\nValue Propositions:\n${companyContext.valuePropositions.map(vp => `- ${vp}`).join('\n')}`;
+    }
+  }
+
+  if (organizationContext) {
+    prompt += `\n\n## REQUESTING ORGANIZATION
+Name: ${organizationContext.name}`;
+    if (organizationContext.industry) {
+      prompt += `\nIndustry: ${organizationContext.industry}`;
+    }
+    if (organizationContext.description) {
+      prompt += `\nDescription: ${organizationContext.description}`;
+    }
+    if (organizationContext.domain) {
+      prompt += `\nDomain: ${organizationContext.domain}`;
+    }
+  }
+
+  if (existingApprovedAnswers && existingApprovedAnswers.length > 0) {
+    prompt += `\n\n## REFERENCE ANSWERS FROM CONTENT LIBRARY
+The following are previously approved answers to similar questions. Reference and adapt them where relevant:`;
+    existingApprovedAnswers.forEach((entry, i) => {
+      prompt += `\n\n### Reference ${i + 1}`;
+      prompt += `\nQuestion: ${entry.question}`;
+      prompt += `\nAnswer: ${entry.answer}`;
+      if (entry.tags && entry.tags.length > 0) {
+        prompt += `\nTags: ${entry.tags.join(', ')}`;
+      }
+    });
+  }
+
+  if (additionalInstructions) {
+    prompt += `\n\n## ADDITIONAL INSTRUCTIONS FROM USER
+${additionalInstructions}`;
+  }
+
+  prompt += `\n\n## RESPONSE GUIDELINES
+1. Write a clear, professional, and specific answer
+2. Use concrete details from the company context when available
+3. Be direct and factual — avoid vague marketing language
+4. If referencing existing answers, adapt them to fit this specific question
+5. Match the tone expected for government/enterprise RFPs (formal, precise)
+6. If you don't have enough context for certain details, write a solid draft and note where specifics should be filled in
+
+## OUTPUT FORMAT
+Respond with a JSON object:
+{
+  "answer_text": "The complete answer in plain text",
+  "answer_html": "<p>The complete answer in simple HTML (paragraphs, lists, bold)</p>",
+  "confidence": 0.85,
+  "reasoning": "Brief explanation of how you composed this answer and what sources you drew from"
+}
+
+Respond ONLY with the JSON object.`;
+
+  return prompt;
+}
+
 // RFP analysis prompt
 export function buildRfpAnalysisPrompt(
   rfpContent: string,

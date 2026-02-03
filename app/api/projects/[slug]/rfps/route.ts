@@ -41,7 +41,9 @@ export async function GET(request: Request, context: RouteContext) {
     const page = parseInt(searchParams.get('page') ?? '1', 10);
     const limit = parseInt(searchParams.get('limit') ?? '50', 10);
     const search = searchParams.get('search') ?? '';
-    const sortBy = searchParams.get('sortBy') ?? 'created_at';
+    const ALLOWED_SORT_COLUMNS = ['created_at', 'updated_at', 'title', 'status', 'due_date', 'estimated_value', 'rfp_number'];
+    const rawSortBy = searchParams.get('sortBy') ?? 'created_at';
+    const sortBy = ALLOWED_SORT_COLUMNS.includes(rawSortBy) ? rawSortBy : 'created_at';
     const sortOrder = searchParams.get('sortOrder') ?? 'desc';
     const status = searchParams.get('status');
     const organizationId = searchParams.get('organizationId');
@@ -56,9 +58,10 @@ export async function GET(request: Request, context: RouteContext) {
       .eq('project_id', project.id)
       .is('deleted_at', null);
 
-    // Apply search filter
+    // Apply search filter (escape special PostgREST characters)
     if (search) {
-      query = query.or(`title.ilike.%${search}%,rfp_number.ilike.%${search}%,description.ilike.%${search}%`);
+      const escaped = search.replace(/[%_\\,().]/g, (ch) => `\\${ch}`);
+      query = query.or(`title.ilike.%${escaped}%,rfp_number.ilike.%${escaped}%,description.ilike.%${escaped}%`);
     }
 
     // Apply status filter
@@ -95,8 +98,39 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to fetch RFPs' }, { status: 500 });
     }
 
+    // Fetch question counts for each RFP
+    const rfpList = (rfps ?? []) as Rfp[];
+    const rfpIds = rfpList.map((r) => r.id);
+    const questionCountsMap: Record<string, { total: number; answered: number }> = {};
+
+    if (rfpIds.length > 0) {
+      const { data: questionRows } = await supabase
+        .from('rfp_questions')
+        .select('rfp_id, status')
+        .in('rfp_id', rfpIds)
+        .is('deleted_at', null);
+
+      type QuestionRow = Database['public']['Tables']['rfp_questions']['Row'];
+      if (questionRows) {
+        for (const q of questionRows as QuestionRow[]) {
+          if (!questionCountsMap[q.rfp_id]) {
+            questionCountsMap[q.rfp_id] = { total: 0, answered: 0 };
+          }
+          questionCountsMap[q.rfp_id]!.total++;
+          if (q.status !== 'unanswered') {
+            questionCountsMap[q.rfp_id]!.answered++;
+          }
+        }
+      }
+    }
+
+    const rfpsWithCounts = rfpList.map((r) => ({
+      ...r,
+      question_counts: questionCountsMap[r.id] ?? { total: 0, answered: 0 },
+    }));
+
     return NextResponse.json({
-      rfps: rfps as Rfp[],
+      rfps: rfpsWithCounts,
       pagination: {
         page,
         limit,

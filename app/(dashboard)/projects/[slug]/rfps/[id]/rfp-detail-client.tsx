@@ -20,6 +20,7 @@ import {
   AlertTriangle,
   CheckCircle,
   HelpCircle,
+  ListChecks,
 } from 'lucide-react';
 import { useRfp } from '@/hooks/use-rfps';
 import { useRfpStore, deleteRfp } from '@/stores/rfp';
@@ -28,6 +29,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,6 +41,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { RfpForm } from '@/components/rfps/rfp-form';
+import { RfpQuestionsList } from '@/components/rfps/rfp-questions-list';
 import { EntityActivitySection } from '@/components/activity/entity-activity-section';
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 
@@ -213,323 +216,346 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <Calendar className="h-5 w-5" />
-              Key Dates
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-sm text-muted-foreground">Due Date</p>
-              <p className="font-medium">{formatDateTime(rfp.due_date)}</p>
-            </div>
-            {rfp.issue_date && (
-              <div>
-                <p className="text-sm text-muted-foreground">Issue Date</p>
-                <p className="font-medium">{formatDate(rfp.issue_date)}</p>
-              </div>
-            )}
-            {rfp.questions_due_date && (
-              <div>
-                <p className="text-sm text-muted-foreground">Questions Due</p>
-                <p className="font-medium">{formatDateTime(rfp.questions_due_date)}</p>
-              </div>
-            )}
-            {rfp.decision_date && (
-              <div>
-                <p className="text-sm text-muted-foreground">Decision Date</p>
-                <p className="font-medium">{formatDate(rfp.decision_date)}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      <Tabs defaultValue="overview" className="space-y-4">
+        <TabsList>
+          <TabsTrigger value="overview">Overview</TabsTrigger>
+          <TabsTrigger value="questions" className="flex items-center gap-1">
+            <ListChecks className="h-3.5 w-3.5" />
+            Questions
+          </TabsTrigger>
+          <TabsTrigger value="documents">Documents</TabsTrigger>
+          <TabsTrigger value="activity">Activity</TabsTrigger>
+        </TabsList>
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <DollarSign className="h-5 w-5" />
-              Value
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div>
-              <p className="text-3xl font-bold">
-                {formatCurrency(rfp.estimated_value, rfp.currency)}
-              </p>
-              {rfp.budget_range && (
-                <p className="text-sm text-muted-foreground">{rfp.budget_range}</p>
+        {/* Overview Tab */}
+        <TabsContent value="overview" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Calendar className="h-5 w-5" />
+                  Key Dates
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-sm text-muted-foreground">Due Date</p>
+                  <p className="font-medium">{formatDateTime(rfp.due_date)}</p>
+                </div>
+                {rfp.issue_date && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Issue Date</p>
+                    <p className="font-medium">{formatDate(rfp.issue_date)}</p>
+                  </div>
+                )}
+                {rfp.questions_due_date && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Questions Due</p>
+                    <p className="font-medium">{formatDateTime(rfp.questions_due_date)}</p>
+                  </div>
+                )}
+                {rfp.decision_date && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Decision Date</p>
+                    <p className="font-medium">{formatDate(rfp.decision_date)}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <DollarSign className="h-5 w-5" />
+                  Value
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div>
+                  <p className="text-3xl font-bold">
+                    {formatCurrency(rfp.estimated_value, rfp.currency)}
+                  </p>
+                  {rfp.budget_range && (
+                    <p className="text-sm text-muted-foreground">{rfp.budget_range}</p>
+                  )}
+                </div>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Percent className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Win Probability</span>
+                  </div>
+                  <span className="font-medium">
+                    {rfp.win_probability !== null ? `${rfp.win_probability}%` : '—'}
+                  </span>
+                </div>
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <AlertTriangle className="h-5 w-5" />
+                  Go/No-Go Decision
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center gap-2">
+                  {getGoNoGoIcon(rfp.go_no_go_decision)}
+                  <span className="font-medium">{getGoNoGoLabel(rfp.go_no_go_decision)}</span>
+                </div>
+                {rfp.go_no_go_date && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Decision Date</p>
+                    <p className="font-medium">{formatDate(rfp.go_no_go_date)}</p>
+                  </div>
+                )}
+                {rfp.go_no_go_notes && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Notes</p>
+                    <p className="whitespace-pre-wrap">{rfp.go_no_go_notes}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <FileText className="h-5 w-5" />
+                  Submission
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {rfp.submission_method && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Method</p>
+                    <p className="font-medium capitalize">{rfp.submission_method}</p>
+                  </div>
+                )}
+                {rfp.submission_portal_url && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Portal</p>
+                    <a
+                      href={rfp.submission_portal_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="flex items-center gap-1 text-primary hover:underline"
+                    >
+                      <ExternalLink className="h-3 w-3" />
+                      Open Portal
+                    </a>
+                  </div>
+                )}
+                {rfp.submission_email && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Email</p>
+                    <a
+                      href={`mailto:${rfp.submission_email}`}
+                      className="flex items-center gap-1 text-primary hover:underline"
+                    >
+                      <Mail className="h-3 w-3" />
+                      {rfp.submission_email}
+                    </a>
+                  </div>
+                )}
+                {rfp.submission_instructions && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Instructions</p>
+                    <p className="whitespace-pre-wrap">{rfp.submission_instructions}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          </div>
+
+          {(rfp.organization || rfp.opportunity) && (
+            <div className="grid gap-6 md:grid-cols-2">
+              {rfp.organization && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Building2 className="h-5 w-5" />
+                      Issuing Organization
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Link
+                      href={`/projects/${slug}/organizations/${rfp.organization.id}`}
+                      className="flex items-center gap-3 hover:underline"
+                    >
+                      <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                        <Building2 className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{rfp.organization.name}</p>
+                        {rfp.organization.domain && (
+                          <p className="text-sm text-muted-foreground">
+                            {rfp.organization.domain}
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  </CardContent>
+                </Card>
+              )}
+
+              {rfp.opportunity && (
+                <Card>
+                  <CardHeader>
+                    <CardTitle className="flex items-center gap-2">
+                      <Target className="h-5 w-5" />
+                      Related Opportunity
+                    </CardTitle>
+                  </CardHeader>
+                  <CardContent>
+                    <Link
+                      href={`/projects/${slug}/opportunities/${rfp.opportunity.id}`}
+                      className="flex items-center gap-3 hover:underline"
+                    >
+                      <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
+                        <Target className="h-5 w-5 text-muted-foreground" />
+                      </div>
+                      <div>
+                        <p className="font-medium">{rfp.opportunity.name}</p>
+                        {rfp.opportunity.amount && (
+                          <p className="text-sm text-muted-foreground">
+                            {formatCurrency(rfp.opportunity.amount, null)}
+                          </p>
+                        )}
+                      </div>
+                    </Link>
+                  </CardContent>
+                </Card>
               )}
             </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Percent className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Win Probability</span>
-              </div>
-              <span className="font-medium">
-                {rfp.win_probability !== null ? `${rfp.win_probability}%` : '—'}
-              </span>
-            </div>
-          </CardContent>
-        </Card>
+          )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <AlertTriangle className="h-5 w-5" />
-              Go/No-Go Decision
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center gap-2">
-              {getGoNoGoIcon(rfp.go_no_go_decision)}
-              <span className="font-medium">{getGoNoGoLabel(rfp.go_no_go_decision)}</span>
-            </div>
-            {rfp.go_no_go_date && (
-              <div>
-                <p className="text-sm text-muted-foreground">Decision Date</p>
-                <p className="font-medium">{formatDate(rfp.go_no_go_date)}</p>
-              </div>
-            )}
-            {rfp.go_no_go_notes && (
-              <div>
-                <p className="text-sm text-muted-foreground">Notes</p>
-                <p className="whitespace-pre-wrap">{rfp.go_no_go_notes}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
+          {rfp.description && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Description</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap">{rfp.description}</p>
+              </CardContent>
+            </Card>
+          )}
 
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <FileText className="h-5 w-5" />
-              Submission
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {rfp.submission_method && (
-              <div>
-                <p className="text-sm text-muted-foreground">Method</p>
-                <p className="font-medium capitalize">{rfp.submission_method}</p>
-              </div>
-            )}
-            {rfp.submission_portal_url && (
-              <div>
-                <p className="text-sm text-muted-foreground">Portal</p>
+          {(rfp.outcome_reason || rfp.feedback || rfp.awarded_to) && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  {rfp.status === 'won' ? (
+                    <Trophy className="h-5 w-5 text-green-600" />
+                  ) : (
+                    <XCircle className="h-5 w-5 text-red-600" />
+                  )}
+                  Outcome
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {rfp.outcome_reason && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Reason</p>
+                    <p className="whitespace-pre-wrap">{rfp.outcome_reason}</p>
+                  </div>
+                )}
+                {rfp.awarded_to && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Awarded To</p>
+                    <p>{rfp.awarded_to}</p>
+                  </div>
+                )}
+                {rfp.feedback && (
+                  <div>
+                    <p className="text-sm text-muted-foreground">Feedback</p>
+                    <p className="whitespace-pre-wrap">{rfp.feedback}</p>
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {rfp.custom_fields && Object.keys(rfp.custom_fields).length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Custom Fields</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {Object.entries(rfp.custom_fields).map(([key, value]) => (
+                    <div key={key}>
+                      <p className="text-sm font-medium text-muted-foreground">{key}</p>
+                      <p>{String(value)}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Questions Tab */}
+        <TabsContent value="questions">
+          <RfpQuestionsList rfpId={rfpId} />
+        </TabsContent>
+
+        {/* Documents Tab */}
+        <TabsContent value="documents" className="space-y-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>Documents</CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {rfp.rfp_document_url ? (
                 <a
-                  href={rfp.submission_portal_url}
+                  href={rfp.rfp_document_url}
                   target="_blank"
                   rel="noopener noreferrer"
-                  className="flex items-center gap-1 text-primary hover:underline"
+                  className="flex items-center gap-2 text-primary hover:underline"
                 >
+                  <FileText className="h-4 w-4" />
+                  RFP Document
                   <ExternalLink className="h-3 w-3" />
-                  Open Portal
                 </a>
-              </div>
-            )}
-            {rfp.submission_email && (
-              <div>
-                <p className="text-sm text-muted-foreground">Email</p>
-                <a
-                  href={`mailto:${rfp.submission_email}`}
-                  className="flex items-center gap-1 text-primary hover:underline"
-                >
-                  <Mail className="h-3 w-3" />
-                  {rfp.submission_email}
-                </a>
-              </div>
-            )}
-            {rfp.submission_instructions && (
-              <div>
-                <p className="text-sm text-muted-foreground">Instructions</p>
-                <p className="whitespace-pre-wrap">{rfp.submission_instructions}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {(rfp.organization || rfp.opportunity) && (
-        <div className="grid gap-6 md:grid-cols-2">
-          {rfp.organization && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Building2 className="h-5 w-5" />
-                  Issuing Organization
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Link
-                  href={`/projects/${slug}/organizations/${rfp.organization.id}`}
-                  className="flex items-center gap-3 hover:underline"
-                >
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                    <Building2 className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="font-medium">{rfp.organization.name}</p>
-                    {rfp.organization.domain && (
-                      <p className="text-sm text-muted-foreground">
-                        {rfp.organization.domain}
-                      </p>
-                    )}
-                  </div>
-                </Link>
-              </CardContent>
-            </Card>
-          )}
-
-          {rfp.opportunity && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="flex items-center gap-2">
-                  <Target className="h-5 w-5" />
-                  Related Opportunity
-                </CardTitle>
-              </CardHeader>
-              <CardContent>
-                <Link
-                  href={`/projects/${slug}/opportunities/${rfp.opportunity.id}`}
-                  className="flex items-center gap-3 hover:underline"
-                >
-                  <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
-                    <Target className="h-5 w-5 text-muted-foreground" />
-                  </div>
-                  <div>
-                    <p className="font-medium">{rfp.opportunity.name}</p>
-                    {rfp.opportunity.amount && (
-                      <p className="text-sm text-muted-foreground">
-                        {formatCurrency(rfp.opportunity.amount, null)}
-                      </p>
-                    )}
-                  </div>
-                </Link>
-              </CardContent>
-            </Card>
-          )}
-        </div>
-      )}
-
-      {rfp.description && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Description</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="whitespace-pre-wrap">{rfp.description}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {(rfp.rfp_document_url || rfp.response_document_url) && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Documents</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {rfp.rfp_document_url && (
-              <a
-                href={rfp.rfp_document_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-primary hover:underline"
-              >
-                <FileText className="h-4 w-4" />
-                RFP Document
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-            {rfp.response_document_url && (
-              <a
-                href={rfp.response_document_url}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="flex items-center gap-2 text-primary hover:underline"
-              >
-                <FileText className="h-4 w-4" />
-                Response Document
-                <ExternalLink className="h-3 w-3" />
-              </a>
-            )}
-          </CardContent>
-        </Card>
-      )}
-
-      {(rfp.outcome_reason || rfp.feedback || rfp.awarded_to) && (
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              {rfp.status === 'won' ? (
-                <Trophy className="h-5 w-5 text-green-600" />
               ) : (
-                <XCircle className="h-5 w-5 text-red-600" />
+                <p className="text-sm text-muted-foreground">No RFP document linked</p>
               )}
-              Outcome
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {rfp.outcome_reason && (
-              <div>
-                <p className="text-sm text-muted-foreground">Reason</p>
-                <p className="whitespace-pre-wrap">{rfp.outcome_reason}</p>
-              </div>
-            )}
-            {rfp.awarded_to && (
-              <div>
-                <p className="text-sm text-muted-foreground">Awarded To</p>
-                <p>{rfp.awarded_to}</p>
-              </div>
-            )}
-            {rfp.feedback && (
-              <div>
-                <p className="text-sm text-muted-foreground">Feedback</p>
-                <p className="whitespace-pre-wrap">{rfp.feedback}</p>
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
+              {rfp.response_document_url && (
+                <a
+                  href={rfp.response_document_url}
+                  target="_blank"
+                  rel="noopener noreferrer"
+                  className="flex items-center gap-2 text-primary hover:underline"
+                >
+                  <FileText className="h-4 w-4" />
+                  Response Document
+                  <ExternalLink className="h-3 w-3" />
+                </a>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
 
-      {rfp.custom_fields && Object.keys(rfp.custom_fields).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Custom Fields</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Object.entries(rfp.custom_fields).map(([key, value]) => (
-                <div key={key}>
-                  <p className="text-sm font-medium text-muted-foreground">{key}</p>
-                  <p>{String(value)}</p>
-                </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
-
-      {/* Activity Section */}
-      <EntityActivitySection
-        projectSlug={slug}
-        entityType="rfp"
-        entityId={rfpId}
-        rfpId={rfpId}
-        organizationId={rfp.organization_id ?? undefined}
-      />
-
-      {/* Meetings Section */}
-      <EntityMeetingsSection
-        projectSlug={slug}
-        entityType="rfp"
-        entityId={rfpId}
-        rfpId={rfpId}
-        organizationId={rfp.organization_id ?? undefined}
-      />
+        {/* Activity Tab */}
+        <TabsContent value="activity" className="space-y-6">
+          <EntityActivitySection
+            projectSlug={slug}
+            entityType="rfp"
+            entityId={rfpId}
+            rfpId={rfpId}
+            organizationId={rfp.organization_id ?? undefined}
+          />
+          <EntityMeetingsSection
+            projectSlug={slug}
+            entityType="rfp"
+            entityId={rfpId}
+            rfpId={rfpId}
+            organizationId={rfp.organization_id ?? undefined}
+          />
+        </TabsContent>
+      </Tabs>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

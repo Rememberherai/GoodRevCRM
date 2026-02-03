@@ -530,6 +530,172 @@ export type Database = {
           }
         ];
       };
+      rfp_questions: {
+        Row: {
+          id: string;
+          rfp_id: string;
+          project_id: string;
+          section_name: string | null;
+          question_number: string | null;
+          question_text: string;
+          answer_text: string | null;
+          answer_html: string | null;
+          status: 'unanswered' | 'draft' | 'review' | 'approved';
+          priority: string | null;
+          assigned_to: string | null;
+          ai_generated: boolean;
+          ai_confidence: number | null;
+          content_library_source_id: string | null;
+          sort_order: number;
+          notes: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          rfp_id: string;
+          project_id: string;
+          section_name?: string | null;
+          question_number?: string | null;
+          question_text: string;
+          answer_text?: string | null;
+          answer_html?: string | null;
+          status?: 'unanswered' | 'draft' | 'review' | 'approved';
+          priority?: string | null;
+          assigned_to?: string | null;
+          ai_generated?: boolean;
+          ai_confidence?: number | null;
+          content_library_source_id?: string | null;
+          sort_order?: number;
+          notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          rfp_id?: string;
+          project_id?: string;
+          section_name?: string | null;
+          question_number?: string | null;
+          question_text?: string;
+          answer_text?: string | null;
+          answer_html?: string | null;
+          status?: 'unanswered' | 'draft' | 'review' | 'approved';
+          priority?: string | null;
+          assigned_to?: string | null;
+          ai_generated?: boolean;
+          ai_confidence?: number | null;
+          content_library_source_id?: string | null;
+          sort_order?: number;
+          notes?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "rfp_questions_rfp_id_fkey";
+            columns: ["rfp_id"];
+            isOneToOne: false;
+            referencedRelation: "rfps";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "rfp_questions_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
+      rfp_content_library: {
+        Row: {
+          id: string;
+          project_id: string;
+          title: string;
+          question_text: string | null;
+          answer_text: string;
+          answer_html: string | null;
+          category: string | null;
+          tags: string[];
+          source_rfp_id: string | null;
+          source_question_id: string | null;
+          source_document_name: string | null;
+          usage_count: number;
+          last_used_at: string | null;
+          created_by: string | null;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          project_id: string;
+          title: string;
+          question_text?: string | null;
+          answer_text: string;
+          answer_html?: string | null;
+          category?: string | null;
+          tags?: string[];
+          source_rfp_id?: string | null;
+          source_question_id?: string | null;
+          source_document_name?: string | null;
+          usage_count?: number;
+          last_used_at?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          project_id?: string;
+          title?: string;
+          question_text?: string | null;
+          answer_text?: string;
+          answer_html?: string | null;
+          category?: string | null;
+          tags?: string[];
+          source_rfp_id?: string | null;
+          source_question_id?: string | null;
+          source_document_name?: string | null;
+          usage_count?: number;
+          last_used_at?: string | null;
+          created_by?: string | null;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "rfp_content_library_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "rfp_content_library_source_rfp_id_fkey";
+            columns: ["source_rfp_id"];
+            isOneToOne: false;
+            referencedRelation: "rfps";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "rfp_content_library_source_question_id_fkey";
+            columns: ["source_question_id"];
+            isOneToOne: false;
+            referencedRelation: "rfp_questions";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       person_organizations: {
         Row: {
           id: string;
@@ -682,6 +848,7 @@ export type Database = {
       field_type: 'text' | 'textarea' | 'number' | 'currency' | 'percentage' | 'date' | 'datetime' | 'boolean' | 'select' | 'multi_select' | 'url' | 'email' | 'phone' | 'rating' | 'user';
       opportunity_stage: 'prospecting' | 'qualification' | 'proposal' | 'negotiation' | 'closed_won' | 'closed_lost';
       project_role: 'owner' | 'admin' | 'member' | 'viewer';
+      rfp_question_status: 'unanswered' | 'draft' | 'review' | 'approved';
       rfp_status: 'identified' | 'reviewing' | 'preparing' | 'submitted' | 'won' | 'lost' | 'no_bid';
     };
   };

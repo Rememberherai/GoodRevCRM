@@ -1,9 +1,9 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Search, FileText, Calendar, DollarSign, MoreHorizontal, Pencil, Trash2, AlertTriangle } from 'lucide-react';
+import { Plus, Search, FileText, Calendar, DollarSign, MoreHorizontal, Pencil, Trash2, AlertTriangle, ListChecks } from 'lucide-react';
 import { useRfps } from '@/hooks/use-rfps';
 import { STATUS_LABELS, RFP_STATUSES, type RfpStatus } from '@/types/rfp';
 import { Button } from '@/components/ui/button';
@@ -71,6 +71,21 @@ export function RfpsPageClient() {
     goToPage,
   } = useRfps();
 
+  const [stats, setStats] = useState<{
+    total: number;
+    byStatus: Record<string, number>;
+    upcomingDeadlines: number;
+    winRate: number;
+    totalValue: number;
+  } | null>(null);
+
+  useEffect(() => {
+    fetch(`/api/projects/${slug}/rfps/stats`)
+      .then((res) => res.ok ? res.json() : null)
+      .then((data) => { if (data) setStats(data); })
+      .catch(() => {});
+  }, [slug]);
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     search(searchInput);
@@ -134,6 +149,31 @@ export function RfpsPageClient() {
         </Button>
       </div>
 
+      {stats && stats.total > 0 && (
+        <div className="grid grid-cols-4 gap-4">
+          <div className="rounded-md border p-3">
+            <p className="text-xs text-muted-foreground">Total RFPs</p>
+            <p className="text-2xl font-bold">{stats.total}</p>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-xs text-muted-foreground">Preparing</p>
+            <p className="text-2xl font-bold">
+              {(stats.byStatus['identified'] ?? 0) +
+                (stats.byStatus['reviewing'] ?? 0) +
+                (stats.byStatus['preparing'] ?? 0)}
+            </p>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-xs text-muted-foreground">Due This Week</p>
+            <p className="text-2xl font-bold">{stats.upcomingDeadlines}</p>
+          </div>
+          <div className="rounded-md border p-3">
+            <p className="text-xs text-muted-foreground">Win Rate</p>
+            <p className="text-2xl font-bold">{stats.winRate}%</p>
+          </div>
+        </div>
+      )}
+
       <div className="flex items-center gap-4">
         <form onSubmit={handleSearch} className="flex items-center gap-2 flex-1 max-w-sm">
           <div className="relative flex-1">
@@ -179,6 +219,7 @@ export function RfpsPageClient() {
             <TableRow>
               <TableHead>Title</TableHead>
               <TableHead>Status</TableHead>
+              <TableHead>Progress</TableHead>
               <TableHead>Due Date</TableHead>
               <TableHead>Estimated Value</TableHead>
               <TableHead className="w-[70px]"></TableHead>
@@ -187,13 +228,13 @@ export function RfpsPageClient() {
           <TableBody>
             {isLoading && rfps.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : rfps.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   <div className="flex flex-col items-center gap-2">
                     <FileText className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">No RFPs yet</p>
@@ -228,6 +269,18 @@ export function RfpsPageClient() {
                     <Badge className={STATUS_COLORS[rfp.status]} variant="secondary">
                       {STATUS_LABELS[rfp.status]}
                     </Badge>
+                  </TableCell>
+                  <TableCell>
+                    {(rfp as any).question_counts ? (
+                      <div className="flex items-center gap-2">
+                        <ListChecks className="h-3 w-3 text-muted-foreground" />
+                        <span className="text-sm">
+                          {(rfp as any).question_counts.answered}/{(rfp as any).question_counts.total}
+                        </span>
+                      </div>
+                    ) : (
+                      <span className="text-sm text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     <div className="flex items-center gap-2">
