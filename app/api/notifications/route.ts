@@ -135,6 +135,33 @@ export async function POST(request: NextRequest) {
         return NextResponse.json({ updated: count || 0 });
       }
 
+      case 'create': {
+        const { type, title, message, data: notifData, entity_type, entity_id, priority, action_url, project_id: projId } = body;
+
+        const { data: notificationId, error: createError } = await supabase.rpc(
+          'create_notification' as never,
+          {
+            p_user_id: user.id,
+            p_type: type || 'custom',
+            p_title: title,
+            p_message: message,
+            p_project_id: projId || null,
+            p_data: notifData || {},
+            p_entity_type: entity_type || null,
+            p_entity_id: entity_id || null,
+            p_priority: priority || 'normal',
+            p_action_url: action_url || null,
+          } as never
+        );
+
+        if (createError) {
+          console.error('Error creating notification:', createError);
+          return NextResponse.json({ error: 'Failed to create notification' }, { status: 500 });
+        }
+
+        return NextResponse.json({ id: notificationId });
+      }
+
       case 'archive': {
         const validationResult = archiveSchema.safeParse(body);
         if (!validationResult.success) {
@@ -150,6 +177,27 @@ export async function POST(request: NextRequest) {
         );
 
         return NextResponse.json({ archived: count || 0 });
+      }
+
+      case 'delete': {
+        const deleteIds = body.notification_ids as string[];
+        if (!deleteIds?.length) {
+          return NextResponse.json({ error: 'Missing notification_ids' }, { status: 400 });
+        }
+
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { error: deleteError } = await (supabase as any)
+          .from('notifications')
+          .delete()
+          .in('id', deleteIds)
+          .eq('user_id', user.id);
+
+        if (deleteError) {
+          console.error('Error deleting notifications:', deleteError);
+          return NextResponse.json({ error: 'Failed to delete notifications' }, { status: 500 });
+        }
+
+        return NextResponse.json({ deleted: deleteIds.length });
       }
 
       default:

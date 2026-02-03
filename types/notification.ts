@@ -19,6 +19,7 @@ export type NotificationType =
   | 'meeting_scheduled'
   | 'import_completed'
   | 'export_ready'
+  | 'enrichment_completed'
   | 'team_invite'
   | 'team_member_joined'
   | 'system'
@@ -110,6 +111,7 @@ export const notificationTypeLabels: Record<NotificationType, string> = {
   meeting_scheduled: 'Meeting Scheduled',
   import_completed: 'Import Completed',
   export_ready: 'Export Ready',
+  enrichment_completed: 'Enrichment Complete',
   team_invite: 'Team Invitation',
   team_member_joined: 'Team Member Joined',
   system: 'System',
@@ -128,7 +130,7 @@ export const notificationCategories: Record<string, NotificationType[]> = {
   Communication: ['mention', 'comment', 'reply'],
   Email: ['email_received', 'email_opened', 'email_replied'],
   Meetings: ['meeting_reminder', 'meeting_scheduled'],
-  'Data Operations': ['import_completed', 'export_ready'],
+  'Data Operations': ['import_completed', 'export_ready', 'enrichment_completed'],
   Team: ['team_invite', 'team_member_joined'],
   Other: ['system', 'custom'],
 };

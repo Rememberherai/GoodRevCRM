@@ -51,6 +51,27 @@ export function EnrichmentProvider({ children }: { children: ReactNode }) {
               },
               duration: 15000,
             });
+
+            // Create persistent DB notification
+            try {
+              await fetch('/api/notifications', {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  action: 'create',
+                  type: 'custom',
+                  title: 'Enrichment Complete',
+                  message: `New data found for ${enrichment.personName}. Click to review and apply.`,
+                  priority: 'normal',
+                  entity_type: 'person',
+                  entity_id: enrichment.personId,
+                  action_url: `/projects/${enrichment.projectSlug}/people/${enrichment.personId}`,
+                  data: { personId: enrichment.personId, projectSlug: enrichment.projectSlug },
+                }),
+              });
+            } catch (notifError) {
+              console.error('Error creating notification:', notifError);
+            }
           } else if (job?.status === 'failed') {
             failEnrichment(enrichment.personId);
             toast.error(`Enrichment failed for ${enrichment.personName}`, {
