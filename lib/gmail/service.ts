@@ -30,7 +30,7 @@ function createAdminClient() {
 /**
  * Get a valid access token, refreshing if needed
  */
-async function getValidAccessToken(connection: GmailConnection): Promise<string> {
+export async function getValidAccessToken(connection: GmailConnection): Promise<string> {
   if (!isTokenExpired(connection.token_expires_at)) {
     return connection.access_token;
   }
