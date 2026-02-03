@@ -48,10 +48,14 @@ function createAdminClient() {
 
 /**
  * Fetch all context data needed for variable substitution
+ * @param personId - The person receiving the email
+ * @param senderId - The user sending the email
+ * @param sequenceOrganizationId - Optional: If the sequence targets a specific org, use that for company variables
  */
 export async function fetchVariableContext(
   personId: string,
-  senderId: string
+  senderId: string,
+  sequenceOrganizationId?: string | null
 ): Promise<VariableContext> {
   const supabase = createAdminClient();
 
@@ -62,9 +66,18 @@ export async function fetchVariableContext(
     .eq('id', personId)
     .single();
 
-  // Fetch primary organization for the person
   let organization: Organization | null = null;
-  if (person) {
+
+  // If sequence has a target organization, use that
+  if (sequenceOrganizationId) {
+    const { data: sequenceOrg } = await supabase
+      .from('organizations')
+      .select('id, name, domain, industry, website, linkedin_url')
+      .eq('id', sequenceOrganizationId)
+      .single();
+    organization = sequenceOrg as Organization | null;
+  } else if (person) {
+    // Otherwise, fetch primary organization for the person
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
     const { data: personOrg } = await supabaseAny

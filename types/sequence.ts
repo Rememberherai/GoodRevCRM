@@ -14,6 +14,7 @@ export type DelayUnit = 'minutes' | 'hours' | 'days' | 'weeks';
 export interface Sequence {
   id: string;
   project_id: string;
+  organization_id: string | null; // If set, sequence is organization-specific
   name: string;
   description: string | null;
   status: SequenceStatus;

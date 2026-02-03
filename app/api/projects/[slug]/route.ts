@@ -73,7 +73,23 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (updates.name !== undefined) updateData.name = updates.name;
     if (updates.slug !== undefined) updateData.slug = updates.slug;
     if (updates.description !== undefined) updateData.description = updates.description;
-    if (updates.settings !== undefined) updateData.settings = updates.settings as Database['public']['Tables']['projects']['Row']['settings'];
+
+    // For settings, merge with existing settings rather than replacing
+    if (updates.settings !== undefined) {
+      // Get current project to merge settings
+      const { data: currentProject } = await supabase
+        .from('projects')
+        .select('settings')
+        .eq('slug', slug)
+        .is('deleted_at', null)
+        .single();
+
+      const currentSettings = (currentProject?.settings as Record<string, unknown>) || {};
+      updateData.settings = {
+        ...currentSettings,
+        ...updates.settings,
+      } as Database['public']['Tables']['projects']['Row']['settings'];
+    }
 
     const { data: project, error } = await supabase
       .from('projects')

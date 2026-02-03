@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { SequencesPageClient } from './sequences-page-client';
+import type { CompanyContext } from '@/lib/validators/project';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -9,10 +10,10 @@ export default async function SequencesPage({ params }: PageProps) {
   const { slug } = await params;
   const supabase = await createClient();
 
-  // Get project
+  // Get project with settings for company context
   const { data: project } = await supabase
     .from('projects')
-    .select('id')
+    .select('id, settings')
     .eq('slug', slug)
     .is('deleted_at', null)
     .single();
@@ -35,10 +36,15 @@ export default async function SequencesPage({ params }: PageProps) {
     .eq('project_id', project.id)
     .order('created_at', { ascending: false });
 
+  // Extract company context from project settings
+  const settings = project.settings as { company_context?: CompanyContext } | null;
+  const companyContext = settings?.company_context;
+
   return (
     <SequencesPageClient
       projectSlug={slug}
       initialSequences={sequences ?? []}
+      companyContext={companyContext}
     />
   );
 }

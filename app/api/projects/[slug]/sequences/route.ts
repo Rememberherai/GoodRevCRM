@@ -34,6 +34,8 @@ export async function GET(request: Request, context: RouteContext) {
     const { searchParams } = new URL(request.url);
     const queryResult = sequenceQuerySchema.safeParse({
       status: searchParams.get('status') ?? undefined,
+      organization_id: searchParams.get('organization_id') ?? undefined,
+      scope: searchParams.get('scope') ?? undefined,
       limit: searchParams.get('limit') ?? undefined,
       offset: searchParams.get('offset') ?? undefined,
     });
@@ -45,7 +47,7 @@ export async function GET(request: Request, context: RouteContext) {
       );
     }
 
-    const { status, limit, offset } = queryResult.data;
+    const { status, organization_id, scope, limit, offset } = queryResult.data;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
@@ -55,12 +57,22 @@ export async function GET(request: Request, context: RouteContext) {
       .select(`
         *,
         steps:sequence_steps(count),
-        enrollments:sequence_enrollments(count)
+        enrollments:sequence_enrollments(count),
+        organization:organizations(id, name, domain)
       `)
       .eq('project_id', project.id);
 
     if (status) {
       query = query.eq('status', status);
+    }
+
+    // Filter by organization or scope
+    if (organization_id) {
+      query = query.eq('organization_id', organization_id);
+    } else if (scope === 'project') {
+      query = query.is('organization_id', null);
+    } else if (scope === 'organization') {
+      query = query.not('organization_id', 'is', null);
     }
 
     const { data: sequences, error } = await query

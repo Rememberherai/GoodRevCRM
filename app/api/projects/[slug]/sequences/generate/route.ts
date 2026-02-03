@@ -103,6 +103,7 @@ export async function POST(request: Request, context: RouteContext) {
       .from('sequences')
       .insert({
         project_id: project.id,
+        organization_id: input.organizationId || null,
         name: generatedSequence.sequence.name,
         description: generatedSequence.sequence.description,
         status: 'draft',

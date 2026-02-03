@@ -15,6 +15,7 @@ import {
 import { SequenceList, NewSequenceDialog } from '@/components/sequences';
 import type { Sequence, SequenceStatus } from '@/types/sequence';
 import { SEQUENCE_STATUS_LABELS } from '@/types/sequence';
+import type { CompanyContext } from '@/lib/validators/project';
 
 interface SequenceWithCounts extends Sequence {
   steps?: { count: number }[];
@@ -24,11 +25,13 @@ interface SequenceWithCounts extends Sequence {
 interface SequencesPageClientProps {
   projectSlug: string;
   initialSequences: SequenceWithCounts[];
+  companyContext?: CompanyContext;
 }
 
 export function SequencesPageClient({
   projectSlug,
   initialSequences,
+  companyContext,
 }: SequencesPageClientProps) {
   const router = useRouter();
   const [sequences, setSequences] = useState(initialSequences);
@@ -177,6 +180,7 @@ export function SequencesPageClient({
         onOpenChange={setIsDialogOpen}
         projectSlug={projectSlug}
         onCreated={handleCreated}
+        initialCompanyContext={companyContext}
       />
     </div>
   );

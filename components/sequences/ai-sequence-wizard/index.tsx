@@ -13,11 +13,19 @@ import type {
   Tone,
   GeneratedSequence,
 } from '@/lib/validators/sequence';
+import type { CompanyContext } from '@/lib/validators/project';
 
 interface AISequenceWizardProps {
   projectSlug: string;
   onComplete: (sequence: { id: string }) => void;
   onCancel: () => void;
+  initialCompanyContext?: CompanyContext;
+  organizationId?: string;
+  organizationContext?: {
+    name: string;
+    domain?: string | null;
+    description?: string | null;
+  };
 }
 
 interface WizardState {
@@ -68,9 +76,27 @@ export function AISequenceWizard({
   projectSlug,
   onComplete,
   onCancel,
+  initialCompanyContext,
+  organizationId,
+  organizationContext,
 }: AISequenceWizardProps) {
+  // Build initial state from props
+  const buildInitialState = (): WizardState => {
+    // If org-specific, prefer org context, else use project context
+    const contextName = organizationContext?.name || initialCompanyContext?.name || '';
+    const contextDescription = organizationContext?.description || initialCompanyContext?.description || '';
+
+    return {
+      ...INITIAL_STATE,
+      companyName: contextName,
+      companyDescription: contextDescription,
+      products: initialCompanyContext?.products || [],
+      valuePropositions: initialCompanyContext?.value_propositions || [],
+    };
+  };
+
   const [currentStep, setCurrentStep] = useState(0);
-  const [state, setState] = useState<WizardState>(INITIAL_STATE);
+  const [state, setState] = useState<WizardState>(buildInitialState);
   const [isGenerating, setIsGenerating] = useState(false);
   const [isCreating, setIsCreating] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -120,6 +146,7 @@ export function AISequenceWizard({
             primaryCta: state.primaryCta,
             keyMessages: state.keyMessages.length > 0 ? state.keyMessages : undefined,
           },
+          organizationId,
           preview: true,
         }),
       });
@@ -171,6 +198,7 @@ export function AISequenceWizard({
             primaryCta: state.primaryCta,
             keyMessages: state.keyMessages.length > 0 ? state.keyMessages : undefined,
           },
+          organizationId,
           preview: false,
         }),
       });

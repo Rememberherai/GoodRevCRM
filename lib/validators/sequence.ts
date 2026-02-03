@@ -18,6 +18,7 @@ export const createSequenceSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
   description: z.string().max(1000).optional(),
   settings: sequenceSettingsSchema.optional(),
+  organization_id: z.string().uuid('Invalid organization ID').nullable().optional(),
 });
 
 export type CreateSequenceInput = z.infer<typeof createSequenceSchema>;
@@ -112,6 +113,8 @@ export type UpdateSignatureInput = z.infer<typeof updateSignatureSchema>;
 // Query schemas
 export const sequenceQuerySchema = z.object({
   status: z.enum(['draft', 'active', 'paused', 'archived']).optional(),
+  organization_id: z.string().uuid().optional(),
+  scope: z.enum(['all', 'project', 'organization']).optional(), // all = all sequences, project = project-wide only, organization = org-specific only
   limit: z.coerce.number().min(1).max(100).optional().default(50),
   offset: z.coerce.number().min(0).optional().default(0),
 });
@@ -187,6 +190,7 @@ export const generateSequenceInputSchema = z.object({
   campaignGoals: campaignGoalsSchema,
   delayPreferences: delayPreferencesSchema.optional(),
   preview: z.boolean().optional().default(true),
+  organizationId: z.string().uuid().nullable().optional(), // Optional org-specific sequence
 });
 
 export type GenerateSequenceInput = z.infer<typeof generateSequenceInputSchema>;

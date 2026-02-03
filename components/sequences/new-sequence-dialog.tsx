@@ -14,12 +14,20 @@ import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { AISequenceWizard } from './ai-sequence-wizard';
+import type { CompanyContext } from '@/lib/validators/project';
 
 interface NewSequenceDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   projectSlug: string;
   onCreated?: (sequence: { id: string }) => void;
+  initialCompanyContext?: CompanyContext;
+  organizationId?: string;
+  organizationContext?: {
+    name: string;
+    domain?: string | null;
+    description?: string | null;
+  };
 }
 
 type DialogMode = 'select' | 'ai-wizard' | 'manual';
@@ -29,6 +37,9 @@ export function NewSequenceDialog({
   onOpenChange,
   projectSlug,
   onCreated,
+  initialCompanyContext,
+  organizationId,
+  organizationContext,
 }: NewSequenceDialogProps) {
   const [mode, setMode] = useState<DialogMode>('select');
   const [isCreating, setIsCreating] = useState(false);
@@ -53,6 +64,7 @@ export function NewSequenceDialog({
         body: JSON.stringify({
           name: manualName,
           description: manualDescription || null,
+          organization_id: organizationId,
         }),
       });
 
@@ -94,6 +106,9 @@ export function NewSequenceDialog({
               projectSlug={projectSlug}
               onComplete={handleAICreated}
               onCancel={() => setMode('select')}
+              initialCompanyContext={initialCompanyContext}
+              organizationId={organizationId}
+              organizationContext={organizationContext}
             />
           </div>
         </DialogContent>

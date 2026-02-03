@@ -47,17 +47,20 @@ CREATE TABLE IF NOT EXISTS public.research_settings (
 ALTER TABLE public.research_settings ENABLE ROW LEVEL SECURITY;
 
 -- Apply updated_at trigger
+DROP TRIGGER IF EXISTS set_research_settings_updated_at ON public.research_settings;
 CREATE TRIGGER set_research_settings_updated_at
     BEFORE UPDATE ON public.research_settings
     FOR EACH ROW
     EXECUTE FUNCTION public.handle_updated_at();
 
 -- RLS Policies
+DROP POLICY IF EXISTS "Members can view research settings" ON public.research_settings;
 CREATE POLICY "Members can view research settings"
     ON public.research_settings
     FOR SELECT
     USING (public.is_project_member(project_id));
 
+DROP POLICY IF EXISTS "Admins can manage research settings" ON public.research_settings;
 CREATE POLICY "Admins can manage research settings"
     ON public.research_settings
     FOR ALL

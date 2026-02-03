@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Mail, MoreHorizontal, Pencil, Copy, Trash2, Users, Play, Pause, Archive } from 'lucide-react';
+import { Mail, MoreHorizontal, Pencil, Copy, Trash2, Users, Play, Pause, Archive, Building2, Globe } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -25,6 +25,7 @@ import { SEQUENCE_STATUS_LABELS, SEQUENCE_STATUS_COLORS } from '@/types/sequence
 interface SequenceWithCounts extends Sequence {
   steps?: { count: number }[];
   enrollments?: { count: number }[];
+  organization?: { id: string; name: string; domain: string | null } | null;
 }
 
 interface SequenceListProps {
@@ -78,7 +79,8 @@ export function SequenceList({
     <Table>
       <TableHeader>
         <TableRow>
-          <TableHead className="w-[40%]">Name</TableHead>
+          <TableHead className="w-[35%]">Name</TableHead>
+          <TableHead>Scope</TableHead>
           <TableHead>Status</TableHead>
           <TableHead className="text-center">Steps</TableHead>
           <TableHead className="text-center">Enrolled</TableHead>
@@ -105,6 +107,21 @@ export function SequenceList({
                   </div>
                 )}
               </div>
+            </TableCell>
+            <TableCell>
+              {sequence.organization ? (
+                <div className="flex items-center gap-1.5">
+                  <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-sm truncate max-w-[120px]" title={sequence.organization.name}>
+                    {sequence.organization.name}
+                  </span>
+                </div>
+              ) : (
+                <div className="flex items-center gap-1.5 text-muted-foreground">
+                  <Globe className="h-3.5 w-3.5" />
+                  <span className="text-sm">Project-wide</span>
+                </div>
+              )}
             </TableCell>
             <TableCell>
               <Badge className={SEQUENCE_STATUS_COLORS[sequence.status]}>

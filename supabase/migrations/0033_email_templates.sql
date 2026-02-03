@@ -76,15 +76,15 @@ CREATE TABLE IF NOT EXISTS email_drafts (
 );
 
 -- Indexes
-CREATE INDEX idx_email_templates_project ON email_templates(project_id);
-CREATE INDEX idx_email_templates_category ON email_templates(category);
-CREATE INDEX idx_email_templates_active ON email_templates(is_active) WHERE is_active = true;
-CREATE INDEX idx_email_template_versions_template ON email_template_versions(template_id);
-CREATE INDEX idx_email_template_attachments_template ON email_template_attachments(template_id);
-CREATE INDEX idx_email_drafts_project ON email_drafts(project_id);
-CREATE INDEX idx_email_drafts_user ON email_drafts(user_id);
-CREATE INDEX idx_email_drafts_status ON email_drafts(status);
-CREATE INDEX idx_email_drafts_scheduled ON email_drafts(scheduled_at) WHERE status = 'scheduled';
+CREATE INDEX IF NOT EXISTS idx_email_templates_project ON email_templates(project_id);
+CREATE INDEX IF NOT EXISTS idx_email_templates_category ON email_templates(category);
+CREATE INDEX IF NOT EXISTS idx_email_templates_active ON email_templates(is_active) WHERE is_active = true;
+CREATE INDEX IF NOT EXISTS idx_email_template_versions_template ON email_template_versions(template_id);
+CREATE INDEX IF NOT EXISTS idx_email_template_attachments_template ON email_template_attachments(template_id);
+CREATE INDEX IF NOT EXISTS idx_email_drafts_project ON email_drafts(project_id);
+CREATE INDEX IF NOT EXISTS idx_email_drafts_user ON email_drafts(user_id);
+CREATE INDEX IF NOT EXISTS idx_email_drafts_status ON email_drafts(status);
+CREATE INDEX IF NOT EXISTS idx_email_drafts_scheduled ON email_drafts(scheduled_at) WHERE status = 'scheduled';
 
 -- ============================================================================
 -- RLS POLICIES
@@ -96,6 +96,7 @@ ALTER TABLE email_template_attachments ENABLE ROW LEVEL SECURITY;
 ALTER TABLE email_drafts ENABLE ROW LEVEL SECURITY;
 
 -- Email templates policies
+DROP POLICY IF EXISTS "Users can view templates in their projects" ON email_templates;
 CREATE POLICY "Users can view templates in their projects"
   ON email_templates FOR SELECT
   USING (
@@ -106,6 +107,7 @@ CREATE POLICY "Users can view templates in their projects"
     )
   );
 
+DROP POLICY IF EXISTS "Members can create templates" ON email_templates;
 CREATE POLICY "Members can create templates"
   ON email_templates FOR INSERT
   WITH CHECK (
@@ -117,6 +119,7 @@ CREATE POLICY "Members can create templates"
     )
   );
 
+DROP POLICY IF EXISTS "Members can update templates" ON email_templates;
 CREATE POLICY "Members can update templates"
   ON email_templates FOR UPDATE
   USING (
@@ -128,6 +131,7 @@ CREATE POLICY "Members can update templates"
     )
   );
 
+DROP POLICY IF EXISTS "Admins can delete templates" ON email_templates;
 CREATE POLICY "Admins can delete templates"
   ON email_templates FOR DELETE
   USING (
@@ -140,6 +144,7 @@ CREATE POLICY "Admins can delete templates"
   );
 
 -- Template versions policies
+DROP POLICY IF EXISTS "Users can view template versions" ON email_template_versions;
 CREATE POLICY "Users can view template versions"
   ON email_template_versions FOR SELECT
   USING (
@@ -151,11 +156,13 @@ CREATE POLICY "Users can view template versions"
     )
   );
 
+DROP POLICY IF EXISTS "System can manage template versions" ON email_template_versions;
 CREATE POLICY "System can manage template versions"
   ON email_template_versions FOR ALL
   USING (true);
 
 -- Template attachments policies
+DROP POLICY IF EXISTS "Users can view template attachments" ON email_template_attachments;
 CREATE POLICY "Users can view template attachments"
   ON email_template_attachments FOR SELECT
   USING (
@@ -167,6 +174,7 @@ CREATE POLICY "Users can view template attachments"
     )
   );
 
+DROP POLICY IF EXISTS "Members can manage template attachments" ON email_template_attachments;
 CREATE POLICY "Members can manage template attachments"
   ON email_template_attachments FOR ALL
   USING (
@@ -180,10 +188,12 @@ CREATE POLICY "Members can manage template attachments"
   );
 
 -- Email drafts policies
+DROP POLICY IF EXISTS "Users can view their own drafts" ON email_drafts;
 CREATE POLICY "Users can view their own drafts"
   ON email_drafts FOR SELECT
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can manage their own drafts" ON email_drafts;
 CREATE POLICY "Users can manage their own drafts"
   ON email_drafts FOR ALL
   USING (user_id = auth.uid());
@@ -229,6 +239,7 @@ END;
 $$;
 
 -- Trigger to save versions on template update
+DROP TRIGGER IF EXISTS save_template_version ON email_templates;
 CREATE TRIGGER save_template_version
   BEFORE UPDATE OF subject, body_html, body_text ON email_templates
   FOR EACH ROW
@@ -301,11 +312,13 @@ END;
 $$;
 
 -- Triggers for updated_at
+DROP TRIGGER IF EXISTS update_email_templates_updated_at ON email_templates;
 CREATE TRIGGER update_email_templates_updated_at
   BEFORE UPDATE ON email_templates
   FOR EACH ROW
   EXECUTE FUNCTION public.handle_updated_at();
 
+DROP TRIGGER IF EXISTS update_email_drafts_updated_at ON email_drafts;
 CREATE TRIGGER update_email_drafts_updated_at
   BEFORE UPDATE ON email_drafts
   FOR EACH ROW

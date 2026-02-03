@@ -21,6 +21,7 @@ import {
   FileText,
   DollarSign,
   Calendar,
+  Send,
 } from 'lucide-react';
 import { useOrganization } from '@/hooks/use-organizations';
 import { useOrganizationStore, deleteOrganization, updateOrganizationApi } from '@/stores/organization';
@@ -52,8 +53,10 @@ import { ResearchResultsDialog } from '@/components/research/research-results-di
 import { AddFieldDialog } from '@/components/schema/add-field-dialog';
 import { EditFieldDialog } from '@/components/schema/edit-field-dialog';
 import { DeleteFieldDialog } from '@/components/schema/delete-field-dialog';
+import { OrgSequencesTab } from '@/components/organizations/org-sequences-tab';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
+import type { CompanyContext } from '@/lib/validators/project';
 import type { Person } from '@/types/person';
 import type { Opportunity } from '@/types/opportunity';
 import type { Rfp } from '@/types/rfp';
@@ -63,6 +66,7 @@ import { STATUS_LABELS } from '@/types/rfp';
 
 interface OrganizationDetailClientProps {
   organizationId: string;
+  companyContext?: CompanyContext;
 }
 
 interface EditableFieldProps {
@@ -173,7 +177,7 @@ function EditableField({ label, value, fieldKey, type = 'text', onSave, prefix, 
   );
 }
 
-export function OrganizationDetailClient({ organizationId }: OrganizationDetailClientProps) {
+export function OrganizationDetailClient({ organizationId, companyContext }: OrganizationDetailClientProps) {
   const params = useParams();
   const router = useRouter();
   const slug = params.slug as string;
@@ -431,6 +435,10 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
                 {rfps.length}
               </Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="sequences" className="gap-2">
+            <Send className="h-4 w-4" />
+            Sequences
           </TabsTrigger>
           <TabsTrigger value="research" className="gap-2">
             <Bot className="h-4 w-4" />
@@ -910,6 +918,18 @@ export function OrganizationDetailClient({ organizationId }: OrganizationDetailC
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* Sequences Tab */}
+        <TabsContent value="sequences" className="space-y-6">
+          <OrgSequencesTab
+            projectSlug={slug}
+            organizationId={organizationId}
+            organizationName={organization.name}
+            organizationDomain={organization.domain}
+            organizationDescription={organization.description}
+            projectCompanyContext={companyContext}
+          />
         </TabsContent>
 
         {/* AI Research Tab */}

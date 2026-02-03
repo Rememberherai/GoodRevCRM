@@ -29,6 +29,7 @@ interface SequenceEnrollment {
 interface Sequence {
   id: string;
   project_id: string;
+  organization_id: string | null;
   name: string;
   status: string;
   settings: {
@@ -90,7 +91,7 @@ function calculateNextSendAt(
 async function processEnrollment(
   supabase: ReturnType<typeof createAdminClient>,
   enrollment: SequenceEnrollment,
-  _sequence: Sequence,
+  sequence: Sequence,
   steps: SequenceStep[],
   gmailConnection: GmailConnection
 ): Promise<{ status: 'sent' | 'delayed' | 'completed' | 'error' | 'skipped'; message?: string }> {
@@ -155,10 +156,11 @@ async function processEnrollment(
   }
 
   if (currentStep.step_type === 'email') {
-    // Fetch variable context
+    // Fetch variable context, using sequence's target org if set
     const context = await fetchVariableContext(
       enrollment.person_id,
-      enrollment.created_by
+      enrollment.created_by,
+      sequence.organization_id
     );
 
     if (!context.person?.email) {
@@ -284,7 +286,7 @@ export async function processSequences(limit = 100): Promise<ProcessingResult> {
     .from('sequence_enrollments')
     .select(`
       *,
-      sequence:sequences(id, project_id, name, status, settings),
+      sequence:sequences(id, project_id, organization_id, name, status, settings),
       gmail_connection:gmail_connections(*)
     `)
     .eq('status', 'active')

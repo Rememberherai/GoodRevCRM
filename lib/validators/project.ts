@@ -1,5 +1,22 @@
 import { z } from 'zod';
 
+// Company context schema for AI sequence generation
+export const companyContextSchema = z.object({
+  name: z.string().max(200).optional(),
+  description: z.string().max(2000).optional(),
+  products: z.array(z.string().max(200)).max(20).optional(),
+  value_propositions: z.array(z.string().max(500)).max(10).optional(),
+});
+
+export type CompanyContext = z.infer<typeof companyContextSchema>;
+
+// Project settings schema
+export const projectSettingsSchema = z.object({
+  company_context: companyContextSchema.optional(),
+}).passthrough(); // Allow additional settings
+
+export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
+
 export const projectSchema = z.object({
   name: z
     .string()
@@ -18,7 +35,7 @@ export const projectSchema = z.object({
     .max(500, 'Description must be 500 characters or less')
     .nullable()
     .optional(),
-  settings: z.record(z.string(), z.unknown()).optional(),
+  settings: projectSettingsSchema.optional(),
 });
 
 export const createProjectSchema = projectSchema;

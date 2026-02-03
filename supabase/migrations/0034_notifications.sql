@@ -75,15 +75,15 @@ CREATE TABLE IF NOT EXISTS notification_batches (
 );
 
 -- Indexes
-CREATE INDEX idx_notifications_user ON notifications(user_id);
-CREATE INDEX idx_notifications_project ON notifications(project_id) WHERE project_id IS NOT NULL;
-CREATE INDEX idx_notifications_unread ON notifications(user_id, is_read) WHERE is_read = false;
-CREATE INDEX idx_notifications_type ON notifications(type);
-CREATE INDEX idx_notifications_entity ON notifications(entity_type, entity_id) WHERE entity_id IS NOT NULL;
-CREATE INDEX idx_notifications_created ON notifications(created_at DESC);
-CREATE INDEX idx_notification_preferences_user ON notification_preferences(user_id);
-CREATE INDEX idx_push_subscriptions_user ON push_subscriptions(user_id);
-CREATE INDEX idx_notification_batches_scheduled ON notification_batches(scheduled_for) WHERE status = 'pending';
+CREATE INDEX IF NOT EXISTS idx_notifications_user ON notifications(user_id);
+CREATE INDEX IF NOT EXISTS idx_notifications_project ON notifications(project_id) WHERE project_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_notifications_unread ON notifications(user_id, is_read) WHERE is_read = false;
+CREATE INDEX IF NOT EXISTS idx_notifications_type ON notifications(type);
+CREATE INDEX IF NOT EXISTS idx_notifications_entity ON notifications(entity_type, entity_id) WHERE entity_id IS NOT NULL;
+CREATE INDEX IF NOT EXISTS idx_notifications_created ON notifications(created_at DESC);
+CREATE INDEX IF NOT EXISTS idx_notification_preferences_user ON notification_preferences(user_id);
+CREATE INDEX IF NOT EXISTS idx_push_subscriptions_user ON push_subscriptions(user_id);
+CREATE INDEX IF NOT EXISTS idx_notification_batches_scheduled ON notification_batches(scheduled_for) WHERE status = 'pending';
 
 -- ============================================================================
 -- RLS POLICIES
@@ -95,29 +95,35 @@ ALTER TABLE push_subscriptions ENABLE ROW LEVEL SECURITY;
 ALTER TABLE notification_batches ENABLE ROW LEVEL SECURITY;
 
 -- Notifications policies
+DROP POLICY IF EXISTS "Users can view their own notifications" ON notifications;
 CREATE POLICY "Users can view their own notifications"
   ON notifications FOR SELECT
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "Users can update their own notifications" ON notifications;
 CREATE POLICY "Users can update their own notifications"
   ON notifications FOR UPDATE
   USING (user_id = auth.uid());
 
+DROP POLICY IF EXISTS "System can create notifications" ON notifications;
 CREATE POLICY "System can create notifications"
   ON notifications FOR INSERT
   WITH CHECK (true);
 
 -- Notification preferences policies
+DROP POLICY IF EXISTS "Users can manage their own preferences" ON notification_preferences;
 CREATE POLICY "Users can manage their own preferences"
   ON notification_preferences FOR ALL
   USING (user_id = auth.uid());
 
 -- Push subscriptions policies
+DROP POLICY IF EXISTS "Users can manage their own subscriptions" ON push_subscriptions;
 CREATE POLICY "Users can manage their own subscriptions"
   ON push_subscriptions FOR ALL
   USING (user_id = auth.uid());
 
 -- Notification batches policies
+DROP POLICY IF EXISTS "Users can view their own batches" ON notification_batches;
 CREATE POLICY "Users can view their own batches"
   ON notification_batches FOR SELECT
   USING (user_id = auth.uid());
@@ -306,12 +312,14 @@ END;
 $$;
 
 -- Triggers for updated_at
+DROP TRIGGER IF EXISTS update_notification_preferences_updated_at ON notification_preferences;
 CREATE TRIGGER update_notification_preferences_updated_at
   BEFORE UPDATE ON notification_preferences
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+  EXECUTE FUNCTION public.handle_updated_at();
 
+DROP TRIGGER IF EXISTS update_push_subscriptions_updated_at ON push_subscriptions;
 CREATE TRIGGER update_push_subscriptions_updated_at
   BEFORE UPDATE ON push_subscriptions
   FOR EACH ROW
-  EXECUTE FUNCTION update_updated_at_column();
+  EXECUTE FUNCTION public.handle_updated_at();
