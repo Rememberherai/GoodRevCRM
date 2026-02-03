@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { startResearchSchema, researchHistoryQuerySchema } from '@/lib/validators/research';
-import { getOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
+import { getOpenRouterClient, DEFAULT_MODEL, type OpenRouterUsage } from '@/lib/openrouter/client';
+import { logAiUsage } from '@/lib/openrouter/usage';
 import {
   organizationResearchSchema,
   personResearchSchema,
@@ -320,21 +321,41 @@ export async function POST(request: Request, context: RouteContext) {
       // Call the appropriate schema based on entity type
       // Use configured model and settings
       let result: OrganizationResearch | PersonResearch;
+      let usage: OpenRouterUsage | null = null;
+      let modelUsed = modelId;
       if (entity_type === 'organization') {
-        result = await client.completeJson(prompt, organizationResearchSchema, {
+        const aiResult = await client.completeJsonWithUsage(prompt, organizationResearchSchema, {
           model: modelId,
           temperature,
           maxTokens,
           systemPrompt,
         });
+        result = aiResult.data;
+        usage = aiResult.usage;
+        modelUsed = aiResult.model;
       } else {
-        result = await client.completeJson(prompt, personResearchSchema, {
+        const aiResult = await client.completeJsonWithUsage(prompt, personResearchSchema, {
           model: modelId,
           temperature,
           maxTokens,
           systemPrompt,
         });
+        result = aiResult.data;
+        usage = aiResult.usage;
+        modelUsed = aiResult.model;
       }
+
+      // Log AI usage
+      await logAiUsage(supabase, {
+        projectId: project.id,
+        userId: user.id,
+        feature: 'research',
+        model: modelUsed,
+        promptTokens: usage?.prompt_tokens,
+        completionTokens: usage?.completion_tokens,
+        totalTokens: usage?.total_tokens,
+        metadata: { entity_type, entity_id },
+      });
 
       // Debug info that will be visible in the response
       const debugInfo = {
@@ -353,7 +374,8 @@ export async function POST(request: Request, context: RouteContext) {
         .update({
           status: 'completed',
           result,
-          model_used: modelId,
+          model_used: modelUsed,
+          tokens_used: usage?.total_tokens ?? null,
           completed_at: new Date().toISOString(),
         })
         .eq('id', job.id)

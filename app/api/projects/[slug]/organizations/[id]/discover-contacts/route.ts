@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { contactDiscoverySchema } from '@/lib/validators/contact-discovery';
 import { buildContactDiscoveryPrompt } from '@/lib/openrouter/prompts';
 import { getOpenRouterClient } from '@/lib/openrouter/client';
+import { logAiUsage } from '@/lib/openrouter/usage';
 import type { DiscoveredContact, ContactDiscoveryResult } from '@/types/contact-discovery';
 
 interface RouteContext {
@@ -103,14 +104,27 @@ export async function POST(request: Request, context: RouteContext) {
 
     // Call OpenRouter
     const client = getOpenRouterClient();
-    const result = await client.completeJson<ContactDiscoveryResult>(
+    const aiResult = await client.completeJsonWithUsage<ContactDiscoveryResult>(
       prompt,
       contactDiscoveryResultSchema,
       {
-        temperature: 0.3, // Lower temperature for more consistent results
+        temperature: 0.3,
         maxTokens: 4096,
       }
     );
+    const result = aiResult.data;
+
+    // Log AI usage
+    await logAiUsage(supabase, {
+      projectId: project.id,
+      userId: user.id,
+      feature: 'contact_discovery',
+      model: aiResult.model,
+      promptTokens: aiResult.usage?.prompt_tokens,
+      completionTokens: aiResult.usage?.completion_tokens,
+      totalTokens: aiResult.usage?.total_tokens,
+      metadata: { organizationId, roles, max_results },
+    });
 
     // Process contacts - split names if first_name/last_name not provided
     const processedContacts: DiscoveredContact[] = result.contacts.map((contact, index) => {

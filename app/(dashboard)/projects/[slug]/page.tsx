@@ -3,6 +3,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Building2, Users, Target, FileText } from 'lucide-react';
 import { CompanyContextCard } from '@/components/projects/company-context-card';
 import { DashboardActivityCenter } from '@/components/dashboard/activity-center';
+import { AnalyticsDashboard } from '@/components/dashboard/analytics-dashboard';
 import type { CompanyContext } from '@/lib/validators/project';
 
 interface ProjectDashboardProps {
@@ -24,6 +25,10 @@ export default async function ProjectDashboard({ params }: ProjectDashboardProps
   const projectId = project?.id ?? '';
   const settings = project?.settings as { company_context?: CompanyContext } | null;
   const companyContext = settings?.company_context;
+
+  // Get current user for analytics filter
+  const { data: { user } } = await supabase.auth.getUser();
+  const currentUserId = user?.id ?? '';
 
   // Fetch counts for dashboard widgets
   const [orgsResult, peopleResult, oppsResult, rfpsResult] = await Promise.all([
@@ -108,6 +113,8 @@ export default async function ProjectDashboard({ params }: ProjectDashboardProps
       />
 
       <DashboardActivityCenter projectSlug={slug} />
+
+      <AnalyticsDashboard projectSlug={slug} currentUserId={currentUserId} />
     </div>
   );
 }

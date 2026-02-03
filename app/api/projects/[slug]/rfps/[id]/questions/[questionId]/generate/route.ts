@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
+import { logAiUsage } from '@/lib/openrouter/usage';
 import { buildRfpResponsePrompt, type RfpResponseContext } from '@/lib/openrouter/prompts';
 import { generateRfpResponseInputSchema, aiRfpResponseSchema } from '@/lib/validators/rfp-question';
 import type { CompanyContext } from '@/lib/validators/project';
@@ -155,7 +156,7 @@ export async function POST(request: Request, context: RouteContext) {
     const prompt = buildRfpResponsePrompt(promptContext);
     const client = getOpenRouterClient();
 
-    const aiResponse = await client.completeJson(
+    const aiResult = await client.completeJsonWithUsage(
       prompt,
       aiRfpResponseSchema,
       {
@@ -165,11 +166,23 @@ export async function POST(request: Request, context: RouteContext) {
       }
     );
 
+    // Log AI usage
+    await logAiUsage(supabase, {
+      projectId: project.id,
+      userId: user.id,
+      feature: 'rfp_response',
+      model: aiResult.model,
+      promptTokens: aiResult.usage?.prompt_tokens,
+      completionTokens: aiResult.usage?.completion_tokens,
+      totalTokens: aiResult.usage?.total_tokens,
+      metadata: { rfpId, questionId },
+    });
+
     return NextResponse.json({
-      answer_text: aiResponse.answer_text,
-      answer_html: aiResponse.answer_html,
-      confidence: aiResponse.confidence,
-      reasoning: aiResponse.reasoning,
+      answer_text: aiResult.data.answer_text,
+      answer_html: aiResult.data.answer_html,
+      confidence: aiResult.data.confidence,
+      reasoning: aiResult.data.reasoning,
     });
   } catch (error) {
     console.error('Error in POST /api/.../generate:', error);

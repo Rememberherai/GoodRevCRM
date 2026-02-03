@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { extractTextFromPdf, extractTextFromPlainText } from '@/lib/pdf/extract-text';
 import { getOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
+import { logAiUsage } from '@/lib/openrouter/usage';
 import { buildContentExtractionPrompt } from '@/lib/openrouter/prompts';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { Database } from '@/types/database';
@@ -105,7 +106,7 @@ export async function POST(request: Request, context: RouteContext) {
     const prompt = buildContentExtractionPrompt(documentText, companyContext, category ?? undefined);
     const client = getOpenRouterClient();
 
-    const aiResponse = await client.completeJson(
+    const aiResult = await client.completeJsonWithUsage(
       prompt,
       extractionResultSchema,
       {
@@ -115,7 +116,19 @@ export async function POST(request: Request, context: RouteContext) {
       }
     );
 
-    const extractedEntries = aiResponse.entries;
+    // Log AI usage
+    await logAiUsage(supabase, {
+      projectId: project.id,
+      userId: user.id,
+      feature: 'content_extraction',
+      model: aiResult.model,
+      promptTokens: aiResult.usage?.prompt_tokens,
+      completionTokens: aiResult.usage?.completion_tokens,
+      totalTokens: aiResult.usage?.total_tokens,
+      metadata: { fileName: file.name, fileType: file.type },
+    });
+
+    const extractedEntries = aiResult.data.entries;
 
     if (extractedEntries.length === 0) {
       return NextResponse.json({

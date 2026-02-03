@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
+import { logAiUsage } from '@/lib/openrouter/usage';
 import { buildRfpResponsePrompt, type RfpResponseContext } from '@/lib/openrouter/prompts';
 import { generateRfpResponseInputSchema, aiRfpResponseSchema } from '@/lib/validators/rfp-question';
 import type { CompanyContext } from '@/lib/validators/project';
@@ -168,21 +169,33 @@ export async function POST(request: Request, context: RouteContext) {
           }
 
           const prompt = buildRfpResponsePrompt(promptContext);
-          const aiResponse = await client.completeJson(
+          const aiResult = await client.completeJsonWithUsage(
             prompt,
             aiRfpResponseSchema,
             { model: DEFAULT_MODEL, temperature: 0.5, maxTokens: 4096 }
           );
 
+          // Log AI usage per question
+          await logAiUsage(supabase, {
+            projectId: project.id,
+            userId: user.id,
+            feature: 'bulk_rfp_generation',
+            model: aiResult.model,
+            promptTokens: aiResult.usage?.prompt_tokens,
+            completionTokens: aiResult.usage?.completion_tokens,
+            totalTokens: aiResult.usage?.total_tokens,
+            metadata: { rfpId, questionId: question.id },
+          });
+
           // Update the question with the generated answer
           const { error: updateError } = await supabase
             .from('rfp_questions')
             .update({
-              answer_text: aiResponse.answer_text,
-              answer_html: aiResponse.answer_html ?? null,
+              answer_text: aiResult.data.answer_text,
+              answer_html: aiResult.data.answer_html ?? null,
               status: 'draft' as RfpQuestionRow['status'],
               ai_generated: true,
-              ai_confidence: aiResponse.confidence,
+              ai_confidence: aiResult.data.confidence,
             })
             .eq('id', question.id)
             .eq('project_id', project.id);

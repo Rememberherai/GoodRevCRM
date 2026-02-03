@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
+import { logAiUsage } from '@/lib/openrouter/usage';
 import { buildSequenceGenerationPrompt } from '@/lib/openrouter/prompts';
 import {
   generateSequenceInputSchema,
@@ -68,7 +69,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     let generatedSequence: GeneratedSequence;
     try {
-      generatedSequence = await openRouterClient.completeJson(
+      const aiResult = await openRouterClient.completeJsonWithUsage(
         prompt,
         generatedSequenceSchema,
         {
@@ -78,6 +79,23 @@ export async function POST(request: Request, context: RouteContext) {
           systemPrompt: 'You are an expert B2B email copywriter specializing in sales sequences. Always respond with valid JSON.',
         }
       );
+      generatedSequence = aiResult.data;
+
+      // Log AI usage
+      await logAiUsage(supabase, {
+        projectId: project.id,
+        userId: user.id,
+        feature: 'sequence_generation',
+        model: aiResult.model,
+        promptTokens: aiResult.usage?.prompt_tokens,
+        completionTokens: aiResult.usage?.completion_tokens,
+        totalTokens: aiResult.usage?.total_tokens,
+        metadata: {
+          sequenceType: input.sequenceType,
+          numberOfSteps: input.numberOfSteps,
+          preview: input.preview ?? false,
+        },
+      });
     } catch (aiError) {
       console.error('AI generation error:', aiError);
       return NextResponse.json(

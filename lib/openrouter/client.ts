@@ -30,6 +30,7 @@ const openRouterResponseSchema = z.object({
 
 export type OpenRouterResponse = z.infer<typeof openRouterResponseSchema>;
 export type OpenRouterMessage = z.infer<typeof openRouterMessageSchema>;
+export type OpenRouterUsage = z.infer<typeof openRouterUsageSchema>;
 
 // Error types
 export class OpenRouterError extends Error {
@@ -220,6 +221,53 @@ export class OpenRouterClient {
     }
 
     return result.data;
+  }
+
+  async completeJsonWithUsage<T>(
+    prompt: string,
+    schema: z.ZodSchema<T>,
+    options: OpenRouterRequestOptions = {}
+  ): Promise<{ data: T; usage: OpenRouterUsage | null; model: string }> {
+    const { systemPrompt, ...restOptions } = options;
+
+    const messages: OpenRouterMessage[] = systemPrompt
+      ? [
+          { role: 'system', content: systemPrompt },
+          { role: 'user', content: prompt },
+        ]
+      : [{ role: 'user', content: prompt }];
+
+    const response = await this.chat(messages, {
+      ...restOptions,
+      responseFormat: 'json_object',
+    });
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new OpenRouterError('No content in response');
+    }
+
+    let parsed: unknown;
+    try {
+      parsed = JSON.parse(content);
+    } catch {
+      throw new OpenRouterError('Failed to parse JSON response', undefined, content);
+    }
+
+    const result = schema.safeParse(parsed);
+    if (!result.success) {
+      throw new OpenRouterError(
+        `Response validation failed: ${result.error.message}`,
+        undefined,
+        parsed
+      );
+    }
+
+    return {
+      data: result.data,
+      usage: response.usage ?? null,
+      model: response.model,
+    };
   }
 }
 
