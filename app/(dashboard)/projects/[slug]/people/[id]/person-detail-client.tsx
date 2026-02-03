@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft,
@@ -57,7 +57,14 @@ interface PersonDetailClientProps {
 export function PersonDetailClient({ personId, companyContext }: PersonDetailClientProps) {
   const params = useParams();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
+  const fromOrg = searchParams.get('from') === 'org';
+  const orgId = searchParams.get('orgId');
+  const backUrl = fromOrg && orgId
+    ? `/projects/${slug}/organizations/${orgId}`
+    : `/projects/${slug}/people`;
+  const backLabel = fromOrg && orgId ? 'Back to Organization' : 'Back to People';
   const [activeTab, setActiveTab] = useState('info');
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
@@ -135,7 +142,7 @@ export function PersonDetailClient({ personId, companyContext }: PersonDetailCli
     try {
       await deletePerson(slug, personId);
       removePerson(personId);
-      router.push(`/projects/${slug}/people`);
+      router.push(backUrl);
     } catch {
       setIsDeleting(false);
     }
@@ -187,9 +194,9 @@ export function PersonDetailClient({ personId, companyContext }: PersonDetailCli
     return (
       <div className="space-y-4">
         <Button variant="ghost" asChild>
-          <Link href={`/projects/${slug}/people`}>
+          <Link href={backUrl}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to People
+            {backLabel}
           </Link>
         </Button>
         <div className="rounded-md bg-destructive/15 p-4 text-destructive">
@@ -231,9 +238,9 @@ export function PersonDetailClient({ personId, companyContext }: PersonDetailCli
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <Button variant="ghost" asChild>
-          <Link href={`/projects/${slug}/people`}>
+          <Link href={backUrl}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to People
+            {backLabel}
           </Link>
         </Button>
         <div className="flex items-center gap-2">

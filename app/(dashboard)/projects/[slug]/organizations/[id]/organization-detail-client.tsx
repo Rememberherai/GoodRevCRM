@@ -739,7 +739,7 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
               {people.map((person) => (
                 <Link
                   key={person.id}
-                  href={`/projects/${slug}/people/${person.id}`}
+                  href={`/projects/${slug}/people/${person.id}?from=org&orgId=${organizationId}`}
                   className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
                 >
                   <Avatar className="h-12 w-12">
