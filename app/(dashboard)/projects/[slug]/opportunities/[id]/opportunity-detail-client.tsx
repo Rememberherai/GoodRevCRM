@@ -8,6 +8,7 @@ import {
   Building2,
   Calendar,
   DollarSign,
+  Mail,
   Pencil,
   Percent,
   Target,
@@ -37,6 +38,7 @@ import {
 import { OpportunityForm } from '@/components/opportunities/opportunity-form';
 import { EntityActivitySection } from '@/components/activity/entity-activity-section';
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
+import { SendEmailModal } from '@/components/gmail';
 
 interface OpportunityDetailClientProps {
   opportunityId: string;
@@ -58,6 +60,7 @@ export function OpportunityDetailClient({ opportunityId }: OpportunityDetailClie
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showSendEmail, setShowSendEmail] = useState(false);
 
   const { opportunity, isLoading, error, refresh } = useOpportunity(opportunityId);
   const removeOpportunity = useOpportunityStore((s) => s.removeOpportunity);
@@ -148,6 +151,10 @@ export function OpportunityDetailClient({ opportunityId }: OpportunityDetailClie
           </Link>
         </Button>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowSendEmail(true)}>
+            <Mail className="mr-2 h-4 w-4" />
+            Send Email
+          </Button>
           <Button variant="outline" onClick={() => setIsEditing(true)}>
             <Pencil className="mr-2 h-4 w-4" />
             Edit
@@ -414,6 +421,16 @@ export function OpportunityDetailClient({ opportunityId }: OpportunityDetailClie
         opportunityId={opportunityId}
         personId={opportunity.primary_contact_id ?? undefined}
         organizationId={opportunity.organization_id ?? undefined}
+      />
+
+      <SendEmailModal
+        open={showSendEmail}
+        onOpenChange={setShowSendEmail}
+        projectSlug={slug}
+        defaultTo={opportunity.primary_contact?.email ?? ''}
+        personId={opportunity.primary_contact_id ?? undefined}
+        organizationId={opportunity.organization_id ?? undefined}
+        opportunityId={opportunityId}
       />
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

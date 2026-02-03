@@ -44,6 +44,7 @@ import { RfpForm } from '@/components/rfps/rfp-form';
 import { RfpQuestionsList } from '@/components/rfps/rfp-questions-list';
 import { EntityActivitySection } from '@/components/activity/entity-activity-section';
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
+import { SendEmailModal } from '@/components/gmail';
 
 interface RfpDetailClientProps {
   rfpId: string;
@@ -66,6 +67,7 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showSendEmail, setShowSendEmail] = useState(false);
 
   const { rfp, isLoading, error, refresh } = useRfp(rfpId);
   const removeRfp = useRfpStore((s) => s.removeRfp);
@@ -189,6 +191,10 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
           </Link>
         </Button>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowSendEmail(true)}>
+            <Mail className="mr-2 h-4 w-4" />
+            Send Email
+          </Button>
           <Button variant="outline" onClick={() => setIsEditing(true)}>
             <Pencil className="mr-2 h-4 w-4" />
             Edit
@@ -556,6 +562,15 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
           />
         </TabsContent>
       </Tabs>
+
+      <SendEmailModal
+        open={showSendEmail}
+        onOpenChange={setShowSendEmail}
+        projectSlug={slug}
+        defaultTo={rfp.submission_email ?? ''}
+        rfpId={rfpId}
+        organizationId={rfp.organization_id ?? undefined}
+      />
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

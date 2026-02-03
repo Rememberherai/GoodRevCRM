@@ -46,6 +46,7 @@ import { PersonSequencesTab } from '@/components/people/person-sequences-tab';
 import { ActivityTimeline } from '@/components/activity/activity-timeline';
 import { EntityActivitySection } from '@/components/activity/entity-activity-section';
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
+import { SendEmailModal } from '@/components/gmail';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ActivityWithUser } from '@/types/activity';
 
@@ -69,6 +70,7 @@ export function PersonDetailClient({ personId, companyContext }: PersonDetailCli
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showSendEmail, setShowSendEmail] = useState(false);
   const [pendingEnrichmentData, setPendingEnrichmentData] = useState<EnrichmentPerson | null>(null);
   const [showPendingReviewModal, setShowPendingReviewModal] = useState(false);
   const [isApplyingEnrichment, setIsApplyingEnrichment] = useState(false);
@@ -244,6 +246,12 @@ export function PersonDetailClient({ personId, companyContext }: PersonDetailCli
           </Link>
         </Button>
         <div className="flex items-center gap-2">
+          {person.email && (
+            <Button variant="outline" onClick={() => setShowSendEmail(true)}>
+              <Mail className="mr-2 h-4 w-4" />
+              Send Email
+            </Button>
+          )}
           <EnrichButton
             personId={personId}
             personName={getFullName(person.first_name, person.last_name)}
@@ -517,6 +525,15 @@ export function PersonDetailClient({ personId, companyContext }: PersonDetailCli
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <SendEmailModal
+        open={showSendEmail}
+        onOpenChange={setShowSendEmail}
+        projectSlug={slug}
+        defaultTo={person.email ?? ''}
+        personId={personId}
+        organizationId={person.organizations?.[0]?.id}
+      />
 
       <EnrichmentReviewModal
         open={showPendingReviewModal}

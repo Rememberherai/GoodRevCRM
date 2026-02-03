@@ -57,6 +57,7 @@ import { DeleteFieldDialog } from '@/components/schema/delete-field-dialog';
 import { OrgSequencesTab } from '@/components/organizations/org-sequences-tab';
 import { EntityActivitySection } from '@/components/activity/entity-activity-section';
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
+import { SendEmailModal } from '@/components/gmail';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
 // Activity types no longer needed - EntityActivitySection handles its own data
@@ -194,6 +195,7 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
   const [showAddOpportunityDialog, setShowAddOpportunityDialog] = useState(false);
   const [showAddRfpDialog, setShowAddRfpDialog] = useState(false);
   const [showContactDiscovery, setShowContactDiscovery] = useState(false);
+  const [showSendEmail, setShowSendEmail] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
@@ -378,6 +380,10 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
           </Link>
         </Button>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowSendEmail(true)}>
+            <Mail className="mr-2 h-4 w-4" />
+            Send Email
+          </Button>
           <Button
             variant="outline"
             className="text-destructive"
@@ -1039,6 +1045,13 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
         organizationId={organizationId}
         organizationName={organization.name}
         onRfpAdded={handleRfpAdded}
+      />
+
+      <SendEmailModal
+        open={showSendEmail}
+        onOpenChange={setShowSendEmail}
+        projectSlug={slug}
+        organizationId={organizationId}
       />
 
       <AddFieldDialog
