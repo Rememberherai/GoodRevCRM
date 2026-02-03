@@ -35,6 +35,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { OpportunityForm } from '@/components/opportunities/opportunity-form';
+import { EntityActivitySection } from '@/components/activity/entity-activity-section';
+import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 
 interface OpportunityDetailClientProps {
   opportunityId: string;
@@ -393,6 +395,26 @@ export function OpportunityDetailClient({ opportunityId }: OpportunityDetailClie
           </CardContent>
         </Card>
       )}
+
+      {/* Activity Section */}
+      <EntityActivitySection
+        projectSlug={slug}
+        entityType="opportunity"
+        entityId={opportunityId}
+        opportunityId={opportunityId}
+        personId={opportunity.primary_contact_id ?? undefined}
+        organizationId={opportunity.organization_id ?? undefined}
+      />
+
+      {/* Meetings Section */}
+      <EntityMeetingsSection
+        projectSlug={slug}
+        entityType="opportunity"
+        entityId={opportunityId}
+        opportunityId={opportunityId}
+        personId={opportunity.primary_contact_id ?? undefined}
+        organizationId={opportunity.organization_id ?? undefined}
+      />
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

@@ -35,6 +35,7 @@ export interface SequenceSettings {
   send_window_end?: string;
   send_days?: number[]; // 0-6, Sunday = 0
   timezone?: string;
+  follow_up_delay_days?: number; // Days after completion to create follow-up task (default: 3)
 }
 
 // Sequence step

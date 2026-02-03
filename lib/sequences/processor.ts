@@ -86,6 +86,89 @@ function calculateNextSendAt(
 }
 
 /**
+ * Log sequence completion: creates activity + follow-up task
+ */
+async function logSequenceCompletion(
+  supabase: ReturnType<typeof createAdminClient>,
+  enrollment: SequenceEnrollment,
+  sequence: Sequence
+): Promise<void> {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabaseAny = supabase as any;
+
+  try {
+    // Look up the person to get their organization
+    const { data: person } = await supabaseAny
+      .from('people')
+      .select('id, first_name, last_name, organization_id')
+      .eq('id', enrollment.person_id)
+      .single();
+
+    const orgId = person?.organization_id ?? sequence.organization_id ?? null;
+    const followUpDays = (sequence.settings as { follow_up_delay_days?: number })?.follow_up_delay_days ?? 3;
+
+    // Calculate follow-up date
+    const followUpDate = new Date();
+    followUpDate.setDate(followUpDate.getDate() + followUpDays);
+
+    // Create follow-up task
+    const { data: task } = await supabaseAny
+      .from('tasks')
+      .insert({
+        project_id: sequence.project_id,
+        title: `Follow up: ${sequence.name} completed for ${person?.first_name ?? 'Contact'} ${person?.last_name ?? ''}`.trim(),
+        description: `Sequence "${sequence.name}" has completed all steps. Follow up with this contact.`,
+        status: 'pending',
+        priority: 'medium',
+        due_date: followUpDate.toISOString(),
+        person_id: enrollment.person_id,
+        organization_id: orgId,
+        created_by: enrollment.created_by,
+        assigned_to: enrollment.created_by,
+      })
+      .select('id')
+      .single();
+
+    // Log the activity
+    const { data: activity } = await supabaseAny
+      .from('activity_log')
+      .insert({
+        project_id: sequence.project_id,
+        user_id: enrollment.created_by,
+        entity_type: 'sequence',
+        entity_id: sequence.id,
+        action: 'completed',
+        activity_type: 'sequence_completed',
+        person_id: enrollment.person_id,
+        organization_id: orgId,
+        subject: `Sequence "${sequence.name}" completed`,
+        notes: `All steps in the sequence have been processed.`,
+        follow_up_date: followUpDate.toISOString(),
+        follow_up_task_id: task?.id ?? null,
+        metadata: {
+          sequence_id: sequence.id,
+          sequence_name: sequence.name,
+          enrollment_id: enrollment.id,
+          follow_up_delay_days: followUpDays,
+        },
+      })
+      .select('id')
+      .single();
+
+    // Link task back to activity
+    if (task?.id && activity?.id) {
+      await supabaseAny
+        .from('tasks')
+        .update({ source_activity_id: activity.id })
+        .eq('id', task.id);
+    }
+  } catch (error) {
+    // Don't fail the enrollment completion if logging fails
+    console.error('Error logging sequence completion:', error);
+  }
+}
+
+/**
  * Process a single enrollment
  */
 async function processEnrollment(
@@ -110,6 +193,7 @@ async function processEnrollment(
       })
       .eq('id', enrollment.id);
 
+    await logSequenceCompletion(supabase, enrollment, sequence);
     return { status: 'completed', message: 'All steps completed' };
   }
 
@@ -131,6 +215,7 @@ async function processEnrollment(
         })
         .eq('id', enrollment.id);
 
+      await logSequenceCompletion(supabase, enrollment, sequence);
       return { status: 'completed', message: 'Sequence completed after delay' };
     }
 
@@ -215,6 +300,7 @@ async function processEnrollment(
           })
           .eq('id', enrollment.id);
 
+        await logSequenceCompletion(supabase, enrollment, sequence);
         return { status: 'completed', message: 'Email sent, sequence completed' };
       }
 

@@ -39,6 +39,14 @@ export async function GET(request: Request, context: RouteContext) {
       user_id: searchParams.get('user_id') ?? undefined,
       start_date: searchParams.get('start_date') ?? undefined,
       end_date: searchParams.get('end_date') ?? undefined,
+      person_id: searchParams.get('person_id') ?? undefined,
+      organization_id: searchParams.get('organization_id') ?? undefined,
+      opportunity_id: searchParams.get('opportunity_id') ?? undefined,
+      rfp_id: searchParams.get('rfp_id') ?? undefined,
+      activity_type: searchParams.get('activity_type') ?? undefined,
+      has_follow_up: searchParams.get('has_follow_up') ?? undefined,
+      follow_up_before: searchParams.get('follow_up_before') ?? undefined,
+      follow_up_after: searchParams.get('follow_up_after') ?? undefined,
       limit: searchParams.get('limit') ?? undefined,
       offset: searchParams.get('offset') ?? undefined,
     });
@@ -50,15 +58,25 @@ export async function GET(request: Request, context: RouteContext) {
       );
     }
 
-    const { entity_type, entity_id, action, user_id, start_date, end_date, limit, offset } =
-      queryResult.data;
+    const {
+      entity_type, entity_id, action, user_id, start_date, end_date,
+      person_id, organization_id, opportunity_id, rfp_id,
+      activity_type, has_follow_up, follow_up_before, follow_up_after,
+      limit, offset,
+    } = queryResult.data;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
     let query = supabaseAny
       .from('activity_log')
-      .select('*, user:users!activity_log_user_id_fkey(id, full_name, email, avatar_url)')
+      .select(`
+        *,
+        user:users!activity_log_user_id_fkey(id, full_name, email, avatar_url),
+        person:people!activity_log_person_id_fkey(id, first_name, last_name, email),
+        organization:organizations!activity_log_organization_id_fkey(id, name),
+        follow_up_task:tasks!activity_log_follow_up_task_id_fkey(id, title, status, due_date)
+      `)
       .eq('project_id', project.id);
 
     if (entity_type) query = query.eq('entity_type', entity_type);
@@ -67,6 +85,14 @@ export async function GET(request: Request, context: RouteContext) {
     if (user_id) query = query.eq('user_id', user_id);
     if (start_date) query = query.gte('created_at', start_date);
     if (end_date) query = query.lte('created_at', end_date);
+    if (person_id) query = query.eq('person_id', person_id);
+    if (organization_id) query = query.eq('organization_id', organization_id);
+    if (opportunity_id) query = query.eq('opportunity_id', opportunity_id);
+    if (rfp_id) query = query.eq('rfp_id', rfp_id);
+    if (activity_type) query = query.eq('activity_type', activity_type);
+    if (has_follow_up) query = query.not('follow_up_date', 'is', null);
+    if (follow_up_before) query = query.lte('follow_up_date', follow_up_before);
+    if (follow_up_after) query = query.gte('follow_up_date', follow_up_after);
 
     const { data: activities, error } = await query
       .order('created_at', { ascending: false })

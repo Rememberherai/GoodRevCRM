@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Building2, Users, Target, FileText } from 'lucide-react';
 import { CompanyContextCard } from '@/components/projects/company-context-card';
+import { DashboardActivityCenter } from '@/components/dashboard/activity-center';
 import type { CompanyContext } from '@/lib/validators/project';
 
 interface ProjectDashboardProps {
@@ -101,24 +102,12 @@ export default async function ProjectDashboard({ params }: ProjectDashboardProps
         ))}
       </div>
 
-      <div className="grid gap-4 md:grid-cols-2">
-        <CompanyContextCard
-          projectSlug={slug}
-          initialContext={companyContext}
-        />
+      <CompanyContextCard
+        projectSlug={slug}
+        initialContext={companyContext}
+      />
 
-        <Card>
-          <CardHeader>
-            <CardTitle>Recent Activity</CardTitle>
-            <CardDescription>Latest updates in your CRM</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <p className="text-muted-foreground text-sm">
-              No recent activity yet. Start by adding organizations, people, or opportunities.
-            </p>
-          </CardContent>
-        </Card>
-      </div>
+      <DashboardActivityCenter projectSlug={slug} />
     </div>
   );
 }

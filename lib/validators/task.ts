@@ -12,6 +12,7 @@ export const createTaskSchema = z.object({
   opportunity_id: z.string().uuid().nullable().optional(),
   rfp_id: z.string().uuid().nullable().optional(),
   assigned_to: z.string().uuid().nullable().optional(),
+  source_activity_id: z.string().uuid().nullable().optional(),
 });
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
@@ -28,6 +29,7 @@ export const updateTaskSchema = z.object({
   opportunity_id: z.string().uuid().nullable().optional(),
   rfp_id: z.string().uuid().nullable().optional(),
   assigned_to: z.string().uuid().nullable().optional(),
+  source_activity_id: z.string().uuid().nullable().optional(),
 });
 
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;

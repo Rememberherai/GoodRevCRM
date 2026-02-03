@@ -44,6 +44,8 @@ import {
 import { PersonForm } from '@/components/people/person-form';
 import { PersonSequencesTab } from '@/components/people/person-sequences-tab';
 import { ActivityTimeline } from '@/components/activity/activity-timeline';
+import { EntityActivitySection } from '@/components/activity/entity-activity-section';
+import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ActivityWithUser } from '@/types/activity';
 
@@ -467,6 +469,24 @@ export function PersonDetailClient({ personId, companyContext }: PersonDetailCli
           />
         </TabsContent>
       </Tabs>
+
+      {/* Activity Section */}
+      <EntityActivitySection
+        projectSlug={slug}
+        entityType="person"
+        entityId={personId}
+        personId={personId}
+        personName={`${person.first_name ?? ''} ${person.last_name ?? ''}`.trim()}
+      />
+
+      {/* Meetings Section */}
+      <EntityMeetingsSection
+        projectSlug={slug}
+        entityType="person"
+        entityId={personId}
+        personId={personId}
+        personName={`${person.first_name ?? ''} ${person.last_name ?? ''}`.trim()}
+      />
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

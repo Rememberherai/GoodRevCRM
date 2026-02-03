@@ -39,6 +39,8 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { RfpForm } from '@/components/rfps/rfp-form';
+import { EntityActivitySection } from '@/components/activity/entity-activity-section';
+import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 
 interface RfpDetailClientProps {
   rfpId: string;
@@ -510,6 +512,24 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Activity Section */}
+      <EntityActivitySection
+        projectSlug={slug}
+        entityType="rfp"
+        entityId={rfpId}
+        rfpId={rfpId}
+        organizationId={rfp.organization_id ?? undefined}
+      />
+
+      {/* Meetings Section */}
+      <EntityMeetingsSection
+        projectSlug={slug}
+        entityType="rfp"
+        entityId={rfpId}
+        rfpId={rfpId}
+        organizationId={rfp.organization_id ?? undefined}
+      />
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
