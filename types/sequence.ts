@@ -15,6 +15,7 @@ export interface Sequence {
   id: string;
   project_id: string;
   organization_id: string | null; // If set, sequence is organization-specific
+  person_id: string | null; // If set, sequence is person-specific
   name: string;
   description: string | null;
   status: SequenceStatus;

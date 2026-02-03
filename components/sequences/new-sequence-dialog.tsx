@@ -28,6 +28,12 @@ interface NewSequenceDialogProps {
     domain?: string | null;
     description?: string | null;
   };
+  personId?: string;
+  personContext?: {
+    name: string;
+    email?: string | null;
+    jobTitle?: string | null;
+  };
 }
 
 type DialogMode = 'select' | 'ai-wizard' | 'manual';
@@ -40,6 +46,8 @@ export function NewSequenceDialog({
   initialCompanyContext,
   organizationId,
   organizationContext,
+  personId,
+  personContext,
 }: NewSequenceDialogProps) {
   const [mode, setMode] = useState<DialogMode>('select');
   const [isCreating, setIsCreating] = useState(false);
@@ -65,6 +73,7 @@ export function NewSequenceDialog({
           name: manualName,
           description: manualDescription || null,
           organization_id: organizationId,
+          person_id: personId,
         }),
       });
 
@@ -109,6 +118,8 @@ export function NewSequenceDialog({
               initialCompanyContext={initialCompanyContext}
               organizationId={organizationId}
               organizationContext={organizationContext}
+              personId={personId}
+              personContext={personContext}
             />
           </div>
         </DialogContent>

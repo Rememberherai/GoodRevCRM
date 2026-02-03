@@ -35,6 +35,7 @@ export async function GET(request: Request, context: RouteContext) {
     const queryResult = sequenceQuerySchema.safeParse({
       status: searchParams.get('status') ?? undefined,
       organization_id: searchParams.get('organization_id') ?? undefined,
+      person_id: searchParams.get('person_id') ?? undefined,
       scope: searchParams.get('scope') ?? undefined,
       limit: searchParams.get('limit') ?? undefined,
       offset: searchParams.get('offset') ?? undefined,
@@ -47,7 +48,7 @@ export async function GET(request: Request, context: RouteContext) {
       );
     }
 
-    const { status, organization_id, scope, limit, offset } = queryResult.data;
+    const { status, organization_id, person_id, scope, limit, offset } = queryResult.data;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
@@ -58,7 +59,8 @@ export async function GET(request: Request, context: RouteContext) {
         *,
         steps:sequence_steps(count),
         enrollments:sequence_enrollments(count),
-        organization:organizations(id, name, domain)
+        organization:organizations(id, name, domain),
+        person:people(id, first_name, last_name, email)
       `)
       .eq('project_id', project.id);
 
@@ -66,13 +68,17 @@ export async function GET(request: Request, context: RouteContext) {
       query = query.eq('status', status);
     }
 
-    // Filter by organization or scope
+    // Filter by organization, person, or scope
     if (organization_id) {
       query = query.eq('organization_id', organization_id);
+    } else if (person_id) {
+      query = query.eq('person_id', person_id);
     } else if (scope === 'project') {
-      query = query.is('organization_id', null);
+      query = query.is('organization_id', null).is('person_id', null);
     } else if (scope === 'organization') {
       query = query.not('organization_id', 'is', null);
+    } else if (scope === 'person') {
+      query = query.not('person_id', 'is', null);
     }
 
     const { data: sequences, error } = await query

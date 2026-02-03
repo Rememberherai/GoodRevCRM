@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Mail, MoreHorizontal, Pencil, Copy, Trash2, Users, Play, Pause, Archive, Building2, Globe } from 'lucide-react';
+import { Mail, MoreHorizontal, Pencil, Copy, Trash2, Users, Play, Pause, Archive, Building2, Globe, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -26,6 +26,7 @@ interface SequenceWithCounts extends Sequence {
   steps?: { count: number }[];
   enrollments?: { count: number }[];
   organization?: { id: string; name: string; domain: string | null } | null;
+  person?: { id: string; first_name: string; last_name: string; email: string | null } | null;
 }
 
 interface SequenceListProps {
@@ -109,7 +110,14 @@ export function SequenceList({
               </div>
             </TableCell>
             <TableCell>
-              {sequence.organization ? (
+              {sequence.person ? (
+                <div className="flex items-center gap-1.5">
+                  <User className="h-3.5 w-3.5 text-muted-foreground" />
+                  <span className="text-sm truncate max-w-[120px]" title={`${sequence.person.first_name} ${sequence.person.last_name}`}>
+                    {sequence.person.first_name} {sequence.person.last_name}
+                  </span>
+                </div>
+              ) : sequence.organization ? (
                 <div className="flex items-center gap-1.5">
                   <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
                   <span className="text-sm truncate max-w-[120px]" title={sequence.organization.name}>

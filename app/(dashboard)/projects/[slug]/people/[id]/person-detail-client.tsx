@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -16,6 +16,8 @@ import {
   Twitter,
   Target,
   User,
+  Send,
+  Clock,
 } from 'lucide-react';
 import { EnrichButton } from '@/components/enrichment';
 import { EnrichmentReviewModal } from '@/components/enrichment/enrichment-review-modal';
@@ -28,6 +30,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -39,25 +42,56 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { PersonForm } from '@/components/people/person-form';
+import { PersonSequencesTab } from '@/components/people/person-sequences-tab';
+import { ActivityTimeline } from '@/components/activity/activity-timeline';
+import type { CompanyContext } from '@/lib/validators/project';
+import type { ActivityWithUser } from '@/types/activity';
 
 interface PersonDetailClientProps {
   personId: string;
+  companyContext?: CompanyContext;
 }
 
-export function PersonDetailClient({ personId }: PersonDetailClientProps) {
+export function PersonDetailClient({ personId, companyContext }: PersonDetailClientProps) {
   const params = useParams();
   const router = useRouter();
   const slug = params.slug as string;
+  const [activeTab, setActiveTab] = useState('info');
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [pendingEnrichmentData, setPendingEnrichmentData] = useState<EnrichmentPerson | null>(null);
   const [showPendingReviewModal, setShowPendingReviewModal] = useState(false);
   const [isApplyingEnrichment, setIsApplyingEnrichment] = useState(false);
+  const [activities, setActivities] = useState<ActivityWithUser[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
 
   const { person, isLoading, error, refresh } = usePerson(personId);
   const removePerson = usePersonStore((s) => s.removePerson);
   const { completeEnrichment } = useEnrichmentStore();
+
+  const loadActivities = useCallback(async () => {
+    setActivitiesLoading(true);
+    try {
+      const response = await fetch(
+        `/api/projects/${slug}/activity?entity_type=person&entity_id=${personId}&limit=50`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setActivities(data.activities);
+      }
+    } catch (err) {
+      console.error('Error loading activities:', err);
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }, [slug, personId]);
+
+  useEffect(() => {
+    if (activeTab === 'activity') {
+      loadActivities();
+    }
+  }, [activeTab, loadActivities]);
 
   // Check for completed but unreviewed enrichments on mount
   useEffect(() => {
@@ -256,141 +290,183 @@ export function PersonDetailClient({ personId }: PersonDetailClientProps) {
         </div>
       </div>
 
-      <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <User className="h-5 w-5" />
-              Contact
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {person.email && (
-              <div className="flex items-center gap-2">
-                <Mail className="h-4 w-4 text-muted-foreground" />
-                <a
-                  href={`mailto:${person.email}`}
-                  className="text-primary hover:underline"
-                >
-                  {person.email}
-                </a>
-              </div>
-            )}
-            {person.phone && (
-              <div className="flex items-center gap-2">
-                <Phone className="h-4 w-4 text-muted-foreground" />
-                <a href={`tel:${person.phone}`} className="hover:underline">
-                  {person.phone}
-                </a>
-              </div>
-            )}
-            {person.mobile_phone && (
-              <div className="flex items-center gap-2">
-                <Smartphone className="h-4 w-4 text-muted-foreground" />
-                <a href={`tel:${person.mobile_phone}`} className="hover:underline">
-                  {person.mobile_phone}
-                </a>
-              </div>
-            )}
-            {addressParts.length > 0 && (
-              <div className="flex items-start gap-2">
-                <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
-                <span>{addressParts.join(', ')}</span>
-              </div>
-            )}
-            {person.timezone && (
-              <div className="text-sm text-muted-foreground">
-                Timezone: {person.timezone}
-              </div>
-            )}
-          </CardContent>
-        </Card>
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="info" className="gap-2">
+            <User className="h-4 w-4" />
+            Info
+          </TabsTrigger>
+          <TabsTrigger value="sequences" className="gap-2">
+            <Send className="h-4 w-4" />
+            Sequences
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="gap-2">
+            <Clock className="h-4 w-4" />
+            Activity
+          </TabsTrigger>
+        </TabsList>
 
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Social</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {person.linkedin_url && (
-              <div className="flex items-center gap-2">
-                <Linkedin className="h-4 w-4 text-muted-foreground" />
-                <a
-                  href={person.linkedin_url}
-                  target="_blank"
-                  rel="noopener noreferrer"
-                  className="text-primary hover:underline"
-                >
-                  LinkedIn Profile
-                </a>
-              </div>
-            )}
-            {person.twitter_handle && (
-              <div className="flex items-center gap-2">
-                <Twitter className="h-4 w-4 text-muted-foreground" />
-                <span>@{person.twitter_handle}</span>
-              </div>
-            )}
-            {!person.linkedin_url && !person.twitter_handle && (
-              <p className="text-sm text-muted-foreground">
-                No social profiles added
-              </p>
-            )}
-          </CardContent>
-        </Card>
+        {/* Info Tab */}
+        <TabsContent value="info" className="space-y-6">
+          <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <User className="h-5 w-5" />
+                  Contact
+                </CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {person.email && (
+                  <div className="flex items-center gap-2">
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <a
+                      href={`mailto:${person.email}`}
+                      className="text-primary hover:underline"
+                    >
+                      {person.email}
+                    </a>
+                  </div>
+                )}
+                {person.phone && (
+                  <div className="flex items-center gap-2">
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <a href={`tel:${person.phone}`} className="hover:underline">
+                      {person.phone}
+                    </a>
+                  </div>
+                )}
+                {person.mobile_phone && (
+                  <div className="flex items-center gap-2">
+                    <Smartphone className="h-4 w-4 text-muted-foreground" />
+                    <a href={`tel:${person.mobile_phone}`} className="hover:underline">
+                      {person.mobile_phone}
+                    </a>
+                  </div>
+                )}
+                {addressParts.length > 0 && (
+                  <div className="flex items-start gap-2">
+                    <MapPin className="h-4 w-4 text-muted-foreground mt-0.5" />
+                    <span>{addressParts.join(', ')}</span>
+                  </div>
+                )}
+                {person.timezone && (
+                  <div className="text-sm text-muted-foreground">
+                    Timezone: {person.timezone}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
 
-        <Card className="col-span-1">
-          <CardHeader>
-            <CardTitle>Stats</CardTitle>
-            <CardDescription>Related records</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Building2 className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Organizations</span>
-              </div>
-              <Badge variant="outline">{person.organization_count ?? 0}</Badge>
-            </div>
-            <Separator />
-            <div className="flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <Target className="h-4 w-4 text-muted-foreground" />
-                <span className="text-sm">Opportunities</span>
-              </div>
-              <Badge variant="outline">{person.opportunities_count ?? 0}</Badge>
-            </div>
-          </CardContent>
-        </Card>
-      </div>
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle>Social</CardTitle>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                {person.linkedin_url && (
+                  <div className="flex items-center gap-2">
+                    <Linkedin className="h-4 w-4 text-muted-foreground" />
+                    <a
+                      href={person.linkedin_url}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-primary hover:underline"
+                    >
+                      LinkedIn Profile
+                    </a>
+                  </div>
+                )}
+                {person.twitter_handle && (
+                  <div className="flex items-center gap-2">
+                    <Twitter className="h-4 w-4 text-muted-foreground" />
+                    <span>@{person.twitter_handle}</span>
+                  </div>
+                )}
+                {!person.linkedin_url && !person.twitter_handle && (
+                  <p className="text-sm text-muted-foreground">
+                    No social profiles added
+                  </p>
+                )}
+              </CardContent>
+            </Card>
 
-      {person.notes && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Notes</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <p className="whitespace-pre-wrap">{person.notes}</p>
-          </CardContent>
-        </Card>
-      )}
-
-      {person.custom_fields && Object.keys(person.custom_fields).length > 0 && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Custom Fields</CardTitle>
-          </CardHeader>
-          <CardContent>
-            <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
-              {Object.entries(person.custom_fields).map(([key, value]) => (
-                <div key={key}>
-                  <p className="text-sm font-medium text-muted-foreground">{key}</p>
-                  <p>{String(value)}</p>
+            <Card className="col-span-1">
+              <CardHeader>
+                <CardTitle>Stats</CardTitle>
+                <CardDescription>Related records</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-4">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Building2 className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Organizations</span>
+                  </div>
+                  <Badge variant="outline">{person.organization_count ?? 0}</Badge>
                 </div>
-              ))}
-            </div>
-          </CardContent>
-        </Card>
-      )}
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center gap-2">
+                    <Target className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Opportunities</span>
+                  </div>
+                  <Badge variant="outline">{person.opportunities_count ?? 0}</Badge>
+                </div>
+              </CardContent>
+            </Card>
+          </div>
+
+          {person.notes && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Notes</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <p className="whitespace-pre-wrap">{person.notes}</p>
+              </CardContent>
+            </Card>
+          )}
+
+          {person.custom_fields && Object.keys(person.custom_fields).length > 0 && (
+            <Card>
+              <CardHeader>
+                <CardTitle>Custom Fields</CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3">
+                  {Object.entries(person.custom_fields).map(([key, value]) => (
+                    <div key={key}>
+                      <p className="text-sm font-medium text-muted-foreground">{key}</p>
+                      <p>{String(value)}</p>
+                    </div>
+                  ))}
+                </div>
+              </CardContent>
+            </Card>
+          )}
+        </TabsContent>
+
+        {/* Sequences Tab */}
+        <TabsContent value="sequences" className="space-y-6">
+          <PersonSequencesTab
+            projectSlug={slug}
+            personId={personId}
+            personName={getFullName(person.first_name, person.last_name)}
+            personEmail={person.email}
+            personJobTitle={person.job_title}
+            projectCompanyContext={companyContext}
+          />
+        </TabsContent>
+
+        {/* Activity Tab */}
+        <TabsContent value="activity" className="space-y-6">
+          <ActivityTimeline
+            activities={activities}
+            loading={activitiesLoading}
+            emptyMessage="No activity recorded for this person yet"
+          />
+        </TabsContent>
+      </Tabs>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>

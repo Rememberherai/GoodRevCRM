@@ -2,17 +2,31 @@ import { Suspense } from 'react';
 import { PersonDetailClient } from './person-detail-client';
 import { Skeleton } from '@/components/ui/skeleton';
 import { Card, CardContent, CardHeader } from '@/components/ui/card';
+import { createClient } from '@/lib/supabase/server';
+import type { CompanyContext } from '@/lib/validators/project';
 
 interface PersonDetailPageProps {
   params: Promise<{ slug: string; id: string }>;
 }
 
 export default async function PersonDetailPage({ params }: PersonDetailPageProps) {
-  const { id } = await params;
+  const { slug, id } = await params;
+  const supabase = await createClient();
+
+  // Fetch project settings for company context
+  const { data: project } = await supabase
+    .from('projects')
+    .select('settings')
+    .eq('slug', slug)
+    .is('deleted_at', null)
+    .single();
+
+  const settings = project?.settings as { company_context?: CompanyContext } | null;
+  const companyContext = settings?.company_context;
 
   return (
     <Suspense fallback={<PersonDetailSkeleton />}>
-      <PersonDetailClient personId={id} />
+      <PersonDetailClient personId={id} companyContext={companyContext} />
     </Suspense>
   );
 }

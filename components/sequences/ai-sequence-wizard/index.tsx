@@ -26,6 +26,12 @@ interface AISequenceWizardProps {
     domain?: string | null;
     description?: string | null;
   };
+  personId?: string;
+  personContext?: {
+    name: string;
+    email?: string | null;
+    jobTitle?: string | null;
+  };
 }
 
 interface WizardState {
@@ -79,6 +85,8 @@ export function AISequenceWizard({
   initialCompanyContext,
   organizationId,
   organizationContext,
+  personId,
+  personContext,
 }: AISequenceWizardProps) {
   // Build initial state from props
   const buildInitialState = (): WizardState => {
@@ -86,12 +94,22 @@ export function AISequenceWizard({
     const contextName = organizationContext?.name || initialCompanyContext?.name || '';
     const contextDescription = organizationContext?.description || initialCompanyContext?.description || '';
 
+    // Pre-populate target audience from person context if available
+    let targetAudience = '';
+    if (personContext) {
+      const parts = [personContext.name];
+      if (personContext.jobTitle) parts.push(personContext.jobTitle);
+      if (personContext.email) parts.push(personContext.email);
+      targetAudience = parts.join(', ');
+    }
+
     return {
       ...INITIAL_STATE,
       companyName: contextName,
       companyDescription: contextDescription,
       products: initialCompanyContext?.products || [],
       valuePropositions: initialCompanyContext?.value_propositions || [],
+      targetAudienceDescription: targetAudience,
     };
   };
 
@@ -147,6 +165,7 @@ export function AISequenceWizard({
             keyMessages: state.keyMessages.length > 0 ? state.keyMessages : undefined,
           },
           organizationId,
+          personId,
           preview: true,
         }),
       });
@@ -199,6 +218,7 @@ export function AISequenceWizard({
             keyMessages: state.keyMessages.length > 0 ? state.keyMessages : undefined,
           },
           organizationId,
+          personId,
           preview: false,
         }),
       });

@@ -22,6 +22,7 @@ import {
   DollarSign,
   Calendar,
   Send,
+  Clock,
 } from 'lucide-react';
 import { useOrganization } from '@/hooks/use-organizations';
 import { useOrganizationStore, deleteOrganization, updateOrganizationApi } from '@/stores/organization';
@@ -54,8 +55,10 @@ import { AddFieldDialog } from '@/components/schema/add-field-dialog';
 import { EditFieldDialog } from '@/components/schema/edit-field-dialog';
 import { DeleteFieldDialog } from '@/components/schema/delete-field-dialog';
 import { OrgSequencesTab } from '@/components/organizations/org-sequences-tab';
+import { ActivityTimeline } from '@/components/activity/activity-timeline';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
+import type { ActivityWithUser } from '@/types/activity';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { Person } from '@/types/person';
 import type { Opportunity } from '@/types/opportunity';
@@ -196,6 +199,8 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
   const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
   const [rfps, setRfps] = useState<Rfp[]>([]);
   const [rfpsLoading, setRfpsLoading] = useState(false);
+  const [activities, setActivities] = useState<ActivityWithUser[]>([]);
+  const [activitiesLoading, setActivitiesLoading] = useState(false);
 
   // Custom field dialog states
   const [showAddFieldDialog, setShowAddFieldDialog] = useState(false);
@@ -252,11 +257,34 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
     }
   }, [slug, organizationId]);
 
+  const loadActivities = useCallback(async () => {
+    setActivitiesLoading(true);
+    try {
+      const response = await fetch(
+        `/api/projects/${slug}/activity?entity_type=organization&entity_id=${organizationId}&limit=50`
+      );
+      if (response.ok) {
+        const data = await response.json();
+        setActivities(data.activities);
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setActivitiesLoading(false);
+    }
+  }, [slug, organizationId]);
+
   useEffect(() => {
     loadPeople();
     loadOpportunities();
     loadRfps();
   }, [loadPeople, loadOpportunities, loadRfps]);
+
+  useEffect(() => {
+    if (activeTab === 'activity') {
+      loadActivities();
+    }
+  }, [activeTab, loadActivities]);
 
   const handleResearchComplete = (job: ResearchJob) => {
     setResearchJob(job);
@@ -439,6 +467,10 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
           <TabsTrigger value="sequences" className="gap-2">
             <Send className="h-4 w-4" />
             Sequences
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="gap-2">
+            <Clock className="h-4 w-4" />
+            Activity
           </TabsTrigger>
           <TabsTrigger value="research" className="gap-2">
             <Bot className="h-4 w-4" />
@@ -929,6 +961,15 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
             organizationDomain={organization.domain}
             organizationDescription={organization.description}
             projectCompanyContext={companyContext}
+          />
+        </TabsContent>
+
+        {/* Activity Tab */}
+        <TabsContent value="activity" className="space-y-6">
+          <ActivityTimeline
+            activities={activities}
+            loading={activitiesLoading}
+            emptyMessage="No activity recorded for this organization yet"
           />
         </TabsContent>
 
