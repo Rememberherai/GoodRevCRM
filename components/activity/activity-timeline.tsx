@@ -281,8 +281,39 @@ export function ActivityTimeline({
                       )}
                     </div>
 
-                    {/* Notes preview */}
-                    {activity.notes && (
+                    {/* Email content or Notes preview */}
+                    {activity.notes && activity.activity_type === 'email' ? (
+                      <div className="mt-1.5">
+                        {activity.metadata?.to ? (
+                          <p className="text-xs text-muted-foreground mb-1">
+                            To: {String(activity.metadata.to)}
+                          </p>
+                        ) : null}
+                        <button
+                          type="button"
+                          onClick={() => toggleNoteExpanded(activity.id)}
+                          className="text-xs text-primary hover:underline flex items-center gap-0.5"
+                        >
+                          {isExpanded ? (
+                            <>
+                              <ChevronUp className="w-3 h-3" />
+                              Hide email
+                            </>
+                          ) : (
+                            <>
+                              <ChevronDown className="w-3 h-3" />
+                              View email
+                            </>
+                          )}
+                        </button>
+                        {isExpanded && (
+                          <div
+                            className="mt-2 rounded-md border bg-muted/50 p-3 text-xs prose prose-sm max-w-none dark:prose-invert overflow-auto max-h-[400px]"
+                            dangerouslySetInnerHTML={{ __html: activity.notes }}
+                          />
+                        )}
+                      </div>
+                    ) : activity.notes ? (
                       <div className="mt-1">
                         <p className="text-xs text-muted-foreground">
                           {isExpanded
@@ -311,7 +342,7 @@ export function ActivityTimeline({
                           </button>
                         )}
                       </div>
-                    )}
+                    ) : null}
 
                     {/* Person link */}
                     {activity.person && (

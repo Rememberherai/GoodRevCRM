@@ -84,6 +84,51 @@ export async function POST(request: Request, context: RouteContext) {
       user.id
     );
 
+    // Log activity for the sent email
+    const personId = body.person_id ?? null;
+    const organizationId = body.organization_id ?? null;
+    const opportunityId = body.opportunity_id ?? null;
+    const rfpId = body.rfp_id ?? null;
+
+    // Determine entity context for the activity log
+    const entityType = personId
+      ? 'person'
+      : organizationId
+        ? 'organization'
+        : opportunityId
+          ? 'opportunity'
+          : rfpId
+            ? 'rfp'
+            : 'email';
+    const entityId = personId ?? organizationId ?? opportunityId ?? rfpId ?? result.sent_email_id;
+
+    try {
+      await supabaseAny.from('activity_log').insert({
+        project_id: project.id,
+        user_id: user.id,
+        entity_type: entityType,
+        entity_id: entityId,
+        action: 'logged',
+        activity_type: 'email',
+        outcome: 'email_sent',
+        direction: 'outbound',
+        subject: validationResult.data.subject,
+        notes: validationResult.data.body_html,
+        person_id: personId,
+        organization_id: organizationId,
+        opportunity_id: opportunityId,
+        rfp_id: rfpId,
+        metadata: {
+          sent_email_id: result.sent_email_id,
+          message_id: result.message_id,
+          to: validationResult.data.to,
+        },
+      });
+    } catch (activityError) {
+      // Don't fail the email send if activity logging fails
+      console.error('Failed to log email activity:', activityError);
+    }
+
     return NextResponse.json(result);
   } catch (error) {
     console.error('Error in POST /api/projects/[slug]/email/send:', error);
