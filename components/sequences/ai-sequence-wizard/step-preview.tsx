@@ -125,7 +125,7 @@ export function StepPreview({
                           Body
                         </div>
                         <div
-                          className="prose prose-sm max-w-none text-sm"
+                          className="prose prose-sm max-w-none text-sm bg-white text-black rounded p-3 [&_*]:!text-black [&_a]:!text-blue-600"
                           dangerouslySetInnerHTML={{ __html: step.body_html || '' }}
                         />
                       </div>

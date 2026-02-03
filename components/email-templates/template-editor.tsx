@@ -294,13 +294,13 @@ export function TemplateEditor({ template, onSave, onCancel }: TemplateEditorPro
           )}
         </TabsContent>
         <TabsContent value="preview" className="mt-4">
-          <div className="border rounded-lg p-4">
+          <div className="border rounded-lg p-4 bg-white text-black">
             <div className="border-b pb-2 mb-4">
-              <p className="text-sm text-muted-foreground">Subject:</p>
+              <p className="text-sm text-gray-500">Subject:</p>
               <p className="font-medium">{subject || '(No subject)'}</p>
             </div>
             <div
-              className="prose prose-sm max-w-none"
+              className="prose prose-sm max-w-none [&_*]:!text-black [&_a]:!text-blue-600"
               dangerouslySetInnerHTML={{ __html: bodyHtml || '<p>No content</p>' }}
             />
           </div>

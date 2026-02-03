@@ -122,8 +122,8 @@ export function StepEditor({ step, onUpdate }: StepEditorProps) {
           </TabsContent>
 
           <TabsContent value="preview" className="mt-2">
-            <div className="border rounded-lg p-6 min-h-[300px] bg-white">
-              <div className="prose prose-sm max-w-none">
+            <div className="border rounded-lg p-6 min-h-[300px] bg-white text-black">
+              <div className="prose prose-sm max-w-none [&_*]:!text-black [&_a]:!text-blue-600">
                 {step.body_html ? (
                   <div
                     dangerouslySetInnerHTML={{
