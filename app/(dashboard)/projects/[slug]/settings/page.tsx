@@ -2,7 +2,6 @@
 
 import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
-import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search } from 'lucide-react';
@@ -40,6 +39,7 @@ import { ResearchSettingsPanel } from '@/components/settings/research-settings';
 import { MemberList } from '@/components/team/member-list';
 import { InviteMemberDialog } from '@/components/team/invite-member-dialog';
 import { useAuth } from '@/hooks/use-auth';
+import { AutomationPanel } from '@/components/automations/automation-panel';
 import type { ProjectRole } from '@/types/user';
 
 
@@ -414,24 +414,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
         </TabsContent>
 
         <TabsContent value="automation" className="space-y-6 mt-6">
-          <Card>
-            <CardHeader>
-              <div className="flex items-center justify-between">
-                <div>
-                  <CardTitle className="flex items-center gap-2">
-                    <Zap className="h-5 w-5" />
-                    Automation
-                  </CardTitle>
-                  <CardDescription>
-                    Create rules to automate workflows: when something happens, take action automatically.
-                  </CardDescription>
-                </div>
-                <Link href={`/projects/${slug}/settings/automation`}>
-                  <Button variant="outline">Manage Automations</Button>
-                </Link>
-              </div>
-            </CardHeader>
-          </Card>
+          <AutomationPanel slug={slug} />
         </TabsContent>
       </Tabs>
     </div>

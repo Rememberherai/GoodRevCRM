@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, use, useCallback } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import { Plus, Zap, History, Loader2, MoreHorizontal, Trash2, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -34,8 +34,8 @@ import { AutomationExecutions } from '@/components/automations/automation-execut
 import type { Automation } from '@/types/automation';
 import { triggerTypeGroups } from '@/types/automation';
 
-interface AutomationPageProps {
-  params: Promise<{ slug: string }>;
+interface AutomationPanelProps {
+  slug: string;
 }
 
 // Helper to get trigger label
@@ -47,8 +47,7 @@ function getTriggerLabel(triggerType: string): string {
   return triggerType;
 }
 
-export default function AutomationPage({ params }: AutomationPageProps) {
-  const { slug } = use(params);
+export function AutomationPanel({ slug }: AutomationPanelProps) {
   const [automations, setAutomations] = useState<Automation[]>([]);
   const [loading, setLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
@@ -168,11 +167,11 @@ export default function AutomationPage({ params }: AutomationPageProps) {
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
+    <div className="space-y-6">
       <div className="flex items-center justify-between">
         <div>
-          <h2 className="text-2xl font-bold">Automation</h2>
-          <p className="text-muted-foreground">
+          <h3 className="text-lg font-semibold">Automations</h3>
+          <p className="text-sm text-muted-foreground">
             Create rules to automate workflows: when something happens, take action automatically.
           </p>
         </div>
