@@ -50,6 +50,9 @@ import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-sec
 import { EntityEmailTab } from '@/components/email/entity-email-tab';
 import { SendEmailModal } from '@/components/gmail';
 import { EntityCommentsFeed } from '@/components/comments';
+import { ClickToDialButton } from '@/components/calls/click-to-dial-button';
+import { CallLogTable } from '@/components/calls/call-log-table';
+import { PhoneCall } from 'lucide-react';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ActivityWithUser } from '@/types/activity';
 
@@ -330,6 +333,10 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
             <Clock className="h-4 w-4" />
             Activity
           </TabsTrigger>
+          <TabsTrigger value="calls" className="gap-2">
+            <PhoneCall className="h-4 w-4" />
+            Calls
+          </TabsTrigger>
           <TabsTrigger value="comments" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Comments
@@ -364,6 +371,11 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
                     <a href={`tel:${person.phone}`} className="hover:underline">
                       {person.phone}
                     </a>
+                    <ClickToDialButton
+                      phoneNumber={person.phone}
+                      personId={personId}
+                      organizationId={person.organizations?.[0]?.id}
+                    />
                   </div>
                 )}
                 {person.mobile_phone && (
@@ -372,6 +384,11 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
                     <a href={`tel:${person.mobile_phone}`} className="hover:underline">
                       {person.mobile_phone}
                     </a>
+                    <ClickToDialButton
+                      phoneNumber={person.mobile_phone}
+                      personId={personId}
+                      organizationId={person.organizations?.[0]?.id}
+                    />
                   </div>
                 )}
                 {addressParts.length > 0 && (
@@ -502,6 +519,11 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
             loading={activitiesLoading}
             emptyMessage="No activity recorded for this person yet"
           />
+        </TabsContent>
+
+        {/* Calls Tab */}
+        <TabsContent value="calls" className="space-y-6">
+          <CallLogTable personId={personId} />
         </TabsContent>
 
         {/* Comments Tab */}

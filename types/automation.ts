@@ -27,6 +27,10 @@ export type TriggerType =
   | 'time.task_overdue'
   | 'time.close_date_approaching'
   | 'time.created_ago'
+  // Call events
+  | 'call.completed'
+  | 'call.missed'
+  | 'call.dispositioned'
   // News events
   | 'news.article_found';
 
@@ -63,7 +67,8 @@ export type AutomationEntityType =
   | 'opportunity'
   | 'rfp'
   | 'task'
-  | 'meeting';
+  | 'meeting'
+  | 'call';
 
 export type ExecutionStatus =
   | 'success'
@@ -94,6 +99,8 @@ export interface TriggerConfig {
   sequence_id?: string;
   meeting_type?: string;
   outcome?: string;
+  disposition?: string;
+  direction?: string;
   days?: number;
   days_before?: number;
 }
@@ -203,6 +210,14 @@ export const triggerTypeGroups = {
       { type: 'time.task_overdue' as TriggerType, label: 'Task Overdue', description: 'When a task is past its due date' },
       { type: 'time.close_date_approaching' as TriggerType, label: 'Close Date Approaching', description: 'When opportunity close date is within X days' },
       { type: 'time.created_ago' as TriggerType, label: 'Created X Days Ago', description: 'When a record was created X days ago' },
+    ],
+  },
+  call: {
+    label: 'Call Events',
+    triggers: [
+      { type: 'call.completed' as TriggerType, label: 'Call Completed', description: 'When an outbound or inbound call is completed' },
+      { type: 'call.missed' as TriggerType, label: 'Call Missed', description: 'When a call is missed, busy, or fails' },
+      { type: 'call.dispositioned' as TriggerType, label: 'Call Dispositioned', description: 'When a call disposition is recorded' },
     ],
   },
   news: {

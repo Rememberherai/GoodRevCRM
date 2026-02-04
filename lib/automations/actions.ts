@@ -36,6 +36,7 @@ const entityTableMap: Record<AutomationEntityType, string> = {
   rfp: 'rfps',
   task: 'tasks',
   meeting: 'meetings',
+  call: 'calls',
 };
 
 /**

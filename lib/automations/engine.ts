@@ -75,6 +75,16 @@ function matchesTriggerConfig(
     }
   }
 
+  // Check call disposition filter
+  if (event.triggerType === 'call.dispositioned' && triggerConfig.disposition) {
+    if (event.data.disposition !== triggerConfig.disposition) return false;
+  }
+
+  // Check call direction filter
+  if (triggerConfig.direction && event.data.direction !== triggerConfig.direction) {
+    return false;
+  }
+
   // Check sequence_id filter
   if (triggerConfig.sequence_id && event.metadata?.sequence_id !== triggerConfig.sequence_id) {
     return false;
@@ -294,6 +304,7 @@ export async function dryRunAutomation(
     rfp: 'rfps',
     task: 'tasks',
     meeting: 'meetings',
+    call: 'calls',
   };
 
   const tableName = entityTableMap[entityType];

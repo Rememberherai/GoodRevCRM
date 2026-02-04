@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { ProjectSidebar } from '@/components/layout/project-sidebar';
 import { ProjectHeader } from '@/components/layout/project-header';
+import { CallClientWrapper } from '@/components/calls/call-client-wrapper';
 import type { Database } from '@/types/database';
 
 type Project = Database['public']['Tables']['projects']['Row'];
@@ -36,12 +37,14 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
   }
 
   return (
-    <div className="flex h-screen bg-background">
-      <ProjectSidebar project={project as Project} />
-      <div className="flex flex-col flex-1 overflow-hidden">
-        <ProjectHeader project={project as Project} />
-        <main className="flex-1 overflow-auto p-6">{children}</main>
+    <CallClientWrapper>
+      <div className="flex h-screen bg-background">
+        <ProjectSidebar project={project as Project} />
+        <div className="flex flex-col flex-1 overflow-hidden">
+          <ProjectHeader project={project as Project} />
+          <main className="flex-1 overflow-auto p-6">{children}</main>
+        </div>
       </div>
-    </div>
+    </CallClientWrapper>
   );
 }

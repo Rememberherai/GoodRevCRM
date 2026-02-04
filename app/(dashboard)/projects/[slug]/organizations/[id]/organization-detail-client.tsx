@@ -66,6 +66,9 @@ import { EntityEmailTab } from '@/components/email/entity-email-tab';
 import { SendEmailModal } from '@/components/gmail';
 import { EntityCommentsFeed } from '@/components/comments';
 import { OrgNewsSection } from '@/components/news/org-news-section';
+import { ClickToDialButton } from '@/components/calls/click-to-dial-button';
+import { CallLogTable } from '@/components/calls/call-log-table';
+import { PhoneCall } from 'lucide-react';
 import { LogoUpload } from '@/components/ui/logo-upload';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
@@ -520,6 +523,10 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
             <Bot className="h-4 w-4" />
             AI Research
           </TabsTrigger>
+          <TabsTrigger value="calls" className="gap-2">
+            <PhoneCall className="h-4 w-4" />
+            Calls
+          </TabsTrigger>
           <TabsTrigger value="comments" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Comments
@@ -585,12 +592,22 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
                   type="url"
                   onSave={handleFieldSave}
                 />
-                <EditableField
-                  label="Phone"
-                  value={organization.phone}
-                  fieldKey="phone"
-                  onSave={handleFieldSave}
-                />
+                <div className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <EditableField
+                      label="Phone"
+                      value={organization.phone}
+                      fieldKey="phone"
+                      onSave={handleFieldSave}
+                    />
+                  </div>
+                  {organization.phone && (
+                    <ClickToDialButton
+                      phoneNumber={organization.phone}
+                      organizationId={organizationId}
+                    />
+                  )}
+                </div>
               </CardContent>
             </Card>
 
@@ -1072,6 +1089,11 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
             entityName={organization.name}
             onResearchComplete={handleResearchComplete}
           />
+        </TabsContent>
+
+        {/* Calls Tab */}
+        <TabsContent value="calls" className="space-y-6">
+          <CallLogTable organizationId={organizationId} />
         </TabsContent>
 
         {/* Comments Tab */}
