@@ -67,7 +67,7 @@ export type DisconnectGmailInput = z.infer<typeof disconnectGmailSchema>;
 // Schema for Gmail API test
 export const gmailTestSchema = z.object({
   connection_id: z.string().uuid('Invalid connection ID'),
-  tests: z.array(z.enum(['connection', 'send_permission', 'read_permission'])),
+  tests: z.array(z.enum(['connection', 'send_permission', 'read_permission', 'watch_registration', 'history_sync', 'contact_matching'])),
   send_test_email: z.boolean().optional().default(false),
 });
 

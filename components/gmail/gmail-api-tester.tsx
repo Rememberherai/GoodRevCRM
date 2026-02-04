@@ -12,7 +12,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Separator } from '@/components/ui/separator';
-import { FlaskConical, Play, Send, Loader2, CheckCircle2, XCircle, Clock, Info, Mail } from 'lucide-react';
+import { FlaskConical, Play, Send, Loader2, CheckCircle2, XCircle, Clock, Info, Mail, RefreshCw } from 'lucide-react';
 import { toast } from 'sonner';
 
 interface TestResult {
@@ -27,6 +27,9 @@ interface TestResults {
   send_permission?: TestResult;
   read_permission?: TestResult;
   send_test_email?: TestResult;
+  watch_registration?: TestResult;
+  history_sync?: TestResult;
+  contact_matching?: TestResult;
 }
 
 interface ConnectionOption {
@@ -53,6 +56,9 @@ function TestResultRow({
         <p className="text-xs text-muted-foreground">{description}</p>
         {result && result.status === 'fail' && (
           <p className="text-xs text-destructive mt-1">{result.message}</p>
+        )}
+        {result && result.status === 'pass' && (
+          <p className="text-xs text-muted-foreground mt-1">{result.message}</p>
         )}
       </div>
       <div className="flex items-center gap-2">
@@ -91,8 +97,10 @@ export function GmailApiTester() {
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
   const [loading, setLoading] = useState(true);
   const [testing, setTesting] = useState(false);
+  const [testingSync, setTestingSync] = useState(false);
   const [sendingTestEmail, setSendingTestEmail] = useState(false);
   const [results, setResults] = useState<TestResults | null>(null);
+  const [syncResults, setSyncResults] = useState<TestResults | null>(null);
   const [testEmailResult, setTestEmailResult] = useState<TestResult | null>(null);
   const [tokenRefreshed, setTokenRefreshed] = useState(false);
 
@@ -161,6 +169,47 @@ export function GmailApiTester() {
       toast.error('Failed to run diagnostics');
     } finally {
       setTesting(false);
+    }
+  };
+
+  const runSyncDiagnostics = async () => {
+    if (!selectedConnectionId) return;
+    setTestingSync(true);
+    setSyncResults(null);
+
+    try {
+      const response = await fetch('/api/gmail/test', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          connection_id: selectedConnectionId,
+          tests: ['watch_registration', 'history_sync', 'contact_matching'],
+          send_test_email: false,
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        toast.error(data.error || 'Failed to run sync diagnostics');
+        return;
+      }
+
+      const data = await response.json();
+      setSyncResults(data.results);
+
+      const allPassed = ['watch_registration', 'history_sync', 'contact_matching'].every(
+        (key) => data.results[key]?.status === 'pass'
+      );
+      if (allPassed) {
+        toast.success('All sync diagnostics passed');
+      } else {
+        toast.error('Some sync diagnostics failed');
+      }
+    } catch (error) {
+      console.error('Error running sync diagnostics:', error);
+      toast.error('Failed to run sync diagnostics');
+    } finally {
+      setTestingSync(false);
     }
   };
 
@@ -294,6 +343,52 @@ export function GmailApiTester() {
                 Token was automatically refreshed during testing.
               </div>
             )}
+
+            <Separator />
+
+            <div className="space-y-3">
+              <div>
+                <h4 className="text-sm font-medium">Inbound Email Sync</h4>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Test Pub/Sub watch, history API, and contact matching
+                </p>
+              </div>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={runSyncDiagnostics}
+                disabled={testingSync || !selectedConnectionId}
+              >
+                {testingSync ? (
+                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                ) : (
+                  <RefreshCw className="mr-2 h-4 w-4" />
+                )}
+                Test Inbound Sync
+              </Button>
+              {syncResults && (
+                <div className="space-y-2">
+                  <TestResultRow
+                    label="Watch Registration"
+                    description="Register Pub/Sub push notifications with Gmail"
+                    result={syncResults.watch_registration}
+                    running={testingSync}
+                  />
+                  <TestResultRow
+                    label="History API"
+                    description="Verify Gmail history and message listing works"
+                    result={syncResults.history_sync}
+                    running={testingSync}
+                  />
+                  <TestResultRow
+                    label="Contact Matching"
+                    description="Match recent inbox senders to CRM contacts"
+                    result={syncResults.contact_matching}
+                    running={testingSync}
+                  />
+                </div>
+              )}
+            </div>
 
             <Separator />
 
