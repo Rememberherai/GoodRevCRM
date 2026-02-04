@@ -1,6 +1,7 @@
 import { Suspense } from 'react';
 import { OpportunityDetailClient } from './opportunity-detail-client';
 import { Skeleton } from '@/components/ui/skeleton';
+import { createClient } from '@/lib/supabase/server';
 
 interface PageProps {
   params: Promise<{ slug: string; id: string }>;
@@ -8,10 +9,12 @@ interface PageProps {
 
 export default async function OpportunityDetailPage({ params }: PageProps) {
   const { id } = await params;
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
 
   return (
     <Suspense fallback={<OpportunityDetailSkeleton />}>
-      <OpportunityDetailClient opportunityId={id} />
+      <OpportunityDetailClient opportunityId={id} currentUserId={user?.id} />
     </Suspense>
   );
 }

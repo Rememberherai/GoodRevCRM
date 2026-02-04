@@ -7,9 +7,12 @@ import {
   ArrowLeft,
   Building2,
   Calendar,
+  Clock,
   DollarSign,
   FileText,
+  Info,
   Mail,
+  MessageSquare,
   Pencil,
   Percent,
   Target,
@@ -27,6 +30,7 @@ import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Separator } from '@/components/ui/separator';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
   AlertDialogAction,
@@ -41,9 +45,11 @@ import { OpportunityForm } from '@/components/opportunities/opportunity-form';
 import { EntityActivitySection } from '@/components/activity/entity-activity-section';
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 import { SendEmailModal } from '@/components/gmail';
+import { EntityCommentsFeed } from '@/components/comments';
 
 interface OpportunityDetailClientProps {
   opportunityId: string;
+  currentUserId?: string;
 }
 
 const STAGE_COLORS: Record<OpportunityStage, string> = {
@@ -65,10 +71,11 @@ const RFP_STATUS_COLORS: Record<RfpStatus, string> = {
   no_bid: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
 };
 
-export function OpportunityDetailClient({ opportunityId }: OpportunityDetailClientProps) {
+export function OpportunityDetailClient({ opportunityId, currentUserId }: OpportunityDetailClientProps) {
   const params = useParams();
   const router = useRouter();
   const slug = params.slug as string;
+  const [activeTab, setActiveTab] = useState('info');
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -191,6 +198,25 @@ export function OpportunityDetailClient({ opportunityId }: OpportunityDetailClie
         </div>
       </div>
 
+      {/* Tabs */}
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
+        <TabsList>
+          <TabsTrigger value="info" className="gap-2">
+            <Info className="h-4 w-4" />
+            Info
+          </TabsTrigger>
+          <TabsTrigger value="activity" className="gap-2">
+            <Clock className="h-4 w-4" />
+            Activity
+          </TabsTrigger>
+          <TabsTrigger value="comments" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Comments
+          </TabsTrigger>
+        </TabsList>
+
+        {/* Info Tab */}
+        <TabsContent value="info" className="space-y-6">
       <div className="grid gap-6 md:grid-cols-2 lg:grid-cols-3">
         <Card className="col-span-1">
           <CardHeader>
@@ -460,25 +486,37 @@ export function OpportunityDetailClient({ opportunityId }: OpportunityDetailClie
         </Card>
       )}
 
-      {/* Activity Section */}
-      <EntityActivitySection
-        projectSlug={slug}
-        entityType="opportunity"
-        entityId={opportunityId}
-        opportunityId={opportunityId}
-        personId={opportunity.primary_contact_id ?? undefined}
-        organizationId={opportunity.organization_id ?? undefined}
-      />
+        </TabsContent>
 
-      {/* Meetings Section */}
-      <EntityMeetingsSection
-        projectSlug={slug}
-        entityType="opportunity"
-        entityId={opportunityId}
-        opportunityId={opportunityId}
-        personId={opportunity.primary_contact_id ?? undefined}
-        organizationId={opportunity.organization_id ?? undefined}
-      />
+        {/* Activity Tab */}
+        <TabsContent value="activity" className="space-y-6">
+          <EntityActivitySection
+            projectSlug={slug}
+            entityType="opportunity"
+            entityId={opportunityId}
+            opportunityId={opportunityId}
+            personId={opportunity.primary_contact_id ?? undefined}
+            organizationId={opportunity.organization_id ?? undefined}
+          />
+          <EntityMeetingsSection
+            projectSlug={slug}
+            entityType="opportunity"
+            entityId={opportunityId}
+            opportunityId={opportunityId}
+            personId={opportunity.primary_contact_id ?? undefined}
+            organizationId={opportunity.organization_id ?? undefined}
+          />
+        </TabsContent>
+
+        {/* Comments Tab */}
+        <TabsContent value="comments" className="space-y-6">
+          <EntityCommentsFeed
+            entityType="opportunity"
+            entityId={opportunityId}
+            currentUserId={currentUserId ?? ''}
+          />
+        </TabsContent>
+      </Tabs>
 
       <SendEmailModal
         open={showSendEmail}

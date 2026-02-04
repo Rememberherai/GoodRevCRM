@@ -25,6 +25,7 @@ import {
   Clock,
   Loader2,
   RefreshCw,
+  MessageSquare,
 } from 'lucide-react';
 import { useOrganization } from '@/hooks/use-organizations';
 import { useOrganizationStore, deleteOrganization, updateOrganizationApi } from '@/stores/organization';
@@ -63,6 +64,7 @@ import { EntityActivitySection } from '@/components/activity/entity-activity-sec
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 import { EntityEmailTab } from '@/components/email/entity-email-tab';
 import { SendEmailModal } from '@/components/gmail';
+import { EntityCommentsFeed } from '@/components/comments';
 import { LogoUpload } from '@/components/ui/logo-upload';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
@@ -78,6 +80,7 @@ import { STATUS_LABELS } from '@/types/rfp';
 interface OrganizationDetailClientProps {
   organizationId: string;
   companyContext?: CompanyContext;
+  currentUserId?: string;
 }
 
 interface EditableFieldProps {
@@ -188,7 +191,7 @@ function EditableField({ label, value, fieldKey, type = 'text', onSave, prefix, 
   );
 }
 
-export function OrganizationDetailClient({ organizationId, companyContext }: OrganizationDetailClientProps) {
+export function OrganizationDetailClient({ organizationId, companyContext, currentUserId }: OrganizationDetailClientProps) {
   const params = useParams();
   const router = useRouter();
   const slug = params.slug as string;
@@ -515,6 +518,10 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
           <TabsTrigger value="research" className="gap-2">
             <Bot className="h-4 w-4" />
             AI Research
+          </TabsTrigger>
+          <TabsTrigger value="comments" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Comments
           </TabsTrigger>
         </TabsList>
 
@@ -1060,6 +1067,15 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
             entityId={organizationId}
             entityName={organization.name}
             onResearchComplete={handleResearchComplete}
+          />
+        </TabsContent>
+
+        {/* Comments Tab */}
+        <TabsContent value="comments" className="space-y-6">
+          <EntityCommentsFeed
+            entityType="organization"
+            entityId={organizationId}
+            currentUserId={currentUserId ?? ''}
           />
         </TabsContent>
       </Tabs>

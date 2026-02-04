@@ -24,9 +24,11 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
   const settings = project?.settings as { company_context?: CompanyContext } | null;
   const companyContext = settings?.company_context;
 
+  const { data: { user } } = await supabase.auth.getUser();
+
   return (
     <Suspense fallback={<PersonDetailSkeleton />}>
-      <PersonDetailClient personId={id} companyContext={companyContext} />
+      <PersonDetailClient personId={id} companyContext={companyContext} currentUserId={user?.id} />
     </Suspense>
   );
 }

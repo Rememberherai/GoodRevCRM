@@ -18,6 +18,7 @@ import {
   User,
   Send,
   Clock,
+  MessageSquare,
 } from 'lucide-react';
 import { EnrichButton } from '@/components/enrichment';
 import { EnrichmentReviewModal } from '@/components/enrichment/enrichment-review-modal';
@@ -48,15 +49,17 @@ import { EntityActivitySection } from '@/components/activity/entity-activity-sec
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 import { EntityEmailTab } from '@/components/email/entity-email-tab';
 import { SendEmailModal } from '@/components/gmail';
+import { EntityCommentsFeed } from '@/components/comments';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ActivityWithUser } from '@/types/activity';
 
 interface PersonDetailClientProps {
   personId: string;
   companyContext?: CompanyContext;
+  currentUserId?: string;
 }
 
-export function PersonDetailClient({ personId, companyContext }: PersonDetailClientProps) {
+export function PersonDetailClient({ personId, companyContext, currentUserId }: PersonDetailClientProps) {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -327,6 +330,10 @@ export function PersonDetailClient({ personId, companyContext }: PersonDetailCli
             <Clock className="h-4 w-4" />
             Activity
           </TabsTrigger>
+          <TabsTrigger value="comments" className="gap-2">
+            <MessageSquare className="h-4 w-4" />
+            Comments
+          </TabsTrigger>
         </TabsList>
 
         {/* Info Tab */}
@@ -494,6 +501,15 @@ export function PersonDetailClient({ personId, companyContext }: PersonDetailCli
             activities={activities}
             loading={activitiesLoading}
             emptyMessage="No activity recorded for this person yet"
+          />
+        </TabsContent>
+
+        {/* Comments Tab */}
+        <TabsContent value="comments" className="space-y-6">
+          <EntityCommentsFeed
+            entityType="person"
+            entityId={personId}
+            currentUserId={currentUserId ?? ''}
           />
         </TabsContent>
       </Tabs>

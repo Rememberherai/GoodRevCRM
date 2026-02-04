@@ -24,9 +24,11 @@ export default async function OrganizationDetailPage({ params }: OrganizationDet
   const settings = project?.settings as { company_context?: CompanyContext } | null;
   const companyContext = settings?.company_context;
 
+  const { data: { user } } = await supabase.auth.getUser();
+
   return (
     <Suspense fallback={<OrganizationDetailSkeleton />}>
-      <OrganizationDetailClient organizationId={id} companyContext={companyContext} />
+      <OrganizationDetailClient organizationId={id} companyContext={companyContext} currentUserId={user?.id} />
     </Suspense>
   );
 }
