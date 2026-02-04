@@ -1,0 +1,5 @@
+[2026-02-04 07:45:54] Max iterations: 40
+[2026-02-04 07:45:54] Min clean passes: 2
+[2026-02-04 07:45:54] Dry run: true
+[2026-02-04 07:45:54] Stream mode: false
+[2026-02-04 07:45:54] Log file: .ralph/tasks/bug-fix/ralph.log
