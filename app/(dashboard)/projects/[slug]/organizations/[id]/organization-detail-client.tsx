@@ -633,14 +633,34 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
                 <CardTitle>Custom Fields</CardTitle>
                 <CardDescription>Custom data fields for this organization</CardDescription>
               </div>
-              <Button
-                variant="outline"
-                size="sm"
-                onClick={() => setShowAddFieldDialog(true)}
-              >
-                <Plus className="mr-2 h-4 w-4" />
-                Add Field
-              </Button>
+              <div className="flex items-center gap-2">
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setActiveTab('research')}
+                >
+                  <Bot className="mr-2 h-4 w-4" />
+                  AI Research
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  asChild
+                >
+                  <Link href={`/projects/${slug}/settings`}>
+                    <Settings className="mr-2 h-4 w-4" />
+                    Settings
+                  </Link>
+                </Button>
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAddFieldDialog(true)}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add Field
+                </Button>
+              </div>
             </CardHeader>
             <CardContent>
               {customFields.length === 0 ? (
