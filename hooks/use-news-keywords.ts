@@ -16,7 +16,7 @@ interface UseNewsKeywordsReturn {
   removeKeyword: (id: string) => Promise<void>;
   toggleKeyword: (id: string, isActive: boolean) => Promise<void>;
   refresh: () => Promise<void>;
-  fetchNews: () => Promise<{ fetched: number; tokensRemaining: number } | null>;
+  fetchNews: () => Promise<{ fetched: number; tokensRemaining: number; errors?: string[] } | null>;
   isFetching: boolean;
 }
 
@@ -129,7 +129,10 @@ export function useNewsKeywords(options: UseNewsKeywordsOptions): UseNewsKeyword
       if (tokenResponse.ok) {
         setTokenUsage(await tokenResponse.json());
       }
-      return { fetched: data.fetched, tokensRemaining: data.tokensRemaining };
+      if (data.errors?.length) {
+        setError(data.errors.join('; '));
+      }
+      return { fetched: data.fetched, tokensRemaining: data.tokensRemaining, errors: data.errors };
     } catch (e) {
       setError(e instanceof Error ? e.message : 'Unknown error');
       return null;

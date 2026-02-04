@@ -9,7 +9,7 @@ export const newsApiSourceSchema = z.object({
 });
 
 export const newsApiArticleSchema = z.object({
-  uri: z.string(),
+  uri: z.string().optional(),
   lang: z.string().optional(),
   isDuplicate: z.boolean().optional(),
   date: z.string().optional(),
@@ -18,8 +18,8 @@ export const newsApiArticleSchema = z.object({
   dateTimePub: z.string().optional(),
   dataType: z.string().optional(),
   sim: z.number().optional(),
-  url: z.string(),
-  title: z.string(),
+  url: z.string().optional(),
+  title: z.string().optional(),
   body: z.string().optional(),
   source: newsApiSourceSchema.optional(),
   authors: z.array(z.object({
@@ -33,17 +33,17 @@ export const newsApiArticleSchema = z.object({
   sentiment: z.number().nullable().optional(),
   wgt: z.number().optional(),
   relevance: z.number().optional(),
-});
+}).passthrough();
 
 export const newsApiResponseSchema = z.object({
   articles: z.object({
     results: z.array(newsApiArticleSchema),
-    totalResults: z.number(),
-    page: z.number(),
-    count: z.number(),
-    pages: z.number(),
-  }),
-});
+    totalResults: z.number().optional(),
+    page: z.number().optional(),
+    count: z.number().optional(),
+    pages: z.number().optional(),
+  }).passthrough(),
+}).passthrough();
 
 export type NewsApiSource = z.infer<typeof newsApiSourceSchema>;
 export type NewsApiArticle = z.infer<typeof newsApiArticleSchema>;

@@ -30,6 +30,7 @@ export function KeywordManager({ projectSlug, onFetchComplete }: KeywordManagerP
 
   const [newKeyword, setNewKeyword] = useState('');
   const [isExpanded, setIsExpanded] = useState(true);
+  const [fetchResult, setFetchResult] = useState<string | null>(null);
 
   const manualKeywords = keywords.filter(k => k.source === 'manual');
   const orgKeywords = keywords.filter(k => k.source === 'organization');
@@ -44,9 +45,17 @@ export function KeywordManager({ projectSlug, onFetchComplete }: KeywordManagerP
   };
 
   const handleFetch = async () => {
+    setFetchResult(null);
     const result = await fetchNews();
-    if (result && onFetchComplete) {
-      onFetchComplete();
+    if (result) {
+      if (result.fetched > 0) {
+        setFetchResult(`Found ${result.fetched} article${result.fetched === 1 ? '' : 's'}`);
+      } else if (result.errors?.length) {
+        setFetchResult(`No articles found. Errors: ${result.errors.join('; ')}`);
+      } else {
+        setFetchResult('No new articles found for your keywords');
+      }
+      onFetchComplete?.();
     }
   };
 
@@ -88,6 +97,10 @@ export function KeywordManager({ projectSlug, onFetchComplete }: KeywordManagerP
         <CardContent className="pt-0 space-y-4">
           {error && (
             <p className="text-sm text-destructive">{error}</p>
+          )}
+
+          {fetchResult && !error && (
+            <p className="text-sm text-muted-foreground bg-muted/50 rounded-md px-3 py-2">{fetchResult}</p>
           )}
 
           {/* Add keyword input */}

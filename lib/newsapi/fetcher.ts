@@ -90,6 +90,7 @@ export async function fetchNewsForProject(projectId: string): Promise<FetchResul
   }
 
   const keywords = keywordRows.map((k: any) => k.keyword);
+  console.log('[News] Active keywords for project', projectId, ':', keywords);
 
   // Calculate date range (last 7 days)
   const dateEnd = new Date().toISOString().split('T')[0];
@@ -114,6 +115,7 @@ export async function fetchNewsForProject(projectId: string): Promise<FetchResul
       count: 100,
     });
 
+    console.log('[News] API returned', response.articles.results.length, 'articles for project', projectId);
     result.tokensUsed = 1; // Each search costs 1 token
 
     // Log the fetch
