@@ -26,3 +26,11 @@ This requires the `pg` npm package (`npm install --no-save pg`). Run the dealloc
 
 - The `updated_at` trigger function is called `handle_updated_at()` (defined in `0001_users.sql`). Use this name in all new migrations.
 - Use `IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` in migrations to make them idempotent where possible.
+
+## Automation considerations
+
+When building new features, always consider adding automation support:
+- **Triggers**: Emit automation events via `emitAutomationEvent()` in API routes after entity mutations (create, update, delete). The call is non-blocking (fire-and-forget with error logging).
+- **Actions**: If the feature creates a new action type, add a handler to `lib/automations/actions.ts` and register the type in `types/automation.ts`.
+- **Time-based triggers**: If the feature introduces a new time-based condition (e.g. "X days since last Y"), add it to `lib/automations/time-triggers.ts`.
+- **See**: `lib/automations/engine.ts` for the automation system architecture.

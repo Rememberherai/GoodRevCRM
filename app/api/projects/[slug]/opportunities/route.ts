@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { createOpportunitySchema } from '@/lib/validators/opportunity';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 import type { Database } from '@/types/database';
 
 type OpportunityInsert = Database['public']['Tables']['opportunities']['Insert'];
@@ -158,6 +159,15 @@ export async function POST(request: Request, context: RouteContext) {
       console.error('Error creating opportunity:', error);
       return NextResponse.json({ error: 'Failed to create opportunity' }, { status: 500 });
     }
+
+    // Emit automation event
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.created',
+      entityType: 'opportunity',
+      entityId: (opportunity as Opportunity).id,
+      data: opportunity as Record<string, unknown>,
+    });
 
     return NextResponse.json({ opportunity: opportunity as Opportunity }, { status: 201 });
   } catch (error) {

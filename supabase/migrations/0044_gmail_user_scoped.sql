@@ -20,8 +20,15 @@ ALTER TABLE gmail_connections
 UPDATE gmail_connections SET project_id = NULL;
 
 -- 5. Add new unique constraint: one connection per user per email
-ALTER TABLE gmail_connections
-  ADD CONSTRAINT gmail_connections_user_id_email_key UNIQUE(user_id, email);
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint WHERE conname = 'gmail_connections_user_id_email_key'
+  ) THEN
+    ALTER TABLE gmail_connections
+      ADD CONSTRAINT gmail_connections_user_id_email_key UNIQUE(user_id, email);
+  END IF;
+END $$;
 
 -- 6. Make sent_emails.project_id nullable
 ALTER TABLE sent_emails

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { updateOrganizationSchema } from '@/lib/validators/organization';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 import type { Database } from '@/types/database';
 
 type OrganizationUpdate = Database['public']['Tables']['organizations']['Update'];
@@ -151,6 +152,30 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to update organization' }, { status: 500 });
     }
 
+    // Emit automation events
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.updated',
+      entityType: 'organization',
+      entityId: id,
+      data: organization as Record<string, unknown>,
+      previousData: updates as Record<string, unknown>,
+    });
+
+    // Emit field.changed for each updated field
+    for (const [key, value] of Object.entries(updates)) {
+      if (value !== undefined) {
+        emitAutomationEvent({
+          projectId: project.id,
+          triggerType: 'field.changed',
+          entityType: 'organization',
+          entityId: id,
+          data: organization as Record<string, unknown>,
+          previousData: { [key]: undefined },
+        });
+      }
+    }
+
     return NextResponse.json({ organization: organization as Organization });
   } catch (error) {
     console.error('Error in PATCH /api/projects/[slug]/organizations/[id]:', error);
@@ -196,6 +221,15 @@ export async function DELETE(_request: Request, context: RouteContext) {
       console.error('Error deleting organization:', error);
       return NextResponse.json({ error: 'Failed to delete organization' }, { status: 500 });
     }
+
+    // Emit automation event
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.deleted',
+      entityType: 'organization',
+      entityId: id,
+      data: { id, project_id: project.id },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

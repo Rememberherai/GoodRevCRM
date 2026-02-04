@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { createRfpSchema } from '@/lib/validators/rfp';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 import type { Database } from '@/types/database';
 
 type RfpInsert = Database['public']['Tables']['rfps']['Insert'];
@@ -197,6 +198,15 @@ export async function POST(request: Request, context: RouteContext) {
       console.error('Error creating RFP:', error);
       return NextResponse.json({ error: 'Failed to create RFP' }, { status: 500 });
     }
+
+    // Emit automation event
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.created',
+      entityType: 'rfp',
+      entityId: (rfp as Rfp).id,
+      data: rfp as Record<string, unknown>,
+    });
 
     return NextResponse.json({ rfp: rfp as Rfp }, { status: 201 });
   } catch (error) {

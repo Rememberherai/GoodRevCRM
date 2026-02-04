@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { updateOpportunitySchema } from '@/lib/validators/opportunity';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 import type { Database } from '@/types/database';
 
 type OpportunityUpdate = Database['public']['Tables']['opportunities']['Update'];
@@ -128,6 +129,19 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const updates = validationResult.data;
 
+    // Fetch previous state for automation stage change detection
+    let previousStage: string | null = null;
+    if (updates.stage !== undefined) {
+      const { data: prev } = await supabase
+        .from('opportunities')
+        .select('stage')
+        .eq('id', id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      previousStage = prev?.stage ?? null;
+    }
+
     // Build the update object
     const updateData: OpportunityUpdate = {};
     if (updates.name !== undefined) updateData.name = updates.name;
@@ -165,6 +179,28 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
       console.error('Error updating opportunity:', error);
       return NextResponse.json({ error: 'Failed to update opportunity' }, { status: 500 });
+    }
+
+    // Emit automation events
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.updated',
+      entityType: 'opportunity',
+      entityId: id,
+      data: opportunity as Record<string, unknown>,
+      previousData: { stage: previousStage },
+    });
+
+    // Emit stage change event if stage actually changed
+    if (updates.stage && previousStage && updates.stage !== previousStage) {
+      emitAutomationEvent({
+        projectId: project.id,
+        triggerType: 'opportunity.stage_changed',
+        entityType: 'opportunity',
+        entityId: id,
+        data: opportunity as Record<string, unknown>,
+        previousData: { stage: previousStage },
+      });
     }
 
     return NextResponse.json({ opportunity: opportunity as Opportunity });
@@ -212,6 +248,15 @@ export async function DELETE(_request: Request, context: RouteContext) {
       console.error('Error deleting opportunity:', error);
       return NextResponse.json({ error: 'Failed to delete opportunity' }, { status: 500 });
     }
+
+    // Emit automation event
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.deleted',
+      entityType: 'opportunity',
+      entityId: id,
+      data: { id, project_id: project.id },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { updateRfpSchema } from '@/lib/validators/rfp';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 import type { Database } from '@/types/database';
 
 type RfpUpdate = Database['public']['Tables']['rfps']['Update'];
@@ -120,6 +121,19 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const updates = validationResult.data;
 
+    // Fetch previous state for automation status change detection
+    let previousStatus: string | null = null;
+    if (updates.status !== undefined) {
+      const { data: prev } = await supabase
+        .from('rfps')
+        .select('status')
+        .eq('id', id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      previousStatus = prev?.status ?? null;
+    }
+
     // Build the update object
     const updateData: RfpUpdate = {};
     if (updates.title !== undefined) updateData.title = updates.title;
@@ -170,6 +184,28 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to update RFP' }, { status: 500 });
     }
 
+    // Emit automation events
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.updated',
+      entityType: 'rfp',
+      entityId: id,
+      data: rfp as Record<string, unknown>,
+      previousData: { status: previousStatus },
+    });
+
+    // Emit status change event if status actually changed
+    if (updates.status && previousStatus && updates.status !== previousStatus) {
+      emitAutomationEvent({
+        projectId: project.id,
+        triggerType: 'rfp.status_changed',
+        entityType: 'rfp',
+        entityId: id,
+        data: rfp as Record<string, unknown>,
+        previousData: { status: previousStatus },
+      });
+    }
+
     return NextResponse.json({ rfp: rfp as Rfp });
   } catch (error) {
     console.error('Error in PATCH /api/projects/[slug]/rfps/[id]:', error);
@@ -215,6 +251,15 @@ export async function DELETE(_request: Request, context: RouteContext) {
       console.error('Error deleting RFP:', error);
       return NextResponse.json({ error: 'Failed to delete RFP' }, { status: 500 });
     }
+
+    // Emit automation event
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.deleted',
+      entityType: 'rfp',
+      entityId: id,
+      data: { id, project_id: project.id },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {

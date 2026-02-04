@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { updateTaskSchema } from '@/lib/validators/task';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
@@ -113,6 +114,25 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (error || !task) {
       return NextResponse.json({ error: 'Task not found' }, { status: 404 });
     }
+
+    // Emit automation events
+    if (validationResult.data.status === 'completed') {
+      emitAutomationEvent({
+        projectId: project.id,
+        triggerType: 'task.completed',
+        entityType: 'task',
+        entityId: id,
+        data: task as Record<string, unknown>,
+      });
+    }
+
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.updated',
+      entityType: 'task',
+      entityId: id,
+      data: task as Record<string, unknown>,
+    });
 
     return NextResponse.json(task);
   } catch (error) {

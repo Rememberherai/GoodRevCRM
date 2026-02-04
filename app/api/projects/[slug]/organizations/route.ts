@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { createOrganizationSchema } from '@/lib/validators/organization';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 import type { Database } from '@/types/database';
 
 type OrganizationInsert = Database['public']['Tables']['organizations']['Insert'];
@@ -140,6 +141,15 @@ export async function POST(request: Request, context: RouteContext) {
       console.error('Error creating organization:', error);
       return NextResponse.json({ error: 'Failed to create organization' }, { status: 500 });
     }
+
+    // Emit automation event
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.created',
+      entityType: 'organization',
+      entityId: (organization as Organization).id,
+      data: organization as Record<string, unknown>,
+    });
 
     return NextResponse.json({ organization: organization as Organization }, { status: 201 });
   } catch (error) {

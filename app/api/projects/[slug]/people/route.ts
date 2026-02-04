@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { createPersonSchema } from '@/lib/validators/person';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 import type { Database } from '@/types/database';
 
 type PersonInsert = Database['public']['Tables']['people']['Insert'];
@@ -182,6 +183,15 @@ export async function POST(request: Request, context: RouteContext) {
         // Don't fail the request, person was created successfully
       }
     }
+
+    // Emit automation event
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.created',
+      entityType: 'person',
+      entityId: (person as Person).id,
+      data: person as Record<string, unknown>,
+    });
 
     return NextResponse.json({ person: person as Person }, { status: 201 });
   } catch (error) {

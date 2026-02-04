@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 // 1x1 transparent GIF
 const TRACKING_PIXEL = Buffer.from(
@@ -54,7 +55,7 @@ export async function GET(request: Request) {
     // Find sent email by tracking ID
     const { data: sentEmail } = await supabase
       .from('sent_emails')
-      .select('id')
+      .select('id, project_id, person_id')
       .eq('tracking_id', trackingId)
       .single();
 
@@ -70,6 +71,17 @@ export async function GET(request: Request) {
           user_agent: userAgent,
           metadata: {},
         });
+
+      // Emit automation event
+      if (sentEmail.project_id && sentEmail.person_id) {
+        emitAutomationEvent({
+          projectId: sentEmail.project_id,
+          triggerType: 'email.opened',
+          entityType: 'person',
+          entityId: sentEmail.person_id,
+          data: { sent_email_id: sentEmail.id, person_id: sentEmail.person_id },
+        });
+      }
     }
   } catch (error) {
     // Don't fail the request on tracking errors

@@ -2,9 +2,10 @@
 
 import { useState, use } from 'react';
 import { useRouter } from 'next/navigation';
+import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2 } from 'lucide-react';
+import { Loader2, Trash2, Zap } from 'lucide-react';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -208,6 +209,25 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
       </Card>
 
       <ResearchSettingsPanel slug={slug} />
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Zap className="h-5 w-5" />
+                Automation
+              </CardTitle>
+              <CardDescription>
+                Create rules to automate workflows: when something happens, take action automatically.
+              </CardDescription>
+            </div>
+            <Link href={`/projects/${slug}/settings/automation`}>
+              <Button variant="outline">Manage Automations</Button>
+            </Link>
+          </div>
+        </CardHeader>
+      </Card>
 
       <Card className="border-destructive">
         <CardHeader>

@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { updatePersonSchema } from '@/lib/validators/person';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 import type { Database } from '@/types/database';
 
 type PersonUpdate = Database['public']['Tables']['people']['Update'];
@@ -178,6 +179,15 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to update person' }, { status: 500 });
     }
 
+    // Emit automation event
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.updated',
+      entityType: 'person',
+      entityId: id,
+      data: person as Record<string, unknown>,
+    });
+
     return NextResponse.json({ person: person as Person });
   } catch (error) {
     console.error('Error in PATCH /api/projects/[slug]/people/[id]:', error);
@@ -223,6 +233,15 @@ export async function DELETE(_request: Request, context: RouteContext) {
       console.error('Error deleting person:', error);
       return NextResponse.json({ error: 'Failed to delete person' }, { status: 500 });
     }
+
+    // Emit automation event
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.deleted',
+      entityType: 'person',
+      entityId: id,
+      data: { id, project_id: project.id },
+    });
 
     return NextResponse.json({ success: true });
   } catch (error) {
