@@ -194,7 +194,12 @@ export function ReportsPageClient({ projectSlug, currentUserId }: ReportsPageCli
             <RevenueReportView data={data} />
           )}
           {activeTab === 'activity' && (
-            <ActivityReportView data={data} />
+            <ActivityReportView
+              data={data}
+              projectSlug={projectSlug}
+              dateRange={dateRange}
+              userId={userId}
+            />
           )}
           {activeTab === 'conversion' && (
             <ConversionReportView data={data} />

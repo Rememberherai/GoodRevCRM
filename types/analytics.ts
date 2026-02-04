@@ -107,6 +107,28 @@ export interface AnalyticsData {
   teamMembers: TeamMember[];
 }
 
+// Activity conversion funnel metrics
+export interface ActivityConversionMetrics {
+  calls_made: number;
+  call_no_answer: number;
+  call_left_message: number;
+  call_connects: number;
+  call_meetings_booked: number;
+  emails_sent: number;
+  emails_opened: number;
+  emails_clicked: number;
+  emails_replied: number;
+  meetings_booked: number;
+  meetings_attended: number;
+  meetings_no_show: number;
+  meetings_cancelled: number;
+  meetings_positive_outcome: number;
+  meetings_deal_advanced: number;
+  proposals_sent: number;
+  opportunities_created: number;
+  not_interested: number;
+}
+
 // AI usage log entry (matches ai_usage_log table)
 export interface AiUsageLogEntry {
   id: string;
