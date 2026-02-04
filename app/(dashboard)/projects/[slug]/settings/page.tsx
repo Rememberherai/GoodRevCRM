@@ -1,11 +1,11 @@
 'use client';
 
-import { useState, use } from 'react';
+import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus } from 'lucide-react';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -36,18 +36,120 @@ import { LogoUpload } from '@/components/ui/logo-upload';
 import { Label } from '@/components/ui/label';
 import { useProjectStore } from '@/stores/project';
 import { ResearchSettingsPanel } from '@/components/settings/research-settings';
+import { MemberList } from '@/components/team/member-list';
+import { InviteMemberDialog } from '@/components/team/invite-member-dialog';
+import { useAuth } from '@/hooks/use-auth';
+import type { ProjectRole } from '@/types/user';
 
 
 interface ProjectSettingsPageProps {
   params: Promise<{ slug: string }>;
 }
 
+interface MemberWithUser {
+  id: string;
+  user_id: string;
+  role: ProjectRole;
+  created_at: string;
+  user: {
+    id: string;
+    full_name: string | null;
+    email: string;
+    avatar_url: string | null;
+  };
+  last_active_at?: string | null;
+}
+
 export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps) {
   const { slug } = use(params);
   const [isLoading, setIsLoading] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
+  const [members, setMembers] = useState<MemberWithUser[]>([]);
+  const [membersLoading, setMembersLoading] = useState(true);
+  const [currentUserRole, setCurrentUserRole] = useState<ProjectRole>('member');
+  const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const router = useRouter();
   const { currentProject, updateProject, removeProject } = useProjectStore();
+  const { user } = useAuth();
+  const currentUserId = user?.id ?? '';
+
+  const fetchMembers = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${slug}/members?limit=100`);
+      if (!res.ok) return;
+      const data = await res.json();
+      // Map joined_at from API to created_at expected by MemberList
+      const mapped = (data.members ?? []).map((m: any) => ({
+        ...m,
+        created_at: m.joined_at ?? m.created_at,
+      }));
+      setMembers(mapped);
+    } catch {
+      // silently fail
+    } finally {
+      setMembersLoading(false);
+    }
+  }, [slug]);
+
+  useEffect(() => {
+    fetchMembers();
+  }, [fetchMembers]);
+
+  // Derive current user's role from members list
+  useEffect(() => {
+    if (currentUserId && members.length > 0) {
+      const me = members.find((m) => m.user_id === currentUserId);
+      if (me) setCurrentUserRole(me.role);
+    }
+  }, [currentUserId, members]);
+
+  const handleUpdateRole = async (userId: string, role: ProjectRole) => {
+    try {
+      const res = await fetch(`/api/projects/${slug}/members/${userId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ role }),
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to update role');
+      }
+      toast.success('Role updated');
+      fetchMembers();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update role');
+    }
+  };
+
+  const handleRemoveMember = async (userId: string) => {
+    try {
+      const res = await fetch(`/api/projects/${slug}/members/${userId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed to remove member');
+      }
+      toast.success('Member removed');
+      fetchMembers();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to remove member');
+    }
+  };
+
+  const handleInvite = async (data: { email: string; role?: 'admin' | 'member' | 'viewer' }) => {
+    const res = await fetch(`/api/projects/${slug}/members`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(data),
+    });
+    if (!res.ok) {
+      const err = await res.json();
+      throw new Error(err.error || 'Failed to send invitation');
+    }
+    toast.success('Invitation sent');
+    fetchMembers();
+  };
 
   const form = useForm<UpdateProjectInput>({
     resolver: zodResolver(updateProjectSchema),
@@ -209,6 +311,44 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
       </Card>
 
       <ResearchSettingsPanel slug={slug} />
+
+      <Card>
+        <CardHeader>
+          <div className="flex items-center justify-between">
+            <div>
+              <CardTitle className="flex items-center gap-2">
+                <Users className="h-5 w-5" />
+                Members
+              </CardTitle>
+              <CardDescription>
+                Manage who has access to this project
+              </CardDescription>
+            </div>
+            {['owner', 'admin'].includes(currentUserRole) && (
+              <Button onClick={() => setInviteDialogOpen(true)}>
+                <UserPlus className="h-4 w-4 mr-2" />
+                Invite Member
+              </Button>
+            )}
+          </div>
+        </CardHeader>
+        <CardContent>
+          <MemberList
+            members={members}
+            currentUserId={currentUserId}
+            currentUserRole={currentUserRole}
+            onUpdateRole={handleUpdateRole}
+            onRemove={handleRemoveMember}
+            loading={membersLoading}
+          />
+        </CardContent>
+      </Card>
+
+      <InviteMemberDialog
+        open={inviteDialogOpen}
+        onOpenChange={setInviteDialogOpen}
+        onInvite={handleInvite}
+      />
 
       <Card>
         <CardHeader>

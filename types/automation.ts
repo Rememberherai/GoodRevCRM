@@ -26,7 +26,9 @@ export type TriggerType =
   | 'time.entity_inactive'
   | 'time.task_overdue'
   | 'time.close_date_approaching'
-  | 'time.created_ago';
+  | 'time.created_ago'
+  // News events
+  | 'news.article_found';
 
 export type ActionType =
   | 'create_task'
@@ -201,6 +203,12 @@ export const triggerTypeGroups = {
       { type: 'time.task_overdue' as TriggerType, label: 'Task Overdue', description: 'When a task is past its due date' },
       { type: 'time.close_date_approaching' as TriggerType, label: 'Close Date Approaching', description: 'When opportunity close date is within X days' },
       { type: 'time.created_ago' as TriggerType, label: 'Created X Days Ago', description: 'When a record was created X days ago' },
+    ],
+  },
+  news: {
+    label: 'News Events',
+    triggers: [
+      { type: 'news.article_found' as TriggerType, label: 'Relevant News Found', description: 'When a news article matching tracked keywords is found' },
     ],
   },
 };

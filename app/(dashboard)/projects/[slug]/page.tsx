@@ -4,6 +4,7 @@ import { Building2, Users, Target, FileText } from 'lucide-react';
 import { CompanyContextCard } from '@/components/projects/company-context-card';
 import { DashboardActivityCenter } from '@/components/dashboard/activity-center';
 import { AnalyticsDashboard } from '@/components/dashboard/analytics-dashboard';
+import { NewsHeadlines } from '@/components/dashboard/news-headlines';
 import type { CompanyContext } from '@/lib/validators/project';
 
 interface ProjectDashboardProps {
@@ -111,6 +112,8 @@ export default async function ProjectDashboard({ params }: ProjectDashboardProps
         projectSlug={slug}
         initialContext={companyContext}
       />
+
+      <NewsHeadlines projectSlug={slug} />
 
       <DashboardActivityCenter projectSlug={slug} />
 
