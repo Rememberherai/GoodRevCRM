@@ -5,7 +5,8 @@ import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap, Users, UserPlus } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search } from 'lucide-react';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -216,197 +217,223 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
   };
 
   return (
-    <div className="space-y-6 max-w-4xl">
-      <div>
+    <div className="max-w-4xl">
+      <div className="mb-6">
         <h2 className="text-2xl font-bold">Settings</h2>
         <p className="text-muted-foreground">
           Manage your project settings
         </p>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>General</CardTitle>
-          <CardDescription>
-            Update your project&apos;s basic information
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <div className="mb-6">
-            <Label className="mb-2 block">Project Logo</Label>
-            <div className="flex items-center gap-3">
-              <LogoUpload
-                currentUrl={currentProject?.logo_url}
-                fallbackInitials={(currentProject?.name ?? slug).slice(0, 2).toUpperCase()}
-                entityType="project"
-                onUploaded={(url) => {
-                  if (currentProject) {
-                    updateProject(slug, { ...currentProject, logo_url: url });
-                  }
-                }}
-                size="lg"
-              />
-              <p className="text-sm text-muted-foreground">Click to upload a logo for this project</p>
-            </div>
-          </div>
+      <Tabs defaultValue="general">
+        <TabsList>
+          <TabsTrigger value="general" className="gap-2">
+            <Settings className="h-4 w-4" />
+            General
+          </TabsTrigger>
+          <TabsTrigger value="members" className="gap-2">
+            <Users className="h-4 w-4" />
+            Members
+          </TabsTrigger>
+          <TabsTrigger value="research" className="gap-2">
+            <Search className="h-4 w-4" />
+            Research
+          </TabsTrigger>
+          <TabsTrigger value="automation" className="gap-2">
+            <Zap className="h-4 w-4" />
+            Automation
+          </TabsTrigger>
+        </TabsList>
 
-          <Form {...form}>
-            <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-              <FormField
-                control={form.control}
-                name="name"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Name</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="slug"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Slug</FormLabel>
-                    <FormControl>
-                      <Input {...field} />
-                    </FormControl>
-                    <FormDescription>
-                      URL-friendly identifier. Changing this will change your project URL.
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
-                name="description"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Description</FormLabel>
-                    <FormControl>
-                      <Textarea
-                        {...field}
-                        value={field.value ?? ''}
-                        className="resize-none"
-                      />
-                    </FormControl>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Save Changes
-              </Button>
-            </form>
-          </Form>
-        </CardContent>
-      </Card>
-
-      <ResearchSettingsPanel slug={slug} />
-
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Users className="h-5 w-5" />
-                Members
-              </CardTitle>
+        <TabsContent value="general" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <CardTitle>General</CardTitle>
               <CardDescription>
-                Manage who has access to this project
+                Update your project&apos;s basic information
               </CardDescription>
-            </div>
-            {['owner', 'admin'].includes(currentUserRole) && (
-              <Button onClick={() => setInviteDialogOpen(true)}>
-                <UserPlus className="h-4 w-4 mr-2" />
-                Invite Member
-              </Button>
-            )}
-          </div>
-        </CardHeader>
-        <CardContent>
-          <MemberList
-            members={members}
-            currentUserId={currentUserId}
-            currentUserRole={currentUserRole}
-            onUpdateRole={handleUpdateRole}
-            onRemove={handleRemoveMember}
-            loading={membersLoading}
+            </CardHeader>
+            <CardContent>
+              <div className="mb-6">
+                <Label className="mb-2 block">Project Logo</Label>
+                <div className="flex items-center gap-3">
+                  <LogoUpload
+                    currentUrl={currentProject?.logo_url}
+                    fallbackInitials={(currentProject?.name ?? slug).slice(0, 2).toUpperCase()}
+                    entityType="project"
+                    onUploaded={(url) => {
+                      if (currentProject) {
+                        updateProject(slug, { ...currentProject, logo_url: url });
+                      }
+                    }}
+                    size="lg"
+                  />
+                  <p className="text-sm text-muted-foreground">Click to upload a logo for this project</p>
+                </div>
+              </div>
+
+              <Form {...form}>
+                <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
+                  <FormField
+                    control={form.control}
+                    name="name"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Name</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="slug"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Slug</FormLabel>
+                        <FormControl>
+                          <Input {...field} />
+                        </FormControl>
+                        <FormDescription>
+                          URL-friendly identifier. Changing this will change your project URL.
+                        </FormDescription>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <FormField
+                    control={form.control}
+                    name="description"
+                    render={({ field }) => (
+                      <FormItem>
+                        <FormLabel>Description</FormLabel>
+                        <FormControl>
+                          <Textarea
+                            {...field}
+                            value={field.value ?? ''}
+                            className="resize-none"
+                          />
+                        </FormControl>
+                        <FormMessage />
+                      </FormItem>
+                    )}
+                  />
+
+                  <Button type="submit" disabled={isLoading}>
+                    {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                    Save Changes
+                  </Button>
+                </form>
+              </Form>
+            </CardContent>
+          </Card>
+
+          <Card className="border-destructive">
+            <CardHeader>
+              <CardTitle className="text-destructive">Danger Zone</CardTitle>
+              <CardDescription>
+                Irreversible actions for your project
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <AlertDialog>
+                <AlertDialogTrigger asChild>
+                  <Button variant="destructive" disabled={isDeleting}>
+                    {isDeleting ? (
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                    ) : (
+                      <Trash2 className="mr-2 h-4 w-4" />
+                    )}
+                    Delete Project
+                  </Button>
+                </AlertDialogTrigger>
+                <AlertDialogContent>
+                  <AlertDialogHeader>
+                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                    <AlertDialogDescription>
+                      This action cannot be undone. This will permanently delete your
+                      project and all associated data including organizations, people,
+                      opportunities, and RFPs.
+                    </AlertDialogDescription>
+                  </AlertDialogHeader>
+                  <AlertDialogFooter>
+                    <AlertDialogCancel>Cancel</AlertDialogCancel>
+                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-white hover:bg-destructive/90">
+                      Delete Project
+                    </AlertDialogAction>
+                  </AlertDialogFooter>
+                </AlertDialogContent>
+              </AlertDialog>
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="members" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle>Members</CardTitle>
+                  <CardDescription>
+                    Manage who has access to this project
+                  </CardDescription>
+                </div>
+                {['owner', 'admin'].includes(currentUserRole) && (
+                  <Button onClick={() => setInviteDialogOpen(true)}>
+                    <UserPlus className="h-4 w-4 mr-2" />
+                    Invite Member
+                  </Button>
+                )}
+              </div>
+            </CardHeader>
+            <CardContent>
+              <MemberList
+                members={members}
+                currentUserId={currentUserId}
+                currentUserRole={currentUserRole}
+                onUpdateRole={handleUpdateRole}
+                onRemove={handleRemoveMember}
+                loading={membersLoading}
+              />
+            </CardContent>
+          </Card>
+
+          <InviteMemberDialog
+            open={inviteDialogOpen}
+            onOpenChange={setInviteDialogOpen}
+            onInvite={handleInvite}
           />
-        </CardContent>
-      </Card>
+        </TabsContent>
 
-      <InviteMemberDialog
-        open={inviteDialogOpen}
-        onOpenChange={setInviteDialogOpen}
-        onInvite={handleInvite}
-      />
+        <TabsContent value="research" className="space-y-6 mt-6">
+          <ResearchSettingsPanel slug={slug} />
+        </TabsContent>
 
-      <Card>
-        <CardHeader>
-          <div className="flex items-center justify-between">
-            <div>
-              <CardTitle className="flex items-center gap-2">
-                <Zap className="h-5 w-5" />
-                Automation
-              </CardTitle>
-              <CardDescription>
-                Create rules to automate workflows: when something happens, take action automatically.
-              </CardDescription>
-            </div>
-            <Link href={`/projects/${slug}/settings/automation`}>
-              <Button variant="outline">Manage Automations</Button>
-            </Link>
-          </div>
-        </CardHeader>
-      </Card>
-
-      <Card className="border-destructive">
-        <CardHeader>
-          <CardTitle className="text-destructive">Danger Zone</CardTitle>
-          <CardDescription>
-            Irreversible actions for your project
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <AlertDialog>
-            <AlertDialogTrigger asChild>
-              <Button variant="destructive" disabled={isDeleting}>
-                {isDeleting ? (
-                  <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                ) : (
-                  <Trash2 className="mr-2 h-4 w-4" />
-                )}
-                Delete Project
-              </Button>
-            </AlertDialogTrigger>
-            <AlertDialogContent>
-              <AlertDialogHeader>
-                <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                <AlertDialogDescription>
-                  This action cannot be undone. This will permanently delete your
-                  project and all associated data including organizations, people,
-                  opportunities, and RFPs.
-                </AlertDialogDescription>
-              </AlertDialogHeader>
-              <AlertDialogFooter>
-                <AlertDialogCancel>Cancel</AlertDialogCancel>
-                <AlertDialogAction onClick={handleDelete} className="bg-destructive text-white hover:bg-destructive/90">
-                  Delete Project
-                </AlertDialogAction>
-              </AlertDialogFooter>
-            </AlertDialogContent>
-          </AlertDialog>
-        </CardContent>
-      </Card>
+        <TabsContent value="automation" className="space-y-6 mt-6">
+          <Card>
+            <CardHeader>
+              <div className="flex items-center justify-between">
+                <div>
+                  <CardTitle className="flex items-center gap-2">
+                    <Zap className="h-5 w-5" />
+                    Automation
+                  </CardTitle>
+                  <CardDescription>
+                    Create rules to automate workflows: when something happens, take action automatically.
+                  </CardDescription>
+                </div>
+                <Link href={`/projects/${slug}/settings/automation`}>
+                  <Button variant="outline">Manage Automations</Button>
+                </Link>
+              </div>
+            </CardHeader>
+          </Card>
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }
