@@ -7,6 +7,7 @@ import { User } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
+import Link from 'next/link';
 
 export default function SettingsPage() {
   const { user, isLoading } = useAuth();
@@ -15,7 +16,7 @@ export default function SettingsPage() {
     <div className="min-h-screen bg-background">
       <header className="border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">GoodRev CRM</h1>
+          <Link href="/projects" className="text-xl font-bold hover:opacity-80 transition-opacity">GoodRev CRM</Link>
           <div className="flex items-center gap-4">
             <ThemeToggle />
             <UserMenu />
