@@ -60,7 +60,12 @@ if [ ! -d "$TASK_DIR" ]; then
 fi
 
 # Set file paths relative to task directory
-PROMPT_FILE="$TASK_DIR/AUDIT_PROMPT.md"
+# Find *_PROMPT.md file (supports AUDIT_PROMPT.md, FIX_PROMPT.md, etc.)
+PROMPT_FILE=$(find "$TASK_DIR" -maxdepth 1 -name '*_PROMPT.md' -type f | head -1)
+if [ -z "$PROMPT_FILE" ]; then
+  echo -e "${RED}Error: No *_PROMPT.md file found in '$TASK_DIR'${NC}"
+  exit 1
+fi
 PLAN_FILE="$TASK_DIR/plan.md"
 ACTIVITY_FILE="$TASK_DIR/activity.md"
 LOG_FILE="$TASK_DIR/ralph.log"
@@ -96,15 +101,17 @@ for file in "$PROMPT_FILE" "$PLAN_FILE" "$ACTIVITY_FILE"; do
     echo -e "${RED}Error: Required file '$file' not found.${NC}"
     echo ""
     echo "Task folder must contain:"
-    echo "  - AUDIT_PROMPT.md  (instructions for each iteration)"
+    echo "  - *_PROMPT.md      (instructions for each iteration)"
     echo "  - plan.md          (task list with passes: true/false)"
     echo "  - activity.md      (session log)"
     exit 1
   fi
 done
 
-echo -e "${GREEN}Starting Ralph Wiggum - GoodRevCRM Bug Audit${NC}"
+TASK_NAME=$(basename "$TASK_DIR")
+echo -e "${GREEN}Starting Ralph Wiggum - $TASK_NAME${NC}"
 echo -e "${BLUE}Task folder: $TASK_DIR${NC}"
+echo -e "${BLUE}Prompt file: $(basename "$PROMPT_FILE")${NC}"
 log "Max iterations: $ITERATIONS"
 log "Min clean passes: $MIN_CLEAN_PASSES"
 log "Dry run: $DRY_RUN"
@@ -115,7 +122,7 @@ echo ""
 if [ "$DRY_RUN" = true ]; then
   echo -e "${YELLOW}DRY RUN MODE - Will show prompt but not execute${NC}"
   echo ""
-  echo "=== AUDIT_PROMPT.md contents ==="
+  echo "=== $(basename "$PROMPT_FILE") contents ==="
   cat "$PROMPT_FILE"
   echo ""
   echo "=== End of prompt ==="
