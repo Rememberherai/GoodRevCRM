@@ -23,6 +23,8 @@ import {
   Calendar,
   Send,
   Clock,
+  Loader2,
+  RefreshCw,
 } from 'lucide-react';
 import { useOrganization } from '@/hooks/use-organizations';
 import { useOrganizationStore, deleteOrganization, updateOrganizationApi } from '@/stores/organization';
@@ -51,6 +53,8 @@ import { AddRfpDialog } from '@/components/organizations/add-rfp-dialog';
 import { ContactDiscoveryDialog } from '@/components/organizations/contact-discovery-dialog';
 import { ResearchPanel } from '@/components/research/research-panel';
 import { ResearchResultsDialog } from '@/components/research/research-results-dialog';
+import { ResearchSettingsDialog } from '@/components/research/research-settings-dialog';
+import { toast } from 'sonner';
 import { AddFieldDialog } from '@/components/schema/add-field-dialog';
 import { EditFieldDialog } from '@/components/schema/edit-field-dialog';
 import { DeleteFieldDialog } from '@/components/schema/delete-field-dialog';
@@ -204,6 +208,10 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
   const [rfps, setRfps] = useState<Rfp[]>([]);
   const [rfpsLoading, setRfpsLoading] = useState(false);
 
+  // Research buttons state (for custom fields card)
+  const [isResearching, setIsResearching] = useState(false);
+  const [showResearchSettings, setShowResearchSettings] = useState(false);
+
   // Custom field dialog states
   const [showAddFieldDialog, setShowAddFieldDialog] = useState(false);
   const [showEditFieldDialog, setShowEditFieldDialog] = useState(false);
@@ -271,6 +279,38 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
     setResearchJob(job);
     setShowResearchResults(true);
   };
+
+  const startResearch = useCallback(async () => {
+    if (!slug || isResearching) return;
+    setIsResearching(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/research`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entity_type: 'organization',
+          entity_id: organizationId,
+          include_custom_fields: true,
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Failed to start research');
+      }
+      if (data.job.status === 'completed') {
+        toast.success('Research completed successfully');
+        handleResearchComplete(data.job);
+      } else if (data.job.status === 'failed') {
+        toast.error('Research failed: ' + (data.job.error ?? 'Unknown error'));
+      }
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Failed to start research';
+      toast.error(message);
+    } finally {
+      setIsResearching(false);
+    }
+  }, [slug, organizationId, isResearching]);
+
   const removeOrganization = useOrganizationStore((s) => s.removeOrganization);
 
   const handleDelete = async () => {
@@ -637,20 +677,26 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
                 <Button
                   variant="outline"
                   size="sm"
-                  onClick={() => setActiveTab('research')}
+                  onClick={() => setShowResearchSettings(true)}
                 >
-                  <Bot className="mr-2 h-4 w-4" />
-                  AI Research
+                  <Settings className="h-4 w-4" />
                 </Button>
                 <Button
-                  variant="outline"
+                  onClick={startResearch}
+                  disabled={isResearching}
                   size="sm"
-                  asChild
                 >
-                  <Link href={`/projects/${slug}/settings`}>
-                    <Settings className="mr-2 h-4 w-4" />
-                    Settings
-                  </Link>
+                  {isResearching ? (
+                    <>
+                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      Researching...
+                    </>
+                  ) : (
+                    <>
+                      <RefreshCw className="mr-2 h-4 w-4" />
+                      Research {organization.name}
+                    </>
+                  )}
                 </Button>
                 <Button
                   variant="outline"
@@ -1090,6 +1136,13 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
         open={showDeleteFieldDialog}
         onOpenChange={setShowDeleteFieldDialog}
         field={selectedField}
+      />
+
+      <ResearchSettingsDialog
+        slug={slug}
+        entityType="organization"
+        open={showResearchSettings}
+        onOpenChange={setShowResearchSettings}
       />
     </div>
   );
