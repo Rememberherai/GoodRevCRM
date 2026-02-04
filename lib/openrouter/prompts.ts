@@ -505,6 +505,58 @@ Respond ONLY with the JSON object.`;
   return prompt;
 }
 
+// RFP question extraction from documents
+export function buildRfpQuestionExtractionPrompt(
+  documentText: string,
+  companyContext?: { name: string; description?: string; products?: string[] }
+): string {
+  let prompt = `You are an RFP (Request for Proposal) question extraction specialist. Your task is to extract individual questions from an RFP document that a vendor needs to answer.`;
+
+  if (companyContext?.name) {
+    prompt += `\n\nCompany Context (the vendor who will answer these questions):
+- Name: ${companyContext.name}`;
+    if (companyContext.description) {
+      prompt += `\n- Description: ${companyContext.description}`;
+    }
+    if (companyContext.products && companyContext.products.length > 0) {
+      prompt += `\n- Products/Services: ${companyContext.products.join(', ')}`;
+    }
+  }
+
+  prompt += `\n\n## DOCUMENT TEXT
+${documentText.slice(0, 50000)}`;
+
+  prompt += `\n\n## INSTRUCTIONS
+1. Extract every distinct question from this RFP document that requires a response
+2. Include questions that are phrased as directives (e.g., "Describe your approach to..." counts as a question)
+3. Preserve the original wording of each question as closely as possible
+4. Detect section names/headers and associate questions with their section
+5. Detect question numbers if present (e.g., "3.2.1", "Q5", "Section A, Item 3")
+6. Do NOT extract headings, instructions, or boilerplate text that are not actual questions
+7. If a numbered item contains multiple sub-questions, extract each as a separate question
+8. Assign a suggested priority: "high" for compliance/security/legal, "medium" for technical, "low" for general
+
+## OUTPUT FORMAT
+Respond with a JSON object:
+{
+  "questions": [
+    {
+      "question_text": "The full text of the question",
+      "section_name": "Section or category name (e.g., 'Technical Requirements')",
+      "question_number": "Original number like '3.2.1' or null if not numbered",
+      "priority": "low" | "medium" | "high"
+    }
+  ],
+  "document_summary": "Brief 1-2 sentence summary of the RFP document",
+  "total_sections_found": 5
+}
+
+Extract as many questions as exist in the document (up to 200). Be thorough - do not miss questions.
+Respond ONLY with the JSON object.`;
+
+  return prompt;
+}
+
 // RFP response generation context
 export interface RfpResponseContext {
   questionText: string;

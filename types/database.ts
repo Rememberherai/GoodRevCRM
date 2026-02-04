@@ -617,6 +617,64 @@ export type Database = {
           }
         ];
       };
+      rfp_question_comments: {
+        Row: {
+          id: string;
+          question_id: string;
+          rfp_id: string;
+          project_id: string;
+          content: string;
+          created_by: string;
+          created_at: string;
+          updated_at: string;
+          deleted_at: string | null;
+        };
+        Insert: {
+          id?: string;
+          question_id: string;
+          rfp_id: string;
+          project_id: string;
+          content: string;
+          created_by: string;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Update: {
+          id?: string;
+          question_id?: string;
+          rfp_id?: string;
+          project_id?: string;
+          content?: string;
+          created_by?: string;
+          created_at?: string;
+          updated_at?: string;
+          deleted_at?: string | null;
+        };
+        Relationships: [
+          {
+            foreignKeyName: "rfp_question_comments_question_id_fkey";
+            columns: ["question_id"];
+            isOneToOne: false;
+            referencedRelation: "rfp_questions";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "rfp_question_comments_rfp_id_fkey";
+            columns: ["rfp_id"];
+            isOneToOne: false;
+            referencedRelation: "rfps";
+            referencedColumns: ["id"];
+          },
+          {
+            foreignKeyName: "rfp_question_comments_project_id_fkey";
+            columns: ["project_id"];
+            isOneToOne: false;
+            referencedRelation: "projects";
+            referencedColumns: ["id"];
+          }
+        ];
+      };
       rfp_content_library: {
         Row: {
           id: string;

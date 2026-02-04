@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { X, Save, Sparkles, ChevronDown, ChevronUp, RotateCcw, Library, BookOpen, Copy, Check } from 'lucide-react';
+import { useAuth } from '@/hooks/use-auth';
 import { useRfpQuestions } from '@/hooks/use-rfp-questions';
 import {
   QUESTION_STATUS_LABELS,
@@ -24,6 +25,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Separator } from '@/components/ui/separator';
+import { RfpQuestionComments } from './rfp-question-comments';
 
 interface RfpQuestionEditorProps {
   rfpId: string;
@@ -38,6 +41,7 @@ export function RfpQuestionEditor({
   onClose,
   onSaved,
 }: RfpQuestionEditorProps) {
+  const { user } = useAuth();
   const { update } = useRfpQuestions(rfpId);
   const [answerText, setAnswerText] = useState(question.answer_text ?? '');
   const [status, setStatus] = useState<RfpQuestionStatus>(question.status);
@@ -464,6 +468,16 @@ export function RfpQuestionEditor({
             className="mt-1"
           />
         </div>
+
+        {/* Comments */}
+        <Separator />
+        {user?.id && (
+          <RfpQuestionComments
+            rfpId={rfpId}
+            questionId={question.id}
+            currentUserId={user.id}
+          />
+        )}
       </div>
 
       {/* Footer */}

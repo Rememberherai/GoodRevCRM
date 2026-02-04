@@ -92,8 +92,27 @@ export async function GET(request: Request, context: RouteContext) {
     // Get unique sections
     const sections = [...new Set(allQuestions.map(q => q.section_name).filter(Boolean))] as string[];
 
+    // Get comment counts per question
+    const { data: commentRows } = await supabase
+      .from('rfp_question_comments')
+      .select('question_id')
+      .eq('rfp_id', id)
+      .is('deleted_at', null);
+
+    const commentCountMap: Record<string, number> = {};
+    if (commentRows) {
+      for (const row of commentRows) {
+        commentCountMap[row.question_id] = (commentCountMap[row.question_id] || 0) + 1;
+      }
+    }
+
+    const questionsWithMeta = allQuestions.map(q => ({
+      ...q,
+      comment_count: commentCountMap[q.id] || 0,
+    }));
+
     return NextResponse.json({
-      questions: allQuestions,
+      questions: questionsWithMeta,
       counts,
       sections,
       total: count ?? 0,

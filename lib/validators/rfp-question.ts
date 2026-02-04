@@ -78,3 +78,20 @@ export const aiRfpResponseSchema = z.object({
 
 export type GenerateRfpResponseInput = z.infer<typeof generateRfpResponseInputSchema>;
 export type AiRfpResponse = z.infer<typeof aiRfpResponseSchema>;
+
+// AI document extraction schemas
+export const extractedRfpQuestionSchema = z.object({
+  question_text: z.string().min(1),
+  section_name: z.string().nullable().optional(),
+  question_number: z.string().nullable().optional(),
+  priority: z.enum(['low', 'medium', 'high']).optional().default('medium'),
+});
+
+export const rfpDocumentExtractionResultSchema = z.object({
+  questions: z.array(extractedRfpQuestionSchema),
+  document_summary: z.string().optional(),
+  total_sections_found: z.number().optional(),
+});
+
+export type ExtractedRfpQuestion = z.infer<typeof extractedRfpQuestionSchema>;
+export type RfpDocumentExtractionResult = z.infer<typeof rfpDocumentExtractionResultSchema>;

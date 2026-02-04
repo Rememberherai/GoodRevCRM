@@ -11,6 +11,7 @@ import {
   Download,
   FileSpreadsheet,
   FileText,
+  MessageSquare,
   Plus,
   Printer,
   Trash2,
@@ -62,6 +63,7 @@ import {
 import { RfpQuestionEditor } from './rfp-question-editor';
 import { RfpQuestionForm } from './rfp-question-form';
 import { RfpQuestionsBulkAdd } from './rfp-questions-bulk-add';
+import { RfpDocumentImport } from './rfp-document-import';
 
 interface RfpQuestionsListProps {
   rfpId: string;
@@ -102,6 +104,7 @@ export function RfpQuestionsList({ rfpId }: RfpQuestionsListProps) {
   const [editingQuestion, setEditingQuestion] = useState<RfpQuestion | null>(null);
   const [showAddForm, setShowAddForm] = useState(false);
   const [showBulkAdd, setShowBulkAdd] = useState(false);
+  const [showDocumentImport, setShowDocumentImport] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
   const [copiedQuestionId, setCopiedQuestionId] = useState<string | null>(null);
@@ -318,6 +321,10 @@ export function RfpQuestionsList({ rfpId }: RfpQuestionsListProps) {
               Generate All Drafts
             </Button>
           )}
+          <Button variant="outline" size="sm" onClick={() => setShowDocumentImport(true)}>
+            <FileText className="mr-1 h-3 w-3" />
+            Import from Document
+          </Button>
           <Button variant="outline" size="sm" onClick={() => setShowBulkAdd(true)}>
             Bulk Add
           </Button>
@@ -342,6 +349,10 @@ export function RfpQuestionsList({ rfpId }: RfpQuestionsListProps) {
           <CircleDot className="mx-auto h-8 w-8 text-muted-foreground mb-2" />
           <p className="text-muted-foreground mb-3">No questions added yet</p>
           <div className="flex items-center justify-center gap-2">
+            <Button variant="outline" size="sm" onClick={() => setShowDocumentImport(true)}>
+              <FileText className="mr-1 h-3 w-3" />
+              Import from Document
+            </Button>
             <Button variant="outline" size="sm" onClick={() => setShowBulkAdd(true)}>
               Bulk Add
             </Button>
@@ -405,6 +416,12 @@ export function RfpQuestionsList({ rfpId }: RfpQuestionsListProps) {
                         {question.priority && (
                           <Badge className={`text-xs ${PRIORITY_COLORS[question.priority]}`} variant="secondary">
                             {PRIORITY_LABELS[question.priority as keyof typeof PRIORITY_LABELS]}
+                          </Badge>
+                        )}
+                        {((question as RfpQuestion & { comment_count?: number }).comment_count ?? 0) > 0 && (
+                          <Badge variant="outline" className="text-xs gap-1">
+                            <MessageSquare className="h-3 w-3" />
+                            {(question as RfpQuestion & { comment_count?: number }).comment_count}
                           </Badge>
                         )}
                         <Badge className={`text-xs ${STATUS_COLORS[question.status]}`} variant="secondary">
@@ -473,6 +490,17 @@ export function RfpQuestionsList({ rfpId }: RfpQuestionsListProps) {
           }}
         />
       )}
+
+      {/* Document Import Dialog */}
+      <RfpDocumentImport
+        rfpId={rfpId}
+        open={showDocumentImport}
+        onOpenChange={setShowDocumentImport}
+        onImported={() => {
+          setShowDocumentImport(false);
+          refresh();
+        }}
+      />
 
       {/* Bulk Add Dialog */}
       <RfpQuestionsBulkAdd
