@@ -151,6 +151,28 @@ export async function POST(request: Request, context: RouteContext) {
       data: organization as Record<string, unknown>,
     });
 
+    // Auto-create news keyword for this organization (fire-and-forget)
+    const orgName = (organization as Organization).name;
+    if (orgName && orgName.length >= 3) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from('news_keywords')
+        .upsert(
+          {
+            project_id: project.id,
+            keyword: orgName,
+            source: 'organization',
+            organization_id: (organization as Organization).id,
+            is_active: true,
+            created_by: user.id,
+          },
+          { onConflict: 'project_id,keyword' }
+        )
+        .then(({ error: kwError }: { error: { message: string } | null }) => {
+          if (kwError) console.warn('[News] Auto-keyword creation failed:', kwError.message);
+        });
+    }
+
     return NextResponse.json({ organization: organization as Organization }, { status: 201 });
   } catch (error) {
     console.error('Error in POST /api/projects/[slug]/organizations:', error);
