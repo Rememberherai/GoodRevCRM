@@ -34,3 +34,7 @@ When building new features, always consider adding automation support:
 - **Actions**: If the feature creates a new action type, add a handler to `lib/automations/actions.ts` and register the type in `types/automation.ts`.
 - **Time-based triggers**: If the feature introduces a new time-based condition (e.g. "X days since last Y"), add it to `lib/automations/time-triggers.ts`.
 - **See**: `lib/automations/engine.ts` for the automation system architecture.
+
+## Git commits
+
+When committing to git, unless otherwise noted, only commit file changes from the current chat session. Exclude changes that were made elsewhere outside the current chat context.
