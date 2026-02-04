@@ -20,13 +20,9 @@ export function useProjectMembers() {
           `/api/projects/${projectSlug}/members?limit=100`
         );
 
-        if (!response.ok) {
-          console.error('[useProjectMembers] response not ok:', response.status, response.statusText);
-          return;
-        }
+        if (!response.ok) return;
 
         const data = await response.json();
-        console.log('[useProjectMembers] raw API response:', JSON.stringify(data, null, 2));
         const mapped = (data.members ?? [])
           .filter((m: any) => m.user)
           .map((m: any) => ({
@@ -36,7 +32,6 @@ export function useProjectMembers() {
             avatar_url: m.user.avatar_url,
             role: m.role,
           }));
-        console.log('[useProjectMembers] mapped members:', JSON.stringify(mapped, null, 2));
         setMembers(mapped);
       } catch {
         // Silently fail - autocomplete just won't show members
