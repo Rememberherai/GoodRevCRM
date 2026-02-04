@@ -12,6 +12,7 @@ import {
   Mail,
   Search,
   Library,
+  BarChart3,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -56,6 +57,11 @@ const navItems = [
     title: 'Content Library',
     href: '/content-library',
     icon: Library,
+  },
+  {
+    title: 'Reporting',
+    href: '/reports',
+    icon: BarChart3,
   },
 ];
 

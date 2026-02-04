@@ -7,6 +7,7 @@ export const reportTypes = [
   'conversion',
   'revenue',
   'team_performance',
+  'forecasting',
   'custom',
 ] as const;
 

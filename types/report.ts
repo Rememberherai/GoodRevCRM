@@ -6,6 +6,7 @@ export type ReportType =
   | 'conversion'
   | 'revenue'
   | 'team_performance'
+  | 'forecasting'
   | 'custom';
 
 export type ReportSchedule = 'daily' | 'weekly' | 'monthly' | 'quarterly';
@@ -177,6 +178,24 @@ export const widgetTypeLabels: Record<WidgetType, string> = {
   team_leaderboard: 'Team Leaderboard',
 };
 
+// Forecasting types
+export interface ForecastQuarter {
+  quarter: string;
+  prospecting: number;
+  qualification: number;
+  proposal: number;
+  negotiation: number;
+  total_weighted: number;
+  total_unweighted: number;
+  historical_actual?: number;
+}
+
+export interface ForecastData {
+  quarters: ForecastQuarter[];
+  total_pipeline_weighted: number;
+  total_pipeline_unweighted: number;
+}
+
 // Report type labels
 export const reportTypeLabels: Record<ReportType, string> = {
   pipeline: 'Pipeline Report',
@@ -184,5 +203,6 @@ export const reportTypeLabels: Record<ReportType, string> = {
   conversion: 'Conversion Report',
   revenue: 'Revenue Report',
   team_performance: 'Team Performance',
+  forecasting: 'Forecasting',
   custom: 'Custom Report',
 };
