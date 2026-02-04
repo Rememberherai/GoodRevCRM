@@ -35,7 +35,7 @@ import { LogoUpload } from '@/components/ui/logo-upload';
 import { Label } from '@/components/ui/label';
 import { useProjectStore } from '@/stores/project';
 import { ResearchSettingsPanel } from '@/components/settings/research-settings';
-import { GmailConnection, GmailApiTester } from '@/components/gmail';
+
 
 interface ProjectSettingsPageProps {
   params: Promise<{ slug: string }>;
@@ -208,9 +208,6 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
       </Card>
 
       <ResearchSettingsPanel slug={slug} />
-
-      <GmailConnection projectSlug={slug} />
-      <GmailApiTester projectSlug={slug} />
 
       <Card className="border-destructive">
         <CardHeader>

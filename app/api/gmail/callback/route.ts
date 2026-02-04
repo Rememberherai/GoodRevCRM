@@ -9,7 +9,6 @@ import {
 
 interface OAuthState {
   user_id: string;
-  project_id: string;
   nonce: string;
   timestamp: number;
 }
@@ -26,15 +25,16 @@ export async function GET(request: Request) {
 
     // Get base URL for redirects
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    const redirectPath = '/settings';
 
     // Handle OAuth errors from Google
     if (error) {
       console.error('Gmail OAuth error:', error);
-      return NextResponse.redirect(`${appUrl}/projects?gmail_error=${encodeURIComponent(error)}`);
+      return NextResponse.redirect(`${appUrl}${redirectPath}?gmail_error=${encodeURIComponent(error)}`);
     }
 
     if (!code || !stateParam) {
-      return NextResponse.redirect(`${appUrl}/projects?gmail_error=missing_params`);
+      return NextResponse.redirect(`${appUrl}${redirectPath}?gmail_error=missing_params`);
     }
 
     // Decode and validate state
@@ -42,13 +42,13 @@ export async function GET(request: Request) {
     try {
       state = JSON.parse(Buffer.from(stateParam, 'base64url').toString());
     } catch {
-      return NextResponse.redirect(`${appUrl}/projects?gmail_error=invalid_state`);
+      return NextResponse.redirect(`${appUrl}${redirectPath}?gmail_error=invalid_state`);
     }
 
     // Verify state is not too old (10 minutes max)
     const stateAge = Date.now() - state.timestamp;
     if (stateAge > 10 * 60 * 1000) {
-      return NextResponse.redirect(`${appUrl}/projects?gmail_error=state_expired`);
+      return NextResponse.redirect(`${appUrl}${redirectPath}?gmail_error=state_expired`);
     }
 
     // Verify user is authenticated and matches state
@@ -57,17 +57,8 @@ export async function GET(request: Request) {
     } = await supabase.auth.getUser();
 
     if (!user || user.id !== state.user_id) {
-      return NextResponse.redirect(`${appUrl}/login?redirect=/projects`);
+      return NextResponse.redirect(`${appUrl}/login?redirect=/settings`);
     }
-
-    // Get project slug for redirect
-    const { data: project } = await supabase
-      .from('projects')
-      .select('slug')
-      .eq('id', state.project_id)
-      .single();
-
-    const redirectPath = project ? `/projects/${project.slug}/settings` : '/projects';
 
     try {
       // Exchange code for tokens
@@ -84,13 +75,11 @@ export async function GET(request: Request) {
         .from('gmail_connections')
         .select('id')
         .eq('user_id', user.id)
-        .eq('project_id', state.project_id)
         .eq('email', profile.email)
         .single();
 
       const connectionData = {
         user_id: user.id,
-        project_id: state.project_id,
         email: profile.email,
         access_token: tokens.access_token,
         refresh_token: tokens.refresh_token ?? '',
@@ -125,6 +114,6 @@ export async function GET(request: Request) {
   } catch (error) {
     console.error('Error in GET /api/gmail/callback:', error);
     const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
-    return NextResponse.redirect(`${appUrl}/projects?gmail_error=internal_error`);
+    return NextResponse.redirect(`${appUrl}/settings?gmail_error=internal_error`);
   }
 }

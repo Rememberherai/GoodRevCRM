@@ -57,13 +57,12 @@ export async function POST(request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
-    // Get Gmail connection
+    // Get Gmail connection (user-scoped, not project-scoped)
     const { data: connection, error: connectionError } = await supabaseAny
       .from('gmail_connections')
       .select('*')
       .eq('id', from_connection_id)
       .eq('user_id', user.id)
-      .eq('project_id', project.id)
       .single();
 
     if (connectionError || !connection) {
@@ -81,7 +80,8 @@ export async function POST(request: Request, context: RouteContext) {
     const result = await sendEmail(
       connection as GmailConnection,
       validationResult.data,
-      user.id
+      user.id,
+      project.id
     );
 
     // Log activity for the sent email

@@ -26,11 +26,7 @@ interface GmailConnectionData {
   created_at: string;
 }
 
-interface GmailConnectionProps {
-  projectSlug: string;
-}
-
-export function GmailConnection({ projectSlug }: GmailConnectionProps) {
+export function GmailConnection() {
   const [connections, setConnections] = useState<GmailConnectionData[]>([]);
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
@@ -55,7 +51,7 @@ export function GmailConnection({ projectSlug }: GmailConnectionProps) {
   }, []);
 
   const handleConnect = () => {
-    window.location.href = `/api/gmail/connect?project=${projectSlug}`;
+    window.location.href = `/api/gmail/connect`;
   };
 
   const handleDisconnect = async (connection: GmailConnectionData) => {

@@ -199,7 +199,8 @@ function wrapLinksWithTracking(html: string, trackingId: string): string {
 export async function sendEmail(
   connection: GmailConnection,
   input: SendEmailInput,
-  userId: string
+  userId: string,
+  projectId?: string | null
 ): Promise<SendEmailResult> {
   const supabase = createAdminClient();
 
@@ -253,7 +254,7 @@ export async function sendEmail(
   const { data: sentEmail, error: insertError } = await supabase
     .from('sent_emails')
     .insert({
-      project_id: connection.project_id,
+      project_id: projectId ?? null,
       gmail_connection_id: connection.id,
       person_id: input.person_id ?? null,
       organization_id: input.organization_id ?? null,

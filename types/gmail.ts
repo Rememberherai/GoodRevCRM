@@ -5,7 +5,7 @@ export type GmailConnectionStatus = 'connected' | 'disconnected' | 'expired' | '
 export interface GmailConnection {
   id: string;
   user_id: string;
-  project_id: string;
+  project_id: string | null;
   email: string;
   access_token: string;
   refresh_token: string;
@@ -19,7 +19,7 @@ export interface GmailConnection {
 // Sent email record
 export interface SentEmail {
   id: string;
-  project_id: string;
+  project_id: string | null;
   gmail_connection_id: string;
   person_id: string | null;
   organization_id: string | null;

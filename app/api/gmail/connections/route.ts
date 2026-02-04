@@ -1,9 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { gmailConnectionQuerySchema } from '@/lib/validators/gmail';
 
 // GET /api/gmail/connections - Get user's Gmail connections
-export async function GET(request: Request) {
+export async function GET() {
   try {
     const supabase = await createClient();
 
@@ -15,33 +14,15 @@ export async function GET(request: Request) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Parse query parameters
-    const { searchParams } = new URL(request.url);
-    const queryResult = gmailConnectionQuerySchema.safeParse({
-      project_id: searchParams.get('project_id') ?? undefined,
-    });
-
-    if (!queryResult.success) {
-      return NextResponse.json(
-        { error: 'Invalid query parameters', details: queryResult.error.flatten() },
-        { status: 400 }
-      );
-    }
-
     // Use type assertion since table isn't in generated types yet
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
-    let query = supabaseAny
+    const { data: connections, error } = await supabaseAny
       .from('gmail_connections')
-      .select('id, project_id, email, status, last_sync_at, error_message, created_at, updated_at')
-      .eq('user_id', user.id);
-
-    if (queryResult.data.project_id) {
-      query = query.eq('project_id', queryResult.data.project_id);
-    }
-
-    const { data: connections, error } = await query.order('created_at', { ascending: false });
+      .select('id, email, status, last_sync_at, error_message, created_at, updated_at')
+      .eq('user_id', user.id)
+      .order('created_at', { ascending: false });
 
     if (error) {
       console.error('Error fetching Gmail connections:', error);

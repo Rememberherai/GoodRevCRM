@@ -172,7 +172,7 @@ export function SendEmailModal({
               className="mt-4"
               onClick={() => {
                 onOpenChange(false);
-                window.location.href = `/projects/${projectSlug}/settings`;
+                window.location.href = `/settings`;
               }}
             >
               Go to Settings

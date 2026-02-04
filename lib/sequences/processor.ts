@@ -272,7 +272,8 @@ async function processEnrollment(
           body_text: bodyText,
           person_id: enrollment.person_id,
         },
-        enrollment.created_by
+        enrollment.created_by,
+        sequence.project_id
       );
 
       // Update the sent email with sequence step reference

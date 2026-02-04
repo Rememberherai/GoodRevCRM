@@ -35,10 +35,6 @@ interface ConnectionOption {
   status: string;
 }
 
-interface GmailApiTesterProps {
-  projectSlug: string;
-}
-
 function TestResultRow({
   label,
   description,
@@ -90,7 +86,7 @@ function TestResultRow({
   );
 }
 
-export function GmailApiTester({ projectSlug: _projectSlug }: GmailApiTesterProps) {
+export function GmailApiTester() {
   const [connections, setConnections] = useState<ConnectionOption[]>([]);
   const [selectedConnectionId, setSelectedConnectionId] = useState<string>('');
   const [loading, setLoading] = useState(true);
