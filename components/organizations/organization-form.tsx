@@ -19,6 +19,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { LogoUpload } from '@/components/ui/logo-upload';
 import { CustomFieldsRenderer } from '@/components/forms/custom-fields-renderer';
 import { AddFieldDialog } from '@/components/schema/add-field-dialog';
 
@@ -44,6 +45,8 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<CreateOrganizationInput>({
     resolver: zodResolver(organizationSchema),
@@ -210,16 +213,18 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="logo_url">Logo URL</Label>
-              <Input
-                id="logo_url"
-                type="url"
-                {...register('logo_url')}
-                placeholder="https://example.com/logo.png"
-              />
-              {errors.logo_url && (
-                <p className="text-sm text-destructive">{errors.logo_url.message}</p>
-              )}
+              <Label>Logo</Label>
+              <div className="flex items-center gap-3">
+                <LogoUpload
+                  currentUrl={watch('logo_url')}
+                  fallbackInitials={(watch('name') || '?').slice(0, 2).toUpperCase()}
+                  entityType="organization"
+                  entityId={organization?.id}
+                  onUploaded={(url) => setValue('logo_url', url)}
+                  size="lg"
+                />
+                <p className="text-xs text-muted-foreground">Click to upload</p>
+              </div>
             </div>
 
             <div className="space-y-2">

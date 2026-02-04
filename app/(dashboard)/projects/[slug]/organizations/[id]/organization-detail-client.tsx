@@ -58,6 +58,7 @@ import { OrgSequencesTab } from '@/components/organizations/org-sequences-tab';
 import { EntityActivitySection } from '@/components/activity/entity-activity-section';
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 import { SendEmailModal } from '@/components/gmail';
+import { LogoUpload } from '@/components/ui/logo-upload';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
 // Activity types no longer needed - EntityActivitySection handles its own data
@@ -397,10 +398,16 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
 
       {/* Organization Header */}
       <div className="flex items-center gap-4">
-        <Avatar className="h-16 w-16">
-          <AvatarImage src={organization.logo_url ?? undefined} alt={organization.name} />
-          <AvatarFallback className="text-lg">{getInitials(organization.name)}</AvatarFallback>
-        </Avatar>
+        <LogoUpload
+          currentUrl={organization.logo_url}
+          fallbackInitials={getInitials(organization.name)}
+          entityType="organization"
+          entityId={organization.id}
+          onUploaded={(url) => {
+            setCurrentOrganization({ ...organization, logo_url: url });
+          }}
+          size="lg"
+        />
         <div className="flex-1">
           <h2 className="text-2xl font-bold">{organization.name}</h2>
           {organization.domain && (
@@ -583,13 +590,6 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
                   label="Industry"
                   value={organization.industry}
                   fieldKey="industry"
-                  onSave={handleFieldSave}
-                />
-                <EditableField
-                  label="Logo URL"
-                  value={organization.logo_url}
-                  fieldKey="logo_url"
-                  type="url"
                   onSave={handleFieldSave}
                 />
                 <EditableField

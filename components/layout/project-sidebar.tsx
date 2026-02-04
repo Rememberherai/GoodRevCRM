@@ -14,6 +14,7 @@ import {
   Library,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import type { Project } from '@/types/project';
 
 interface ProjectSidebarProps {
@@ -82,9 +83,15 @@ export function ProjectSidebar({ project }: ProjectSidebarProps) {
         <Link href="/projects" className="text-sm text-muted-foreground hover:text-foreground">
           ← All Projects
         </Link>
-        <h2 className="mt-2 font-semibold truncate" title={project.name}>
-          {project.name}
-        </h2>
+        <div className="mt-2 flex items-center gap-2">
+          <Avatar className="h-7 w-7">
+            <AvatarImage src={project.logo_url ?? undefined} alt={project.name} />
+            <AvatarFallback className="text-xs">{project.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+          </Avatar>
+          <h2 className="font-semibold truncate" title={project.name}>
+            {project.name}
+          </h2>
+        </div>
       </div>
 
       {/* Main Navigation */}

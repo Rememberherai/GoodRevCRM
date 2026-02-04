@@ -46,6 +46,7 @@ export type Database = {
           name: string;
           slug: string;
           description: string | null;
+          logo_url: string | null;
           settings: Json;
           owner_id: string;
           created_at: string;
@@ -57,6 +58,7 @@ export type Database = {
           name: string;
           slug: string;
           description?: string | null;
+          logo_url?: string | null;
           settings?: Json;
           owner_id: string;
           created_at?: string;
@@ -68,6 +70,7 @@ export type Database = {
           name?: string;
           slug?: string;
           description?: string | null;
+          logo_url?: string | null;
           settings?: Json;
           owner_id?: string;
           created_at?: string;

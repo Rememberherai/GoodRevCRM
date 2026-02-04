@@ -73,6 +73,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (updates.name !== undefined) updateData.name = updates.name;
     if (updates.slug !== undefined) updateData.slug = updates.slug;
     if (updates.description !== undefined) updateData.description = updates.description;
+    if (updates.logo_url !== undefined) updateData.logo_url = updates.logo_url;
 
     // For settings, merge with existing settings rather than replacing
     if (updates.settings !== undefined) {

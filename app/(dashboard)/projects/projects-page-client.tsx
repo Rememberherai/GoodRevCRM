@@ -5,6 +5,7 @@ import { useRouter } from 'next/navigation';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { NewProjectDialog } from '@/components/projects/new-project-dialog';
@@ -69,10 +70,18 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
                 onClick={() => router.push(`/projects/${project.slug}`)}
               >
                 <CardHeader>
-                  <CardTitle>{project.name}</CardTitle>
-                  <CardDescription>
-                    {project.description || 'No description'}
-                  </CardDescription>
+                  <div className="flex items-center gap-3">
+                    <Avatar className="h-10 w-10">
+                      <AvatarImage src={project.logo_url ?? undefined} alt={project.name} />
+                      <AvatarFallback>{project.name.slice(0, 2).toUpperCase()}</AvatarFallback>
+                    </Avatar>
+                    <div>
+                      <CardTitle>{project.name}</CardTitle>
+                      <CardDescription>
+                        {project.description || 'No description'}
+                      </CardDescription>
+                    </div>
+                  </div>
                 </CardHeader>
                 <CardContent>
                   <p className="text-xs text-muted-foreground">

@@ -31,6 +31,8 @@ import {
   AlertDialogTrigger,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { LogoUpload } from '@/components/ui/logo-upload';
+import { Label } from '@/components/ui/label';
 import { useProjectStore } from '@/stores/project';
 import { ResearchSettingsPanel } from '@/components/settings/research-settings';
 import { GmailConnection, GmailApiTester } from '@/components/gmail';
@@ -127,6 +129,24 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
           </CardDescription>
         </CardHeader>
         <CardContent>
+          <div className="mb-6">
+            <Label className="mb-2 block">Project Logo</Label>
+            <div className="flex items-center gap-3">
+              <LogoUpload
+                currentUrl={currentProject?.logo_url}
+                fallbackInitials={(currentProject?.name ?? slug).slice(0, 2).toUpperCase()}
+                entityType="project"
+                onUploaded={(url) => {
+                  if (currentProject) {
+                    updateProject(slug, { ...currentProject, logo_url: url });
+                  }
+                }}
+                size="lg"
+              />
+              <p className="text-sm text-muted-foreground">Click to upload a logo for this project</p>
+            </div>
+          </div>
+
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
               <FormField

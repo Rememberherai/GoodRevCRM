@@ -35,6 +35,12 @@ export const projectSchema = z.object({
     .max(500, 'Description must be 500 characters or less')
     .nullable()
     .optional(),
+  logo_url: z
+    .string()
+    .url('Must be a valid URL')
+    .nullable()
+    .optional()
+    .or(z.literal('')),
   settings: projectSettingsSchema.optional(),
 });
 
