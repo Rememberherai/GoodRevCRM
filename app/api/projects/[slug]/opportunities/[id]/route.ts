@@ -64,6 +64,15 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Opportunity not found' }, { status: 404 });
     }
 
+    // Fetch linked RFPs for this opportunity
+    const { data: rfps } = await supabase
+      .from('rfps')
+      .select('id, title, status, due_date, estimated_value')
+      .eq('opportunity_id', id)
+      .eq('project_id', project.id)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
     // Transform the response to match expected shape
     const { organizations, people, ...oppData } = opportunity as any;
 
@@ -72,9 +81,7 @@ export async function GET(_request: Request, context: RouteContext) {
         ...oppData,
         organization: organizations ?? null,
         primary_contact: people ?? null,
-      } as Opportunity & {
-        organization: any;
-        primary_contact: any;
+        rfps: rfps ?? [],
       },
     });
   } catch (error) {

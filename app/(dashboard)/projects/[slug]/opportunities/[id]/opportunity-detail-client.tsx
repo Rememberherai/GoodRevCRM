@@ -8,6 +8,7 @@ import {
   Building2,
   Calendar,
   DollarSign,
+  FileText,
   Mail,
   Pencil,
   Percent,
@@ -21,6 +22,7 @@ import {
 import { useOpportunity } from '@/hooks/use-opportunities';
 import { useOpportunityStore, deleteOpportunity } from '@/stores/opportunity';
 import { STAGE_LABELS, type OpportunityStage } from '@/types/opportunity';
+import { STATUS_LABELS as RFP_STATUS_LABELS, type RfpStatus } from '@/types/rfp';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -51,6 +53,16 @@ const STAGE_COLORS: Record<OpportunityStage, string> = {
   negotiation: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-300',
   closed_won: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
   closed_lost: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+};
+
+const RFP_STATUS_COLORS: Record<RfpStatus, string> = {
+  identified: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
+  reviewing: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
+  preparing: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-300',
+  submitted: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-300',
+  won: 'bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-300',
+  lost: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-300',
+  no_bid: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
 };
 
 export function OpportunityDetailClient({ opportunityId }: OpportunityDetailClientProps) {
@@ -381,6 +393,51 @@ export function OpportunityDetailClient({ opportunityId }: OpportunityDetailClie
             <p className="whitespace-pre-wrap">
               {opportunity.won_reason || opportunity.lost_reason}
             </p>
+          </CardContent>
+        </Card>
+      )}
+
+      {/* Linked RFPs */}
+      {opportunity.rfps && opportunity.rfps.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <FileText className="h-5 w-5" />
+              Linked RFPs ({opportunity.rfps.length})
+            </CardTitle>
+          </CardHeader>
+          <CardContent>
+            <div className="space-y-3">
+              {opportunity.rfps.map((rfp) => (
+                <Link
+                  key={rfp.id}
+                  href={`/projects/${slug}/rfps/${rfp.id}`}
+                  className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex items-center gap-3 min-w-0">
+                    <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+                    <div className="min-w-0">
+                      <p className="font-medium truncate">{rfp.title}</p>
+                      {rfp.due_date && (
+                        <p className="text-sm text-muted-foreground">
+                          Due {formatDate(rfp.due_date)}
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                  <div className="flex items-center gap-3 shrink-0">
+                    {rfp.estimated_value !== null && (
+                      <span className="text-sm font-medium">
+                        {formatCurrency(rfp.estimated_value, null)}
+                      </span>
+                    )}
+                    <Badge className={RFP_STATUS_COLORS[rfp.status as RfpStatus]} variant="secondary">
+                      {RFP_STATUS_LABELS[rfp.status as RfpStatus]}
+                    </Badge>
+                  </div>
+                </Link>
+              ))}
+            </div>
           </CardContent>
         </Card>
       )}

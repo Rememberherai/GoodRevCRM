@@ -26,7 +26,16 @@ export const STAGE_LABELS: Record<OpportunityStage, string> = {
   closed_lost: 'Closed Lost',
 };
 
+export interface OpportunityLinkedRfp {
+  id: string;
+  title: string;
+  status: string;
+  due_date: string | null;
+  estimated_value: number | null;
+}
+
 export interface OpportunityWithRelations extends Opportunity {
   organization?: Organization | null;
   primary_contact?: Person | null;
+  rfps?: OpportunityLinkedRfp[];
 }
