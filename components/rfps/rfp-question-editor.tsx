@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Save, Sparkles, ChevronDown, ChevronUp, RotateCcw, Library, BookOpen } from 'lucide-react';
+import { X, Save, Sparkles, ChevronDown, ChevronUp, RotateCcw, Library, BookOpen, Copy, Check } from 'lucide-react';
 import { useRfpQuestions } from '@/hooks/use-rfp-questions';
 import {
   QUESTION_STATUS_LABELS,
@@ -57,6 +57,9 @@ export function RfpQuestionEditor({
   const [includeOrgContext, setIncludeOrgContext] = useState(true);
   const [includeLibraryAnswers, setIncludeLibraryAnswers] = useState(true);
   const [additionalInstructions, setAdditionalInstructions] = useState('');
+
+  // Copy answer state
+  const [answerCopied, setAnswerCopied] = useState(false);
 
   // Save to library state
   const [isSavingToLibrary, setIsSavingToLibrary] = useState(false);
@@ -249,20 +252,40 @@ export function RfpQuestionEditor({
         <div>
           <div className="flex items-center justify-between mb-1">
             <Label className="text-sm">Answer</Label>
-            <Button
-              variant="outline"
-              size="sm"
-              onClick={() => setShowAiPanel(!showAiPanel)}
-              disabled={isGenerating}
-            >
-              <Sparkles className="mr-1 h-3 w-3" />
-              {showAiPanel ? 'Hide AI Panel' : 'Generate AI Draft'}
-              {showAiPanel ? (
-                <ChevronUp className="ml-1 h-3 w-3" />
-              ) : (
-                <ChevronDown className="ml-1 h-3 w-3" />
+            <div className="flex items-center gap-1">
+              {answerText.trim() && (
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  onClick={() => {
+                    navigator.clipboard.writeText(answerText);
+                    setAnswerCopied(true);
+                    setTimeout(() => setAnswerCopied(false), 2000);
+                  }}
+                >
+                  {answerCopied ? (
+                    <Check className="mr-1 h-3 w-3 text-green-600" />
+                  ) : (
+                    <Copy className="mr-1 h-3 w-3" />
+                  )}
+                  {answerCopied ? 'Copied' : 'Copy'}
+                </Button>
               )}
-            </Button>
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowAiPanel(!showAiPanel)}
+                disabled={isGenerating}
+              >
+                <Sparkles className="mr-1 h-3 w-3" />
+                {showAiPanel ? 'Hide AI Panel' : 'Generate AI Draft'}
+                {showAiPanel ? (
+                  <ChevronUp className="ml-1 h-3 w-3" />
+                ) : (
+                  <ChevronDown className="ml-1 h-3 w-3" />
+                )}
+              </Button>
+            </div>
           </div>
 
           {/* AI Context Selection Panel */}

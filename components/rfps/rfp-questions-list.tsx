@@ -1,11 +1,18 @@
 'use client';
 
 import { useState } from 'react';
+import { useParams } from 'next/navigation';
 import {
+  Check,
   ChevronDown,
   ChevronRight,
   CircleDot,
+  Copy,
+  Download,
+  FileSpreadsheet,
+  FileText,
   Plus,
+  Printer,
   Trash2,
   Sparkles,
 } from 'lucide-react';
@@ -46,6 +53,12 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import { RfpQuestionEditor } from './rfp-question-editor';
 import { RfpQuestionForm } from './rfp-question-form';
 import { RfpQuestionsBulkAdd } from './rfp-questions-bulk-add';
@@ -69,6 +82,9 @@ const PRIORITY_COLORS: Record<string, string> = {
 };
 
 export function RfpQuestionsList({ rfpId }: RfpQuestionsListProps) {
+  const params = useParams();
+  const slug = params.slug as string;
+
   const {
     questionsBySection,
     counts,
@@ -88,6 +104,8 @@ export function RfpQuestionsList({ rfpId }: RfpQuestionsListProps) {
   const [showBulkAdd, setShowBulkAdd] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(new Set());
+  const [copiedQuestionId, setCopiedQuestionId] = useState<string | null>(null);
+  const [allCopied, setAllCopied] = useState(false);
 
   // Bulk AI generation state
   const [showBulkGenerate, setShowBulkGenerate] = useState(false);
@@ -157,6 +175,32 @@ export function RfpQuestionsList({ rfpId }: RfpQuestionsListProps) {
     }
   };
 
+  const handleCopyAnswer = (questionId: string, answerText: string) => {
+    navigator.clipboard.writeText(answerText);
+    setCopiedQuestionId(questionId);
+    setTimeout(() => setCopiedQuestionId(null), 2000);
+  };
+
+  const handleCopyAll = () => {
+    const lines: string[] = [];
+    for (const [section, sectionQuestions] of Object.entries(questionsBySection)) {
+      const answered = sectionQuestions.filter((q: RfpQuestion) => q.answer_text);
+      if (answered.length === 0) continue;
+      lines.push(`## ${section}\n`);
+      for (const q of answered) {
+        const label = q.question_number
+          ? `**${q.question_number}. ${q.question_text}**`
+          : `**${q.question_text}**`;
+        lines.push(label);
+        lines.push(q.answer_text ?? '');
+        lines.push('');
+      }
+    }
+    navigator.clipboard.writeText(lines.join('\n'));
+    setAllCopied(true);
+    setTimeout(() => setAllCopied(false), 2000);
+  };
+
   const progressPercent = counts.total > 0
     ? Math.round(((counts.total - counts.unanswered) / counts.total) * 100)
     : 0;
@@ -220,6 +264,50 @@ export function RfpQuestionsList({ rfpId }: RfpQuestionsListProps) {
           )}
         </div>
         <div className="flex items-center gap-2">
+          {counts.total > 0 && (
+            <DropdownMenu>
+              <DropdownMenuTrigger asChild>
+                <Button variant="outline" size="sm">
+                  <Download className="mr-1 h-3 w-3" />
+                  Export
+                </Button>
+              </DropdownMenuTrigger>
+              <DropdownMenuContent align="end">
+                <DropdownMenuItem
+                  onClick={() => {
+                    window.location.href = `/api/projects/${slug}/rfps/${rfpId}/export?format=docx`;
+                  }}
+                >
+                  <FileText className="mr-2 h-4 w-4" />
+                  Export as Word (.docx)
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    window.location.href = `/api/projects/${slug}/rfps/${rfpId}/export?format=csv`;
+                  }}
+                >
+                  <FileSpreadsheet className="mr-2 h-4 w-4" />
+                  Export as CSV
+                </DropdownMenuItem>
+                <DropdownMenuItem
+                  onClick={() => {
+                    window.open(`/projects/${slug}/rfps/${rfpId}/print`, '_blank');
+                  }}
+                >
+                  <Printer className="mr-2 h-4 w-4" />
+                  Print / Save as PDF
+                </DropdownMenuItem>
+                <DropdownMenuItem onClick={handleCopyAll}>
+                  {allCopied ? (
+                    <Check className="mr-2 h-4 w-4 text-green-600" />
+                  ) : (
+                    <Copy className="mr-2 h-4 w-4" />
+                  )}
+                  {allCopied ? 'Copied!' : 'Copy All Answers'}
+                </DropdownMenuItem>
+              </DropdownMenuContent>
+            </DropdownMenu>
+          )}
           {counts.unanswered > 0 && (
             <Button
               variant="outline"
@@ -322,6 +410,23 @@ export function RfpQuestionsList({ rfpId }: RfpQuestionsListProps) {
                         <Badge className={`text-xs ${STATUS_COLORS[question.status]}`} variant="secondary">
                           {QUESTION_STATUS_LABELS[question.status]}
                         </Badge>
+                        {question.answer_text && (
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              handleCopyAnswer(question.id, question.answer_text!);
+                            }}
+                          >
+                            {copiedQuestionId === question.id ? (
+                              <Check className="h-3 w-3 text-green-600" />
+                            ) : (
+                              <Copy className="h-3 w-3" />
+                            )}
+                          </Button>
+                        )}
                         <Button
                           variant="ghost"
                           size="icon"
