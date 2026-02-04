@@ -14,7 +14,9 @@ import {
   AlertDialogHeader,
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
-import { Mail, Plus, Trash2, RefreshCw, AlertCircle } from 'lucide-react';
+import { Switch } from '@/components/ui/switch';
+import { Separator } from '@/components/ui/separator';
+import { Mail, Plus, Trash2, RefreshCw, AlertCircle, Loader2 } from 'lucide-react';
 import { CONNECTION_STATUS_COLORS, CONNECTION_STATUS_LABELS, type GmailConnectionStatus } from '@/types/gmail';
 
 interface GmailConnectionData {
@@ -24,6 +26,11 @@ interface GmailConnectionData {
   last_sync_at: string | null;
   error_message: string | null;
   created_at: string;
+  sync_enabled?: boolean;
+  initial_sync_done?: boolean;
+  sync_errors_count?: number;
+  last_sync_error?: string | null;
+  watch_expiration?: string | null;
 }
 
 export function GmailConnection() {
@@ -31,6 +38,8 @@ export function GmailConnection() {
   const [loading, setLoading] = useState(true);
   const [disconnecting, setDisconnecting] = useState<string | null>(null);
   const [confirmDisconnect, setConfirmDisconnect] = useState<GmailConnectionData | null>(null);
+  const [togglingSync, setTogglingSync] = useState<string | null>(null);
+  const [syncing, setSyncing] = useState<string | null>(null);
 
   const fetchConnections = async () => {
     try {
@@ -74,6 +83,52 @@ export function GmailConnection() {
     }
   };
 
+  const handleToggleSync = async (connection: GmailConnectionData, enabled: boolean) => {
+    setTogglingSync(connection.id);
+    try {
+      const response = await fetch('/api/gmail/sync/toggle', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection_id: connection.id, enabled }),
+      });
+
+      if (response.ok) {
+        const data = await response.json();
+        setConnections((prev) =>
+          prev.map((c) =>
+            c.id === connection.id
+              ? { ...c, sync_enabled: data.sync_enabled, watch_expiration: data.watch_expiration ?? c.watch_expiration }
+              : c
+          )
+        );
+      }
+    } catch (error) {
+      console.error('Error toggling sync:', error);
+    } finally {
+      setTogglingSync(null);
+    }
+  };
+
+  const handleSyncNow = async (connectionId: string) => {
+    setSyncing(connectionId);
+    try {
+      const response = await fetch('/api/gmail/sync/trigger', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ connection_id: connectionId }),
+      });
+
+      if (response.ok) {
+        // Refresh connection data to show updated sync time
+        await fetchConnections();
+      }
+    } catch (error) {
+      console.error('Error triggering sync:', error);
+    } finally {
+      setSyncing(null);
+    }
+  };
+
   return (
     <Card>
       <CardHeader>
@@ -111,8 +166,9 @@ export function GmailConnection() {
             {connections.map((connection) => (
               <div
                 key={connection.id}
-                className="flex items-center justify-between p-4 border rounded-lg"
+                className="border rounded-lg"
               >
+              <div className="flex items-center justify-between p-4">
                 <div className="flex items-center gap-4">
                   <div className="h-10 w-10 rounded-full bg-muted flex items-center justify-center">
                     <Mail className="h-5 w-5" />
@@ -154,6 +210,67 @@ export function GmailConnection() {
                   )}
                 </Button>
               </div>
+
+              {/* Email Sync Controls */}
+              {connection.status === 'connected' && (
+                <>
+                  <Separator className="my-3" />
+                  <div className="flex items-center justify-between px-4 pb-2">
+                    <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
+                        <Switch
+                          checked={connection.sync_enabled ?? false}
+                          onCheckedChange={(checked) => handleToggleSync(connection, checked)}
+                          disabled={togglingSync === connection.id}
+                        />
+                        <span className="text-sm font-medium">
+                          Email Sync
+                        </span>
+                      </div>
+                      {togglingSync === connection.id && (
+                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground" />
+                      )}
+                      {connection.sync_enabled && connection.initial_sync_done && (
+                        <span className="text-xs text-muted-foreground">
+                          {connection.last_sync_at
+                            ? `Last synced ${new Date(connection.last_sync_at).toLocaleString()}`
+                            : 'Not yet synced'}
+                        </span>
+                      )}
+                      {connection.sync_enabled && !connection.initial_sync_done && (
+                        <span className="text-xs text-muted-foreground">
+                          Initial sync pending
+                        </span>
+                      )}
+                    </div>
+                    {connection.sync_enabled && (
+                      <Button
+                        variant="outline"
+                        size="sm"
+                        onClick={() => handleSyncNow(connection.id)}
+                        disabled={syncing === connection.id}
+                      >
+                        {syncing === connection.id ? (
+                          <Loader2 className="h-3 w-3 mr-1.5 animate-spin" />
+                        ) : (
+                          <RefreshCw className="h-3 w-3 mr-1.5" />
+                        )}
+                        Sync Now
+                      </Button>
+                    )}
+                  </div>
+                  {connection.last_sync_error && (connection.sync_errors_count ?? 0) > 0 && (
+                    <div className="flex items-center gap-1 px-4 pb-2 text-xs text-destructive">
+                      <AlertCircle className="h-3 w-3" />
+                      {connection.last_sync_error}
+                      {(connection.sync_errors_count ?? 0) >= 5 && (
+                        <span className="ml-1">(sync disabled after repeated failures)</span>
+                      )}
+                    </div>
+                  )}
+                </>
+              )}
+            </div>
             ))}
           </div>
         )}

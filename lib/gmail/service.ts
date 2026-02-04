@@ -2,7 +2,7 @@ import { refreshAccessToken, isTokenExpired } from './oauth';
 import type { SendEmailInput, SendEmailResult, GmailConnection } from '@/types/gmail';
 import { createClient } from '@supabase/supabase-js';
 
-const GMAIL_API_URL = 'https://gmail.googleapis.com/gmail/v1/users/me';
+export const GMAIL_API_URL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
 export class GmailServiceError extends Error {
   constructor(
@@ -16,7 +16,7 @@ export class GmailServiceError extends Error {
 }
 
 // Create admin client for service operations
-function createAdminClient() {
+export function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
 

@@ -129,6 +129,8 @@ function getActivityDescription(activity: ActivityWithUser): string {
       return `Unenrolled from a sequence`;
     case 'sent':
       return `Sent an email`;
+    case 'received':
+      return `Received an email`;
     case 'opened':
       return `Email was opened`;
     case 'clicked':

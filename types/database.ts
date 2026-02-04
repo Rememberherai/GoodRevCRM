@@ -843,6 +843,106 @@ export type Database = {
           }
         ];
       };
+      emails: {
+        Row: {
+          id: string;
+          gmail_connection_id: string;
+          user_id: string;
+          gmail_message_id: string;
+          gmail_thread_id: string;
+          direction: string;
+          from_email: string;
+          from_name: string | null;
+          to_emails: string[];
+          cc_emails: string[];
+          bcc_emails: string[];
+          subject: string | null;
+          snippet: string | null;
+          body_html: string | null;
+          body_text: string | null;
+          email_date: string;
+          label_ids: string[];
+          attachments: Json;
+          person_id: string | null;
+          organization_id: string | null;
+          opportunity_id: string | null;
+          rfp_id: string | null;
+          project_id: string | null;
+          sent_email_id: string | null;
+          synced_at: string;
+          created_at: string;
+          updated_at: string;
+        };
+        Insert: {
+          id?: string;
+          gmail_connection_id: string;
+          user_id: string;
+          gmail_message_id: string;
+          gmail_thread_id: string;
+          direction: string;
+          from_email: string;
+          from_name?: string | null;
+          to_emails?: string[];
+          cc_emails?: string[];
+          bcc_emails?: string[];
+          subject?: string | null;
+          snippet?: string | null;
+          body_html?: string | null;
+          body_text?: string | null;
+          email_date: string;
+          label_ids?: string[];
+          attachments?: Json;
+          person_id?: string | null;
+          organization_id?: string | null;
+          opportunity_id?: string | null;
+          rfp_id?: string | null;
+          project_id?: string | null;
+          sent_email_id?: string | null;
+        };
+        Update: {
+          person_id?: string | null;
+          organization_id?: string | null;
+          opportunity_id?: string | null;
+          project_id?: string | null;
+          sent_email_id?: string | null;
+        };
+        Relationships: [];
+      };
+      email_sync_log: {
+        Row: {
+          id: string;
+          gmail_connection_id: string;
+          sync_type: string;
+          started_at: string;
+          completed_at: string | null;
+          messages_fetched: number;
+          messages_stored: number;
+          contacts_matched: number;
+          error_message: string | null;
+          metadata: Json;
+        };
+        Insert: {
+          id?: string;
+          gmail_connection_id: string;
+          sync_type: string;
+          started_at?: string;
+          completed_at?: string | null;
+          messages_fetched?: number;
+          messages_stored?: number;
+          contacts_matched?: number;
+          error_message?: string | null;
+          metadata?: Json;
+        };
+        Update: {
+          completed_at?: string | null;
+          messages_fetched?: number;
+          messages_stored?: number;
+          contacts_matched?: number;
+          error_message?: string | null;
+          metadata?: Json;
+        };
+        Relationships: [];
+      };
     };
     Views: Record<string, never>;
     Functions: Record<string, never>;

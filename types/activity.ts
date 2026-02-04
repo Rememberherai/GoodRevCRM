@@ -23,6 +23,7 @@ export type ActivityAction =
   | 'enrolled'
   | 'unenrolled'
   | 'sent'
+  | 'received'
   | 'opened'
   | 'clicked'
   | 'replied'
@@ -46,6 +47,7 @@ export type ActivityOutcome =
   | 'quality_conversation'
   | 'meeting_booked'
   | 'email_sent'
+  | 'email_received'
   | 'email_opened'
   | 'email_replied'
   | 'proposal_sent'
@@ -138,7 +140,7 @@ export const activityTypes: ActivityType[] = [
 
 export const activityOutcomes: ActivityOutcome[] = [
   'call_no_answer', 'call_left_message', 'quality_conversation', 'meeting_booked',
-  'email_sent', 'email_opened', 'email_replied', 'proposal_sent',
+  'email_sent', 'email_received', 'email_opened', 'email_replied', 'proposal_sent',
   'follow_up_scheduled', 'not_interested', 'other',
 ];
 
@@ -158,6 +160,7 @@ export const OUTCOME_LABELS: Record<ActivityOutcome, string> = {
   quality_conversation: 'Quality Conversation',
   meeting_booked: 'Meeting Booked',
   email_sent: 'Email Sent',
+  email_received: 'Email Received',
   email_opened: 'Email Opened',
   email_replied: 'Email Replied',
   proposal_sent: 'Proposal Sent',
@@ -168,7 +171,7 @@ export const OUTCOME_LABELS: Record<ActivityOutcome, string> = {
 
 export const ACTIVITY_TYPE_OUTCOMES: Record<ActivityType, ActivityOutcome[]> = {
   call: ['call_no_answer', 'call_left_message', 'quality_conversation', 'meeting_booked', 'not_interested', 'other'],
-  email: ['email_sent', 'email_replied', 'meeting_booked', 'not_interested', 'other'],
+  email: ['email_sent', 'email_received', 'email_replied', 'meeting_booked', 'not_interested', 'other'],
   meeting: ['quality_conversation', 'meeting_booked', 'proposal_sent', 'follow_up_scheduled', 'not_interested', 'other'],
   note: ['other'],
   task: ['follow_up_scheduled', 'other'],

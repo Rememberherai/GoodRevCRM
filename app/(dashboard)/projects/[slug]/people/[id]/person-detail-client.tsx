@@ -46,6 +46,7 @@ import { PersonSequencesTab } from '@/components/people/person-sequences-tab';
 import { ActivityTimeline } from '@/components/activity/activity-timeline';
 import { EntityActivitySection } from '@/components/activity/entity-activity-section';
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
+import { EntityEmailTab } from '@/components/email/entity-email-tab';
 import { SendEmailModal } from '@/components/gmail';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ActivityWithUser } from '@/types/activity';
@@ -314,6 +315,10 @@ export function PersonDetailClient({ personId, companyContext }: PersonDetailCli
             <User className="h-4 w-4" />
             Info
           </TabsTrigger>
+          <TabsTrigger value="emails" className="gap-2">
+            <Mail className="h-4 w-4" />
+            Emails
+          </TabsTrigger>
           <TabsTrigger value="sequences" className="gap-2">
             <Send className="h-4 w-4" />
             Sequences
@@ -461,6 +466,14 @@ export function PersonDetailClient({ personId, companyContext }: PersonDetailCli
               </CardContent>
             </Card>
           )}
+        </TabsContent>
+
+        {/* Emails Tab */}
+        <TabsContent value="emails" className="space-y-6">
+          <EntityEmailTab
+            projectSlug={slug}
+            personId={personId}
+          />
         </TabsContent>
 
         {/* Sequences Tab */}

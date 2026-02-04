@@ -12,6 +12,13 @@ export interface GmailConnection {
   token_expires_at: string;
   status: GmailConnectionStatus;
   last_sync_at: string | null;
+  // Sync state
+  history_id: string | null;
+  initial_sync_done: boolean;
+  sync_errors_count: number;
+  last_sync_error: string | null;
+  sync_enabled: boolean;
+  watch_expiration: string | null;
   created_at: string;
   updated_at: string;
 }
@@ -148,3 +155,67 @@ export const EVENT_TYPE_LABELS: Record<EmailEventType, string> = {
   bounce: 'Bounced',
   reply: 'Replied',
 };
+
+// Synced email record (inbound + outbound)
+export interface SyncedEmail {
+  id: string;
+  gmail_connection_id: string;
+  user_id: string;
+  gmail_message_id: string;
+  gmail_thread_id: string;
+  direction: 'inbound' | 'outbound';
+  from_email: string;
+  from_name: string | null;
+  to_emails: string[];
+  cc_emails: string[];
+  bcc_emails: string[];
+  subject: string | null;
+  snippet: string | null;
+  body_html: string | null;
+  body_text: string | null;
+  email_date: string;
+  label_ids: string[];
+  attachments: EmailAttachmentMeta[];
+  person_id: string | null;
+  organization_id: string | null;
+  opportunity_id: string | null;
+  rfp_id: string | null;
+  project_id: string | null;
+  sent_email_id: string | null;
+  synced_at: string;
+  created_at: string;
+}
+
+export interface EmailAttachmentMeta {
+  filename: string;
+  mimeType: string;
+  size: number;
+  attachmentId: string;
+}
+
+export interface EmailThread {
+  thread_id: string;
+  subject: string | null;
+  messages: SyncedEmail[];
+  person_id: string | null;
+  organization_id: string | null;
+  latest_date: string;
+  message_count: number;
+}
+
+export interface EmailSyncStatus {
+  connection_id: string;
+  email: string;
+  sync_enabled: boolean;
+  initial_sync_done: boolean;
+  last_sync_at: string | null;
+  sync_errors_count: number;
+  last_sync_error: string | null;
+  watch_expiration: string | null;
+}
+
+// Pub/Sub push notification data
+export interface GmailPubSubMessage {
+  emailAddress: string;
+  historyId: string;
+}

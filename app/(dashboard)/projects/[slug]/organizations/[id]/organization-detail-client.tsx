@@ -61,6 +61,7 @@ import { DeleteFieldDialog } from '@/components/schema/delete-field-dialog';
 import { OrgSequencesTab } from '@/components/organizations/org-sequences-tab';
 import { EntityActivitySection } from '@/components/activity/entity-activity-section';
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
+import { EntityEmailTab } from '@/components/email/entity-email-tab';
 import { SendEmailModal } from '@/components/gmail';
 import { LogoUpload } from '@/components/ui/logo-upload';
 import { fetchPeople } from '@/stores/person';
@@ -494,6 +495,10 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
                 {rfps.length}
               </Badge>
             )}
+          </TabsTrigger>
+          <TabsTrigger value="emails" className="gap-2">
+            <Mail className="h-4 w-4" />
+            Emails
           </TabsTrigger>
           <TabsTrigger value="sequences" className="gap-2">
             <Send className="h-4 w-4" />
@@ -1004,6 +1009,14 @@ export function OrganizationDetailClient({ organizationId, companyContext }: Org
               ))}
             </div>
           )}
+        </TabsContent>
+
+        {/* Emails Tab */}
+        <TabsContent value="emails" className="space-y-6">
+          <EntityEmailTab
+            projectSlug={slug}
+            organizationId={organizationId}
+          />
         </TabsContent>
 
         {/* Sequences Tab */}
