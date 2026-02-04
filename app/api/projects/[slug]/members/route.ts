@@ -54,8 +54,8 @@ export async function GET(request: Request, context: RouteContext) {
 
     // Use RPC function to get members with user info
     let query = supabaseAny
-      .from('project_members')
-      .select('*, user:users!project_members_user_id_fkey(id, full_name, email, avatar_url)')
+      .from('project_memberships')
+      .select('*, user:users!project_memberships_user_id_fkey(id, full_name, email, avatar_url)')
       .eq('project_id', project.id);
 
     if (role) {
@@ -123,7 +123,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     // Check if user is admin or owner
     const { data: membership } = await supabaseAny
-      .from('project_members')
+      .from('project_memberships')
       .select('role')
       .eq('project_id', project.id)
       .eq('user_id', user.id)
@@ -157,7 +157,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (existingUser) {
       const { data: existingMember } = await supabaseAny
-        .from('project_members')
+        .from('project_memberships')
         .select('id')
         .eq('project_id', project.id)
         .eq('user_id', existingUser.id)

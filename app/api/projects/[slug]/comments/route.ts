@@ -139,7 +139,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (mentions.length > 0) {
       // Validate mentioned users are actual project members
       const { data: projectMembers } = await supabaseAny
-        .from('project_members')
+        .from('project_memberships')
         .select('user_id')
         .eq('project_id', project.id);
 

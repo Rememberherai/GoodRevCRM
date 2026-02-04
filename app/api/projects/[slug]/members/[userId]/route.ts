@@ -35,8 +35,8 @@ export async function GET(_request: Request, context: RouteContext) {
     const supabaseAny = supabase as any;
 
     const { data: member, error } = await supabaseAny
-      .from('project_members')
-      .select('*, user:users!project_members_user_id_fkey(id, full_name, email, avatar_url)')
+      .from('project_memberships')
+      .select('*, user:users!project_memberships_user_id_fkey(id, full_name, email, avatar_url)')
       .eq('project_id', project.id)
       .eq('user_id', userId)
       .single();
@@ -111,8 +111,8 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     // Get updated member
     const { data: member } = await supabaseAny
-      .from('project_members')
-      .select('*, user:users!project_members_user_id_fkey(id, full_name, email, avatar_url)')
+      .from('project_memberships')
+      .select('*, user:users!project_memberships_user_id_fkey(id, full_name, email, avatar_url)')
       .eq('project_id', project.id)
       .eq('user_id', userId)
       .single();
@@ -154,7 +154,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     // Check permissions
     const { data: currentMember } = await supabaseAny
-      .from('project_members')
+      .from('project_memberships')
       .select('role')
       .eq('project_id', project.id)
       .eq('user_id', user.id)
@@ -169,7 +169,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     // Check target member
     const { data: targetMember } = await supabaseAny
-      .from('project_members')
+      .from('project_memberships')
       .select('role')
       .eq('project_id', project.id)
       .eq('user_id', userId)
@@ -190,7 +190,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     }
 
     const { error } = await supabaseAny
-      .from('project_members')
+      .from('project_memberships')
       .delete()
       .eq('project_id', project.id)
       .eq('user_id', userId);
