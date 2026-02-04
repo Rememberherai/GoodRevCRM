@@ -65,6 +65,7 @@ import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-sec
 import { EntityEmailTab } from '@/components/email/entity-email-tab';
 import { SendEmailModal } from '@/components/gmail';
 import { EntityCommentsFeed } from '@/components/comments';
+import { OrgNewsSection } from '@/components/news/org-news-section';
 import { LogoUpload } from '@/components/ui/logo-upload';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
@@ -777,6 +778,9 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
               )}
             </CardContent>
           </Card>
+
+          {/* Related News */}
+          <OrgNewsSection projectSlug={slug} organizationId={organizationId} />
         </TabsContent>
 
         {/* People Tab */}
