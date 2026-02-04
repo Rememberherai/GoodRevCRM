@@ -1,10 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { extractTextFromPdf, extractTextFromPlainText } from '@/lib/pdf/extract-text';
-import { getOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
-import { logAiUsage } from '@/lib/openrouter/usage';
-import { buildContentExtractionPrompt } from '@/lib/openrouter/prompts';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { Database } from '@/types/database';
 
@@ -32,8 +28,13 @@ interface RouteContext {
 // POST /api/projects/[slug]/content-library/upload - Upload file and extract content
 export async function POST(request: Request, context: RouteContext) {
   try {
+    console.log('[content-library/upload] POST handler invoked');
+
     const { slug } = await context.params;
+    console.log('[content-library/upload] slug:', slug);
+
     const supabase = await createClient();
+    console.log('[content-library/upload] supabase client created');
 
     const {
       data: { user },
@@ -78,15 +79,22 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    // Extract text from file
+    // Extract text from file (dynamic import for debug logging)
+    console.log('[content-library/upload] importing pdf extract-text module...');
+    const { extractTextFromPdf, extractTextFromPlainText } = await import('@/lib/pdf/extract-text');
+    console.log('[content-library/upload] pdf module imported successfully');
+
     const buffer = Buffer.from(await file.arrayBuffer());
     let documentText: string;
 
     if (file.type === 'application/pdf') {
+      console.log('[content-library/upload] extracting text from PDF...');
       documentText = await extractTextFromPdf(buffer);
     } else {
+      console.log('[content-library/upload] extracting text from plain text...');
       documentText = extractTextFromPlainText(buffer.toString('utf-8'));
     }
+    console.log('[content-library/upload] text extracted, length:', documentText.length);
 
     if (!documentText.trim()) {
       return NextResponse.json(
@@ -102,10 +110,17 @@ export async function POST(request: Request, context: RouteContext) {
       ? { name: cc.name, description: cc.description, products: cc.products }
       : undefined;
 
-    // Call AI to extract Q&A pairs
+    // Call AI to extract Q&A pairs (dynamic import for debug logging)
+    console.log('[content-library/upload] importing openrouter modules...');
+    const { buildContentExtractionPrompt } = await import('@/lib/openrouter/prompts');
+    const { getOpenRouterClient, DEFAULT_MODEL } = await import('@/lib/openrouter/client');
+    const { logAiUsage } = await import('@/lib/openrouter/usage');
+    console.log('[content-library/upload] openrouter modules imported successfully');
+
     const prompt = buildContentExtractionPrompt(documentText, companyContext, category ?? undefined);
     const client = getOpenRouterClient();
 
+    console.log('[content-library/upload] calling AI for extraction...');
     const aiResult = await client.completeJsonWithUsage(
       prompt,
       extractionResultSchema,
@@ -177,9 +192,9 @@ export async function POST(request: Request, context: RouteContext) {
       documentName: file.name,
     });
   } catch (error) {
-    console.error('Error in POST /api/.../content-library/upload:', error);
+    console.error('[content-library/upload] Unhandled error:', error instanceof Error ? error.stack : error);
     return NextResponse.json(
-      { error: 'Failed to process file' },
+      { error: 'Failed to process file', debug: error instanceof Error ? error.message : String(error) },
       { status: 500 }
     );
   }
