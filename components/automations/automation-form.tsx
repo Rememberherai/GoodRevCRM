@@ -33,6 +33,8 @@ import {
 } from '@/types/automation';
 import { ACTIVITY_TYPE_LABELS } from '@/types/activity';
 import type { ActivityType } from '@/types/activity';
+import { MEETING_TYPE_LABELS, MEETING_OUTCOME_LABELS } from '@/types/meeting';
+import type { MeetingType, MeetingOutcome } from '@/types/meeting';
 
 interface AutomationFormProps {
   automation?: Automation;
@@ -75,6 +77,180 @@ interface ProjectTemplate {
   subject: string;
   category: string;
 }
+
+// Entity fields available for conditions, keyed by entity type
+const entityFieldOptions: Record<string, { value: string; label: string }[]> = {
+  organization: [
+    { value: 'name', label: 'Name' },
+    { value: 'domain', label: 'Domain' },
+    { value: 'website', label: 'Website' },
+    { value: 'industry', label: 'Industry' },
+    { value: 'employee_count', label: 'Employee Count' },
+    { value: 'annual_revenue', label: 'Annual Revenue' },
+    { value: 'description', label: 'Description' },
+    { value: 'phone', label: 'Phone' },
+    { value: 'address_city', label: 'City' },
+    { value: 'address_state', label: 'State' },
+    { value: 'address_country', label: 'Country' },
+    { value: 'owner_id', label: 'Owner' },
+  ],
+  person: [
+    { value: 'first_name', label: 'First Name' },
+    { value: 'last_name', label: 'Last Name' },
+    { value: 'email', label: 'Email' },
+    { value: 'phone', label: 'Phone' },
+    { value: 'job_title', label: 'Job Title' },
+    { value: 'department', label: 'Department' },
+    { value: 'timezone', label: 'Timezone' },
+    { value: 'preferred_contact_method', label: 'Preferred Contact' },
+    { value: 'address_city', label: 'City' },
+    { value: 'address_state', label: 'State' },
+    { value: 'address_country', label: 'Country' },
+    { value: 'enrichment_status', label: 'Enrichment Status' },
+    { value: 'owner_id', label: 'Owner' },
+  ],
+  opportunity: [
+    { value: 'name', label: 'Name' },
+    { value: 'stage', label: 'Stage' },
+    { value: 'amount', label: 'Amount' },
+    { value: 'currency', label: 'Currency' },
+    { value: 'probability', label: 'Probability' },
+    { value: 'expected_close_date', label: 'Expected Close Date' },
+    { value: 'source', label: 'Source' },
+    { value: 'campaign', label: 'Campaign' },
+    { value: 'competitor', label: 'Competitor' },
+    { value: 'lost_reason', label: 'Lost Reason' },
+    { value: 'won_reason', label: 'Won Reason' },
+    { value: 'days_in_stage', label: 'Days in Stage' },
+    { value: 'owner_id', label: 'Owner' },
+  ],
+  rfp: [
+    { value: 'title', label: 'Title' },
+    { value: 'status', label: 'Status' },
+    { value: 'estimated_value', label: 'Estimated Value' },
+    { value: 'currency', label: 'Currency' },
+    { value: 'win_probability', label: 'Win Probability' },
+    { value: 'due_date', label: 'Due Date' },
+    { value: 'decision_date', label: 'Decision Date' },
+    { value: 'submission_method', label: 'Submission Method' },
+    { value: 'go_no_go_decision', label: 'Go/No-Go Decision' },
+    { value: 'budget_range', label: 'Budget Range' },
+    { value: 'outcome_reason', label: 'Outcome Reason' },
+    { value: 'awarded_to', label: 'Awarded To' },
+    { value: 'owner_id', label: 'Owner' },
+  ],
+  task: [
+    { value: 'title', label: 'Title' },
+    { value: 'status', label: 'Status' },
+    { value: 'priority', label: 'Priority' },
+    { value: 'due_date', label: 'Due Date' },
+    { value: 'description', label: 'Description' },
+  ],
+  meeting: [
+    { value: 'title', label: 'Title' },
+    { value: 'meeting_type', label: 'Meeting Type' },
+    { value: 'status', label: 'Status' },
+    { value: 'outcome', label: 'Outcome' },
+    { value: 'duration_minutes', label: 'Duration (min)' },
+    { value: 'location', label: 'Location' },
+    { value: 'outcome_notes', label: 'Outcome Notes' },
+    { value: 'next_steps', label: 'Next Steps' },
+  ],
+};
+
+// Known value options for condition fields — when a user picks one of these fields,
+// show a dropdown instead of a text input for the Value column.
+const fieldValueOptions: Record<string, { value: string; label: string }[]> = {
+  stage: [
+    { value: 'prospecting', label: 'Prospecting' },
+    { value: 'qualification', label: 'Qualification' },
+    { value: 'proposal', label: 'Proposal' },
+    { value: 'negotiation', label: 'Negotiation' },
+    { value: 'closed_won', label: 'Closed Won' },
+    { value: 'closed_lost', label: 'Closed Lost' },
+  ],
+  status: [
+    { value: 'identified', label: 'Identified' },
+    { value: 'reviewing', label: 'Reviewing' },
+    { value: 'preparing', label: 'Preparing' },
+    { value: 'submitted', label: 'Submitted' },
+    { value: 'won', label: 'Won' },
+    { value: 'lost', label: 'Lost' },
+    { value: 'no_bid', label: 'No Bid' },
+    // Task statuses
+    { value: 'pending', label: 'Pending' },
+    { value: 'in_progress', label: 'In Progress' },
+    { value: 'completed', label: 'Completed' },
+    { value: 'cancelled', label: 'Cancelled' },
+    // Meeting statuses
+    { value: 'scheduled', label: 'Scheduled' },
+    { value: 'confirmed', label: 'Confirmed' },
+    { value: 'no_show', label: 'No Show' },
+  ],
+  priority: [
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'urgent', label: 'Urgent' },
+  ],
+  meeting_type: [
+    { value: 'discovery', label: 'Discovery' },
+    { value: 'demo', label: 'Demo' },
+    { value: 'proposal_review', label: 'Proposal Review' },
+    { value: 'negotiation', label: 'Negotiation' },
+    { value: 'onboarding', label: 'Onboarding' },
+    { value: 'check_in', label: 'Check-in' },
+    { value: 'qbr', label: 'QBR' },
+    { value: 'general', label: 'General' },
+  ],
+  outcome: [
+    { value: 'positive', label: 'Positive' },
+    { value: 'neutral', label: 'Neutral' },
+    { value: 'negative', label: 'Negative' },
+    { value: 'follow_up_needed', label: 'Follow-up Needed' },
+    { value: 'deal_advanced', label: 'Deal Advanced' },
+    { value: 'no_outcome', label: 'No Outcome' },
+  ],
+  go_no_go_decision: [
+    { value: 'go', label: 'Go' },
+    { value: 'no_go', label: 'No Go' },
+    { value: 'pending', label: 'Pending' },
+  ],
+  submission_method: [
+    { value: 'email', label: 'Email' },
+    { value: 'portal', label: 'Portal' },
+    { value: 'mail', label: 'Mail' },
+    { value: 'in_person', label: 'In Person' },
+    { value: 'other', label: 'Other' },
+  ],
+  preferred_contact_method: [
+    { value: 'email', label: 'Email' },
+    { value: 'phone', label: 'Phone' },
+    { value: 'linkedin', label: 'LinkedIn' },
+    { value: 'other', label: 'Other' },
+  ],
+  enrichment_status: [
+    { value: 'pending', label: 'Pending' },
+    { value: 'enriched', label: 'Enriched' },
+    { value: 'failed', label: 'Failed' },
+    { value: 'not_found', label: 'Not Found' },
+  ],
+  currency: [
+    { value: 'USD', label: 'USD' },
+    { value: 'EUR', label: 'EUR' },
+    { value: 'GBP', label: 'GBP' },
+    { value: 'CAD', label: 'CAD' },
+    { value: 'AUD', label: 'AUD' },
+  ],
+  source: [
+    { value: 'inbound', label: 'Inbound' },
+    { value: 'outbound', label: 'Outbound' },
+    { value: 'referral', label: 'Referral' },
+    { value: 'partner', label: 'Partner' },
+    { value: 'event', label: 'Event' },
+    { value: 'other', label: 'Other' },
+  ],
+};
 
 // User-facing activity types for the create_activity action
 const activityTypeOptionsForAction: { value: ActivityType; label: string }[] = (
@@ -176,6 +352,27 @@ export function AutomationForm({
     'time.created_ago',
   ].includes(triggerType);
   const needsFieldConfig = triggerType === 'field.changed';
+  const needsMeetingTypeConfig = triggerType === 'meeting.scheduled';
+  const needsMeetingOutcomeConfig = triggerType === 'meeting.outcome';
+  const needsSequenceConfig = ['sequence.completed', 'sequence.replied'].includes(triggerType);
+
+  // Determine the effective entity type for condition field options
+  const effectiveEntityType: string | null = (() => {
+    if (!triggerType) return null;
+    if (triggerConfig.entity_type) return triggerConfig.entity_type as string;
+    if (triggerType.startsWith('opportunity.')) return 'opportunity';
+    if (triggerType.startsWith('rfp.')) return 'rfp';
+    if (triggerType.startsWith('meeting.')) return 'meeting';
+    if (triggerType === 'task.completed' || triggerType === 'time.task_overdue') return 'task';
+    if (triggerType.startsWith('sequence.') || triggerType.startsWith('email.')) return 'person';
+    return null;
+  })();
+
+  // Get field options for condition dropdowns
+  const conditionFieldOptions = effectiveEntityType
+    ? entityFieldOptions[effectiveEntityType] ?? []
+    : Object.values(entityFieldOptions).flat()
+        .filter((f, i, arr) => arr.findIndex(x => x.value === f.value) === i);
 
   // Add condition
   const addCondition = () => {
@@ -291,6 +488,22 @@ export function AutomationForm({
           </Select>
         </div>
 
+        {/* Show trigger description for triggers with no extra config */}
+        {triggerType && (() => {
+          const noConfigTriggers: Record<string, string> = {
+            'email.opened': 'Fires when a tracked email is opened by the recipient.',
+            'email.clicked': 'Fires when a tracked link in an email is clicked.',
+            'email.replied': 'Fires when a reply to a tracked email is detected.',
+            'email.bounced': 'Fires when a sent email bounces.',
+            'task.completed': 'Fires when any task is marked as complete.',
+            'time.task_overdue': 'Fires when a task is past its due date and still open. Checked every 5 minutes.',
+          };
+          const desc = noConfigTriggers[triggerType];
+          return desc ? (
+            <p className="text-sm text-muted-foreground">{desc}</p>
+          ) : null;
+        })()}
+
         {needsEntityType && (
           <div>
             <Label>Entity Type</Label>
@@ -318,23 +531,54 @@ export function AutomationForm({
           <>
             <div>
               <Label>Field Name</Label>
-              <Input
+              <Select
                 value={(triggerConfig.field_name as string) ?? ''}
-                onChange={(e) =>
-                  setTriggerConfig({ ...triggerConfig, field_name: e.target.value })
+                onValueChange={(v) =>
+                  setTriggerConfig({ ...triggerConfig, field_name: v, to_value: undefined })
                 }
-                placeholder="e.g., stage, status, amount"
-              />
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select field..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {conditionFieldOptions.map((f) => (
+                    <SelectItem key={f.value} value={f.value}>
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>To Value (optional)</Label>
-              <Input
-                value={(triggerConfig.to_value as string) ?? ''}
-                onChange={(e) =>
-                  setTriggerConfig({ ...triggerConfig, to_value: e.target.value || undefined })
-                }
-                placeholder="Only trigger when field changes to this value"
-              />
+              {triggerConfig.field_name && fieldValueOptions[triggerConfig.field_name as string] ? (
+                <Select
+                  value={(triggerConfig.to_value as string) ?? 'any'}
+                  onValueChange={(v) =>
+                    setTriggerConfig({ ...triggerConfig, to_value: v === 'any' ? undefined : v })
+                  }
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="any">Any value</SelectItem>
+                    {(fieldValueOptions[triggerConfig.field_name as string] ?? []).map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              ) : (
+                <Input
+                  value={(triggerConfig.to_value as string) ?? ''}
+                  onChange={(e) =>
+                    setTriggerConfig({ ...triggerConfig, to_value: e.target.value || undefined })
+                  }
+                  placeholder="Only trigger when field changes to this value"
+                />
+              )}
             </div>
           </>
         )}
@@ -455,6 +699,101 @@ export function AutomationForm({
             />
           </div>
         )}
+
+        {needsMeetingTypeConfig && (
+          <div>
+            <Label>Meeting Type (optional)</Label>
+            <Select
+              value={(triggerConfig.meeting_type as string) ?? 'any'}
+              onValueChange={(v) =>
+                setTriggerConfig({ ...triggerConfig, meeting_type: v === 'any' ? undefined : v })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Any type</SelectItem>
+                {(Object.entries(MEETING_TYPE_LABELS) as [MeetingType, string][]).map(([value, label]) => (
+                  <SelectItem key={value} value={value}>
+                    {label}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
+        {needsMeetingOutcomeConfig && (
+          <div className="space-y-4">
+            <div>
+              <Label>Meeting Type (optional)</Label>
+              <Select
+                value={(triggerConfig.meeting_type as string) ?? 'any'}
+                onValueChange={(v) =>
+                  setTriggerConfig({ ...triggerConfig, meeting_type: v === 'any' ? undefined : v })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any type</SelectItem>
+                  {(Object.entries(MEETING_TYPE_LABELS) as [MeetingType, string][]).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Outcome (optional)</Label>
+              <Select
+                value={(triggerConfig.outcome as string) ?? 'any'}
+                onValueChange={(v) =>
+                  setTriggerConfig({ ...triggerConfig, outcome: v === 'any' ? undefined : v })
+                }
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="any">Any outcome</SelectItem>
+                  {(Object.entries(MEETING_OUTCOME_LABELS) as [MeetingOutcome, string][]).map(([value, label]) => (
+                    <SelectItem key={value} value={value}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        )}
+
+        {needsSequenceConfig && (
+          <div>
+            <Label>Sequence (optional)</Label>
+            <Select
+              value={(triggerConfig.sequence_id as string) ?? 'any'}
+              onValueChange={(v) =>
+                setTriggerConfig({ ...triggerConfig, sequence_id: v === 'any' ? undefined : v })
+              }
+            >
+              <SelectTrigger>
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="any">Any sequence</SelectItem>
+                {sequences.map((s) => (
+                  <SelectItem key={s.id} value={s.id}>
+                    {s.name}
+                  </SelectItem>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+        )}
       </div>
 
       <Separator />
@@ -473,11 +812,21 @@ export function AutomationForm({
           <div key={index} className="flex items-end gap-2">
             <div className="flex-1">
               <Label className="text-xs">Field</Label>
-              <Input
-                value={condition.field}
-                onChange={(e) => updateCondition(index, 'field', e.target.value)}
-                placeholder="e.g., stage, amount, industry"
-              />
+              <Select
+                value={condition.field || ''}
+                onValueChange={(v) => updateCondition(index, 'field', v)}
+              >
+                <SelectTrigger>
+                  <SelectValue placeholder="Select field..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {conditionFieldOptions.map((f) => (
+                    <SelectItem key={f.value} value={f.value}>
+                      {f.label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
             <div className="w-44">
               <Label className="text-xs">Operator</Label>
@@ -502,11 +851,45 @@ export function AutomationForm({
             {!['is_empty', 'is_not_empty'].includes(condition.operator) && (
               <div className="flex-1">
                 <Label className="text-xs">Value</Label>
-                <Input
-                  value={String(condition.value ?? '')}
-                  onChange={(e) => updateCondition(index, 'value', e.target.value)}
-                  placeholder="Value"
-                />
+                {fieldValueOptions[condition.field] ? (
+                  <Select
+                    value={String(condition.value ?? '')}
+                    onValueChange={(v) => updateCondition(index, 'value', v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select value..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(fieldValueOptions[condition.field] ?? []).map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : condition.field === 'owner_id' ? (
+                  <Select
+                    value={String(condition.value ?? '')}
+                    onValueChange={(v) => updateCondition(index, 'value', v)}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select member..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {members.map((m) => (
+                        <SelectItem key={m.user_id} value={m.user_id}>
+                          {getMemberLabel(m)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={String(condition.value ?? '')}
+                    onChange={(e) => updateCondition(index, 'value', e.target.value)}
+                    placeholder="Value"
+                  />
+                )}
               </div>
             )}
             <Button
@@ -644,19 +1027,66 @@ export function AutomationForm({
               <div className="grid grid-cols-2 gap-2">
                 <div>
                   <Label className="text-xs">Field Name</Label>
-                  <Input
+                  <Select
                     value={(action.config.field_name as string) ?? ''}
-                    onChange={(e) => updateActionConfig(index, 'field_name', e.target.value)}
-                    placeholder="e.g., probability"
-                  />
+                    onValueChange={(v) => {
+                      updateActionConfig(index, 'field_name', v);
+                      updateActionConfig(index, 'value', '');
+                    }}
+                  >
+                    <SelectTrigger>
+                      <SelectValue placeholder="Select field..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {conditionFieldOptions.map((f) => (
+                        <SelectItem key={f.value} value={f.value}>
+                          {f.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
                 <div>
                   <Label className="text-xs">Value</Label>
-                  <Input
-                    value={(action.config.value as string) ?? ''}
-                    onChange={(e) => updateActionConfig(index, 'value', e.target.value)}
-                    placeholder="New value"
-                  />
+                  {action.config.field_name && fieldValueOptions[action.config.field_name as string] ? (
+                    <Select
+                      value={(action.config.value as string) ?? ''}
+                      onValueChange={(v) => updateActionConfig(index, 'value', v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select value..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {(fieldValueOptions[action.config.field_name as string] ?? []).map((opt) => (
+                          <SelectItem key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : action.config.field_name === 'owner_id' ? (
+                    <Select
+                      value={(action.config.value as string) ?? ''}
+                      onValueChange={(v) => updateActionConfig(index, 'value', v)}
+                    >
+                      <SelectTrigger>
+                        <SelectValue placeholder="Select member..." />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {members.map((m) => (
+                          <SelectItem key={m.user_id} value={m.user_id}>
+                            {getMemberLabel(m)}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  ) : (
+                    <Input
+                      value={(action.config.value as string) ?? ''}
+                      onChange={(e) => updateActionConfig(index, 'value', e.target.value)}
+                      placeholder="New value"
+                    />
+                  )}
                 </div>
               </div>
             )}
