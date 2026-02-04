@@ -52,39 +52,50 @@ export async function GET(request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
-    // Use RPC function to get members with user info
-    let query = supabaseAny
-      .from('project_memberships')
-      .select('*, user:users!project_memberships_user_id_fkey(id, full_name, email, avatar_url)')
-      .eq('project_id', project.id);
-
-    if (role) {
-      query = query.eq('role', role);
-    }
-
-    const { data: members, error } = await query
-      .order('role', { ascending: true })
-      .order('created_at', { ascending: true })
-      .range(offset, offset + limit - 1);
+    // Use SECURITY DEFINER RPC to bypass users-table RLS
+    const { data: rpcMembers, error } = await supabaseAny.rpc(
+      'get_project_memberships',
+      { p_project_id: project.id }
+    );
 
     if (error) {
       console.error('Error fetching members:', error);
       return NextResponse.json({ error: 'Failed to fetch members' }, { status: 500 });
     }
 
-    // Filter by search if provided
-    let filteredMembers = members ?? [];
+    // Reshape RPC flat rows into nested { role, user: {...} } format for client compatibility
+    let members = (rpcMembers ?? []).map((m: any) => ({
+      id: m.id,
+      user_id: m.user_id,
+      role: m.role,
+      joined_at: m.joined_at,
+      user: {
+        id: m.user_id,
+        full_name: m.full_name,
+        email: m.email,
+        avatar_url: m.avatar_url,
+      },
+    }));
+
+    // Apply filters
+    if (role) {
+      members = members.filter((m: any) => m.role === role);
+    }
+
     if (search) {
       const searchLower = search.toLowerCase();
-      filteredMembers = filteredMembers.filter(
-        (m: { user: { full_name?: string; email?: string } }) =>
+      members = members.filter(
+        (m: any) =>
           m.user?.full_name?.toLowerCase().includes(searchLower) ||
           m.user?.email?.toLowerCase().includes(searchLower)
       );
     }
 
+    // Apply pagination
+    const paginated = members.slice(offset, offset + limit);
+
     return NextResponse.json({
-      members: filteredMembers,
+      members: paginated,
       pagination: { limit, offset },
     });
   } catch (error) {
