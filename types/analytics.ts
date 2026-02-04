@@ -149,6 +149,7 @@ export type AiFeature =
   | 'contact_discovery'
   | 'rfp_response'
   | 'content_extraction'
+  | 'content_restructure'
   | 'bulk_rfp_generation'
   | 'rfp_question_extraction';
 
@@ -158,6 +159,7 @@ export const AI_FEATURE_LABELS: Record<AiFeature, string> = {
   contact_discovery: 'Contact Discovery',
   rfp_response: 'RFP Responses',
   content_extraction: 'Content Extraction',
+  content_restructure: 'Content Restructure',
   bulk_rfp_generation: 'Bulk RFP Gen',
   rfp_question_extraction: 'RFP Question Import',
 };

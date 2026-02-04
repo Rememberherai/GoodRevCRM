@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef } from 'react';
-import { Upload, FileText, X, Trash2, Check } from 'lucide-react';
+import { Upload, FileText, X, Trash2, Check, FileSearch, Sparkles } from 'lucide-react';
 import { useContentLibrary } from '@/hooks/use-content-library';
 import { CONTENT_CATEGORIES, CATEGORY_LABELS, type ContentCategory } from '@/types/rfp-content-library';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,7 @@ export function ContentLibraryUpload({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [file, setFile] = useState<File | null>(null);
+  const [mode, setMode] = useState<'parse' | 'llm'>('parse');
   const [category, setCategory] = useState<string>('');
   const [isExtracting, setIsExtracting] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
@@ -85,6 +86,7 @@ export function ContentLibraryUpload({
       const slug = window.location.pathname.split('/')[2];
       const formData = new FormData();
       formData.append('file', file);
+      formData.append('mode', mode);
       if (category) formData.append('category', category);
 
       const response = await fetch(`/api/projects/${slug}/content-library/upload`, {
@@ -102,7 +104,7 @@ export function ContentLibraryUpload({
       setDocumentName(data.documentName ?? file.name);
 
       if (data.entries?.length === 0) {
-        setError('No Q&A pairs could be extracted from this document.');
+        setError('No content entries could be extracted from this document.');
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to extract content');
@@ -152,6 +154,7 @@ export function ContentLibraryUpload({
 
   const resetState = () => {
     setFile(null);
+    setMode('parse');
     setCategory('');
     setExtractedEntries([]);
     setRemovedIndices(new Set());
@@ -227,6 +230,43 @@ export function ContentLibraryUpload({
                     if (f) handleFileSelect(f);
                   }}
                 />
+              </div>
+
+              {/* Processing mode */}
+              <div>
+                <Label>Processing Mode</Label>
+                <div className="grid grid-cols-2 gap-2 mt-1">
+                  <button
+                    type="button"
+                    onClick={() => setMode('parse')}
+                    className={`flex items-center gap-2 rounded-md border p-3 text-left text-sm transition-colors ${
+                      mode === 'parse'
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                        : 'hover:bg-muted/50'
+                    }`}
+                  >
+                    <FileSearch className="h-4 w-4 shrink-0" />
+                    <div>
+                      <p className="font-medium">Parse</p>
+                      <p className="text-xs text-muted-foreground">Extract Q&A pairs from document text</p>
+                    </div>
+                  </button>
+                  <button
+                    type="button"
+                    onClick={() => setMode('llm')}
+                    className={`flex items-center gap-2 rounded-md border p-3 text-left text-sm transition-colors ${
+                      mode === 'llm'
+                        ? 'border-primary bg-primary/5 ring-1 ring-primary'
+                        : 'hover:bg-muted/50'
+                    }`}
+                  >
+                    <Sparkles className="h-4 w-4 shrink-0" />
+                    <div>
+                      <p className="font-medium">LLM</p>
+                      <p className="text-xs text-muted-foreground">Summarize & restructure into content entries</p>
+                    </div>
+                  </button>
+                </div>
               </div>
 
               {/* Category */}
@@ -331,7 +371,9 @@ export function ContentLibraryUpload({
               onClick={handleExtract}
               disabled={!file || isExtracting}
             >
-              {isExtracting ? 'Extracting...' : 'Extract Content'}
+              {isExtracting
+                ? mode === 'llm' ? 'Processing...' : 'Extracting...'
+                : mode === 'llm' ? 'Restructure Content' : 'Extract Content'}
             </Button>
           ) : (
             <Button

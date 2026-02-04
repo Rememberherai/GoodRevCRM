@@ -505,6 +505,69 @@ Respond ONLY with the JSON object.`;
   return prompt;
 }
 
+// LLM content restructuring from documents
+export function buildContentRestructurePrompt(
+  documentText: string,
+  companyContext?: { name: string; description?: string; products?: string[] },
+  suggestedCategory?: string
+): string {
+  let prompt = `You are a content strategist. Read the following document and restructure its information into well-organized, reusable content library entries. Each entry should be a self-contained piece of knowledge — a summary, key talking point, capability statement, or important fact — that a sales or proposals team can quickly reference.`;
+
+  if (companyContext?.name) {
+    prompt += `\n\nCompany Context:
+- Name: ${companyContext.name}`;
+    if (companyContext.description) {
+      prompt += `\n- Description: ${companyContext.description}`;
+    }
+    if (companyContext.products && companyContext.products.length > 0) {
+      prompt += `\n- Products/Services: ${companyContext.products.join(', ')}`;
+    }
+    prompt += `\n\nFrame the content in the context of this company's capabilities and offerings.`;
+  }
+
+  prompt += `\n\n## DOCUMENT TEXT
+${documentText.slice(0, 50000)}`;
+
+  if (suggestedCategory) {
+    prompt += `\n\n## SUGGESTED CATEGORY
+${suggestedCategory}`;
+  }
+
+  prompt += `\n\n## INSTRUCTIONS
+1. Read the entire document and identify key themes, facts, capabilities, differentiators, and important details
+2. Restructure this information into distinct content entries. Each entry should be ONE of:
+   - **Summary**: A concise overview of a topic or section
+   - **Key Talking Point**: A persuasive statement about a capability or differentiator
+   - **Capability Statement**: A clear description of what the company/product can do
+   - **Process Description**: How something works, step by step
+   - **Fact / Statistic**: A notable data point, metric, or achievement
+3. Write each entry's answer_text as polished, professional prose ready to drop into a proposal or RFP response
+4. Do NOT just copy paragraphs verbatim — restructure, clarify, and tighten the language
+5. Assign a relevant category to each: security, compliance, technical, company_overview, pricing, support, implementation, integration, or other
+6. Add descriptive tags (2-5 per entry) for searchability
+7. Create a short, descriptive title for each entry
+8. The question_text field is optional — include it if the entry naturally answers a common question, otherwise set it to null
+
+## OUTPUT FORMAT
+Respond with a JSON object:
+{
+  "entries": [
+    {
+      "title": "Short descriptive title",
+      "question_text": "Optional: what question does this answer?",
+      "answer_text": "The restructured, polished content",
+      "category": "one of the valid categories",
+      "tags": ["tag1", "tag2", "tag3"]
+    }
+  ]
+}
+
+Produce as many useful entries as the document warrants (up to 50). Quality and usability over quantity.
+Respond ONLY with the JSON object.`;
+
+  return prompt;
+}
+
 // RFP question extraction from documents
 export function buildRfpQuestionExtractionPrompt(
   documentText: string,

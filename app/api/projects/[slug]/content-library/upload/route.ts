@@ -59,7 +59,9 @@ export async function POST(request: Request, context: RouteContext) {
     const formData = await request.formData();
     const file = formData.get('file') as File | null;
     const category = formData.get('category') as string | null;
+    const mode = (formData.get('mode') as string | null) ?? 'parse';
     const saveImmediately = formData.get('saveImmediately') === 'true';
+    console.log('[content-library/upload] mode:', mode);
 
     if (!file) {
       return NextResponse.json({ error: 'No file provided' }, { status: 400 });
@@ -110,14 +112,16 @@ export async function POST(request: Request, context: RouteContext) {
       ? { name: cc.name, description: cc.description, products: cc.products }
       : undefined;
 
-    // Call AI to extract Q&A pairs (dynamic import for debug logging)
+    // Call AI to extract/restructure content (dynamic import for debug logging)
     console.log('[content-library/upload] importing openrouter modules...');
-    const { buildContentExtractionPrompt } = await import('@/lib/openrouter/prompts');
+    const { buildContentExtractionPrompt, buildContentRestructurePrompt } = await import('@/lib/openrouter/prompts');
     const { getOpenRouterClient, DEFAULT_MODEL } = await import('@/lib/openrouter/client');
     const { logAiUsage } = await import('@/lib/openrouter/usage');
     console.log('[content-library/upload] openrouter modules imported successfully');
 
-    const prompt = buildContentExtractionPrompt(documentText, companyContext, category ?? undefined);
+    const prompt = mode === 'llm'
+      ? buildContentRestructurePrompt(documentText, companyContext, category ?? undefined)
+      : buildContentExtractionPrompt(documentText, companyContext, category ?? undefined);
     const client = getOpenRouterClient();
 
     console.log('[content-library/upload] calling AI for extraction...');
@@ -135,7 +139,7 @@ export async function POST(request: Request, context: RouteContext) {
     await logAiUsage(supabase, {
       projectId: project.id,
       userId: user.id,
-      feature: 'content_extraction',
+      feature: mode === 'llm' ? 'content_restructure' : 'content_extraction',
       model: aiResult.model,
       promptTokens: aiResult.usage?.prompt_tokens,
       completionTokens: aiResult.usage?.completion_tokens,
