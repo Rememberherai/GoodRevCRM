@@ -176,6 +176,27 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
+    // Update news keyword if org name changed (fire-and-forget)
+    if (updates.name && updates.name.length >= 3) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      (supabase as any)
+        .from('news_keywords')
+        .upsert(
+          {
+            project_id: project.id,
+            keyword: updates.name,
+            source: 'organization',
+            organization_id: id,
+            is_active: true,
+            created_by: user.id,
+          },
+          { onConflict: 'project_id,keyword' }
+        )
+        .then(({ error: kwError }: { error: { message: string } | null }) => {
+          if (kwError) console.warn('[News] Auto-keyword update failed:', kwError.message);
+        });
+    }
+
     return NextResponse.json({ organization: organization as Organization });
   } catch (error) {
     console.error('Error in PATCH /api/projects/[slug]/organizations/[id]:', error);
@@ -221,6 +242,17 @@ export async function DELETE(_request: Request, context: RouteContext) {
       console.error('Error deleting organization:', error);
       return NextResponse.json({ error: 'Failed to delete organization' }, { status: 500 });
     }
+
+    // Remove news keyword for this org (fire-and-forget)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    (supabase as any)
+      .from('news_keywords')
+      .delete()
+      .eq('organization_id', id)
+      .eq('project_id', project.id)
+      .then(({ error: kwError }: { error: { message: string } | null }) => {
+        if (kwError) console.warn('[News] Auto-keyword deletion failed:', kwError.message);
+      });
 
     // Emit automation event
     emitAutomationEvent({

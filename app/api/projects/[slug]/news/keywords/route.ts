@@ -52,6 +52,48 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
+    // Backfill: auto-create keywords for orgs that don't have one yet
+    const existingOrgKeywords = (keywords || []).filter((k: any) => k.source === 'organization');
+    const orgIdsWithKeywords = new Set(existingOrgKeywords.map((k: any) => k.organization_id));
+
+    const { data: orgs } = await supabase
+      .from('organizations')
+      .select('id, name')
+      .eq('project_id', project.id)
+      .is('deleted_at', null);
+
+    if (orgs?.length) {
+      const missing = orgs.filter(o => o.name && o.name.length >= 3 && !orgIdsWithKeywords.has(o.id));
+      if (missing.length > 0) {
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        await (supabase as any)
+          .from('news_keywords')
+          .upsert(
+            missing.map(o => ({
+              project_id: project.id,
+              keyword: o.name,
+              source: 'organization',
+              organization_id: o.id,
+              is_active: true,
+              created_by: user.id,
+            })),
+            { onConflict: 'project_id,keyword' }
+          )
+          .then(({ error: bfError }: { error: { message: string } | null }) => {
+            if (bfError) console.warn('[News] Backfill keywords failed:', bfError.message);
+          });
+
+        // Re-fetch to include the backfilled keywords
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const { data: refreshedKeywords } = await (supabase as any)
+          .from('news_keywords')
+          .select('*')
+          .eq('project_id', project.id)
+          .order('created_at', { ascending: false });
+        return NextResponse.json({ keywords: refreshedKeywords || [] });
+      }
+    }
+
     return NextResponse.json({ keywords: keywords || [] });
   } catch (error) {
     console.error('[News Keywords GET] Error:', error);
