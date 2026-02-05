@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { listRecordings } from '@/lib/telnyx/client';
+import { listRecordings, getRecording } from '@/lib/telnyx/client';
 import { decryptApiKey } from '@/lib/telnyx/encryption';
 
 interface RouteContext {
@@ -187,16 +187,38 @@ export async function GET(_request: Request, context: RouteContext) {
       });
     }
 
-    const recordingUrl = bestMatch.download_urls?.mp3 ?? null;
-    const durationSeconds = bestMatch.duration_millis
+    let recordingUrl = bestMatch.download_urls?.mp3 ?? null;
+    let durationSeconds = bestMatch.duration_millis
       ? Math.round(bestMatch.duration_millis / 1000)
       : null;
 
     console.log('[Recording Fetch] Found recording for call', id, {
       recordingId: bestMatch.id,
+      status: bestMatch.status,
       url: recordingUrl ? 'present' : 'missing',
+      download_urls: JSON.stringify(bestMatch.download_urls),
       durationSeconds,
     });
+
+    // If download_urls is missing from the list response, try fetching the
+    // individual recording by ID — the detail endpoint may have more complete data
+    if (!recordingUrl && bestMatch.id) {
+      try {
+        console.log('[Recording Fetch] download_urls missing, fetching individual recording:', bestMatch.id);
+        const detail = await getRecording(apiKey, bestMatch.id);
+        recordingUrl = detail.data?.download_urls?.mp3 ?? null;
+        durationSeconds = detail.data?.duration_millis
+          ? Math.round(detail.data.duration_millis / 1000)
+          : durationSeconds;
+        console.log('[Recording Fetch] Individual recording detail:', {
+          url: recordingUrl ? 'present' : 'still missing',
+          status: detail.data?.status,
+          download_urls: JSON.stringify(detail.data?.download_urls),
+        });
+      } catch (detailErr) {
+        console.error('[Recording Fetch] Error fetching individual recording:', detailErr);
+      }
+    }
 
     if (recordingUrl) {
       // Save to DB so we don't need to fetch again

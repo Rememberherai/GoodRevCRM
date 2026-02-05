@@ -61,7 +61,20 @@ function getTelnyxPublicKey(): string | null {
   // If it already starts with -----BEGIN, return as-is
   if (key.startsWith('-----BEGIN')) return key;
 
-  // Otherwise wrap raw base64 in PEM format
+  // The key from Telnyx is a raw 32-byte Ed25519 public key in base64.
+  // Node.js crypto requires SPKI (SubjectPublicKeyInfo) DER encoding which
+  // prepends a 12-byte ASN.1 header: 30 2a 30 05 06 03 2b 65 70 03 21 00
+  const ED25519_SPKI_PREFIX = Buffer.from('302a300506032b6570032100', 'hex');
+  const rawKeyBytes = Buffer.from(key, 'base64');
+
+  // If the key is already 44+ bytes, it might already be SPKI-encoded
+  if (rawKeyBytes.length === 32) {
+    const spkiDer = Buffer.concat([ED25519_SPKI_PREFIX, rawKeyBytes]);
+    const spkiBase64 = spkiDer.toString('base64');
+    return `-----BEGIN PUBLIC KEY-----\n${spkiBase64}\n-----END PUBLIC KEY-----`;
+  }
+
+  // If not 32 bytes, try wrapping as-is (might already be DER-encoded)
   return `-----BEGIN PUBLIC KEY-----\n${key}\n-----END PUBLIC KEY-----`;
 }
 
