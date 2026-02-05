@@ -58,6 +58,7 @@ export type UpdateCallDispositionInput = z.infer<typeof updateCallDispositionSch
 // Schema for Telnyx connection setup
 export const telnyxConnectionSchema = z.object({
   api_key: z.string().min(1, 'API key is required'),
+  call_control_app_id: z.string().optional().nullable(),
   sip_connection_id: z.string().optional().nullable(),
   sip_username: z.string().optional().nullable(),
   sip_password: z.string().optional().nullable(),

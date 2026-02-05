@@ -82,6 +82,7 @@ export interface TelnyxConnection {
   project_id: string;
   created_by: string;
   api_key: string;
+  call_control_app_id: string | null;
   sip_connection_id: string | null;
   sip_username: string | null;
   sip_password: string | null;

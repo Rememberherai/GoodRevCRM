@@ -10,6 +10,7 @@ const telnyxUpdateSchema = z.object({
   record_calls: z.boolean().optional(),
   amd_enabled: z.boolean().optional(),
   caller_id_name: z.string().max(50).nullable().optional(),
+  call_control_app_id: z.string().nullable().optional(),
   sip_connection_id: z.string().nullable().optional(),
   sip_username: z.string().nullable().optional(),
   sip_password: z.string().nullable().optional(),
@@ -44,7 +45,7 @@ export async function GET(_request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: connection } = await (supabase as any)
       .from('telnyx_connections')
-      .select('id, project_id, phone_number, phone_number_id, record_calls, amd_enabled, caller_id_name, status, error_message, last_call_at, sip_connection_id, sip_username, created_at, updated_at')
+      .select('id, project_id, phone_number, phone_number_id, record_calls, amd_enabled, caller_id_name, status, error_message, last_call_at, call_control_app_id, sip_connection_id, sip_username, created_at, updated_at')
       .eq('project_id', project.id)
       .eq('status', 'active')
       .single();
@@ -128,6 +129,7 @@ export async function POST(request: Request, context: RouteContext) {
         project_id: project.id,
         created_by: user.id,
         api_key: encryptedApiKey,
+        call_control_app_id: input.call_control_app_id ?? null,
         sip_connection_id: input.sip_connection_id ?? null,
         sip_username: input.sip_username ?? null,
         sip_password: input.sip_password ?? null,
@@ -138,7 +140,7 @@ export async function POST(request: Request, context: RouteContext) {
         caller_id_name: input.caller_id_name ?? null,
         status: 'active',
       })
-      .select('id, project_id, phone_number, record_calls, amd_enabled, caller_id_name, status, sip_connection_id, sip_username, created_at')
+      .select('id, project_id, phone_number, record_calls, amd_enabled, caller_id_name, status, call_control_app_id, sip_connection_id, sip_username, created_at')
       .single();
 
     if (error) {
@@ -193,6 +195,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (input.record_calls !== undefined) updates.record_calls = input.record_calls;
     if (input.amd_enabled !== undefined) updates.amd_enabled = input.amd_enabled;
     if (input.caller_id_name !== undefined) updates.caller_id_name = input.caller_id_name;
+    if (input.call_control_app_id !== undefined) updates.call_control_app_id = input.call_control_app_id;
     if (input.sip_connection_id !== undefined) updates.sip_connection_id = input.sip_connection_id;
     if (input.sip_username !== undefined) updates.sip_username = input.sip_username;
     if (input.sip_password !== undefined) updates.sip_password = input.sip_password;
@@ -207,7 +210,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       .update(updates)
       .eq('project_id', project.id)
       .eq('status', 'active')
-      .select('id, project_id, phone_number, record_calls, amd_enabled, caller_id_name, status, sip_connection_id, sip_username, updated_at')
+      .select('id, project_id, phone_number, record_calls, amd_enabled, caller_id_name, status, call_control_app_id, sip_connection_id, sip_username, updated_at')
       .single();
 
     if (error) {

@@ -36,6 +36,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
     resolver: zodResolver(telnyxConnectionSchema) as any,
     defaultValues: {
       api_key: '',
+      call_control_app_id: '',
       sip_connection_id: '',
       sip_username: '',
       sip_password: '',
@@ -59,6 +60,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
         setConnectionStatus(data.connection.status);
         form.reset({
           api_key: '••••••••••••••••', // Masked
+          call_control_app_id: data.connection.call_control_app_id ?? '',
           sip_connection_id: data.connection.sip_connection_id ?? '',
           sip_username: data.connection.sip_username ?? '',
           sip_password: '', // Don't show
@@ -95,6 +97,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
             record_calls: values.record_calls,
             amd_enabled: values.amd_enabled,
             caller_id_name: values.caller_id_name || null,
+            call_control_app_id: values.call_control_app_id || null,
             sip_connection_id: values.sip_connection_id || null,
             sip_username: values.sip_username || null,
             ...(values.sip_password ? { sip_password: values.sip_password } : {}),
@@ -145,6 +148,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
       setConnectionStatus(null);
       form.reset({
         api_key: '',
+        call_control_app_id: '',
         sip_connection_id: '',
         sip_username: '',
         sip_password: '',
@@ -224,36 +228,22 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="phone_number"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Phone Number</FormLabel>
-                    <FormControl>
-                      <Input
-                        {...field}
-                        placeholder="+12025551234"
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Your Telnyx phone number in E.164 format
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
               <div className="grid gap-4 sm:grid-cols-2">
                 <FormField
                   control={form.control}
-                  name="sip_connection_id"
+                  name="phone_number"
                   render={({ field }) => (
                     <FormItem>
-                      <FormLabel>SIP Connection ID</FormLabel>
+                      <FormLabel>Phone Number</FormLabel>
                       <FormControl>
-                        <Input {...field} value={field.value ?? ''} placeholder="Connection ID" />
+                        <Input
+                          {...field}
+                          placeholder="+12025551234"
+                        />
                       </FormControl>
+                      <FormDescription>
+                        E.164 format
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
@@ -267,11 +257,31 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
                       <FormControl>
                         <Input {...field} value={field.value ?? ''} placeholder="Your Company" />
                       </FormControl>
+                      <FormDescription>
+                        Outbound caller name
+                      </FormDescription>
                       <FormMessage />
                     </FormItem>
                   )}
                 />
               </div>
+
+              <FormField
+                control={form.control}
+                name="call_control_app_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Call Control Application ID</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={field.value ?? ''} placeholder="e.g., 1293384261075731500" />
+                    </FormControl>
+                    <FormDescription>
+                      From Voice → Call Control → Applications in Telnyx portal (required for making calls)
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
 
               <div className="border rounded-md p-4 space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium">

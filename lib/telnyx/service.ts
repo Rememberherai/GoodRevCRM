@@ -85,8 +85,12 @@ export async function initiateOutboundCall(params: {
   // Now initiate the call via Telnyx API
   let callControlId: string;
   try {
+    if (!connection.call_control_app_id) {
+      throw new Error('No Call Control Application ID configured. Please add it in Phone settings.');
+    }
+
     const telnyxResponse = await telnyxClient.initiateCall(connection.api_key, {
-      connectionId: connection.sip_connection_id ?? '',
+      connectionId: connection.call_control_app_id,
       fromNumber: connection.phone_number,
       toNumber: params.toNumber,
       webhookUrl,
