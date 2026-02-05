@@ -108,7 +108,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (entityId) {
       try {
-        await supabaseAny.from('activity_log').insert({
+        const { error: activityError } = await supabaseAny.from('activity_log').insert({
           project_id: project.id,
           user_id: user.id,
           entity_type: entityType,
@@ -129,9 +129,12 @@ export async function POST(request: Request, context: RouteContext) {
             to: validationResult.data.to,
           },
         });
-      } catch (activityError) {
+        if (activityError) {
+          console.error('Activity log insert failed:', activityError.message, activityError.code, activityError.details);
+        }
+      } catch (activityErr) {
         // Don't fail the email send if activity logging fails
-        console.error('Failed to log email activity:', activityError);
+        console.error('Failed to log email activity:', activityErr);
       }
     }
 

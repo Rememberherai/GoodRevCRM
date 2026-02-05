@@ -285,6 +285,43 @@ export async function sendEmail(
     // Don't throw - email was sent successfully
   }
 
+  // Also insert into the unified emails table so the email appears in the Emails tab immediately
+  // (instead of waiting for Gmail sync to pick it up)
+  const toEmails = Array.isArray(input.to) ? input.to : [input.to];
+  const { error: emailsInsertError } = await supabase
+    .from('emails')
+    .upsert({
+      gmail_connection_id: connection.id,
+      user_id: userId,
+      gmail_message_id: result.id,
+      gmail_thread_id: result.threadId,
+      direction: 'outbound',
+      from_email: connection.email,
+      from_name: null,
+      to_emails: toEmails,
+      cc_emails: input.cc ?? [],
+      bcc_emails: input.bcc ?? [],
+      subject: input.subject,
+      snippet: stripHtml(input.body_html).slice(0, 200),
+      body_html: input.body_html,
+      body_text: input.body_text ?? stripHtml(input.body_html),
+      email_date: new Date().toISOString(),
+      label_ids: ['SENT'],
+      person_id: input.person_id ?? null,
+      organization_id: input.organization_id ?? null,
+      opportunity_id: input.opportunity_id ?? null,
+      rfp_id: input.rfp_id ?? null,
+      project_id: projectId ?? null,
+      sent_email_id: sentEmail?.id ?? null,
+    }, {
+      onConflict: 'gmail_connection_id,gmail_message_id',
+      ignoreDuplicates: true,
+    });
+
+  if (emailsInsertError) {
+    console.error('Error storing email in unified table:', emailsInsertError);
+  }
+
   return {
     message_id: result.id,
     thread_id: result.threadId,
