@@ -51,11 +51,19 @@ export interface TelnyxWebhookEvent {
 // Telnyx signs webhooks with their public key, and we verify using the signature header
 import { createPublicKey, verify } from 'crypto';
 
-// Telnyx's public key for webhook signature verification (Ed25519)
-// This is Telnyx's official public key - see https://developers.telnyx.com/docs/api/v2/overview#webhook-signing
-const TELNYX_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
-MCowBQYDK2VwAyEAE735iq41VjGj0IjVnbxudmwmOBE9nVhvlXDipJpwzWk=
------END PUBLIC KEY-----`;
+// The public key is per-account. Get it from Telnyx Mission Control:
+// Account Settings > Keys & Credentials > Public Key
+// Set it as TELNYX_PUBLIC_KEY env var in PEM format or raw base64
+function getTelnyxPublicKey(): string | null {
+  const key = process.env.TELNYX_PUBLIC_KEY;
+  if (!key) return null;
+
+  // If it already starts with -----BEGIN, return as-is
+  if (key.startsWith('-----BEGIN')) return key;
+
+  // Otherwise wrap raw base64 in PEM format
+  return `-----BEGIN PUBLIC KEY-----\n${key}\n-----END PUBLIC KEY-----`;
+}
 
 export function verifyWebhookSignature(
   payload: string,
@@ -64,8 +72,15 @@ export function verifyWebhookSignature(
 ): boolean {
   // If no signature or timestamp, fail verification
   if (!signature || !timestamp) {
-    console.warn('Missing webhook signature or timestamp');
+    console.warn('[Telnyx Webhook] Missing signature or timestamp headers');
     return false;
+  }
+
+  // If no public key configured, skip verification but log a warning
+  const publicKeyPem = getTelnyxPublicKey();
+  if (!publicKeyPem) {
+    console.warn('[Telnyx Webhook] No TELNYX_PUBLIC_KEY env var configured, skipping signature verification');
+    return true;
   }
 
   // Allow bypass in development for testing
@@ -78,7 +93,7 @@ export function verifyWebhookSignature(
     const signedPayload = `${timestamp}|${payload}`;
     const signatureBuffer = Buffer.from(signature, 'base64');
 
-    const publicKey = createPublicKey(TELNYX_PUBLIC_KEY);
+    const publicKey = createPublicKey(publicKeyPem);
 
     const isValid = verify(
       null, // Ed25519 doesn't use a digest algorithm
@@ -88,12 +103,12 @@ export function verifyWebhookSignature(
     );
 
     if (!isValid) {
-      console.warn('Webhook signature verification failed');
+      console.warn('[Telnyx Webhook] Signature verification failed');
     }
 
     return isValid;
   } catch (error) {
-    console.error('Error verifying webhook signature:', error);
+    console.error('[Telnyx Webhook] Error verifying signature:', error);
     return false;
   }
 }

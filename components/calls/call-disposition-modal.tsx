@@ -38,11 +38,14 @@ export function CallDispositionModal() {
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpTitle, setFollowUpTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
-  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+  const pollingStartedRef = useRef(false);
 
   // Poll the recording endpoint after a call ends to fetch the recording URL
   // from the Telnyx API and save it to the DB. Runs in the background.
   const pollForRecording = useCallback((projectSlug: string, callId: string) => {
+    if (pollingStartedRef.current) return; // Already started
+    pollingStartedRef.current = true;
+
     let attempts = 0;
     const maxAttempts = 6; // 60 seconds at 10s intervals
 
@@ -53,33 +56,27 @@ export function CallDispositionModal() {
         if (!res.ok) return;
         const data = await res.json();
         if (data.recording_url) {
-          // Recording found, stop polling
-          if (pollingRef.current) {
-            clearInterval(pollingRef.current);
-            pollingRef.current = null;
-          }
-          return;
+          return true; // Found - stop polling
         }
       } catch {
         // Silently fail
       }
+      return false;
+    };
 
-      if (attempts >= maxAttempts && pollingRef.current) {
-        clearInterval(pollingRef.current);
-        pollingRef.current = null;
+    // Start after 5s delay (recording needs time to process), then retry every 10s
+    const run = async () => {
+      await new Promise((r) => setTimeout(r, 5000));
+      for (let i = 0; i < maxAttempts; i++) {
+        const found = await poll();
+        if (found) return;
+        if (i < maxAttempts - 1) {
+          await new Promise((r) => setTimeout(r, 10000));
+        }
       }
     };
 
-    // Clear any previous polling
-    if (pollingRef.current) {
-      clearInterval(pollingRef.current);
-    }
-
-    // Start after a delay (recording needs time to process)
-    setTimeout(() => {
-      poll(); // First attempt immediately
-      pollingRef.current = setInterval(poll, 10000);
-    }, 5000);
+    run();
   }, []);
 
   const handleSave = async () => {
@@ -127,9 +124,10 @@ export function CallDispositionModal() {
 
   const handleClose = () => {
     // If we haven't started polling yet (user skipped disposition), start it now
-    if (!pollingRef.current && slug && lastEndedCallId) {
+    if (slug && lastEndedCallId) {
       pollForRecording(slug, lastEndedCallId);
     }
+    pollingStartedRef.current = false; // Reset for next call
     setDisposition('');
     setNotes('');
     setFollowUpDate('');
