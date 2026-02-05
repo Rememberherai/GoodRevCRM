@@ -18,15 +18,9 @@ type TelnyxRTCClient = any;
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type TelnyxCall = any;
 
-export type CallState = 'idle' | 'connecting' | 'ringing' | 'active' | 'ending';
-
 interface TelnyxContextValue {
   isConnected: boolean;
   isConnecting: boolean;
-  callState: CallState;
-  activeCall: TelnyxCall | null;
-  isMuted: boolean;
-  isOnHold: boolean;
   makeCall: (toNumber: string, personId?: string, organizationId?: string) => Promise<void>;
   hangUp: () => void;
   toggleMute: () => void;
@@ -38,10 +32,6 @@ interface TelnyxContextValue {
 const TelnyxContext = createContext<TelnyxContextValue>({
   isConnected: false,
   isConnecting: false,
-  callState: 'idle',
-  activeCall: null,
-  isMuted: false,
-  isOnHold: false,
   makeCall: async () => {},
   hangUp: () => {},
   toggleMute: () => {},
@@ -65,17 +55,21 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
   const callRef = useRef<TelnyxCall | null>(null);
   const callTimerRef = useRef<NodeJS.Timeout | null>(null);
 
+  // Local state for WebRTC connection status (not call state)
   const [isConnected, setIsConnected] = useState(false);
   const [isConnecting, setIsConnecting] = useState(false);
-  const [callState, setCallState] = useState<CallState>('idle');
-  const [activeCall, setActiveCall] = useState<TelnyxCall | null>(null);
-  const [isMuted, setIsMuted] = useState(false);
-  const [isOnHold, setIsOnHold] = useState(false);
   const [hasConnection, setHasConnection] = useState(false);
 
+  // Use Zustand store for all call state
   const {
-    setCallState: setStoreCallState,
-    setActiveCall: setStoreActiveCall,
+    callState,
+    isMuted,
+    isOnHold,
+    setCallState,
+    setActiveCall,
+    setMuted,
+    setOnHold,
+    clearActiveCall,
     openDispositionModal,
     incrementTimer,
   } = useCallStore();
@@ -150,7 +144,6 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
 
           const call = notification.call;
           callRef.current = call;
-          setActiveCall(call);
 
           call.on('stateChange', (state: { state: string }) => {
             if (!mounted) return;
@@ -159,28 +152,20 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
               case 'trying':
               case 'requesting':
                 setCallState('connecting');
-                setStoreCallState('connecting');
                 break;
               case 'ringing':
               case 'early':
                 setCallState('ringing');
-                setStoreCallState('ringing');
                 break;
               case 'active':
                 setCallState('active');
-                setStoreCallState('active');
                 startTimer();
                 break;
               case 'hangup':
               case 'destroy':
-                setCallState('idle');
-                setStoreCallState('idle');
-                setActiveCall(null);
                 callRef.current = null;
-                setIsMuted(false);
-                setIsOnHold(false);
                 stopTimer();
-                // Open disposition modal
+                // Open disposition modal before clearing state
                 openDispositionModal();
                 break;
             }
@@ -209,7 +194,7 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
         clientRef.current = null;
       }
     };
-  }, [slug, setStoreCallState, startTimer, stopTimer, openDispositionModal]);
+  }, [slug, setCallState, clearActiveCall, startTimer, stopTimer, openDispositionModal]);
 
   const makeCall = useCallback(
     async (toNumber: string, personId?: string, organizationId?: string) => {
@@ -234,8 +219,8 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
 
         const { callId, callControlId } = await res.json();
 
-        // Store call info
-        setStoreActiveCall(callId, {
+        // Store call info in Zustand
+        setActiveCall(callId, {
           id: callId,
           telnyx_call_control_id: callControlId,
           to_number: toNumber,
@@ -249,15 +234,13 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
         // The Telnyx platform bridges the call to the browser via the SIP connection.
         // The browser client receives the call notification via the telnyx.notification event.
         setCallState('connecting');
-        setStoreCallState('connecting');
       } catch (err) {
         console.error('Error making call:', err);
         setCallState('idle');
-        setStoreCallState('idle');
         throw err;
       }
     },
-    [isConnected, callState, slug, setStoreActiveCall, setStoreCallState]
+    [isConnected, callState, slug, setActiveCall, setCallState]
   );
 
   const hangUp = useCallback(() => {
@@ -282,8 +265,8 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
     } else {
       callRef.current.muteAudio();
     }
-    setIsMuted(!isMuted);
-  }, [isMuted]);
+    setMuted(!isMuted);
+  }, [isMuted, setMuted]);
 
   const toggleHold = useCallback(() => {
     if (!callRef.current) return;
@@ -292,8 +275,8 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
     } else {
       callRef.current.hold();
     }
-    setIsOnHold(!isOnHold);
-  }, [isOnHold]);
+    setOnHold(!isOnHold);
+  }, [isOnHold, setOnHold]);
 
   const sendDTMF = useCallback((digit: string) => {
     if (!callRef.current) return;
@@ -305,10 +288,6 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
       value={{
         isConnected,
         isConnecting,
-        callState,
-        activeCall,
-        isMuted,
-        isOnHold,
         makeCall,
         hangUp,
         toggleMute,

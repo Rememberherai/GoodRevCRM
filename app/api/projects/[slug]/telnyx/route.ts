@@ -2,6 +2,18 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { telnyxConnectionSchema } from '@/lib/validators/call';
 import { validateApiKey } from '@/lib/telnyx/client';
+import { encryptApiKey } from '@/lib/telnyx/encryption';
+import { z } from 'zod';
+
+// Partial schema for PATCH updates
+const telnyxUpdateSchema = z.object({
+  record_calls: z.boolean().optional(),
+  amd_enabled: z.boolean().optional(),
+  caller_id_name: z.string().max(50).nullable().optional(),
+  sip_connection_id: z.string().nullable().optional(),
+  sip_username: z.string().nullable().optional(),
+  sip_password: z.string().nullable().optional(),
+});
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -97,13 +109,25 @@ export async function POST(request: Request, context: RouteContext) {
       .eq('project_id', project.id)
       .eq('status', 'active');
 
+    // Encrypt the API key before storing
+    let encryptedApiKey: string;
+    try {
+      encryptedApiKey = encryptApiKey(input.api_key);
+    } catch (encryptError) {
+      console.error('Error encrypting API key:', encryptError);
+      return NextResponse.json(
+        { error: 'Encryption configuration error. Contact administrator.' },
+        { status: 500 }
+      );
+    }
+
     // Create new connection
     const { data: connection, error } = await supabaseAny
       .from('telnyx_connections')
       .insert({
         project_id: project.id,
         created_by: user.id,
-        api_key: input.api_key,
+        api_key: encryptedApiKey,
         sip_connection_id: input.sip_connection_id ?? null,
         sip_username: input.sip_username ?? null,
         sip_password: input.sip_password ?? null,
@@ -153,14 +177,25 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const body = await request.json();
 
-    // Only allow updating settings fields
-    const allowedFields = ['record_calls', 'amd_enabled', 'caller_id_name', 'sip_connection_id', 'sip_username', 'sip_password'];
-    const updates: Record<string, unknown> = {};
-    for (const field of allowedFields) {
-      if (field in body) {
-        updates[field] = body[field];
-      }
+    // Validate with Zod schema
+    const validationResult = telnyxUpdateSchema.safeParse(body);
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: validationResult.error.flatten() },
+        { status: 400 }
+      );
     }
+
+    const input = validationResult.data;
+
+    // Build updates from validated data
+    const updates: Record<string, unknown> = {};
+    if (input.record_calls !== undefined) updates.record_calls = input.record_calls;
+    if (input.amd_enabled !== undefined) updates.amd_enabled = input.amd_enabled;
+    if (input.caller_id_name !== undefined) updates.caller_id_name = input.caller_id_name;
+    if (input.sip_connection_id !== undefined) updates.sip_connection_id = input.sip_connection_id;
+    if (input.sip_username !== undefined) updates.sip_username = input.sip_username;
+    if (input.sip_password !== undefined) updates.sip_password = input.sip_password;
 
     if (Object.keys(updates).length === 0) {
       return NextResponse.json({ error: 'No valid fields to update' }, { status: 400 });

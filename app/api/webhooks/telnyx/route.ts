@@ -1,10 +1,20 @@
 import { NextResponse } from 'next/server';
-import { processCallEvent, type TelnyxWebhookEvent } from '@/lib/telnyx/webhooks';
+import { processCallEvent, verifyWebhookSignature, type TelnyxWebhookEvent } from '@/lib/telnyx/webhooks';
 
 // POST /api/webhooks/telnyx - Receive Telnyx webhook events
 export async function POST(request: Request) {
   try {
     const body = await request.text();
+
+    // Verify webhook signature
+    const signature = request.headers.get('telnyx-signature-ed25519');
+    const timestamp = request.headers.get('telnyx-timestamp');
+
+    if (!verifyWebhookSignature(body, signature, timestamp)) {
+      console.warn('Telnyx webhook signature verification failed');
+      return NextResponse.json({ error: 'Invalid signature' }, { status: 401 });
+    }
+
     const parsed = JSON.parse(body);
 
     // Validate the webhook payload has the expected shape

@@ -36,9 +36,6 @@ function formatTime(seconds: number): string {
 export function DialerWidget() {
   const {
     isConnected,
-    callState,
-    isMuted,
-    isOnHold,
     makeCall,
     hangUp,
     toggleMute,
@@ -48,6 +45,9 @@ export function DialerWidget() {
   } = useTelnyx();
 
   const {
+    callState,
+    isMuted,
+    isOnHold,
     showDialer,
     toggleDialer,
     setShowDialer,

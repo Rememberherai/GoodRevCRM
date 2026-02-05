@@ -3,6 +3,8 @@
 import { createClient } from '@supabase/supabase-js';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { DISPOSITION_TO_ACTIVITY_OUTCOME } from '@/types/call';
+import { startRecording } from './client';
+import { decryptApiKey } from './encryption';
 import type { CallDisposition } from '@/types/call';
 
 function createAdminClient() {
@@ -45,19 +47,55 @@ export interface TelnyxWebhookEvent {
   };
 }
 
-// Verify webhook signature (Telnyx uses a public key approach)
-// For simplicity, we verify the webhook secret from the payload
+// Verify webhook signature using Ed25519
+// Telnyx signs webhooks with their public key, and we verify using the signature header
+import { createPublicKey, verify } from 'crypto';
+
+// Telnyx's public key for webhook signature verification (Ed25519)
+// This is Telnyx's official public key - see https://developers.telnyx.com/docs/api/v2/overview#webhook-signing
+const TELNYX_PUBLIC_KEY = `-----BEGIN PUBLIC KEY-----
+MCowBQYDK2VwAyEAE735iq41VjGj0IjVnbxudmwmOBE9nVhvlXDipJpwzWk=
+-----END PUBLIC KEY-----`;
+
 export function verifyWebhookSignature(
-  _payload: string,
-  _signature: string | null,
-  _timestamp: string | null
+  payload: string,
+  signature: string | null,
+  timestamp: string | null
 ): boolean {
-  // Telnyx webhook verification uses their public key or a shared secret.
-  // In production, implement proper signature verification using
-  // the telnyx package or manual Ed25519 verification.
-  // For now, we rely on the webhook URL being secret + TLS.
-  // TODO: Implement full Ed25519 signature verification
-  return true;
+  // If no signature or timestamp, fail verification
+  if (!signature || !timestamp) {
+    console.warn('Missing webhook signature or timestamp');
+    return false;
+  }
+
+  // Allow bypass in development for testing
+  if (process.env.NODE_ENV === 'development' && process.env.SKIP_WEBHOOK_VERIFICATION === 'true') {
+    return true;
+  }
+
+  try {
+    // The signed payload format is: timestamp|payload
+    const signedPayload = `${timestamp}|${payload}`;
+    const signatureBuffer = Buffer.from(signature, 'base64');
+
+    const publicKey = createPublicKey(TELNYX_PUBLIC_KEY);
+
+    const isValid = verify(
+      null, // Ed25519 doesn't use a digest algorithm
+      Buffer.from(signedPayload),
+      publicKey,
+      signatureBuffer
+    );
+
+    if (!isValid) {
+      console.warn('Webhook signature verification failed');
+    }
+
+    return isValid;
+  } catch (error) {
+    console.error('Error verifying webhook signature:', error);
+    return false;
+  }
 }
 
 // Main entry point: process a Telnyx webhook event
@@ -112,16 +150,40 @@ async function handleCallAnswered(
 ): Promise<void> {
   const supabase = createAdminClient();
 
-  const { error } = await supabase
+  // Update call status to answered
+  const { data: call, error } = await supabase
     .from('calls')
     .update({
       status: 'answered',
       answered_at: new Date().toISOString(),
     })
-    .eq('telnyx_call_control_id', payload.call_control_id);
+    .eq('telnyx_call_control_id', payload.call_control_id)
+    .select('id, recording_enabled, telnyx_connection_id')
+    .single();
 
   if (error) {
     console.error('Error updating call on answered:', error);
+    return;
+  }
+
+  // Start recording NOW (after answer) if recording is enabled
+  // This avoids recording ringback/voicemail before actual conversation
+  if (call?.recording_enabled) {
+    try {
+      const { data: connection } = await supabase
+        .from('telnyx_connections')
+        .select('api_key')
+        .eq('id', call.telnyx_connection_id)
+        .single();
+
+      if (connection?.api_key) {
+        const decryptedApiKey = decryptApiKey(connection.api_key);
+        await startRecording(decryptedApiKey, payload.call_control_id);
+      }
+    } catch (recordingError) {
+      console.error('Error starting recording on call answered:', recordingError);
+      // Don't fail the call if recording fails
+    }
   }
 }
 

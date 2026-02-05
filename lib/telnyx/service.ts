@@ -2,6 +2,7 @@
 
 import { createClient } from '@supabase/supabase-js';
 import * as telnyxClient from './client';
+import { decryptApiKey } from './encryption';
 import type { TelnyxConnection, CallMetrics } from '@/types/call';
 
 function createAdminClient() {
@@ -11,7 +12,7 @@ function createAdminClient() {
   return createClient(url, key);
 }
 
-// Get the active Telnyx connection for a project
+// Get the active Telnyx connection for a project (with decrypted API key)
 export async function getProjectConnection(
   projectId: string
 ): Promise<TelnyxConnection | null> {
@@ -23,7 +24,17 @@ export async function getProjectConnection(
     .eq('status', 'active')
     .single();
 
-  return data as TelnyxConnection | null;
+  if (!data) return null;
+
+  // Decrypt the API key before returning
+  try {
+    const decryptedApiKey = decryptApiKey(data.api_key);
+    return { ...data, api_key: decryptedApiKey } as TelnyxConnection;
+  } catch (error) {
+    console.error('Error decrypting API key:', error);
+    // Return with original key (may be unencrypted for migration support)
+    return data as TelnyxConnection;
+  }
 }
 
 // Create a call record in the database and initiate via Telnyx
@@ -143,7 +154,8 @@ export async function hangupCall(
     throw new Error('Telnyx connection not found');
   }
 
-  await telnyxClient.hangupCall(connection.api_key, call.telnyx_call_control_id);
+  const decryptedApiKey = decryptApiKey(connection.api_key);
+  await telnyxClient.hangupCall(decryptedApiKey, call.telnyx_call_control_id);
 }
 
 // Toggle recording on an active call
@@ -175,11 +187,12 @@ export async function toggleRecording(
     throw new Error('Telnyx connection not found');
   }
 
+  const decryptedApiKey = decryptApiKey(connection.api_key);
   if (action === 'start') {
-    await telnyxClient.startRecording(connection.api_key, call.telnyx_call_control_id);
+    await telnyxClient.startRecording(decryptedApiKey, call.telnyx_call_control_id);
     await supabase.from('calls').update({ recording_enabled: true }).eq('id', callId);
   } else {
-    await telnyxClient.stopRecording(connection.api_key, call.telnyx_call_control_id);
+    await telnyxClient.stopRecording(decryptedApiKey, call.telnyx_call_control_id);
   }
 }
 

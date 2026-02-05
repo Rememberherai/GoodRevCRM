@@ -1,5 +1,7 @@
 import { create } from 'zustand';
-import type { CallState } from '@/providers/telnyx-provider';
+
+// Call state types - defined here to avoid circular dependency with provider
+export type CallState = 'idle' | 'connecting' | 'ringing' | 'active' | 'ending';
 
 interface CallRecord {
   id: string;
@@ -18,6 +20,10 @@ interface CallStoreState {
   callState: CallState;
   callTimer: number; // seconds
 
+  // Call controls state
+  isMuted: boolean;
+  isOnHold: boolean;
+
   // UI state
   showDispositionModal: boolean;
   showDialer: boolean;
@@ -28,6 +34,8 @@ interface CallStoreState {
   clearActiveCall: () => void;
   setCallState: (state: CallState) => void;
   incrementTimer: () => void;
+  setMuted: (muted: boolean) => void;
+  setOnHold: (onHold: boolean) => void;
   openDispositionModal: () => void;
   closeDispositionModal: () => void;
   toggleDialer: () => void;
@@ -39,6 +47,8 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
   currentCallRecord: null,
   callState: 'idle',
   callTimer: 0,
+  isMuted: false,
+  isOnHold: false,
   showDispositionModal: false,
   showDialer: false,
   lastEndedCallId: null,
@@ -48,6 +58,8 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
       activeCallId: callId,
       currentCallRecord: record,
       callTimer: 0,
+      isMuted: false,
+      isOnHold: false,
     }),
 
   clearActiveCall: () =>
@@ -56,11 +68,17 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
       currentCallRecord: null,
       callState: 'idle',
       callTimer: 0,
+      isMuted: false,
+      isOnHold: false,
     }),
 
   setCallState: (state) => set({ callState: state }),
 
   incrementTimer: () => set((s) => ({ callTimer: s.callTimer + 1 })),
+
+  setMuted: (muted) => set({ isMuted: muted }),
+
+  setOnHold: (onHold) => set({ isOnHold: onHold }),
 
   openDispositionModal: () => {
     const { activeCallId } = get();
@@ -77,6 +95,8 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
       activeCallId: null,
       currentCallRecord: null,
       callTimer: 0,
+      isMuted: false,
+      isOnHold: false,
     }),
 
   toggleDialer: () => set((s) => ({ showDialer: !s.showDialer })),

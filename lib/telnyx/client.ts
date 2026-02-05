@@ -1,35 +1,51 @@
 // Telnyx REST API client wrapper (Call Control V2)
 
 const TELNYX_API_BASE = 'https://api.telnyx.com/v2';
+const DEFAULT_TIMEOUT_MS = 30000; // 30 seconds
 
 interface TelnyxRequestOptions {
   apiKey: string;
   method?: 'GET' | 'POST' | 'PATCH' | 'DELETE';
   path: string;
   body?: Record<string, unknown>;
+  timeoutMs?: number;
 }
 
 async function telnyxRequest<T = unknown>(options: TelnyxRequestOptions): Promise<T> {
-  const { apiKey, method = 'GET', path, body } = options;
+  const { apiKey, method = 'GET', path, body, timeoutMs = DEFAULT_TIMEOUT_MS } = options;
 
-  const response = await fetch(`${TELNYX_API_BASE}${path}`, {
-    method,
-    headers: {
-      Authorization: `Bearer ${apiKey}`,
-      'Content-Type': 'application/json',
-    },
-    ...(body ? { body: JSON.stringify(body) } : {}),
-  });
+  // Create abort controller for timeout
+  const controller = new AbortController();
+  const timeoutId = setTimeout(() => controller.abort(), timeoutMs);
 
-  if (!response.ok) {
-    const errorData = await response.json().catch(() => ({}));
-    const message =
-      (errorData as { errors?: Array<{ detail?: string }> })?.errors?.[0]?.detail ||
-      `Telnyx API error: ${response.status}`;
-    throw new Error(message);
+  try {
+    const response = await fetch(`${TELNYX_API_BASE}${path}`, {
+      method,
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+        'Content-Type': 'application/json',
+      },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const message =
+        (errorData as { errors?: Array<{ detail?: string }> })?.errors?.[0]?.detail ||
+        `Telnyx API error: ${response.status}`;
+      throw new Error(message);
+    }
+
+    return response.json() as Promise<T>;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error(`Telnyx API request timed out after ${timeoutMs}ms`);
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
   }
-
-  return response.json() as Promise<T>;
 }
 
 // Validate API key by listing phone numbers
@@ -96,6 +112,8 @@ export async function initiateCall(
   apiKey: string,
   params: InitiateCallParams
 ): Promise<TelnyxCallResponse> {
+  // Note: We don't enable recording here. Recording starts in handleCallAnswered
+  // to avoid recording ringback/voicemail before actual conversation.
   return telnyxRequest<TelnyxCallResponse>({
     apiKey,
     method: 'POST',

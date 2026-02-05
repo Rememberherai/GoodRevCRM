@@ -3,6 +3,7 @@
 import { Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useTelnyx } from '@/providers/telnyx-provider';
+import { useCallStore } from '@/stores/call';
 import { toast } from 'sonner';
 
 interface ClickToDialButtonProps {
@@ -20,7 +21,8 @@ export function ClickToDialButton({
   size = 'icon',
   variant = 'ghost',
 }: ClickToDialButtonProps) {
-  const { isConnected, callState, makeCall, hasConnection } = useTelnyx();
+  const { isConnected, makeCall, hasConnection } = useTelnyx();
+  const callState = useCallStore((s) => s.callState);
 
   if (!hasConnection) return null;
 
