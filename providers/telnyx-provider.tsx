@@ -233,6 +233,8 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
         setCallState('connecting');
 
         // Initiate the call via WebRTC SDK (this handles audio in browser)
+        // The call state changes are handled by the telnyx.notification listener
+        // that was set up in the useEffect
         const call = clientRef.current.newCall({
           destinationNumber: toNumber,
           callerNumber: fromNumber,
@@ -241,30 +243,6 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
         });
 
         callRef.current = call;
-
-        // Listen for state changes on this call
-        call.on('stateChange', (state: { state: string }) => {
-          switch (state.state) {
-            case 'trying':
-            case 'requesting':
-              setCallState('connecting');
-              break;
-            case 'ringing':
-            case 'early':
-              setCallState('ringing');
-              break;
-            case 'active':
-              setCallState('active');
-              startTimer();
-              break;
-            case 'hangup':
-            case 'destroy':
-              callRef.current = null;
-              stopTimer();
-              openDispositionModal();
-              break;
-          }
-        });
       } catch (err) {
         console.error('Error making call:', err);
         setCallState('idle');
