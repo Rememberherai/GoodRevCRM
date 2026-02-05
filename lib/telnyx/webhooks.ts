@@ -326,7 +326,7 @@ async function handleRecordingSaved(
 ): Promise<void> {
   const supabase = createAdminClient();
 
-  const recordingUrl = payload.recording_urls?.mp3 ?? null;
+  const recordingUrl = payload.recording_urls?.mp3 ?? payload.recording_urls?.wav ?? null;
   const durationSeconds = payload.duration_millis
     ? Math.round(payload.duration_millis / 1000)
     : null;

@@ -187,7 +187,8 @@ export async function GET(_request: Request, context: RouteContext) {
       });
     }
 
-    let recordingUrl = bestMatch.download_urls?.mp3 ?? null;
+    // Prefer mp3, fall back to wav (Outbound Voice Profile recordings are wav-only)
+    let recordingUrl = bestMatch.download_urls?.mp3 ?? bestMatch.download_urls?.wav ?? null;
     let durationSeconds = bestMatch.duration_millis
       ? Math.round(bestMatch.duration_millis / 1000)
       : null;
@@ -206,7 +207,7 @@ export async function GET(_request: Request, context: RouteContext) {
       try {
         console.log('[Recording Fetch] download_urls missing, fetching individual recording:', bestMatch.id);
         const detail = await getRecording(apiKey, bestMatch.id);
-        recordingUrl = detail.data?.download_urls?.mp3 ?? null;
+        recordingUrl = detail.data?.download_urls?.mp3 ?? detail.data?.download_urls?.wav ?? null;
         durationSeconds = detail.data?.duration_millis
           ? Math.round(detail.data.duration_millis / 1000)
           : durationSeconds;
