@@ -31,9 +31,11 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const body = await request.json();
+    console.log('[WebRTC Call] Request body:', JSON.stringify(body));
     const validationResult = initiateCallSchema.safeParse(body);
 
     if (!validationResult.success) {
+      console.log('[WebRTC Call] Validation failed:', validationResult.error.flatten());
       return NextResponse.json(
         { error: 'Validation failed', details: validationResult.error.flatten() },
         { status: 400 }
@@ -41,6 +43,7 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const input = validationResult.data;
+    console.log('[WebRTC Call] Validated input:', JSON.stringify(input));
 
     // Get the Telnyx connection to get the from number
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -58,30 +61,67 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    // Validate person_id and organization_id exist in this project (to avoid FK violations)
+    let validPersonId: string | null = null;
+    let validOrgId: string | null = null;
+
+    if (input.person_id) {
+      const { data: person } = await supabase
+        .from('people')
+        .select('id')
+        .eq('id', input.person_id)
+        .eq('project_id', project.id)
+        .single();
+      if (person) {
+        validPersonId = person.id;
+      } else {
+        console.warn('[WebRTC Call] Person not found in project:', input.person_id);
+      }
+    }
+
+    if (input.organization_id) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('id', input.organization_id)
+        .eq('project_id', project.id)
+        .single();
+      if (org) {
+        validOrgId = org.id;
+      } else {
+        console.warn('[WebRTC Call] Organization not found in project:', input.organization_id);
+      }
+    }
+
     // Create the call record in the database
+    const insertPayload = {
+      project_id: project.id,
+      telnyx_connection_id: connection.id,
+      direction: 'outbound',
+      status: 'initiated',
+      from_number: connection.phone_number,
+      to_number: input.to_number,
+      user_id: user.id,
+      person_id: validPersonId,
+      organization_id: validOrgId,
+      opportunity_id: input.opportunity_id ?? null,
+      rfp_id: input.rfp_id ?? null,
+      recording_enabled: input.record ?? connection.record_calls ?? false,
+    };
+    console.log('[WebRTC Call] Insert payload:', JSON.stringify(insertPayload));
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: call, error } = await (supabase as any)
       .from('calls')
-      .insert({
-        project_id: project.id,
-        telnyx_connection_id: connection.id,
-        direction: 'outbound',
-        status: 'initiated',
-        from_number: connection.phone_number,
-        to_number: input.to_number,
-        user_id: user.id,
-        person_id: input.person_id ?? null,
-        organization_id: input.organization_id ?? null,
-        opportunity_id: input.opportunity_id ?? null,
-        rfp_id: input.rfp_id ?? null,
-        recording_enabled: input.record ?? connection.record_calls ?? false,
-      })
+      .insert(insertPayload)
       .select('id')
       .single();
 
     if (error || !call) {
       console.error('Error creating call record:', error);
-      return NextResponse.json({ error: 'Failed to create call record' }, { status: 500 });
+      // Return more specific error for debugging
+      const errorMessage = error?.message || error?.code || 'Failed to create call record';
+      return NextResponse.json({ error: errorMessage, details: error }, { status: 500 });
     }
 
     return NextResponse.json({

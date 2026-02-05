@@ -31,6 +31,7 @@ interface CallStoreState {
 
   // Actions
   setActiveCall: (callId: string, record: CallRecord) => void;
+  updateCallRecord: (updates: Partial<CallRecord>) => void;
   clearActiveCall: () => void;
   setCallState: (state: CallState) => void;
   incrementTimer: () => void;
@@ -61,6 +62,13 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
       isMuted: false,
       isOnHold: false,
     }),
+
+  updateCallRecord: (updates) =>
+    set((state) => ({
+      currentCallRecord: state.currentCallRecord
+        ? { ...state.currentCallRecord, ...updates }
+        : null,
+    })),
 
   clearActiveCall: () =>
     set({

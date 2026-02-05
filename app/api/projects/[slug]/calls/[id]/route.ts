@@ -53,7 +53,7 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 }
 
-// PATCH /api/projects/[slug]/calls/[id] - Update call disposition
+// PATCH /api/projects/[slug]/calls/[id] - Update call (disposition or Telnyx IDs)
 export async function PATCH(request: Request, context: RouteContext) {
   try {
     const { slug, id } = await context.params;
@@ -76,6 +76,36 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const body = await request.json();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabaseAny = supabase as any;
+
+    // Check if this is a Telnyx ID update (from WebRTC client)
+    if (body.telnyx_call_control_id !== undefined) {
+      const telnyxUpdate: Record<string, unknown> = {};
+      if (body.telnyx_call_control_id) telnyxUpdate.telnyx_call_control_id = body.telnyx_call_control_id;
+      if (body.telnyx_call_leg_id) telnyxUpdate.telnyx_call_leg_id = body.telnyx_call_leg_id;
+      if (body.telnyx_call_session_id) telnyxUpdate.telnyx_call_session_id = body.telnyx_call_session_id;
+
+      if (Object.keys(telnyxUpdate).length > 0) {
+        const { data: call, error } = await supabaseAny
+          .from('calls')
+          .update(telnyxUpdate)
+          .eq('id', id)
+          .eq('project_id', project.id)
+          .select('id')
+          .single();
+
+        if (error) {
+          console.error('Error updating call Telnyx IDs:', error);
+          return NextResponse.json({ error: 'Failed to update call' }, { status: 500 });
+        }
+
+        return NextResponse.json({ call });
+      }
+    }
+
+    // Otherwise, handle disposition update
     const validationResult = updateCallDispositionSchema.safeParse(body);
 
     if (!validationResult.success) {
@@ -86,9 +116,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const input = validationResult.data;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabaseAny = supabase as any;
 
     const { data: call, error } = await supabaseAny
       .from('calls')

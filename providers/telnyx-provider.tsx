@@ -154,6 +154,9 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
         client.on('telnyx.notification', (notification: { type?: string; call?: TelnyxCall }) => {
           if (!mounted) return;
 
+          // Log all notification types for debugging
+          console.log('Telnyx notification:', notification.type, notification.call?.state);
+
           // Handle call updates
           if (notification.type === 'callUpdate' && notification.call) {
             const call = notification.call;
@@ -162,10 +165,36 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
             const state = call.state;
             console.log('Call state update:', state);
 
+            // Try to get Telnyx IDs from the call for webhook linking
+            try {
+              const telnyxIds = call.telnyxIDs;
+              if (telnyxIds?.telnyxCallControlId) {
+                const store = useCallStore.getState();
+                if (store.activeCallId && store.currentCallRecord?.telnyx_call_control_id !== telnyxIds.telnyxCallControlId) {
+                  // Update the store with the Telnyx ID
+                  store.updateCallRecord({ telnyx_call_control_id: telnyxIds.telnyxCallControlId });
+
+                  // Update backend with Telnyx call control ID for webhook linking
+                  fetch(`/api/projects/${slug}/calls/${store.activeCallId}`, {
+                    method: 'PATCH',
+                    headers: { 'Content-Type': 'application/json' },
+                    body: JSON.stringify({
+                      telnyx_call_control_id: telnyxIds.telnyxCallControlId,
+                      telnyx_call_leg_id: telnyxIds.telnyxLegId,
+                      telnyx_call_session_id: telnyxIds.telnyxSessionId,
+                    }),
+                  }).catch((err) => console.error('Error updating call with Telnyx IDs:', err));
+                }
+              }
+            } catch {
+              // telnyxIDs getter may not be available in all states
+            }
+
             switch (state) {
               case 'trying':
               case 'requesting':
               case 'new':
+              case 'recovering':
                 setCallState('connecting');
                 break;
               case 'ringing':
@@ -177,14 +206,23 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
                 setCallState('active');
                 startTimer();
                 break;
+              case 'held':
+                // Call is on hold - don't change our state, just log
+                console.log('Call placed on hold');
+                break;
               case 'hangup':
               case 'destroy':
               case 'done':
+              case 'purge':
+                console.log('Call ended with state:', state, 'cause:', call.cause, 'causeCode:', call.causeCode);
                 callRef.current = null;
                 stopTimer();
                 // Open disposition modal before clearing state
                 openDispositionModal();
                 break;
+              default:
+                // Log unknown states for debugging
+                console.log('Unknown call state:', state);
             }
           }
         });
