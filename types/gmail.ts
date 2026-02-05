@@ -109,7 +109,7 @@ export interface SendEmailResult {
   message_id: string;
   thread_id: string;
   tracking_id: string;
-  sent_email_id: string;
+  sent_email_id: string | null;
 }
 
 // Gmail API message format

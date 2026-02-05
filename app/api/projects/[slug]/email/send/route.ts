@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { sendEmailSchema } from '@/lib/validators/gmail';
 import { sendEmail } from '@/lib/gmail/service';
 import type { GmailConnection } from '@/types/gmail';
@@ -36,11 +37,12 @@ export async function POST(request: Request, context: RouteContext) {
 
     const body = await request.json();
 
-    // Extract connection ID separately
+    // Extract and validate connection ID separately
     const { from_connection_id, ...emailData } = body;
 
-    if (!from_connection_id) {
-      return NextResponse.json({ error: 'Gmail connection required' }, { status: 400 });
+    const connectionIdResult = z.string().uuid().safeParse(from_connection_id);
+    if (!connectionIdResult.success) {
+      return NextResponse.json({ error: 'Valid Gmail connection ID required' }, { status: 400 });
     }
 
     // Validate email data
@@ -61,7 +63,7 @@ export async function POST(request: Request, context: RouteContext) {
     const { data: connection, error: connectionError } = await supabaseAny
       .from('gmail_connections')
       .select('*')
-      .eq('id', from_connection_id)
+      .eq('id', connectionIdResult.data)
       .eq('user_id', user.id)
       .single();
 
@@ -85,12 +87,13 @@ export async function POST(request: Request, context: RouteContext) {
     );
 
     // Log activity for the sent email
-    const personId = body.person_id ?? null;
-    const organizationId = body.organization_id ?? null;
-    const opportunityId = body.opportunity_id ?? null;
-    const rfpId = body.rfp_id ?? null;
+    const personId = validationResult.data.person_id ?? null;
+    const organizationId = validationResult.data.organization_id ?? null;
+    const opportunityId = validationResult.data.opportunity_id ?? null;
+    const rfpId = validationResult.data.rfp_id ?? null;
 
     // Determine entity context for the activity log
+    // Use the most specific entity link available; fall back to sent_email_id only if it's a valid UUID
     const entityType = personId
       ? 'person'
       : organizationId
@@ -100,40 +103,43 @@ export async function POST(request: Request, context: RouteContext) {
           : rfpId
             ? 'rfp'
             : 'email';
-    const entityId = personId ?? organizationId ?? opportunityId ?? rfpId ?? result.sent_email_id;
+    const linkedEntityId = personId ?? organizationId ?? opportunityId ?? rfpId;
+    const entityId = linkedEntityId || (result.sent_email_id || null);
 
-    try {
-      await supabaseAny.from('activity_log').insert({
-        project_id: project.id,
-        user_id: user.id,
-        entity_type: entityType,
-        entity_id: entityId,
-        action: 'logged',
-        activity_type: 'email',
-        outcome: 'email_sent',
-        direction: 'outbound',
-        subject: validationResult.data.subject,
-        notes: validationResult.data.body_html,
-        person_id: personId,
-        organization_id: organizationId,
-        opportunity_id: opportunityId,
-        rfp_id: rfpId,
-        metadata: {
-          sent_email_id: result.sent_email_id,
-          message_id: result.message_id,
-          to: validationResult.data.to,
-        },
-      });
-    } catch (activityError) {
-      // Don't fail the email send if activity logging fails
-      console.error('Failed to log email activity:', activityError);
+    if (entityId) {
+      try {
+        await supabaseAny.from('activity_log').insert({
+          project_id: project.id,
+          user_id: user.id,
+          entity_type: entityType,
+          entity_id: entityId,
+          action: 'logged',
+          activity_type: 'email',
+          outcome: 'email_sent',
+          direction: 'outbound',
+          subject: validationResult.data.subject,
+          notes: validationResult.data.body_text || validationResult.data.body_html.replace(/<[^>]*>/g, '').slice(0, 1000),
+          person_id: personId,
+          organization_id: organizationId,
+          opportunity_id: opportunityId,
+          rfp_id: rfpId,
+          metadata: {
+            sent_email_id: result.sent_email_id,
+            message_id: result.message_id,
+            to: validationResult.data.to,
+          },
+        });
+      } catch (activityError) {
+        // Don't fail the email send if activity logging fails
+        console.error('Failed to log email activity:', activityError);
+      }
     }
 
     return NextResponse.json(result);
   } catch (error) {
     console.error('Error in POST /api/projects/[slug]/email/send:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Failed to send email' },
+      { error: 'Failed to send email' },
       { status: 500 }
     );
   }

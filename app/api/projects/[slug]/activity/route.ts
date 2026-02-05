@@ -71,7 +71,27 @@ export async function GET(request: Request, context: RouteContext) {
     let query = supabaseAny
       .from('activity_log')
       .select(`
-        *,
+        id,
+        project_id,
+        user_id,
+        entity_type,
+        entity_id,
+        action,
+        activity_type,
+        person_id,
+        organization_id,
+        opportunity_id,
+        rfp_id,
+        subject,
+        notes,
+        outcome,
+        direction,
+        duration_minutes,
+        changes,
+        metadata,
+        follow_up_date,
+        follow_up_task_id,
+        created_at,
         user:users!activity_log_user_id_fkey(id, full_name, email, avatar_url),
         person:people!activity_log_person_id_fkey(id, first_name, last_name, email),
         organization:organizations!activity_log_organization_id_fkey(id, name),
@@ -79,16 +99,21 @@ export async function GET(request: Request, context: RouteContext) {
       `)
       .eq('project_id', project.id);
 
-    if (entity_type) query = query.eq('entity_type', entity_type);
-    if (entity_id) query = query.eq('entity_id', entity_id);
+    if (entity_type && !person_id && !organization_id && !opportunity_id && !rfp_id) {
+      query = query.eq('entity_type', entity_type);
+    }
+    if (entity_id && !person_id && !organization_id && !opportunity_id && !rfp_id) {
+      query = query.eq('entity_id', entity_id);
+    }
     if (action) query = query.eq('action', action);
     if (user_id) query = query.eq('user_id', user_id);
     if (start_date) query = query.gte('created_at', start_date);
     if (end_date) query = query.lte('created_at', end_date);
-    if (person_id) query = query.eq('person_id', person_id);
-    if (organization_id) query = query.eq('organization_id', organization_id);
-    if (opportunity_id) query = query.eq('opportunity_id', opportunity_id);
-    if (rfp_id) query = query.eq('rfp_id', rfp_id);
+    // Use OR to catch both CRM activities (person_id column) and legacy audit-trail entries (entity_type+entity_id)
+    if (person_id) query = query.or(`person_id.eq.${person_id},and(entity_type.eq.person,entity_id.eq.${person_id})`);
+    if (organization_id) query = query.or(`organization_id.eq.${organization_id},and(entity_type.eq.organization,entity_id.eq.${organization_id})`);
+    if (opportunity_id) query = query.or(`opportunity_id.eq.${opportunity_id},and(entity_type.eq.opportunity,entity_id.eq.${opportunity_id})`);
+    if (rfp_id) query = query.or(`rfp_id.eq.${rfp_id},and(entity_type.eq.rfp,entity_id.eq.${rfp_id})`);
     if (activity_type) query = query.eq('activity_type', activity_type);
     if (has_follow_up) query = query.not('follow_up_date', 'is', null);
     if (follow_up_before) query = query.lte('follow_up_date', follow_up_before);

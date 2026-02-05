@@ -90,7 +90,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
     setActivitiesLoading(true);
     try {
       const response = await fetch(
-        `/api/projects/${slug}/activity?entity_type=person&entity_id=${personId}&limit=50`
+        `/api/projects/${slug}/activity?person_id=${personId}&limit=50`
       );
       if (response.ok) {
         const data = await response.json();

@@ -5,6 +5,7 @@ import type { GmailConnection, GmailMessage, GmailMessagePart } from '@/types/gm
 const MAX_CONSECUTIVE_ERRORS = 5;
 const BATCH_SIZE = 10;
 const INITIAL_SYNC_DAYS = 30;
+const MAX_INITIAL_MESSAGES = 500;
 
 interface SyncResult {
   messages_fetched: number;
@@ -282,7 +283,11 @@ async function performInitialSync(
       messageIds.push(...data.messages.map((m: { id: string }) => m.id));
     }
     pageToken = data.nextPageToken;
-  } while (pageToken);
+  } while (pageToken && messageIds.length < MAX_INITIAL_MESSAGES);
+
+  if (messageIds.length > MAX_INITIAL_MESSAGES) {
+    messageIds.length = MAX_INITIAL_MESSAGES;
+  }
 
   if (messageIds.length === 0) {
     // No messages — just get current historyId
@@ -551,12 +556,18 @@ async function logEmailActivity(
   match: MatchResult
 ): Promise<void> {
   try {
+    // Use person as entity context if matched, otherwise skip (entity_id must be a valid UUID)
+    const entityId = match.person_id ?? match.organization_id;
+    if (!entityId) return;
+
+    const entityType = match.person_id ? 'person' : 'organization';
+
     await supabase.from('activity_log').insert({
       project_id: match.project_id,
       user_id: connection.user_id,
-      entity_type: 'email',
-      entity_id: email.gmail_message_id,
-      action: 'received',
+      entity_type: entityType,
+      entity_id: entityId,
+      action: 'logged',
       activity_type: 'email',
       outcome: 'email_received',
       direction: 'inbound',

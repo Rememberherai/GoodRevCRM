@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail, GmailServiceError } from '@/lib/gmail/service';
 import { fetchVariableContext, substituteEmailContent } from './variables';
 import type { GmailConnection } from '@/types/gmail';
@@ -53,19 +53,6 @@ interface ProcessingResult {
   }>;
 }
 
-/**
- * Create admin client for sequence processing
- */
-function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase credentials');
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
 
 /**
  * Calculate the next send time based on delay settings
@@ -253,6 +240,12 @@ async function processEnrollment(
       return { status: 'skipped', message: 'Person has no email address' };
     }
 
+    // Validate email format - reject control characters that could cause header injection
+    const email = context.person.email;
+    if (/[\r\n\x00-\x1f]/.test(email) || !email.includes('@')) {
+      return { status: 'skipped', message: 'Person has invalid email address format' };
+    }
+
     // Substitute variables
     const { subject, bodyHtml, bodyText } = substituteEmailContent(
       currentStep.subject ?? 'No Subject',
@@ -284,6 +277,35 @@ async function processEnrollment(
           .from('sent_emails')
           .update({ sequence_step_id: currentStep.id })
           .eq('id', result.sent_email_id);
+      }
+
+      // Log activity for this sequence email send
+      try {
+        const orgId = context.organization?.id ?? sequence.organization_id ?? null;
+        await supabaseAny.from('activity_log').insert({
+          project_id: sequence.project_id,
+          user_id: enrollment.created_by,
+          entity_type: 'person',
+          entity_id: enrollment.person_id,
+          action: 'sent',
+          activity_type: 'email',
+          outcome: 'email_sent',
+          direction: 'outbound',
+          subject,
+          notes: bodyText ?? bodyHtml.replace(/<[^>]*>/g, '').slice(0, 1000),
+          person_id: enrollment.person_id,
+          organization_id: orgId,
+          metadata: {
+            sent_email_id: result.sent_email_id,
+            message_id: result.message_id,
+            sequence_id: sequence.id,
+            sequence_name: sequence.name,
+            step_number: currentStep.step_number,
+            to: context.person.email,
+          },
+        });
+      } catch (activityErr) {
+        console.error('Failed to log sequence email activity:', activityErr);
       }
 
       // Move to next step
@@ -331,21 +353,47 @@ async function processEnrollment(
 
       return { status: 'sent', message: `Email sent to ${context.person.email}` };
     } catch (error) {
-      if (error instanceof GmailServiceError) {
-        // Mark as error status based on error type
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const supabaseAny = supabase as any;
-        await supabaseAny
-          .from('sequence_enrollments')
-          .update({
-            status: 'bounced',
-            bounce_detected_at: new Date().toISOString(),
-          })
-          .eq('id', enrollment.id);
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabaseAny = supabase as any;
 
-        return { status: 'error', message: error.message };
+      if (error instanceof GmailServiceError) {
+        // Distinguish between transient and permanent errors
+        const isTransient = error.statusCode === 429 ||
+          error.statusCode === 500 ||
+          error.statusCode === 503 ||
+          error.code === 'TOKEN_REFRESH_FAILED';
+
+        if (isTransient) {
+          // For transient errors, keep enrollment active but delay retry
+          const retryAt = new Date(Date.now() + 30 * 60 * 1000); // 30 min delay
+          await supabaseAny
+            .from('sequence_enrollments')
+            .update({
+              next_send_at: retryAt.toISOString(),
+            })
+            .eq('id', enrollment.id);
+          return { status: 'error', message: `Transient error, will retry: ${error.message}` };
+        } else {
+          // Permanent error - mark as bounced
+          await supabaseAny
+            .from('sequence_enrollments')
+            .update({
+              status: 'bounced',
+              bounce_detected_at: new Date().toISOString(),
+            })
+            .eq('id', enrollment.id);
+          return { status: 'error', message: error.message };
+        }
       }
-      throw error;
+
+      // Non-Gmail error - mark as error to prevent infinite retry loop
+      await supabaseAny
+        .from('sequence_enrollments')
+        .update({
+          status: 'error',
+        })
+        .eq('id', enrollment.id);
+      return { status: 'error', message: error instanceof Error ? error.message : 'Unknown error' };
     }
   }
 
@@ -374,7 +422,7 @@ export async function processSequences(limit = 100): Promise<ProcessingResult> {
     .select(`
       *,
       sequence:sequences(id, project_id, organization_id, name, status, settings),
-      gmail_connection:gmail_connections(*)
+      gmail_connection:gmail_connections(id, email, access_token, refresh_token, token_expires_at, status)
     `)
     .eq('status', 'active')
     .lte('next_send_at', new Date().toISOString())

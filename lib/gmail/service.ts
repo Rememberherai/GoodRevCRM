@@ -4,6 +4,10 @@ import { createClient } from '@supabase/supabase-js';
 
 export const GMAIL_API_URL = 'https://gmail.googleapis.com/gmail/v1/users/me';
 
+function sanitizeHeaderValue(value: string): string {
+  return value.replace(/[\r\n\x00]/g, '');
+}
+
 export class GmailServiceError extends Error {
   constructor(
     message: string,
@@ -73,7 +77,7 @@ export async function getValidAccessToken(connection: GmailConnection): Promise<
  * Create MIME message for sending
  */
 function createMimeMessage(input: SendEmailInput, fromEmail: string, trackingId: string): string {
-  const to = Array.isArray(input.to) ? input.to.join(', ') : input.to;
+  const to = sanitizeHeaderValue(Array.isArray(input.to) ? input.to.join(', ') : input.to);
   const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
 
   // Inject tracking pixel into HTML body
@@ -90,17 +94,18 @@ function createMimeMessage(input: SendEmailInput, fromEmail: string, trackingId:
   ];
 
   if (input.cc?.length) {
-    message.push(`Cc: ${input.cc.join(', ')}`);
+    message.push(`Cc: ${sanitizeHeaderValue(input.cc.join(', '))}`);
   }
   if (input.bcc?.length) {
-    message.push(`Bcc: ${input.bcc.join(', ')}`);
+    message.push(`Bcc: ${sanitizeHeaderValue(input.bcc.join(', '))}`);
   }
 
   message.push(`Subject: ${encodeSubject(input.subject)}`);
 
   if (input.reply_to_message_id) {
-    message.push(`In-Reply-To: ${input.reply_to_message_id}`);
-    message.push(`References: ${input.reply_to_message_id}`);
+    const sanitizedReplyId = sanitizeHeaderValue(input.reply_to_message_id);
+    message.push(`In-Reply-To: ${sanitizedReplyId}`);
+    message.push(`References: ${sanitizedReplyId}`);
   }
 
   message.push(
@@ -128,12 +133,13 @@ function createMimeMessage(input: SendEmailInput, fromEmail: string, trackingId:
  * Encode subject for non-ASCII characters
  */
 function encodeSubject(subject: string): string {
+  const sanitized = sanitizeHeaderValue(subject);
   // Check if subject contains non-ASCII characters
-  if (!/^[\x00-\x7F]*$/.test(subject)) {
+  if (!/^[\x00-\x7F]*$/.test(sanitized)) {
     // Use UTF-8 encoding with base64
-    return `=?UTF-8?B?${Buffer.from(subject).toString('base64')}?=`;
+    return `=?UTF-8?B?${Buffer.from(sanitized).toString('base64')}?=`;
   }
-  return subject;
+  return sanitized;
 }
 
 /**
@@ -149,6 +155,7 @@ function stripHtml(html: string): string {
     .replace(/&lt;/g, '<')
     .replace(/&gt;/g, '>')
     .replace(/&quot;/g, '"')
+    .replace(/<[^>]+>/g, '')
     .replace(/\s+/g, ' ')
     .trim();
 }
@@ -182,7 +189,7 @@ function wrapLinksWithTracking(html: string, trackingId: string): string {
         url.startsWith('mailto:') ||
         url.startsWith('tel:') ||
         url.startsWith('#') ||
-        url.includes(baseUrl ?? '') // Don't track our own URLs
+        (baseUrl && url.startsWith(baseUrl)) // Don't track our own URLs
       ) {
         return match;
       }
@@ -238,7 +245,7 @@ export async function sendEmail(
 
   if (!response.ok) {
     const errorBody = await response.text();
-    console.error('Gmail API error:', errorBody);
+    console.error('Gmail API error:', response.status, errorBody.substring(0, 200));
     throw new GmailServiceError(
       `Failed to send email: ${response.statusText}`,
       'send_failed',
@@ -282,7 +289,7 @@ export async function sendEmail(
     message_id: result.id,
     thread_id: result.threadId,
     tracking_id: trackingId,
-    sent_email_id: sentEmail?.id ?? '',
+    sent_email_id: sentEmail?.id ?? null,
   };
 }
 
@@ -294,6 +301,10 @@ export async function getThreadHistory(
   threadId: string
 ): Promise<unknown[]> {
   const accessToken = await getValidAccessToken(connection);
+
+  if (!/^[a-zA-Z0-9]+$/.test(threadId)) {
+    throw new GmailServiceError('Invalid thread ID format', 'invalid_thread_id');
+  }
 
   const response = await fetch(`${GMAIL_API_URL}/threads/${threadId}?format=full`, {
     headers: {
