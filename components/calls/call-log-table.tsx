@@ -12,7 +12,6 @@ import {
   Play,
   Loader2,
 } from 'lucide-react';
-import { CallRecordingPlayer } from './call-recording-player';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { onDispositionSaved } from '@/stores/call';
 
@@ -83,8 +82,6 @@ export function CallLogTable({
 }: CallLogTableProps) {
   const params = useParams();
   const slug = params?.slug as string;
-  const [playingId, setPlayingId] = useState<string | null>(null);
-
   const { calls, isLoading, hasMore, loadMore, refresh } = useCalls({
     projectSlug: slug,
     personId,
@@ -254,16 +251,19 @@ export function CallLogTable({
                 </td>
                 <td className="px-3 py-2">
                   {(call.recording_url || recordingPolling[call.id]) ? (
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      className="h-7 w-7"
-                      onClick={() =>
-                        setPlayingId(playingId === call.id ? null : call.id)
-                      }
+                    <a
+                      href={`/api/projects/${slug}/calls/${call.id}/recording?stream=true`}
+                      target="_blank"
+                      rel="noopener noreferrer"
                     >
-                      <Play className="h-3.5 w-3.5" />
-                    </Button>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-7 w-7"
+                      >
+                        <Play className="h-3.5 w-3.5" />
+                      </Button>
+                    </a>
                   ) : pollingTimersRef.current[call.id] ? (
                     <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                   ) : (
@@ -275,26 +275,6 @@ export function CallLogTable({
           </tbody>
         </table>
       </div>
-
-      {/* Inline recording player */}
-      {playingId && (
-        <div className="border rounded-md p-3">
-          {(() => {
-            const call = calls.find((c) => c.id === playingId);
-            const hasRecording = call?.recording_url || recordingPolling[playingId];
-            // Use our proxy endpoint instead of the raw S3 URL (which expires and has CORS issues)
-            const proxyUrl = hasRecording
-              ? `/api/projects/${slug}/calls/${playingId}/recording?stream=true`
-              : null;
-            return proxyUrl ? (
-              <CallRecordingPlayer
-                url={proxyUrl}
-                onClose={() => setPlayingId(null)}
-              />
-            ) : null;
-          })()}
-        </div>
-      )}
 
       {hasMore && (
         <div className="flex justify-center pt-2">
