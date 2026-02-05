@@ -259,9 +259,21 @@ export async function transcribeRecording(
     throw new Error(`No download URL available for recording ${recordingId}`);
   }
 
-  // 2. Call Telnyx STT API with multipart/form-data
+  // 2. Download the audio file first — Telnyx's file_url mode fails with
+  // "content-length not found" on pre-signed S3 URLs, so we upload the file directly
+  const isWav = downloadUrl.includes('.wav') || downloadUrl.includes('format=wav');
+  const audioResponse = await fetch(downloadUrl);
+  if (!audioResponse.ok) {
+    throw new Error(`Failed to download recording: ${audioResponse.status}`);
+  }
+  const audioBlob = await audioResponse.blob();
+  const audioFile = new File([audioBlob], `recording.${isWav ? 'wav' : 'mp3'}`, {
+    type: isWav ? 'audio/wav' : 'audio/mpeg',
+  });
+
+  // 3. Call Telnyx STT API with multipart/form-data (file upload)
   const formData = new FormData();
-  formData.append('file_url', downloadUrl);
+  formData.append('file', audioFile);
   formData.append('model', 'openai/whisper-large-v3-turbo');
   formData.append('response_format', 'verbose_json');
   formData.append('timestamp_granularities[]', 'segment');
