@@ -281,10 +281,14 @@ export function CallLogTable({
         <div className="border rounded-md p-3">
           {(() => {
             const call = calls.find((c) => c.id === playingId);
-            const url = call?.recording_url || recordingPolling[playingId];
-            return url ? (
+            const hasRecording = call?.recording_url || recordingPolling[playingId];
+            // Use our proxy endpoint instead of the raw S3 URL (which expires and has CORS issues)
+            const proxyUrl = hasRecording
+              ? `/api/projects/${slug}/calls/${playingId}/recording?stream=true`
+              : null;
+            return proxyUrl ? (
               <CallRecordingPlayer
-                url={url}
+                url={proxyUrl}
                 onClose={() => setPlayingId(null)}
               />
             ) : null;

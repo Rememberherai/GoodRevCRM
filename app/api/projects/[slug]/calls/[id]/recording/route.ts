@@ -8,12 +8,13 @@ interface RouteContext {
 }
 
 // GET /api/projects/[slug]/calls/[id]/recording - Fetch recording from Telnyx API
-// This endpoint checks if a recording exists for the call. If the recording_url
-// is already in the DB, it returns it. Otherwise, it queries the Telnyx Recordings
-// API to find and save the recording URL.
-export async function GET(_request: Request, context: RouteContext) {
+// Without ?stream=true: Returns JSON with recording metadata (used by polling)
+// With ?stream=true: Proxies the actual audio binary (used by the audio player)
+export async function GET(request: Request, context: RouteContext) {
   try {
     const { slug, id } = await context.params;
+    const url = new URL(request.url);
+    const streamMode = url.searchParams.get('stream') === 'true';
     const supabase = await createClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -38,13 +39,25 @@ export async function GET(_request: Request, context: RouteContext) {
     // Fetch the call record
     const { data: call, error: callError } = await supabaseAny
       .from('calls')
-      .select('id, recording_url, recording_duration_seconds, recording_enabled, from_number, to_number, started_at, ended_at, telnyx_connection_id, telnyx_call_session_id')
+      .select('id, recording_url, telnyx_recording_id, recording_duration_seconds, recording_enabled, from_number, to_number, started_at, ended_at, telnyx_connection_id, telnyx_call_session_id')
       .eq('id', id)
       .eq('project_id', project.id)
       .single();
 
     if (callError || !call) {
       return NextResponse.json({ error: 'Call not found' }, { status: 404 });
+    }
+
+    // Stream mode: proxy the audio binary to the browser
+    if (streamMode) {
+      if (call.telnyx_recording_id && call.telnyx_connection_id) {
+        return await streamRecording(supabaseAny, call);
+      }
+      // Fallback: if we have a stored URL but no recording ID, try streaming it directly
+      if (call.recording_url) {
+        return await streamFromUrl(call.recording_url);
+      }
+      return NextResponse.json({ error: 'No recording available' }, { status: 404 });
     }
 
     // If recording URL already exists, return it
@@ -222,12 +235,14 @@ export async function GET(_request: Request, context: RouteContext) {
     }
 
     if (recordingUrl) {
-      // Save to DB so we don't need to fetch again
+      // Save recording URL and Telnyx recording ID to DB
+      // The recording ID is used to fetch fresh download URLs for streaming
       const { error: updateError } = await supabaseAny
         .from('calls')
         .update({
           recording_url: recordingUrl,
           recording_duration_seconds: durationSeconds,
+          telnyx_recording_id: bestMatch.id,
         })
         .eq('id', id);
 
@@ -243,5 +258,78 @@ export async function GET(_request: Request, context: RouteContext) {
   } catch (error) {
     console.error('Error in GET /api/projects/[slug]/calls/[id]/recording:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
+// Proxy the recording audio from Telnyx S3 to the browser.
+// Fetches a fresh pre-signed URL via the Telnyx API each time,
+// then streams the audio bytes through with proper Content-Type.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function streamRecording(supabase: any, call: any): Promise<Response> {
+  try {
+    const { data: connection } = await supabase
+      .from('telnyx_connections')
+      .select('api_key')
+      .eq('id', call.telnyx_connection_id)
+      .single();
+
+    if (!connection?.api_key) {
+      return NextResponse.json({ error: 'Connection not found' }, { status: 404 });
+    }
+
+    const apiKey = decryptApiKey(connection.api_key);
+    const detail = await getRecording(apiKey, call.telnyx_recording_id);
+    const freshUrl = detail.data?.download_urls?.mp3 ?? detail.data?.download_urls?.wav;
+
+    if (!freshUrl) {
+      return NextResponse.json({ error: 'Recording URL not available' }, { status: 404 });
+    }
+
+    // Fetch the audio from S3
+    const audioResponse = await fetch(freshUrl);
+    if (!audioResponse.ok || !audioResponse.body) {
+      return NextResponse.json({ error: 'Failed to fetch recording' }, { status: 502 });
+    }
+
+    // Determine content type from URL
+    const contentType = freshUrl.includes('.mp3') ? 'audio/mpeg' : 'audio/wav';
+
+    return new Response(audioResponse.body, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': audioResponse.headers.get('content-length') || '',
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'private, max-age=3600',
+      },
+    });
+  } catch (error) {
+    console.error('[Recording Stream] Error:', error);
+    return NextResponse.json({ error: 'Failed to stream recording' }, { status: 500 });
+  }
+}
+
+// Stream audio from a stored URL directly (fallback when telnyx_recording_id is missing)
+async function streamFromUrl(url: string): Promise<Response> {
+  try {
+    const audioResponse = await fetch(url);
+    if (!audioResponse.ok || !audioResponse.body) {
+      return NextResponse.json({ error: 'Failed to fetch recording' }, { status: 502 });
+    }
+
+    const contentType = url.includes('.mp3') ? 'audio/mpeg' : 'audio/wav';
+
+    return new Response(audioResponse.body, {
+      status: 200,
+      headers: {
+        'Content-Type': contentType,
+        'Content-Length': audioResponse.headers.get('content-length') || '',
+        'Accept-Ranges': 'bytes',
+        'Cache-Control': 'private, max-age=3600',
+      },
+    });
+  } catch (error) {
+    console.error('[Recording Stream Fallback] Error:', error);
+    return NextResponse.json({ error: 'Failed to stream recording' }, { status: 500 });
   }
 }
