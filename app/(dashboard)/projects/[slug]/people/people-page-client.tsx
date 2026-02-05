@@ -33,12 +33,14 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
+import { SendEmailModal } from '@/components/gmail';
 
 export function PeoplePageClient() {
   const params = useParams();
   const slug = params.slug as string;
   const [searchInput, setSearchInput] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [sendEmailTo, setSendEmailTo] = useState<{ email: string; personId: string } | null>(null);
 
   const {
     people,
@@ -168,13 +170,14 @@ export function PeoplePageClient() {
                   </TableCell>
                   <TableCell>
                     {person.email ? (
-                      <a
-                        href={`mailto:${person.email}`}
+                      <button
+                        type="button"
+                        onClick={() => setSendEmailTo({ email: person.email!, personId: person.id })}
                         className="flex items-center gap-1 text-primary hover:underline"
                       >
                         <Mail className="h-3 w-3" />
                         {person.email}
-                      </a>
+                      </button>
                     ) : (
                       <span className="text-muted-foreground">—</span>
                     )}
@@ -272,6 +275,14 @@ export function PeoplePageClient() {
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      <SendEmailModal
+        open={!!sendEmailTo}
+        onOpenChange={(open) => { if (!open) setSendEmailTo(null); }}
+        projectSlug={slug}
+        defaultTo={sendEmailTo?.email ?? ''}
+        personId={sendEmailTo?.personId}
+      />
     </div>
   );
 }

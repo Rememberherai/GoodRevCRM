@@ -357,12 +357,13 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
                 {person.email && (
                   <div className="flex items-center gap-2">
                     <Mail className="h-4 w-4 text-muted-foreground" />
-                    <a
-                      href={`mailto:${person.email}`}
+                    <button
+                      type="button"
+                      onClick={() => setShowSendEmail(true)}
                       className="text-primary hover:underline"
                     >
                       {person.email}
-                    </a>
+                    </button>
                   </div>
                 )}
                 {person.phone && (

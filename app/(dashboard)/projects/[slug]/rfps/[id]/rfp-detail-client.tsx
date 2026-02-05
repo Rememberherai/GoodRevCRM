@@ -356,13 +356,14 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
                 {rfp.submission_email && (
                   <div>
                     <p className="text-sm text-muted-foreground">Email</p>
-                    <a
-                      href={`mailto:${rfp.submission_email}`}
+                    <button
+                      type="button"
+                      onClick={() => setShowSendEmail(true)}
                       className="flex items-center gap-1 text-primary hover:underline"
                     >
                       <Mail className="h-3 w-3" />
                       {rfp.submission_email}
-                    </a>
+                    </button>
                   </div>
                 )}
                 {rfp.submission_instructions && (
