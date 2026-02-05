@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { useCallStore } from '@/stores/call';
+import { useCallStore, emitDispositionSaved } from '@/stores/call';
 import { DISPOSITION_LABELS } from '@/types/call';
 import type { CallDisposition } from '@/types/call';
 import {
@@ -31,7 +31,7 @@ const dispositions = Object.entries(DISPOSITION_LABELS) as [CallDisposition, str
 export function CallDispositionModal() {
   const params = useParams();
   const slug = params?.slug as string;
-  const { showDispositionModal, lastEndedCallId, closeDispositionModal } = useCallStore();
+  const { showDispositionModal, lastEndedCallId, currentCallRecord, closeDispositionModal } = useCallStore();
 
   const [disposition, setDisposition] = useState<CallDisposition | ''>('');
   const [notes, setNotes] = useState('');
@@ -65,6 +65,8 @@ export function CallDispositionModal() {
       }
 
       toast.success('Call disposition saved');
+      // Emit event to refresh activity lists
+      emitDispositionSaved(currentCallRecord?.person_id ?? null);
       handleClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save disposition');

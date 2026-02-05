@@ -2,6 +2,7 @@
 
 import { useState, useCallback, useEffect, useRef } from 'react';
 import type { ActivityWithUser } from '@/types/activity';
+import { onDispositionSaved } from '@/stores/call';
 
 interface UseActivitiesOptions {
   projectSlug: string;
@@ -116,6 +117,17 @@ export function useActivities(options: UseActivitiesOptions): UseActivitiesRetur
   useEffect(() => {
     loadActivities();
   }, [loadActivities]);
+
+  // Subscribe to disposition saved events to auto-refresh
+  useEffect(() => {
+    const unsubscribe = onDispositionSaved((savedPersonId) => {
+      // Refresh if this hook is watching the person whose call just ended
+      if (personId && savedPersonId === personId) {
+        loadActivities();
+      }
+    });
+    return () => { unsubscribe(); };
+  }, [personId, loadActivities]);
 
   return {
     activities,

@@ -13,6 +13,21 @@ interface CallRecord {
   status: string;
 }
 
+// Event listeners for disposition saved
+type DispositionSavedListener = (personId: string | null) => void;
+const dispositionSavedListeners = new Set<DispositionSavedListener>();
+
+// Subscribe to disposition saved events (for refreshing activity lists)
+export function onDispositionSaved(listener: DispositionSavedListener) {
+  dispositionSavedListeners.add(listener);
+  return () => dispositionSavedListeners.delete(listener);
+}
+
+// Emit disposition saved event
+export function emitDispositionSaved(personId: string | null) {
+  dispositionSavedListeners.forEach((listener) => listener(personId));
+}
+
 interface CallStoreState {
   // Active call
   activeCallId: string | null;
