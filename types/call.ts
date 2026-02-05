@@ -145,11 +145,15 @@ export const CALL_STATUS_LABELS: Record<CallStatus, string> = {
 };
 
 // Map call dispositions to existing activity outcome values
-export const DISPOSITION_TO_ACTIVITY_OUTCOME: Partial<Record<CallDisposition, string>> = {
+export const DISPOSITION_TO_ACTIVITY_OUTCOME: Record<CallDisposition, string> = {
   no_answer: 'call_no_answer',
   left_voicemail: 'call_left_message',
   quality_conversation: 'quality_conversation',
   meeting_booked: 'meeting_booked',
   not_interested: 'not_interested',
+  busy: 'call_no_answer',
+  wrong_number: 'not_interested',
   call_back_later: 'follow_up_scheduled',
+  do_not_call: 'not_interested',
+  other: 'other',
 };

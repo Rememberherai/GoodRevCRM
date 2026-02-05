@@ -12,6 +12,7 @@ import {
   Pencil,
   Phone,
   Smartphone,
+  Sparkles,
   Trash2,
   Twitter,
   Target,
@@ -24,7 +25,6 @@ import { EnrichButton } from '@/components/enrichment';
 import { EnrichmentReviewModal } from '@/components/enrichment/enrichment-review-modal';
 import { usePerson } from '@/hooks/use-people';
 import { usePersonStore, deletePerson } from '@/stores/person';
-import { useEnrichmentStore } from '@/stores/enrichment';
 import type { EnrichmentPerson } from '@/lib/fullenrich/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -45,8 +45,6 @@ import {
 import { PersonForm } from '@/components/people/person-form';
 import { PersonSequencesTab } from '@/components/people/person-sequences-tab';
 import { ActivityTimeline } from '@/components/activity/activity-timeline';
-import { EntityActivitySection } from '@/components/activity/entity-activity-section';
-import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 import { EntityEmailTab } from '@/components/email/entity-email-tab';
 import { SendEmailModal } from '@/components/gmail';
 import { EntityCommentsFeed } from '@/components/comments';
@@ -79,6 +77,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
   const [isDeleting, setIsDeleting] = useState(false);
   const [showSendEmail, setShowSendEmail] = useState(false);
   const [pendingEnrichmentData, setPendingEnrichmentData] = useState<EnrichmentPerson | null>(null);
+  const [pendingEnrichmentJobId, setPendingEnrichmentJobId] = useState<string | null>(null);
   const [showPendingReviewModal, setShowPendingReviewModal] = useState(false);
   const [isApplyingEnrichment, setIsApplyingEnrichment] = useState(false);
   const [activities, setActivities] = useState<ActivityWithUser[]>([]);
@@ -86,7 +85,6 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
 
   const { person, isLoading, error, refresh } = usePerson(personId);
   const removePerson = usePersonStore((s) => s.removePerson);
-  const { completeEnrichment } = useEnrichmentStore();
 
   const loadActivities = useCallback(async () => {
     setActivitiesLoading(true);
@@ -111,7 +109,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
     }
   }, [activeTab, loadActivities]);
 
-  // Check for completed but unreviewed enrichments on mount
+  // Check for completed but unreviewed enrichments on mount (no auto-popup)
   useEffect(() => {
     const checkForCompletedEnrichment = async () => {
       try {
@@ -123,18 +121,10 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
         const data = await response.json();
         const latestJob = data.jobs?.[0];
 
-        // If there's a completed job with results, check if it's recent (within last hour)
-        // and show the review modal
-        if (latestJob?.status === 'completed' && latestJob.result) {
-          const completedAt = new Date(latestJob.completed_at || latestJob.created_at);
-          const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000);
-
-          if (completedAt > oneHourAgo) {
-            setPendingEnrichmentData(latestJob.result as EnrichmentPerson);
-            setShowPendingReviewModal(true);
-            // Also add to global store so it's tracked
-            completeEnrichment(personId, latestJob);
-          }
+        // Store unreviewed enrichment data for the "View Enrichment" button
+        if (latestJob?.status === 'completed' && latestJob.result && !latestJob.reviewed_at) {
+          setPendingEnrichmentData(latestJob.result as EnrichmentPerson);
+          setPendingEnrichmentJobId(latestJob.id);
         }
       } catch (err) {
         console.error('Error checking for completed enrichment:', err);
@@ -144,7 +134,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
     if (slug && personId) {
       checkForCompletedEnrichment();
     }
-  }, [slug, personId, completeEnrichment]);
+  }, [slug, personId]);
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -156,6 +146,19 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
       setIsDeleting(false);
     }
   };
+
+  const markEnrichmentReviewed = useCallback(async () => {
+    if (!pendingEnrichmentJobId) return;
+    try {
+      await fetch(`/api/projects/${slug}/enrich`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ job_id: pendingEnrichmentJobId }),
+      });
+    } catch {
+      // Non-critical — just prevents auto-showing next time
+    }
+  }, [slug, pendingEnrichmentJobId]);
 
   const handleApplyPendingEnrichment = async (selectedFields: Record<string, string | null>) => {
     if (Object.keys(selectedFields).length === 0) return;
@@ -173,14 +176,23 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
         throw new Error(data.error ?? 'Failed to apply enrichment');
       }
 
+      await markEnrichmentReviewed();
       setShowPendingReviewModal(false);
       setPendingEnrichmentData(null);
+      setPendingEnrichmentJobId(null);
       refresh();
     } catch (err) {
       console.error('Error applying enrichment:', err);
     } finally {
       setIsApplyingEnrichment(false);
     }
+  };
+
+  const handleDismissEnrichment = async () => {
+    await markEnrichmentReviewed();
+    setShowPendingReviewModal(false);
+    setPendingEnrichmentData(null);
+    setPendingEnrichmentJobId(null);
   };
 
   const getInitials = (firstName: string, lastName: string) => {
@@ -257,6 +269,16 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
             <Button variant="outline" onClick={() => setShowSendEmail(true)}>
               <Mail className="mr-2 h-4 w-4" />
               Send Email
+            </Button>
+          )}
+          {pendingEnrichmentData && (
+            <Button
+              variant="outline"
+              className="text-amber-600 border-amber-300 hover:bg-amber-50"
+              onClick={() => setShowPendingReviewModal(true)}
+            >
+              <Sparkles className="mr-2 h-4 w-4" />
+              View Enrichment Results
             </Button>
           )}
           <EnrichButton
@@ -533,24 +555,6 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
         </TabsContent>
       </Tabs>
 
-      {/* Activity Section */}
-      <EntityActivitySection
-        projectSlug={slug}
-        entityType="person"
-        entityId={personId}
-        personId={personId}
-        personName={`${person.first_name ?? ''} ${person.last_name ?? ''}`.trim()}
-      />
-
-      {/* Meetings Section */}
-      <EntityMeetingsSection
-        projectSlug={slug}
-        entityType="person"
-        entityId={personId}
-        personId={personId}
-        personName={`${person.first_name ?? ''} ${person.last_name ?? ''}`.trim()}
-      />
-
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>
         <AlertDialogContent>
           <AlertDialogHeader>
@@ -585,10 +589,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
 
       <EnrichmentReviewModal
         open={showPendingReviewModal}
-        onClose={() => {
-          setShowPendingReviewModal(false);
-          setPendingEnrichmentData(null);
-        }}
+        onClose={handleDismissEnrichment}
         enrichmentData={pendingEnrichmentData}
         currentPerson={{
           email: person.email,

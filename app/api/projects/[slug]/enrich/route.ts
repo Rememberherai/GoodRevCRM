@@ -193,6 +193,59 @@ export async function GET(request: Request, context: RouteContext) {
   }
 }
 
+// PATCH /api/projects/[slug]/enrich - Mark enrichment job as reviewed
+export async function PATCH(request: Request, context: RouteContext) {
+  try {
+    const { slug } = await context.params;
+    const supabase = await createClient();
+
+    const {
+      data: { user },
+    } = await supabase.auth.getUser();
+
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('slug', slug)
+      .is('deleted_at', null)
+      .single();
+
+    if (projectError || !project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    const body = await request.json();
+    const jobId = body.job_id;
+
+    if (!jobId || typeof jobId !== 'string') {
+      return NextResponse.json({ error: 'job_id is required' }, { status: 400 });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabaseAny = supabase as any;
+
+    const { error } = await supabaseAny
+      .from('enrichment_jobs')
+      .update({ reviewed_at: new Date().toISOString() })
+      .eq('id', jobId)
+      .eq('project_id', project.id);
+
+    if (error) {
+      console.error('Error marking enrichment as reviewed:', error);
+      return NextResponse.json({ error: 'Failed to update enrichment job' }, { status: 500 });
+    }
+
+    return NextResponse.json({ success: true });
+  } catch (error) {
+    console.error('Error in PATCH /api/projects/[slug]/enrich:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}
+
 // POST /api/projects/[slug]/enrich - Start enrichment job(s)
 export async function POST(request: Request, context: RouteContext) {
   try {
