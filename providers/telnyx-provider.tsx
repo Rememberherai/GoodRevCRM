@@ -113,10 +113,22 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
         // Dynamically import TelnyxRTC to avoid SSR issues
         const { TelnyxRTC } = await import('@telnyx/webrtc');
 
+        // Create hidden audio element for call audio
+        let audioEl = document.getElementById('telnyx-remote-audio') as HTMLAudioElement;
+        if (!audioEl) {
+          audioEl = document.createElement('audio');
+          audioEl.id = 'telnyx-remote-audio';
+          audioEl.autoplay = true;
+          document.body.appendChild(audioEl);
+        }
+
         const client = new TelnyxRTC({
           login: username,
           password: password,
         });
+
+        // Set the audio element for remote audio
+        client.remoteElement = 'telnyx-remote-audio';
 
         client.on('telnyx.ready', () => {
           if (mounted) {
@@ -139,18 +151,21 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
           }
         });
 
-        client.on('telnyx.notification', (notification: { call?: TelnyxCall }) => {
-          if (!mounted || !notification.call) return;
+        client.on('telnyx.notification', (notification: { type?: string; call?: TelnyxCall }) => {
+          if (!mounted) return;
 
-          const call = notification.call;
-          callRef.current = call;
+          // Handle call updates
+          if (notification.type === 'callUpdate' && notification.call) {
+            const call = notification.call;
+            callRef.current = call;
 
-          call.on('stateChange', (state: { state: string }) => {
-            if (!mounted) return;
+            const state = call.state;
+            console.log('Call state update:', state);
 
-            switch (state.state) {
+            switch (state) {
               case 'trying':
               case 'requesting':
+              case 'new':
                 setCallState('connecting');
                 break;
               case 'ringing':
@@ -158,18 +173,20 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
                 setCallState('ringing');
                 break;
               case 'active':
+              case 'answering':
                 setCallState('active');
                 startTimer();
                 break;
               case 'hangup':
               case 'destroy':
+              case 'done':
                 callRef.current = null;
                 stopTimer();
                 // Open disposition modal before clearing state
                 openDispositionModal();
                 break;
             }
-          });
+          }
         });
 
         client.connect();
