@@ -371,7 +371,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
                       <div>
                         <FormLabel className="mb-0">Record Calls</FormLabel>
                         <FormDescription className="mt-0.5">
-                          Automatically record all outbound calls ($0.002/min)
+                          For WebRTC calls, enable recording on your Outbound Voice Profile in the Telnyx portal (Networking → Outbound Voice Profiles → Advanced Settings)
                         </FormDescription>
                       </div>
                       <FormControl>
