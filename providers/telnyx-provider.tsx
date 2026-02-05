@@ -205,6 +205,15 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
               case 'answering':
                 setCallState('active');
                 startTimer();
+                // Start recording if enabled (fire-and-forget)
+                {
+                  const store = useCallStore.getState();
+                  if (store.activeCallId && store.currentCallRecord?.telnyx_call_control_id) {
+                    fetch(`/api/projects/${slug}/calls/${store.activeCallId}/record`, {
+                      method: 'POST',
+                    }).catch((err) => console.log('Recording start skipped or failed:', err));
+                  }
+                }
                 break;
               case 'held':
                 // Call is on hold - don't change our state, just log
