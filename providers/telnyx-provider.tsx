@@ -91,16 +91,14 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
 
   // Initialize TelnyxRTC client
   useEffect(() => {
-    if (!slug) return;
-
     let mounted = true;
 
     async function initClient() {
       try {
         setIsConnecting(true);
 
-        // Fetch WebRTC credentials
-        const res = await fetch(`/api/projects/${slug}/telnyx/webrtc-token`);
+        // Fetch WebRTC credentials from user-level endpoint
+        const res = await fetch('/api/user/telnyx/webrtc-token');
         if (!res.ok) {
           setHasConnection(false);
           setIsConnecting(false);
@@ -267,7 +265,7 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
         clientRef.current = null;
       }
     };
-  }, [slug, setCallState, clearActiveCall, startTimer, stopTimer, openDispositionModal]);
+  }, [setCallState, clearActiveCall, startTimer, stopTimer, openDispositionModal]);
 
   const makeCall = useCallback(
     async (toNumber: string, personId?: string, organizationId?: string) => {

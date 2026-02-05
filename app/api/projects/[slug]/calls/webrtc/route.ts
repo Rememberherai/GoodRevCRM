@@ -45,18 +45,18 @@ export async function POST(request: Request, context: RouteContext) {
     const input = validationResult.data;
     console.log('[WebRTC Call] Validated input:', JSON.stringify(input));
 
-    // Get the Telnyx connection to get the from number
+    // Get the user's Telnyx connection (user-level, not project-level)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: connection } = await (supabase as any)
       .from('telnyx_connections')
       .select('id, phone_number, record_calls')
-      .eq('project_id', project.id)
+      .eq('user_id', user.id)
       .eq('status', 'active')
       .single();
 
     if (!connection) {
       return NextResponse.json(
-        { error: 'No active Telnyx connection for this project' },
+        { error: 'No active Telnyx connection. Configure your phone in Settings.' },
         { status: 400 }
       );
     }

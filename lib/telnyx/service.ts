@@ -37,6 +37,29 @@ export async function getProjectConnection(
   }
 }
 
+// Get the active Telnyx connection for a user (with decrypted API key)
+export async function getUserConnection(
+  userId: string
+): Promise<TelnyxConnection | null> {
+  const supabase = createAdminClient();
+  const { data } = await supabase
+    .from('telnyx_connections')
+    .select('*')
+    .eq('user_id', userId)
+    .eq('status', 'active')
+    .single();
+
+  if (!data) return null;
+
+  try {
+    const decryptedApiKey = decryptApiKey(data.api_key);
+    return { ...data, api_key: decryptedApiKey } as TelnyxConnection;
+  } catch (error) {
+    console.error('Error decrypting API key:', error);
+    return data as TelnyxConnection;
+  }
+}
+
 // Create a call record in the database and initiate via Telnyx
 export async function initiateOutboundCall(params: {
   projectId: string;

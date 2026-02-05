@@ -22,10 +22,13 @@ import {
 } from '@/components/ui/form';
 
 interface TelnyxSettingsPanelProps {
-  slug: string;
+  slug?: string;
 }
 
 export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
+  // When slug is provided, use project-level endpoints; otherwise use user-level endpoints
+  const apiBase = slug ? `/api/projects/${slug}/telnyx` : '/api/user/telnyx';
+
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [hasExistingConnection, setHasExistingConnection] = useState(false);
@@ -63,7 +66,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
   const fetchConnection = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/projects/${slug}/telnyx`);
+      const res = await fetch(apiBase);
       if (!res.ok) return;
 
       const data = await res.json();
@@ -88,7 +91,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
     } finally {
       setIsLoading(false);
     }
-  }, [slug, form]);
+  }, [apiBase, form]);
 
   useEffect(() => {
     fetchConnection();
@@ -102,7 +105,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
 
       if (hasExistingConnection && !isNewKey) {
         // Only update settings
-        const res = await fetch(`/api/projects/${slug}/telnyx`, {
+        const res = await fetch(apiBase, {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -124,7 +127,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
         toast.success('Phone settings updated');
       } else {
         // Create new connection
-        const res = await fetch(`/api/projects/${slug}/telnyx`, {
+        const res = await fetch(apiBase, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify(values),
@@ -150,7 +153,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
 
   const handleDisconnect = async () => {
     try {
-      const res = await fetch(`/api/projects/${slug}/telnyx`, {
+      const res = await fetch(apiBase, {
         method: 'DELETE',
       });
       if (!res.ok) throw new Error('Failed to disconnect');

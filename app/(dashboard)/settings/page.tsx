@@ -3,6 +3,7 @@
 import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { GmailConnection, GmailApiTester } from '@/components/gmail';
+import { TelnyxSettingsPanel } from '@/components/calls/telnyx-settings-panel';
 import { User } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserMenu } from '@/components/layout/user-menu';
@@ -66,6 +67,8 @@ export default function SettingsPage() {
 
           <GmailConnection />
           <GmailApiTester />
+
+          <TelnyxSettingsPanel />
         </div>
       </main>
     </div>
