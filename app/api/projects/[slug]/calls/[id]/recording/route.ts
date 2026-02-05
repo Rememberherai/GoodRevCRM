@@ -51,12 +51,20 @@ export async function GET(request: Request, context: RouteContext) {
     // Stream mode: redirect to a fresh pre-signed URL for the audio player
     if (streamMode) {
       if (call.telnyx_recording_id && call.telnyx_connection_id) {
-        return await redirectToRecording(supabaseAny, call);
+        return await serveRecordingPlayer(supabaseAny, call);
       }
-      // Fallback: if we have a stored URL but no recording ID, redirect to it
+      // Fallback: if we have a stored URL but no recording ID, serve player with stored URL
       // (may fail if the URL has expired, but it's the best we can do)
       if (call.recording_url) {
-        return NextResponse.redirect(call.recording_url, 302);
+        const html = `<!DOCTYPE html>
+<html><head><title>Call Recording</title>
+<style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#111;font-family:system-ui,sans-serif}
+audio{width:min(90vw,500px)}</style></head>
+<body><audio controls autoplay src="${call.recording_url.replace(/"/g, '&quot;')}"></audio></body></html>`;
+        return new Response(html, {
+          status: 200,
+          headers: { 'Content-Type': 'text/html; charset=utf-8' },
+        });
       }
       return NextResponse.json({ error: 'No recording available' }, { status: 404 });
     }
@@ -302,12 +310,10 @@ async function backfillRecordingId(supabase: any, call: any): Promise<void> {
   }
 }
 
-// Redirect to a fresh pre-signed S3 URL from Telnyx.
-// We fetch the recording detail from Telnyx API (which gives a fresh 10-min URL)
-// and 302-redirect the browser to it. This avoids streaming through our server
-// and works with Vercel's serverless function constraints.
+// Serve a minimal HTML page with an audio player pointing to the fresh S3 URL.
+// Direct redirects to S3 cause downloads due to Content-Disposition headers.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function redirectToRecording(supabase: any, call: any): Promise<Response> {
+async function serveRecordingPlayer(supabase: any, call: any): Promise<Response> {
   try {
     const { data: connection } = await supabase
       .from('telnyx_connections')
@@ -327,10 +333,18 @@ async function redirectToRecording(supabase: any, call: any): Promise<Response> 
       return NextResponse.json({ error: 'Recording URL not available' }, { status: 404 });
     }
 
-    // 302 redirect — the browser/audio element follows this to the S3 URL
-    return NextResponse.redirect(freshUrl, 302);
+    const html = `<!DOCTYPE html>
+<html><head><title>Call Recording</title>
+<style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#111;font-family:system-ui,sans-serif}
+audio{width:min(90vw,500px)}</style></head>
+<body><audio controls autoplay src="${freshUrl.replace(/"/g, '&quot;')}"></audio></body></html>`;
+
+    return new Response(html, {
+      status: 200,
+      headers: { 'Content-Type': 'text/html; charset=utf-8' },
+    });
   } catch (error) {
-    console.error('[Recording Redirect] Error:', error);
+    console.error('[Recording Player] Error:', error);
     return NextResponse.json({ error: 'Failed to get recording' }, { status: 500 });
   }
 }
