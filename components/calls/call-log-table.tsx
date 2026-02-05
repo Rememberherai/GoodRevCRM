@@ -11,6 +11,7 @@ import {
   PhoneOutgoing,
   Play,
   Loader2,
+  FileText,
 } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { onDispositionSaved } from '@/stores/call';
@@ -250,25 +251,32 @@ export function CallLogTable({
                   )}
                 </td>
                 <td className="px-3 py-2">
-                  {(call.recording_url || recordingPolling[call.id]) ? (
-                    <a
-                      href={`/api/projects/${slug}/calls/${call.id}/recording?stream=true`}
-                      target="_blank"
-                      rel="noopener noreferrer"
-                    >
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-7 w-7"
+                  <div className="flex items-center gap-1">
+                    {(call.recording_url || recordingPolling[call.id]) ? (
+                      <a
+                        href={`/api/projects/${slug}/calls/${call.id}/recording?stream=true`}
+                        target="_blank"
+                        rel="noopener noreferrer"
                       >
-                        <Play className="h-3.5 w-3.5" />
-                      </Button>
-                    </a>
-                  ) : pollingTimersRef.current[call.id] ? (
-                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
-                  ) : (
-                    <span className="text-xs text-muted-foreground">-</span>
-                  )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-7 w-7"
+                        >
+                          <Play className="h-3.5 w-3.5" />
+                        </Button>
+                      </a>
+                    ) : pollingTimersRef.current[call.id] ? (
+                      <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
+                    ) : (
+                      <span className="text-xs text-muted-foreground">-</span>
+                    )}
+                    {call.transcription && (
+                      <span title="Transcript available">
+                        <FileText className="h-3.5 w-3.5 text-green-500" />
+                      </span>
+                    )}
+                  </div>
                 </td>
               </tr>
             ))}

@@ -46,6 +46,8 @@ export interface Call {
   recording_enabled: boolean;
   recording_url: string | null;
   recording_duration_seconds: number | null;
+  telnyx_recording_id: string | null;
+  transcription: string | null;
   disposition: CallDisposition | null;
   disposition_notes: string | null;
   person_id: string | null;

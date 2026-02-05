@@ -245,6 +245,67 @@ export async function sendDtmf(
   });
 }
 
+// Transcribe a recording using Telnyx Speech-to-Text API
+// Uses POST /v2/ai/audio/transcriptions with the recording's download URL
+export async function transcribeRecording(
+  apiKey: string,
+  recordingId: string
+): Promise<{ text: string; duration?: number; segments?: Array<{ start: number; end: number; text: string }> }> {
+  // 1. Get fresh download URL (pre-signed S3 URLs expire)
+  const recording = await getRecording(apiKey, recordingId);
+  const downloadUrl = recording.data?.download_urls?.wav ?? recording.data?.download_urls?.mp3;
+
+  if (!downloadUrl) {
+    throw new Error(`No download URL available for recording ${recordingId}`);
+  }
+
+  // 2. Call Telnyx STT API with multipart/form-data
+  const formData = new FormData();
+  formData.append('file_url', downloadUrl);
+  formData.append('model', 'openai/whisper-large-v3-turbo');
+  formData.append('response_format', 'verbose_json');
+  formData.append('timestamp_granularities[]', 'segment');
+
+  const controller = new AbortController();
+  // Transcription can take a while for long recordings — 5 minute timeout
+  const timeoutId = setTimeout(() => controller.abort(), 300000);
+
+  try {
+    const response = await fetch(`${TELNYX_API_BASE}/ai/audio/transcriptions`, {
+      method: 'POST',
+      headers: {
+        Authorization: `Bearer ${apiKey}`,
+      },
+      body: formData,
+      signal: controller.signal,
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json().catch(() => ({}));
+      const message =
+        (errorData as { errors?: Array<{ detail?: string }> })?.errors?.[0]?.detail ||
+        (errorData as { error?: { message?: string } })?.error?.message ||
+        `Telnyx STT API error: ${response.status}`;
+      throw new Error(message);
+    }
+
+    const result = await response.json() as {
+      text: string;
+      duration?: number;
+      segments?: Array<{ start: number; end: number; text: string }>;
+    };
+
+    return result;
+  } catch (error) {
+    if (error instanceof Error && error.name === 'AbortError') {
+      throw new Error('Transcription request timed out after 5 minutes');
+    }
+    throw error;
+  } finally {
+    clearTimeout(timeoutId);
+  }
+}
+
 // List recordings from Telnyx API with filters
 export interface TelnyxRecording {
   id: string;

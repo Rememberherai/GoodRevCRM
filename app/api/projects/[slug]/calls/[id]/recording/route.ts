@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { listRecordings, getRecording } from '@/lib/telnyx/client';
+import { listRecordings, getRecording, transcribeRecording } from '@/lib/telnyx/client';
 import { decryptApiKey } from '@/lib/telnyx/encryption';
 
 interface RouteContext {
@@ -49,14 +49,15 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     // Stream mode: redirect to a fresh pre-signed URL for the audio player
+    const apiPath = `/api/projects/${slug}/calls/${id}/recording`;
     if (streamMode) {
       if (call.telnyx_recording_id && call.telnyx_connection_id) {
-        return await serveRecordingPlayer(supabaseAny, call);
+        return await serveRecordingPlayer(supabaseAny, call, apiPath);
       }
       // Fallback: if we have a stored URL but no recording ID, serve player with stored URL
       // (may fail if the URL has expired, but it's the best we can do)
       if (call.recording_url) {
-        return new Response(buildPlayerHtml(call.recording_url, call), {
+        return new Response(buildPlayerHtml(call.recording_url, call, apiPath), {
           status: 200,
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
@@ -311,7 +312,7 @@ function esc(str: any): string {
 }
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-function buildPlayerHtml(audioUrl: string, call: any): string {
+function buildPlayerHtml(audioUrl: string, call: any, apiPath: string): string {
   const person = call.person;
   const contactName = person ? `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim() : null;
   const phoneNumber = call.direction === 'outbound' ? call.to_number : call.from_number;
@@ -322,6 +323,7 @@ function buildPlayerHtml(audioUrl: string, call: any): string {
   const dur = call.talk_time_seconds || call.duration_seconds;
   const durationStr = dur ? `${Math.floor(dur / 60)}m ${dur % 60}s` : '';
   const transcription = call.transcription ?? null;
+  const hasRecording = !!call.telnyx_recording_id;
 
   return `<!DOCTYPE html>
 <html lang="en">
@@ -347,8 +349,14 @@ audio{width:100%;height:40px;border-radius:8px}
 .transcript-section{background:#18181b;border:1px solid #27272a;border-radius:12px;padding:20px}
 .transcript-header{font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
 .transcript-badge{font-size:11px;padding:2px 6px;border-radius:4px;background:#27272a;color:#a1a1aa;font-weight:500}
+.transcript-badge-ready{background:#14532d;color:#4ade80}
 .transcript-content{color:#d4d4d8;font-size:14px;line-height:1.7;white-space:pre-wrap}
 .transcript-empty{color:#52525b;font-size:14px;font-style:italic}
+.transcribe-btn{background:#3b82f6;color:#fff;border:none;padding:8px 16px;border-radius:8px;font-size:13px;font-weight:500;cursor:pointer;display:inline-flex;align-items:center;gap:6px;transition:background 0.15s}
+.transcribe-btn:hover{background:#2563eb}
+.transcribe-btn:disabled{background:#27272a;color:#71717a;cursor:not-allowed}
+.spinner{display:inline-block;width:14px;height:14px;border:2px solid #71717a;border-top-color:#fff;border-radius:50%;animation:spin .6s linear infinite}
+@keyframes spin{to{transform:rotate(360deg)}}
 </style>
 </head>
 <body>
@@ -369,12 +377,45 @@ audio{width:100%;height:40px;border-radius:8px}
     <audio controls autoplay src="${esc(audioUrl)}"></audio>
   </div>
   <div class="transcript-section">
-    <div class="transcript-header">Transcription <span class="transcript-badge">${transcription ? 'Available' : 'Coming soon'}</span></div>
+    <div class="transcript-header">
+      Transcription
+      <span id="transcriptBadge" class="transcript-badge ${transcription ? 'transcript-badge-ready' : ''}">${transcription ? 'Available' : hasRecording ? 'Not yet transcribed' : 'No recording'}</span>
+    </div>
+    <div id="transcriptBody">
     ${transcription
       ? `<div class="transcript-content">${esc(transcription)}</div>`
-      : `<div class="transcript-empty">Transcription will appear here once processed.</div>`}
+      : hasRecording
+        ? `<button id="transcribeBtn" class="transcribe-btn" onclick="doTranscribe()">Transcribe Recording</button>`
+        : `<div class="transcript-empty">No recording available for transcription.</div>`}
+    </div>
   </div>
 </div>
+${hasRecording && !transcription ? `<script>
+async function doTranscribe() {
+  var btn = document.getElementById('transcribeBtn');
+  var badge = document.getElementById('transcriptBadge');
+  var body = document.getElementById('transcriptBody');
+  btn.disabled = true;
+  btn.innerHTML = '<span class="spinner"></span> Transcribing...';
+  badge.textContent = 'Processing...';
+  try {
+    var res = await fetch('${esc(apiPath)}', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
+    if (!res.ok) throw new Error('Failed: ' + res.status);
+    var data = await res.json();
+    if (data.transcription) {
+      badge.textContent = 'Available';
+      badge.className = 'transcript-badge transcript-badge-ready';
+      body.innerHTML = '<div class="transcript-content">' + data.transcription.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+    } else {
+      badge.textContent = 'Failed';
+      body.innerHTML = '<div class="transcript-empty">Transcription returned empty. Try again later.</div>';
+    }
+  } catch(e) {
+    badge.textContent = 'Error';
+    body.innerHTML = '<div class="transcript-empty">Transcription failed: ' + e.message + '</div>';
+  }
+}
+</script>` : ''}
 </body>
 </html>`;
 }
@@ -382,7 +423,7 @@ audio{width:100%;height:40px;border-radius:8px}
 // Serve a branded HTML page with an audio player pointing to the fresh S3 URL.
 // Direct redirects to S3 cause downloads due to Content-Disposition headers.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function serveRecordingPlayer(supabase: any, call: any): Promise<Response> {
+async function serveRecordingPlayer(supabase: any, call: any, apiPath: string): Promise<Response> {
   try {
     const { data: connection } = await supabase
       .from('telnyx_connections')
@@ -402,12 +443,116 @@ async function serveRecordingPlayer(supabase: any, call: any): Promise<Response>
       return NextResponse.json({ error: 'Recording URL not available' }, { status: 404 });
     }
 
-    return new Response(buildPlayerHtml(freshUrl, call), {
+    // Trigger background transcription if recording exists but no transcription yet
+    if (call.telnyx_recording_id && !call.transcription) {
+      triggerTranscription(supabase, call, apiKey).catch((err) =>
+        console.error('[Transcription] Background trigger failed:', err)
+      );
+    }
+
+    return new Response(buildPlayerHtml(freshUrl, call, apiPath), {
       status: 200,
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
   } catch (error) {
     console.error('[Recording Player] Error:', error);
     return NextResponse.json({ error: 'Failed to get recording' }, { status: 500 });
+  }
+}
+
+// Background transcription: fetches STT from Telnyx and saves to DB
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function triggerTranscription(supabase: any, call: any, apiKey: string): Promise<void> {
+  console.log('[Transcription] Starting transcription for call', call.id, 'recording', call.telnyx_recording_id);
+
+  const result = await transcribeRecording(apiKey, call.telnyx_recording_id);
+
+  if (!result.text) {
+    console.log('[Transcription] No text returned for call', call.id);
+    return;
+  }
+
+  const { error: updateError } = await supabase
+    .from('calls')
+    .update({ transcription: result.text })
+    .eq('id', call.id);
+
+  if (updateError) {
+    console.error('[Transcription] Error saving transcription to DB:', updateError);
+  } else {
+    console.log('[Transcription] Saved transcription for call', call.id, `(${result.text.length} chars)`);
+  }
+}
+
+// POST /api/projects/[slug]/calls/[id]/recording - Manually trigger transcription
+export async function POST(_request: Request, context: RouteContext) {
+  try {
+    const { slug, id } = await context.params;
+    const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('slug', slug)
+      .is('deleted_at', null)
+      .single();
+
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabaseAny = supabase as any;
+
+    const { data: call, error: callError } = await supabaseAny
+      .from('calls')
+      .select('id, telnyx_recording_id, telnyx_connection_id, transcription')
+      .eq('id', id)
+      .eq('project_id', project.id)
+      .single();
+
+    if (callError || !call) {
+      return NextResponse.json({ error: 'Call not found' }, { status: 404 });
+    }
+
+    if (!call.telnyx_recording_id) {
+      return NextResponse.json({ error: 'No recording available for this call' }, { status: 400 });
+    }
+
+    if (call.transcription) {
+      return NextResponse.json({ transcription: call.transcription });
+    }
+
+    // Get API key from connection
+    const { data: connection } = await supabaseAny
+      .from('telnyx_connections')
+      .select('api_key')
+      .eq('id', call.telnyx_connection_id)
+      .single();
+
+    if (!connection?.api_key) {
+      return NextResponse.json({ error: 'Connection not found' }, { status: 404 });
+    }
+
+    const apiKey = decryptApiKey(connection.api_key);
+
+    await triggerTranscription(supabaseAny, call, apiKey);
+
+    // Re-fetch to get the saved transcription
+    const { data: updated } = await supabaseAny
+      .from('calls')
+      .select('transcription')
+      .eq('id', id)
+      .single();
+
+    return NextResponse.json({ transcription: updated?.transcription ?? null });
+  } catch (error) {
+    console.error('Error in POST /api/projects/[slug]/calls/[id]/recording:', error);
+    return NextResponse.json({ error: 'Transcription failed' }, { status: 500 });
   }
 }
