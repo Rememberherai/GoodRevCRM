@@ -36,10 +36,10 @@ export async function GET(request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
-    // Fetch the call record
+    // Fetch the call record with person info for the player page
     const { data: call, error: callError } = await supabaseAny
       .from('calls')
-      .select('id, recording_url, telnyx_recording_id, recording_duration_seconds, recording_enabled, from_number, to_number, started_at, ended_at, telnyx_connection_id, telnyx_call_session_id')
+      .select('id, recording_url, telnyx_recording_id, recording_duration_seconds, recording_enabled, from_number, to_number, started_at, ended_at, telnyx_connection_id, telnyx_call_session_id, direction, duration_seconds, talk_time_seconds, disposition, disposition_notes, person:people(first_name, last_name), transcription')
       .eq('id', id)
       .eq('project_id', project.id)
       .single();
@@ -56,12 +56,7 @@ export async function GET(request: Request, context: RouteContext) {
       // Fallback: if we have a stored URL but no recording ID, serve player with stored URL
       // (may fail if the URL has expired, but it's the best we can do)
       if (call.recording_url) {
-        const html = `<!DOCTYPE html>
-<html><head><title>Call Recording</title>
-<style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#111;font-family:system-ui,sans-serif}
-audio{width:min(90vw,500px)}</style></head>
-<body><audio controls autoplay src="${call.recording_url.replace(/"/g, '&quot;')}"></audio></body></html>`;
-        return new Response(html, {
+        return new Response(buildPlayerHtml(call.recording_url, call), {
           status: 200,
           headers: { 'Content-Type': 'text/html; charset=utf-8' },
         });
@@ -310,7 +305,81 @@ async function backfillRecordingId(supabase: any, call: any): Promise<void> {
   }
 }
 
-// Serve a minimal HTML page with an audio player pointing to the fresh S3 URL.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function esc(str: any): string {
+  return String(str ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+function buildPlayerHtml(audioUrl: string, call: any): string {
+  const person = call.person;
+  const contactName = person ? `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim() : null;
+  const phoneNumber = call.direction === 'outbound' ? call.to_number : call.from_number;
+  const dirLabel = call.direction === 'outbound' ? 'Outbound' : 'Inbound';
+  const date = call.started_at
+    ? new Date(call.started_at).toLocaleString('en-US', { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })
+    : '';
+  const dur = call.talk_time_seconds || call.duration_seconds;
+  const durationStr = dur ? `${Math.floor(dur / 60)}m ${dur % 60}s` : '';
+  const transcription = call.transcription ?? null;
+
+  return `<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Call Recording${contactName ? ` - ${esc(contactName)}` : ''} | GoodRev</title>
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+body{min-height:100vh;background:#09090b;color:#fafafa;font-family:system-ui,-apple-system,sans-serif;display:flex;flex-direction:column;align-items:center}
+.header{width:100%;padding:16px 24px;border-bottom:1px solid #27272a;display:flex;align-items:center;gap:12px}
+.logo{font-size:20px;font-weight:700;color:#fafafa;letter-spacing:-0.5px}
+.logo span{color:#3b82f6}
+.container{width:100%;max-width:720px;padding:32px 24px;flex:1}
+.meta{margin-bottom:24px}
+.contact-name{font-size:24px;font-weight:600;margin-bottom:4px}
+.details{display:flex;gap:16px;color:#a1a1aa;font-size:14px;flex-wrap:wrap}
+.badge{display:inline-block;padding:2px 8px;border-radius:9999px;font-size:12px;font-weight:500}
+.badge-outbound{background:#1e3a5f;color:#60a5fa}
+.badge-inbound{background:#14532d;color:#4ade80}
+.player-card{background:#18181b;border:1px solid #27272a;border-radius:12px;padding:20px;margin-bottom:32px}
+audio{width:100%;height:40px;border-radius:8px}
+.transcript-section{background:#18181b;border:1px solid #27272a;border-radius:12px;padding:20px}
+.transcript-header{font-size:16px;font-weight:600;margin-bottom:12px;display:flex;align-items:center;gap:8px}
+.transcript-badge{font-size:11px;padding:2px 6px;border-radius:4px;background:#27272a;color:#a1a1aa;font-weight:500}
+.transcript-content{color:#d4d4d8;font-size:14px;line-height:1.7;white-space:pre-wrap}
+.transcript-empty{color:#52525b;font-size:14px;font-style:italic}
+</style>
+</head>
+<body>
+<div class="header">
+  <div class="logo">Good<span>Rev</span></div>
+</div>
+<div class="container">
+  <div class="meta">
+    <div class="contact-name">${contactName ? esc(contactName) : esc(phoneNumber)}</div>
+    <div class="details">
+      ${contactName && phoneNumber ? `<span>${esc(phoneNumber)}</span>` : ''}
+      <span class="badge badge-${call.direction === 'outbound' ? 'outbound' : 'inbound'}">${esc(dirLabel)}</span>
+      ${date ? `<span>${esc(date)}</span>` : ''}
+      ${durationStr ? `<span>${esc(durationStr)}</span>` : ''}
+    </div>
+  </div>
+  <div class="player-card">
+    <audio controls autoplay src="${esc(audioUrl)}"></audio>
+  </div>
+  <div class="transcript-section">
+    <div class="transcript-header">Transcription <span class="transcript-badge">${transcription ? 'Available' : 'Coming soon'}</span></div>
+    ${transcription
+      ? `<div class="transcript-content">${esc(transcription)}</div>`
+      : `<div class="transcript-empty">Transcription will appear here once processed.</div>`}
+  </div>
+</div>
+</body>
+</html>`;
+}
+
+// Serve a branded HTML page with an audio player pointing to the fresh S3 URL.
 // Direct redirects to S3 cause downloads due to Content-Disposition headers.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function serveRecordingPlayer(supabase: any, call: any): Promise<Response> {
@@ -333,13 +402,7 @@ async function serveRecordingPlayer(supabase: any, call: any): Promise<Response>
       return NextResponse.json({ error: 'Recording URL not available' }, { status: 404 });
     }
 
-    const html = `<!DOCTYPE html>
-<html><head><title>Call Recording</title>
-<style>body{margin:0;display:flex;align-items:center;justify-content:center;min-height:100vh;background:#111;font-family:system-ui,sans-serif}
-audio{width:min(90vw,500px)}</style></head>
-<body><audio controls autoplay src="${freshUrl.replace(/"/g, '&quot;')}"></audio></body></html>`;
-
-    return new Response(html, {
+    return new Response(buildPlayerHtml(freshUrl, call), {
       status: 200,
       headers: { 'Content-Type': 'text/html; charset=utf-8' },
     });
