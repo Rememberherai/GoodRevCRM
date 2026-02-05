@@ -368,9 +368,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
                 {person.phone && (
                   <div className="flex items-center gap-2">
                     <Phone className="h-4 w-4 text-muted-foreground" />
-                    <a href={`tel:${person.phone}`} className="hover:underline">
-                      {person.phone}
-                    </a>
+                    <span className="select-all">{person.phone}</span>
                     <ClickToDialButton
                       phoneNumber={person.phone}
                       personId={personId}
@@ -381,9 +379,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
                 {person.mobile_phone && (
                   <div className="flex items-center gap-2">
                     <Smartphone className="h-4 w-4 text-muted-foreground" />
-                    <a href={`tel:${person.mobile_phone}`} className="hover:underline">
-                      {person.mobile_phone}
-                    </a>
+                    <span className="select-all">{person.mobile_phone}</span>
                     <ClickToDialButton
                       phoneNumber={person.mobile_phone}
                       personId={personId}
