@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { useCallStore, emitDispositionSaved } from '@/stores/call';
@@ -38,6 +38,49 @@ export function CallDispositionModal() {
   const [followUpDate, setFollowUpDate] = useState('');
   const [followUpTitle, setFollowUpTitle] = useState('');
   const [isSaving, setIsSaving] = useState(false);
+  const pollingRef = useRef<NodeJS.Timeout | null>(null);
+
+  // Poll the recording endpoint after a call ends to fetch the recording URL
+  // from the Telnyx API and save it to the DB. Runs in the background.
+  const pollForRecording = useCallback((projectSlug: string, callId: string) => {
+    let attempts = 0;
+    const maxAttempts = 6; // 60 seconds at 10s intervals
+
+    const poll = async () => {
+      attempts++;
+      try {
+        const res = await fetch(`/api/projects/${projectSlug}/calls/${callId}/recording`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data.recording_url) {
+          // Recording found, stop polling
+          if (pollingRef.current) {
+            clearInterval(pollingRef.current);
+            pollingRef.current = null;
+          }
+          return;
+        }
+      } catch {
+        // Silently fail
+      }
+
+      if (attempts >= maxAttempts && pollingRef.current) {
+        clearInterval(pollingRef.current);
+        pollingRef.current = null;
+      }
+    };
+
+    // Clear any previous polling
+    if (pollingRef.current) {
+      clearInterval(pollingRef.current);
+    }
+
+    // Start after a delay (recording needs time to process)
+    setTimeout(() => {
+      poll(); // First attempt immediately
+      pollingRef.current = setInterval(poll, 10000);
+    }, 5000);
+  }, []);
 
   const handleSave = async () => {
     if (!disposition || !lastEndedCallId) return;
@@ -67,6 +110,13 @@ export function CallDispositionModal() {
       toast.success('Call disposition saved');
       // Emit event to refresh activity lists
       emitDispositionSaved(currentCallRecord?.person_id ?? null);
+
+      // Start polling for recording in the background
+      // (Telnyx recordings may not be available immediately after call ends)
+      if (slug && lastEndedCallId) {
+        pollForRecording(slug, lastEndedCallId);
+      }
+
       handleClose();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save disposition');
@@ -76,6 +126,10 @@ export function CallDispositionModal() {
   };
 
   const handleClose = () => {
+    // If we haven't started polling yet (user skipped disposition), start it now
+    if (!pollingRef.current && slug && lastEndedCallId) {
+      pollForRecording(slug, lastEndedCallId);
+    }
     setDisposition('');
     setNotes('');
     setFollowUpDate('');
