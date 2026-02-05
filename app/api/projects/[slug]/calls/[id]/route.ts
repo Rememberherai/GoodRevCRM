@@ -105,6 +105,48 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
+    // Check if this is a status update (from hangup)
+    if (body.status !== undefined && body.ended_at !== undefined) {
+      // Calculate duration if we have started_at
+      const { data: existingCall } = await supabaseAny
+        .from('calls')
+        .select('started_at, answered_at')
+        .eq('id', id)
+        .eq('project_id', project.id)
+        .single();
+
+      const statusUpdate: Record<string, unknown> = {
+        status: body.status,
+        ended_at: body.ended_at,
+      };
+
+      if (existingCall?.started_at) {
+        const startedAt = new Date(existingCall.started_at);
+        const endedAt = new Date(body.ended_at);
+        statusUpdate.duration_seconds = Math.round((endedAt.getTime() - startedAt.getTime()) / 1000);
+
+        if (existingCall.answered_at) {
+          const answeredAt = new Date(existingCall.answered_at);
+          statusUpdate.talk_time_seconds = Math.round((endedAt.getTime() - answeredAt.getTime()) / 1000);
+        }
+      }
+
+      const { data: call, error } = await supabaseAny
+        .from('calls')
+        .update(statusUpdate)
+        .eq('id', id)
+        .eq('project_id', project.id)
+        .select('id')
+        .single();
+
+      if (error) {
+        console.error('Error updating call status:', error);
+        return NextResponse.json({ error: 'Failed to update call' }, { status: 500 });
+      }
+
+      return NextResponse.json({ call });
+    }
+
     // Otherwise, handle disposition update
     const validationResult = updateCallDispositionSchema.safeParse(body);
 
@@ -149,22 +191,70 @@ export async function PATCH(request: Request, context: RouteContext) {
       });
     }
 
-    // Update the activity_log entry for this call with disposition
+    // Create or update activity_log entry for this call
     if (call.person_id) {
-      await supabaseAny
+      // Map disposition to activity outcome
+      const outcomeMap: Record<string, string> = {
+        quality_conversation: 'quality_conversation',
+        meeting_booked: 'meeting_booked',
+        left_voicemail: 'call_left_message',
+        no_answer: 'call_no_answer',
+        not_interested: 'not_interested',
+        busy: 'call_no_answer',
+        wrong_number: 'other',
+        call_back_later: 'other',
+        do_not_call: 'not_interested',
+        other: 'other',
+      };
+      const outcome = outcomeMap[input.disposition] || 'other';
+
+      // Check if activity already exists for this call
+      const { data: existingActivity } = await supabaseAny
         .from('activity_log')
-        .update({
-          outcome: input.disposition === 'quality_conversation' ? 'quality_conversation'
-            : input.disposition === 'meeting_booked' ? 'meeting_booked'
-            : input.disposition === 'left_voicemail' ? 'call_left_message'
-            : input.disposition === 'no_answer' ? 'call_no_answer'
-            : input.disposition === 'not_interested' ? 'not_interested'
-            : 'other',
-          notes: input.disposition_notes,
-        })
-        .eq('project_id', project.id)
+        .select('id')
         .eq('activity_type', 'call')
-        .contains('metadata', { call_id: call.id });
+        .contains('metadata', { call_id: call.id })
+        .single();
+
+      if (existingActivity) {
+        // Update existing activity
+        await supabaseAny
+          .from('activity_log')
+          .update({
+            outcome,
+            notes: input.disposition_notes,
+          })
+          .eq('id', existingActivity.id);
+      } else {
+        // Create new activity entry
+        const directionLabel = call.direction === 'outbound' ? 'Outbound' : 'Inbound';
+        const durationMinutes = call.talk_time_seconds
+          ? Math.ceil(call.talk_time_seconds / 60)
+          : 0;
+
+        await supabaseAny.from('activity_log').insert({
+          project_id: project.id,
+          user_id: call.user_id || user.id,
+          entity_type: 'person',
+          entity_id: call.person_id,
+          action: 'logged',
+          activity_type: 'call',
+          person_id: call.person_id,
+          organization_id: call.organization_id,
+          direction: call.direction,
+          duration_minutes: durationMinutes,
+          outcome,
+          subject: `${directionLabel} call to ${call.to_number}`,
+          notes: input.disposition_notes,
+          metadata: {
+            call_id: call.id,
+            recording_url: call.recording_url,
+            talk_time_seconds: call.talk_time_seconds,
+            status: call.status,
+            disposition: input.disposition,
+          },
+        });
+      }
     }
 
     // Emit automation event for disposition

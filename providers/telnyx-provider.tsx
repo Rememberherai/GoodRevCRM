@@ -308,19 +308,38 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
   );
 
   const hangUp = useCallback(() => {
+    const store = useCallStore.getState();
+
+    // Set state to ending immediately for UI feedback
+    setCallState('ending');
+
+    // Try local SDK hangup first
     if (callRef.current) {
       try {
         callRef.current.hangup();
       } catch { /* ignore */ }
     }
-    // Also send hangup via API as backup
-    const store = useCallStore.getState();
+
+    // Update call status in DB directly (don't rely on Telnyx API hangup which needs call_control_id)
     if (store.activeCallId && slug) {
-      fetch(`/api/projects/${slug}/calls/${store.activeCallId}/hangup`, {
-        method: 'POST',
-      }).catch(() => {});
+      fetch(`/api/projects/${slug}/calls/${store.activeCallId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: 'hangup',
+          ended_at: new Date().toISOString(),
+        }),
+      }).catch((err) => console.error('Error updating call status:', err));
     }
-  }, [slug]);
+
+    // Clear call ref and open disposition modal after brief delay
+    // (gives SDK time to process hangup notification)
+    setTimeout(() => {
+      callRef.current = null;
+      stopTimer();
+      openDispositionModal();
+    }, 500);
+  }, [slug, setCallState, stopTimer, openDispositionModal]);
 
   const toggleMute = useCallback(() => {
     if (!callRef.current) return;
