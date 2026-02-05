@@ -201,8 +201,8 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
       if (!clientRef.current || !isConnected || callState !== 'idle') return;
 
       try {
-        // Create call record in the backend
-        const res = await fetch(`/api/projects/${slug}/calls`, {
+        // First, create call record in the backend to track it
+        const res = await fetch(`/api/projects/${slug}/calls/webrtc`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
@@ -217,12 +217,12 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
           throw new Error(data.error || 'Failed to initiate call');
         }
 
-        const { callId, callControlId } = await res.json();
+        const { callId, fromNumber } = await res.json();
 
         // Store call info in Zustand
         setActiveCall(callId, {
           id: callId,
-          telnyx_call_control_id: callControlId,
+          telnyx_call_control_id: null,
           to_number: toNumber,
           person_id: personId ?? null,
           organization_id: organizationId ?? null,
@@ -230,17 +230,48 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
           status: 'initiated',
         });
 
-        // The actual WebRTC call is initiated server-side via the Telnyx API.
-        // The Telnyx platform bridges the call to the browser via the SIP connection.
-        // The browser client receives the call notification via the telnyx.notification event.
         setCallState('connecting');
+
+        // Initiate the call via WebRTC SDK (this handles audio in browser)
+        const call = clientRef.current.newCall({
+          destinationNumber: toNumber,
+          callerNumber: fromNumber,
+          audio: true,
+          video: false,
+        });
+
+        callRef.current = call;
+
+        // Listen for state changes on this call
+        call.on('stateChange', (state: { state: string }) => {
+          switch (state.state) {
+            case 'trying':
+            case 'requesting':
+              setCallState('connecting');
+              break;
+            case 'ringing':
+            case 'early':
+              setCallState('ringing');
+              break;
+            case 'active':
+              setCallState('active');
+              startTimer();
+              break;
+            case 'hangup':
+            case 'destroy':
+              callRef.current = null;
+              stopTimer();
+              openDispositionModal();
+              break;
+          }
+        });
       } catch (err) {
         console.error('Error making call:', err);
         setCallState('idle');
         throw err;
       }
     },
-    [isConnected, callState, slug, setActiveCall, setCallState]
+    [isConnected, callState, slug, setActiveCall, setCallState, startTimer, stopTimer, openDispositionModal]
   );
 
   const hangUp = useCallback(() => {
