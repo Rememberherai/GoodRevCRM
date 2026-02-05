@@ -350,9 +350,24 @@ async function handleRecordingSaved(
   if (!call && (payload.from || payload.to)) {
     console.log('[Recording Webhook] No match by session_id, trying phone number match');
     const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
-    // Normalize: Telnyx sends with +, DB may have with or without
-    const fromNum = payload.from?.replace(/^sip:/, '').replace(/@.*$/, '') ?? '';
-    const toNum = payload.to?.replace(/^sip:/, '').replace(/@.*$/, '') ?? '';
+    // Strip sip: prefix and @domain suffix, then normalize
+    const cleanNum = (num: string) => num.replace(/^sip:/, '').replace(/@.*$/, '');
+    const fromNum = payload.from ? cleanNum(payload.from) : '';
+    const toNum = payload.to ? cleanNum(payload.to) : '';
+    // Also create versions without + and country code for matching
+    const stripPlus = (num: string) => num.replace(/^\+/, '');
+    const fromStripped = stripPlus(fromNum);
+    const toStripped = stripPlus(toNum);
+
+    console.log('[Recording Webhook] Phone match - from:', fromNum, 'to:', toNum, 'stripped from:', fromStripped, 'stripped to:', toStripped);
+
+    // Build OR conditions for all number format variations
+    const orConditions = [
+      `from_number.eq.${fromNum}`,
+      `to_number.eq.${toNum}`,
+      `from_number.eq.${fromStripped}`,
+      `to_number.eq.${toStripped}`,
+    ].filter(c => !c.endsWith('.eq.')).join(',');
 
     const result = await supabase
       .from('calls')
@@ -360,7 +375,7 @@ async function handleRecordingSaved(
         recording_url: recordingUrl,
         recording_duration_seconds: durationSeconds,
       })
-      .or(`from_number.eq.${fromNum},to_number.eq.${toNum}`)
+      .or(orConditions)
       .is('recording_url', null)
       .gte('started_at', thirtyMinAgo)
       .order('started_at', { ascending: false })
