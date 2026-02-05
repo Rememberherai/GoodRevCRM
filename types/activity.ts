@@ -44,6 +44,9 @@ export type ActivityType =
 export type ActivityOutcome =
   | 'call_no_answer'
   | 'call_left_message'
+  | 'call_back_later'
+  | 'wrong_number'
+  | 'do_not_call'
   | 'quality_conversation'
   | 'meeting_booked'
   | 'email_sent'
@@ -139,7 +142,8 @@ export const activityTypes: ActivityType[] = [
 ];
 
 export const activityOutcomes: ActivityOutcome[] = [
-  'call_no_answer', 'call_left_message', 'quality_conversation', 'meeting_booked',
+  'call_no_answer', 'call_left_message', 'call_back_later', 'wrong_number', 'do_not_call',
+  'quality_conversation', 'meeting_booked',
   'email_sent', 'email_received', 'email_opened', 'email_replied', 'proposal_sent',
   'follow_up_scheduled', 'not_interested', 'other',
 ];
@@ -157,6 +161,9 @@ export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
 export const OUTCOME_LABELS: Record<ActivityOutcome, string> = {
   call_no_answer: 'No Answer',
   call_left_message: 'Left Message',
+  call_back_later: 'Call Back Later',
+  wrong_number: 'Wrong Number',
+  do_not_call: 'Do Not Call',
   quality_conversation: 'Quality Conversation',
   meeting_booked: 'Meeting Booked',
   email_sent: 'Email Sent',
@@ -170,7 +177,7 @@ export const OUTCOME_LABELS: Record<ActivityOutcome, string> = {
 };
 
 export const ACTIVITY_TYPE_OUTCOMES: Record<ActivityType, ActivityOutcome[]> = {
-  call: ['call_no_answer', 'call_left_message', 'quality_conversation', 'meeting_booked', 'not_interested', 'other'],
+  call: ['call_no_answer', 'call_left_message', 'call_back_later', 'wrong_number', 'do_not_call', 'quality_conversation', 'meeting_booked', 'not_interested', 'other'],
   email: ['email_sent', 'email_received', 'email_replied', 'meeting_booked', 'not_interested', 'other'],
   meeting: ['quality_conversation', 'meeting_booked', 'proposal_sent', 'follow_up_scheduled', 'not_interested', 'other'],
   note: ['other'],

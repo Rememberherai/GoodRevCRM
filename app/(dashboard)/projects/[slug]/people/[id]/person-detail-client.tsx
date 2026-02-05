@@ -533,25 +533,55 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
 
         {/* Activity Tab */}
         <TabsContent value="activity" className="space-y-6">
-          <ActivityTimeline
-            activities={activities}
-            loading={activitiesLoading}
-            emptyMessage="No activity recorded for this person yet"
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Activity</CardTitle>
+              <CardDescription>
+                Recent activity for this person
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <ActivityTimeline
+                activities={activities}
+                loading={activitiesLoading}
+                emptyMessage="No activity recorded for this person yet"
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Calls Tab */}
         <TabsContent value="calls" className="space-y-6">
-          <CallLogTable personId={personId} />
+          <Card>
+            <CardHeader>
+              <CardTitle>Call Log</CardTitle>
+              <CardDescription>
+                Calls made to and from this person
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <CallLogTable personId={personId} />
+            </CardContent>
+          </Card>
         </TabsContent>
 
         {/* Comments Tab */}
         <TabsContent value="comments" className="space-y-6">
-          <EntityCommentsFeed
-            entityType="person"
-            entityId={personId}
-            currentUserId={currentUserId ?? ''}
-          />
+          <Card>
+            <CardHeader>
+              <CardTitle>Comments</CardTitle>
+              <CardDescription>
+                Internal notes and discussion
+              </CardDescription>
+            </CardHeader>
+            <CardContent>
+              <EntityCommentsFeed
+                entityType="person"
+                entityId={personId}
+                currentUserId={currentUserId ?? ''}
+              />
+            </CardContent>
+          </Card>
         </TabsContent>
       </Tabs>
 

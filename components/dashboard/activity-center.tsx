@@ -77,6 +77,9 @@ const activityTypeColors: Record<string, string> = {
 const outcomeColors: Record<string, string> = {
   call_no_answer: 'bg-gray-100 text-gray-700',
   call_left_message: 'bg-yellow-100 text-yellow-700',
+  call_back_later: 'bg-orange-100 text-orange-700',
+  wrong_number: 'bg-red-100 text-red-700',
+  do_not_call: 'bg-red-200 text-red-800',
   quality_conversation: 'bg-green-100 text-green-700',
   meeting_booked: 'bg-emerald-100 text-emerald-700',
   email_sent: 'bg-blue-100 text-blue-700',

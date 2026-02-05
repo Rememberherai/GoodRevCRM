@@ -202,9 +202,9 @@ export async function PATCH(request: Request, context: RouteContext) {
         no_answer: 'call_no_answer',
         not_interested: 'not_interested',
         busy: 'call_no_answer',
-        wrong_number: 'not_interested',
-        call_back_later: 'follow_up_scheduled',
-        do_not_call: 'not_interested',
+        wrong_number: 'wrong_number',
+        call_back_later: 'call_back_later',
+        do_not_call: 'do_not_call',
         other: 'other',
       };
       const outcome = outcomeMap[input.disposition] || 'other';
