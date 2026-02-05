@@ -102,6 +102,7 @@ export const useCallStore = create<CallStoreState>((set, get) => ({
       lastEndedCallId: null,
       activeCallId: null,
       currentCallRecord: null,
+      callState: 'idle',
       callTimer: 0,
       isMuted: false,
       isOnHold: false,

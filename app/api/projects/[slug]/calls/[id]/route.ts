@@ -192,6 +192,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     // Create or update activity_log entry for this call
+    console.log('[Disposition] Checking activity log creation. call.person_id:', call.person_id);
     if (call.person_id) {
       // Map disposition to activity outcome
       const outcomeMap: Record<string, string> = {
@@ -218,13 +219,17 @@ export async function PATCH(request: Request, context: RouteContext) {
 
       if (existingActivity) {
         // Update existing activity
-        await supabaseAny
+        console.log('[Disposition] Updating existing activity:', existingActivity.id);
+        const { error: updateErr } = await supabaseAny
           .from('activity_log')
           .update({
             outcome,
             notes: input.disposition_notes,
           })
           .eq('id', existingActivity.id);
+        if (updateErr) {
+          console.error('[Disposition] Error updating activity:', updateErr);
+        }
       } else {
         // Create new activity entry
         const directionLabel = call.direction === 'outbound' ? 'Outbound' : 'Inbound';
@@ -232,7 +237,8 @@ export async function PATCH(request: Request, context: RouteContext) {
           ? Math.ceil(call.talk_time_seconds / 60)
           : 0;
 
-        await supabaseAny.from('activity_log').insert({
+        console.log('[Disposition] Creating new activity for person:', call.person_id);
+        const { error: insertErr } = await supabaseAny.from('activity_log').insert({
           project_id: project.id,
           user_id: call.user_id || user.id,
           entity_type: 'person',
@@ -254,7 +260,14 @@ export async function PATCH(request: Request, context: RouteContext) {
             disposition: input.disposition,
           },
         });
+        if (insertErr) {
+          console.error('[Disposition] Error creating activity:', insertErr);
+        } else {
+          console.log('[Disposition] Activity created successfully');
+        }
       }
+    } else {
+      console.log('[Disposition] Skipping activity creation - no person_id on call');
     }
 
     // Emit automation event for disposition
