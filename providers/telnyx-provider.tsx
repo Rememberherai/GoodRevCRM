@@ -220,6 +220,21 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
                 console.log('Call ended with state:', state, 'cause:', call.cause, 'causeCode:', call.causeCode);
                 callRef.current = null;
                 stopTimer();
+                // Update call status in DB (handles remote hangup, not just user-initiated)
+                {
+                  const store = useCallStore.getState();
+                  if (store.activeCallId && slug && store.callState !== 'ending') {
+                    // Only PATCH if we haven't already (the hangUp() function sets 'ending')
+                    fetch(`/api/projects/${slug}/calls/${store.activeCallId}`, {
+                      method: 'PATCH',
+                      headers: { 'Content-Type': 'application/json' },
+                      body: JSON.stringify({
+                        status: 'hangup',
+                        ended_at: new Date().toISOString(),
+                      }),
+                    }).catch((err) => console.error('Error updating call status on remote hangup:', err));
+                  }
+                }
                 // Open disposition modal before clearing state
                 openDispositionModal();
                 break;
