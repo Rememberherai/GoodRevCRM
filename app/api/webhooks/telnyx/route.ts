@@ -25,6 +25,8 @@ export async function POST(request: Request) {
 
     const event = parsed as TelnyxWebhookEvent;
 
+    console.log('[Telnyx Webhook] Received event:', event.data.event_type, 'call_control_id:', event.data.payload?.call_control_id);
+
     // Process the event asynchronously (fire-and-forget)
     processCallEvent(event).catch((err) => {
       console.error('Error processing Telnyx webhook event:', err);

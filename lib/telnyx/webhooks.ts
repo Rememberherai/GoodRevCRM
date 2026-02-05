@@ -303,20 +303,80 @@ async function handleRecordingSaved(
     ? Math.round(payload.duration_millis / 1000)
     : null;
 
-  const { data: call, error } = await supabase
-    .from('calls')
-    .update({
-      recording_url: recordingUrl,
-      recording_duration_seconds: durationSeconds,
-    })
-    .eq('telnyx_call_control_id', payload.call_control_id)
-    .select('id, project_id, person_id, organization_id, direction')
-    .single();
+  console.log('[Recording Webhook] Payload:', {
+    call_control_id: payload.call_control_id,
+    call_session_id: payload.call_session_id,
+    call_leg_id: payload.call_leg_id,
+    from: payload.from,
+    to: payload.to,
+    recording_url: recordingUrl,
+  });
 
-  if (error) {
-    console.error('Error updating call with recording:', error);
+  // Try matching by call_control_id first (REST API calls)
+  let call = null;
+  let error = null;
+
+  if (payload.call_control_id) {
+    const result = await supabase
+      .from('calls')
+      .update({
+        recording_url: recordingUrl,
+        recording_duration_seconds: durationSeconds,
+      })
+      .eq('telnyx_call_control_id', payload.call_control_id)
+      .select('id, project_id, person_id, organization_id, direction')
+      .single();
+    call = result.data;
+    error = result.error;
+  }
+
+  // Fallback: match by call_session_id (WebRTC calls may have this)
+  if (!call && payload.call_session_id) {
+    console.log('[Recording Webhook] No match by call_control_id, trying call_session_id:', payload.call_session_id);
+    const result = await supabase
+      .from('calls')
+      .update({
+        recording_url: recordingUrl,
+        recording_duration_seconds: durationSeconds,
+      })
+      .eq('telnyx_call_session_id', payload.call_session_id)
+      .select('id, project_id, person_id, organization_id, direction')
+      .single();
+    call = result.data;
+    error = result.error;
+  }
+
+  // Fallback: match by phone numbers and recent time window (last 30 min)
+  if (!call && (payload.from || payload.to)) {
+    console.log('[Recording Webhook] No match by session_id, trying phone number match');
+    const thirtyMinAgo = new Date(Date.now() - 30 * 60 * 1000).toISOString();
+    // Normalize: Telnyx sends with +, DB may have with or without
+    const fromNum = payload.from?.replace(/^sip:/, '').replace(/@.*$/, '') ?? '';
+    const toNum = payload.to?.replace(/^sip:/, '').replace(/@.*$/, '') ?? '';
+
+    const result = await supabase
+      .from('calls')
+      .update({
+        recording_url: recordingUrl,
+        recording_duration_seconds: durationSeconds,
+      })
+      .or(`from_number.eq.${fromNum},to_number.eq.${toNum}`)
+      .is('recording_url', null)
+      .gte('started_at', thirtyMinAgo)
+      .order('started_at', { ascending: false })
+      .limit(1)
+      .select('id, project_id, person_id, organization_id, direction')
+      .single();
+    call = result.data;
+    error = result.error;
+  }
+
+  if (error || !call) {
+    console.error('[Recording Webhook] Could not match recording to any call:', error?.message);
     return;
   }
+
+  console.log('[Recording Webhook] Matched recording to call:', call.id);
 
   if (call) {
     emitAutomationEvent({
