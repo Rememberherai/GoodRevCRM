@@ -244,3 +244,54 @@ export async function sendDtmf(
     body: { digits },
   });
 }
+
+// List recordings from Telnyx API with filters
+export interface TelnyxRecording {
+  id: string;
+  call_leg_id: string;
+  call_session_id: string;
+  download_urls: { mp3: string; wav: string };
+  duration_millis: number;
+  channels: string;
+  created_at: string;
+  recording_started_at: string;
+  recording_ended_at: string;
+  status: string;
+}
+
+export async function listRecordings(
+  apiKey: string,
+  filters: {
+    connectionId?: string;
+    callSessionId?: string;
+    from?: string;
+    to?: string;
+    createdAfter?: string;
+  }
+): Promise<TelnyxRecording[]> {
+  const params = new URLSearchParams();
+  params.set('page[size]', '10');
+
+  if (filters.connectionId) {
+    params.set('filter[connection_id]', filters.connectionId);
+  }
+  if (filters.callSessionId) {
+    params.set('filter[call_session_id]', filters.callSessionId);
+  }
+  if (filters.from) {
+    params.set('filter[from]', filters.from);
+  }
+  if (filters.to) {
+    params.set('filter[to]', filters.to);
+  }
+  if (filters.createdAfter) {
+    params.set('filter[created_at][gte]', filters.createdAfter);
+  }
+
+  const data = await telnyxRequest<{ data: TelnyxRecording[] }>({
+    apiKey,
+    path: `/recordings?${params.toString()}`,
+  });
+
+  return data.data ?? [];
+}

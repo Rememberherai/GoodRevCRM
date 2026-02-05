@@ -13,7 +13,8 @@ import {
   Loader2,
 } from 'lucide-react';
 import { CallRecordingPlayer } from './call-recording-player';
-import { useState } from 'react';
+import { useState, useEffect, useRef, useCallback } from 'react';
+import { onDispositionSaved } from '@/stores/call';
 
 interface CallLogTableProps {
   personId?: string;
@@ -84,12 +85,97 @@ export function CallLogTable({
   const slug = params?.slug as string;
   const [playingId, setPlayingId] = useState<string | null>(null);
 
-  const { calls, isLoading, hasMore, loadMore } = useCalls({
+  const { calls, isLoading, hasMore, loadMore, refresh } = useCalls({
     projectSlug: slug,
     personId,
     organizationId,
     opportunityId,
   });
+
+  // Track calls that need recording polling
+  const [recordingPolling, setRecordingPolling] = useState<Record<string, string | null>>({});
+  const pollingTimersRef = useRef<Record<string, NodeJS.Timeout>>({});
+  const pollingCountRef = useRef<Record<string, number>>({});
+
+  // Poll for recording URL for a specific call
+  const pollRecording = useCallback(
+    async (callId: string) => {
+      if (!slug) return;
+
+      try {
+        const res = await fetch(`/api/projects/${slug}/calls/${callId}/recording`);
+        if (!res.ok) return;
+
+        const data = await res.json();
+        if (data.recording_url) {
+          // Recording found - stop polling and update state
+          setRecordingPolling((prev) => ({ ...prev, [callId]: data.recording_url }));
+          if (pollingTimersRef.current[callId]) {
+            clearInterval(pollingTimersRef.current[callId]);
+            delete pollingTimersRef.current[callId];
+            delete pollingCountRef.current[callId];
+          }
+          // Refresh the full list to get updated data
+          refresh();
+          return;
+        }
+
+        // Increment poll count and stop after 6 attempts (60s at 10s intervals)
+        pollingCountRef.current[callId] = (pollingCountRef.current[callId] ?? 0) + 1;
+        if (pollingCountRef.current[callId] >= 6) {
+          if (pollingTimersRef.current[callId]) {
+            clearInterval(pollingTimersRef.current[callId]);
+            delete pollingTimersRef.current[callId];
+            delete pollingCountRef.current[callId];
+          }
+        }
+      } catch {
+        // Silently fail
+      }
+    },
+    [slug, refresh]
+  );
+
+  // Listen for disposition saved events to start recording polling
+  useEffect(() => {
+    const unsubscribe = onDispositionSaved(() => {
+      // Refresh call list to get the latest data
+      refresh();
+
+      // After a short delay, find the most recent call without a recording and start polling
+      setTimeout(() => {
+        // Find the most recent calls (added in the last 10 minutes) without recording URLs
+        const recentCalls = calls.filter((c) => {
+          if (c.recording_url) return false;
+          if (!c.ended_at) return false;
+          const endedAt = new Date(c.ended_at).getTime();
+          const tenMinAgo = Date.now() - 10 * 60 * 1000;
+          return endedAt > tenMinAgo;
+        });
+
+        for (const call of recentCalls) {
+          // Don't start polling if already polling this call
+          if (pollingTimersRef.current[call.id]) continue;
+
+          pollingCountRef.current[call.id] = 0;
+          // Start polling immediately, then every 10 seconds
+          pollRecording(call.id);
+          pollingTimersRef.current[call.id] = setInterval(
+            () => pollRecording(call.id),
+            10000
+          );
+        }
+      }, 2000);
+    });
+
+    return () => {
+      unsubscribe();
+      // Clean up all polling timers
+      Object.values(pollingTimersRef.current).forEach(clearInterval);
+      pollingTimersRef.current = {};
+      pollingCountRef.current = {};
+    };
+  }, [calls, refresh, pollRecording]);
 
   if (isLoading && calls.length === 0) {
     return (
@@ -167,7 +253,7 @@ export function CallLogTable({
                   )}
                 </td>
                 <td className="px-3 py-2">
-                  {call.recording_url ? (
+                  {(call.recording_url || recordingPolling[call.id]) ? (
                     <Button
                       variant="ghost"
                       size="icon"
@@ -178,6 +264,8 @@ export function CallLogTable({
                     >
                       <Play className="h-3.5 w-3.5" />
                     </Button>
+                  ) : pollingTimersRef.current[call.id] ? (
+                    <Loader2 className="h-3.5 w-3.5 animate-spin text-muted-foreground" />
                   ) : (
                     <span className="text-xs text-muted-foreground">-</span>
                   )}
@@ -193,9 +281,10 @@ export function CallLogTable({
         <div className="border rounded-md p-3">
           {(() => {
             const call = calls.find((c) => c.id === playingId);
-            return call?.recording_url ? (
+            const url = call?.recording_url || recordingPolling[playingId];
+            return url ? (
               <CallRecordingPlayer
-                url={call.recording_url}
+                url={url}
                 onClose={() => setPlayingId(null)}
               />
             ) : null;
