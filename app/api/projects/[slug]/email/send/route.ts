@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sendEmailSchema } from '@/lib/validators/gmail';
@@ -108,7 +108,9 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (entityId) {
       try {
-        const { error: activityError } = await supabaseAny.from('activity_log').insert({
+        // Use service role client to bypass RLS for activity logging
+        const adminClient = createServiceClient() as any;
+        const { error: activityError } = await adminClient.from('activity_log').insert({
           project_id: project.id,
           user_id: user.id,
           entity_type: entityType,
