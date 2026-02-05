@@ -1,7 +1,7 @@
 'use client';
 
 import { useRef, useState, useEffect } from 'react';
-import { Play, Pause, X } from 'lucide-react';
+import { Play, Pause, X, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 
 interface CallRecordingPlayerProps {
@@ -21,36 +21,57 @@ export function CallRecordingPlayer({ url, onClose }: CallRecordingPlayerProps) 
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
   const [playbackRate, setPlaybackRate] = useState(1);
+  const [error, setError] = useState<string | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
 
   useEffect(() => {
     const audio = audioRef.current;
     if (!audio) return;
 
     const onTimeUpdate = () => setCurrentTime(audio.currentTime);
-    const onDurationChange = () => setDuration(audio.duration || 0);
+    const onDurationChange = () => {
+      setDuration(audio.duration || 0);
+      setIsLoading(false);
+    };
     const onEnded = () => setIsPlaying(false);
+    const onCanPlay = () => setIsLoading(false);
+    const onError = () => {
+      setIsLoading(false);
+      setIsPlaying(false);
+      setError('Failed to load recording');
+    };
 
     audio.addEventListener('timeupdate', onTimeUpdate);
     audio.addEventListener('durationchange', onDurationChange);
     audio.addEventListener('ended', onEnded);
+    audio.addEventListener('canplay', onCanPlay);
+    audio.addEventListener('error', onError);
 
     return () => {
       audio.removeEventListener('timeupdate', onTimeUpdate);
       audio.removeEventListener('durationchange', onDurationChange);
       audio.removeEventListener('ended', onEnded);
+      audio.removeEventListener('canplay', onCanPlay);
+      audio.removeEventListener('error', onError);
     };
   }, []);
 
-  const togglePlayback = () => {
+  const togglePlayback = async () => {
     const audio = audioRef.current;
     if (!audio) return;
 
     if (isPlaying) {
       audio.pause();
+      setIsPlaying(false);
     } else {
-      audio.play();
+      try {
+        await audio.play();
+        setIsPlaying(true);
+      } catch {
+        setError('Failed to play recording');
+        setIsPlaying(false);
+      }
     }
-    setIsPlaying(!isPlaying);
   };
 
   const handleSeek = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -73,17 +94,33 @@ export function CallRecordingPlayer({ url, onClose }: CallRecordingPlayerProps) 
 
   const progress = duration > 0 ? (currentTime / duration) * 100 : 0;
 
+  if (error) {
+    return (
+      <div className="flex items-center gap-3">
+        <span className="text-xs text-destructive">{error}</span>
+        {onClose && (
+          <Button variant="ghost" size="icon" className="h-7 w-7 shrink-0" onClick={onClose}>
+            <X className="h-3.5 w-3.5" />
+          </Button>
+        )}
+      </div>
+    );
+  }
+
   return (
     <div className="flex items-center gap-3">
-      <audio ref={audioRef} src={url} preload="metadata" />
+      <audio ref={audioRef} src={url} preload="auto" />
 
       <Button
         variant="ghost"
         size="icon"
         className="h-8 w-8 shrink-0"
         onClick={togglePlayback}
+        disabled={isLoading}
       >
-        {isPlaying ? (
+        {isLoading ? (
+          <Loader2 className="h-4 w-4 animate-spin" />
+        ) : isPlaying ? (
           <Pause className="h-4 w-4" />
         ) : (
           <Play className="h-4 w-4" />

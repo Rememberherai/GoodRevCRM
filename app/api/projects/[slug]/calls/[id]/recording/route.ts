@@ -48,20 +48,28 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Call not found' }, { status: 404 });
     }
 
-    // Stream mode: proxy the audio binary to the browser
+    // Stream mode: redirect to a fresh pre-signed URL for the audio player
     if (streamMode) {
       if (call.telnyx_recording_id && call.telnyx_connection_id) {
-        return await streamRecording(supabaseAny, call);
+        return await redirectToRecording(supabaseAny, call);
       }
-      // Fallback: if we have a stored URL but no recording ID, try streaming it directly
+      // Fallback: if we have a stored URL but no recording ID, redirect to it
+      // (may fail if the URL has expired, but it's the best we can do)
       if (call.recording_url) {
-        return await streamFromUrl(call.recording_url);
+        return NextResponse.redirect(call.recording_url, 302);
       }
       return NextResponse.json({ error: 'No recording available' }, { status: 404 });
     }
 
     // If recording URL already exists, return it
     if (call.recording_url) {
+      // If we have a recording URL but no telnyx_recording_id, try to backfill it
+      // by searching the Telnyx API (needed for stream mode redirect)
+      if (!call.telnyx_recording_id && call.telnyx_connection_id) {
+        backfillRecordingId(supabaseAny, call).catch((err) =>
+          console.error('[Recording] Backfill recording ID failed:', err)
+        );
+      }
       return NextResponse.json({
         recording_url: call.recording_url,
         recording_duration_seconds: call.recording_duration_seconds,
@@ -261,11 +269,45 @@ export async function GET(request: Request, context: RouteContext) {
   }
 }
 
-// Proxy the recording audio from Telnyx S3 to the browser.
-// Fetches a fresh pre-signed URL via the Telnyx API each time,
-// then streams the audio bytes through with proper Content-Type.
+// Backfill telnyx_recording_id for calls that have a recording_url but no recording ID.
+// Runs fire-and-forget so it doesn't block the response.
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
-async function streamRecording(supabase: any, call: any): Promise<Response> {
+async function backfillRecordingId(supabase: any, call: any): Promise<void> {
+  const { data: connection } = await supabase
+    .from('telnyx_connections')
+    .select('api_key, sip_connection_id')
+    .eq('id', call.telnyx_connection_id)
+    .single();
+
+  if (!connection?.api_key) return;
+
+  const apiKey = decryptApiKey(connection.api_key);
+  const recordings = await listRecordings(apiKey, {
+    connectionId: connection.sip_connection_id,
+    createdAfter: call.started_at,
+  });
+
+  if (recordings.length > 0) {
+    const match = call.telnyx_call_session_id
+      ? recordings.find((r) => r.call_session_id === call.telnyx_call_session_id) ?? recordings[0]
+      : recordings[0];
+
+    if (match) {
+      await supabase
+        .from('calls')
+        .update({ telnyx_recording_id: match.id })
+        .eq('id', call.id);
+      console.log('[Recording] Backfilled recording ID for call', call.id, '->', match.id);
+    }
+  }
+}
+
+// Redirect to a fresh pre-signed S3 URL from Telnyx.
+// We fetch the recording detail from Telnyx API (which gives a fresh 10-min URL)
+// and 302-redirect the browser to it. This avoids streaming through our server
+// and works with Vercel's serverless function constraints.
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function redirectToRecording(supabase: any, call: any): Promise<Response> {
   try {
     const { data: connection } = await supabase
       .from('telnyx_connections')
@@ -285,51 +327,10 @@ async function streamRecording(supabase: any, call: any): Promise<Response> {
       return NextResponse.json({ error: 'Recording URL not available' }, { status: 404 });
     }
 
-    // Fetch the audio from S3
-    const audioResponse = await fetch(freshUrl);
-    if (!audioResponse.ok || !audioResponse.body) {
-      return NextResponse.json({ error: 'Failed to fetch recording' }, { status: 502 });
-    }
-
-    // Determine content type from URL
-    const contentType = freshUrl.includes('.mp3') ? 'audio/mpeg' : 'audio/wav';
-
-    return new Response(audioResponse.body, {
-      status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'Content-Length': audioResponse.headers.get('content-length') || '',
-        'Accept-Ranges': 'bytes',
-        'Cache-Control': 'private, max-age=3600',
-      },
-    });
+    // 302 redirect — the browser/audio element follows this to the S3 URL
+    return NextResponse.redirect(freshUrl, 302);
   } catch (error) {
-    console.error('[Recording Stream] Error:', error);
-    return NextResponse.json({ error: 'Failed to stream recording' }, { status: 500 });
-  }
-}
-
-// Stream audio from a stored URL directly (fallback when telnyx_recording_id is missing)
-async function streamFromUrl(url: string): Promise<Response> {
-  try {
-    const audioResponse = await fetch(url);
-    if (!audioResponse.ok || !audioResponse.body) {
-      return NextResponse.json({ error: 'Failed to fetch recording' }, { status: 502 });
-    }
-
-    const contentType = url.includes('.mp3') ? 'audio/mpeg' : 'audio/wav';
-
-    return new Response(audioResponse.body, {
-      status: 200,
-      headers: {
-        'Content-Type': contentType,
-        'Content-Length': audioResponse.headers.get('content-length') || '',
-        'Accept-Ranges': 'bytes',
-        'Cache-Control': 'private, max-age=3600',
-      },
-    });
-  } catch (error) {
-    console.error('[Recording Stream Fallback] Error:', error);
-    return NextResponse.json({ error: 'Failed to stream recording' }, { status: 500 });
+    console.error('[Recording Redirect] Error:', error);
+    return NextResponse.json({ error: 'Failed to get recording' }, { status: 500 });
   }
 }
