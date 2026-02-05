@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { toast } from 'sonner';
-import { Loader2, Phone, CheckCircle2, XCircle, AlertCircle } from 'lucide-react';
+import { Loader2, Phone, CheckCircle2, XCircle, AlertCircle, Copy, Check } from 'lucide-react';
 import { telnyxConnectionSchema, type TelnyxConnectionInput } from '@/lib/validators/call';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -30,6 +30,18 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
   const [isSaving, setIsSaving] = useState(false);
   const [hasExistingConnection, setHasExistingConnection] = useState(false);
   const [connectionStatus, setConnectionStatus] = useState<string | null>(null);
+  const [copied, setCopied] = useState(false);
+
+  // Generate webhook URL based on current origin
+  const webhookUrl = typeof window !== 'undefined'
+    ? `${window.location.origin}/api/webhooks/telnyx`
+    : '';
+
+  const copyWebhookUrl = () => {
+    navigator.clipboard.writeText(webhookUrl);
+    setCopied(true);
+    setTimeout(() => setCopied(false), 2000);
+  };
 
   const form = useForm({
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -282,6 +294,33 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
                   </FormItem>
                 )}
               />
+
+              {webhookUrl && (
+                <div className="border rounded-md p-4 space-y-2 bg-muted/50">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Webhook URL</span>
+                    <Button
+                      type="button"
+                      variant="ghost"
+                      size="sm"
+                      onClick={copyWebhookUrl}
+                      className="h-7 px-2"
+                    >
+                      {copied ? (
+                        <Check className="h-3.5 w-3.5 text-green-600" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
+                  </div>
+                  <code className="block text-xs bg-background rounded p-2 break-all">
+                    {webhookUrl}
+                  </code>
+                  <p className="text-xs text-muted-foreground">
+                    Add this URL in your Telnyx Call Control Application settings for call events (recordings, hangups, etc.)
+                  </p>
+                </div>
+              )}
 
               <div className="border rounded-md p-4 space-y-3">
                 <div className="flex items-center gap-2 text-sm font-medium">
