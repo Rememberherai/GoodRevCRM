@@ -125,9 +125,6 @@ export async function initiateCall(
       webhook_url: params.webhookUrl,
       webhook_url_method: 'POST',
       answering_machine_detection: params.amdEnabled ? 'detect_words' : 'disabled',
-      ...(params.callerIdName
-        ? { sip_headers: [{ name: 'X-Caller-Name', value: params.callerIdName }] }
-        : {}),
       ...(params.clientState
         ? { client_state: Buffer.from(params.clientState).toString('base64') }
         : {}),
