@@ -41,10 +41,19 @@ export async function POST(_request: Request, context: RouteContext) {
       .single();
 
     if (callError || !call) {
+      console.log('[Record] Call not found:', id, callError?.message);
       return NextResponse.json({ error: 'Call not found' }, { status: 404 });
     }
 
+    console.log('[Record] Call data:', {
+      id: call.id,
+      telnyx_call_control_id: call.telnyx_call_control_id,
+      recording_enabled: call.recording_enabled,
+      telnyx_connection_id: call.telnyx_connection_id,
+    });
+
     if (!call.telnyx_call_control_id) {
+      console.log('[Record] No call_control_id yet for call:', id);
       return NextResponse.json(
         { error: 'Call control ID not yet available' },
         { status: 400 }
@@ -52,6 +61,7 @@ export async function POST(_request: Request, context: RouteContext) {
     }
 
     if (!call.recording_enabled) {
+      console.log('[Record] Recording not enabled for call:', id);
       return NextResponse.json(
         { error: 'Recording not enabled for this call' },
         { status: 400 }

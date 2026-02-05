@@ -205,13 +205,77 @@ export function TelnyxProvider({ children }: TelnyxProviderProps) {
               case 'answering':
                 setCallState('active');
                 startTimer();
-                // Start recording if enabled (fire-and-forget)
+                // Start recording if enabled — use call's telnyxIDs directly
+                // (store may not have the ID yet due to async timing)
                 {
                   const store = useCallStore.getState();
-                  if (store.activeCallId && store.currentCallRecord?.telnyx_call_control_id) {
-                    fetch(`/api/projects/${slug}/calls/${store.activeCallId}/record`, {
-                      method: 'POST',
-                    }).catch((err) => console.log('Recording start skipped or failed:', err));
+                  let callControlId: string | null = null;
+                  try {
+                    callControlId = call.telnyxIDs?.telnyxCallControlId || null;
+                  } catch { /* may not be available */ }
+
+                  // Also check store as fallback
+                  if (!callControlId) {
+                    callControlId = store.currentCallRecord?.telnyx_call_control_id || null;
+                  }
+
+                  console.log('[Recording] Call active. activeCallId:', store.activeCallId, 'callControlId:', callControlId);
+
+                  if (store.activeCallId && callControlId) {
+                    // Ensure the call_control_id is saved to DB first, then trigger recording
+                    const ensureIdAndRecord = async () => {
+                      try {
+                        // Update the backend with the call control ID if not already done
+                        if (store.currentCallRecord?.telnyx_call_control_id !== callControlId) {
+                          await fetch(`/api/projects/${slug}/calls/${store.activeCallId}`, {
+                            method: 'PATCH',
+                            headers: { 'Content-Type': 'application/json' },
+                            body: JSON.stringify({ telnyx_call_control_id: callControlId }),
+                          });
+                          console.log('[Recording] Updated call_control_id in DB');
+                        }
+                        // Now start recording
+                        const recordRes = await fetch(`/api/projects/${slug}/calls/${store.activeCallId}/record`, {
+                          method: 'POST',
+                        });
+                        console.log('[Recording] Record endpoint response:', recordRes.status);
+                      } catch (err) {
+                        console.log('[Recording] Recording start failed:', err);
+                      }
+                    };
+                    ensureIdAndRecord();
+                  } else if (store.activeCallId && !callControlId) {
+                    // No call control ID yet — retry after a short delay
+                    console.log('[Recording] No call_control_id yet, retrying in 2s...');
+                    setTimeout(() => {
+                      const retryStore = useCallStore.getState();
+                      let retryId: string | null = null;
+                      try {
+                        retryId = callRef.current?.telnyxIDs?.telnyxCallControlId || null;
+                      } catch { /* ignore */ }
+                      if (!retryId) retryId = retryStore.currentCallRecord?.telnyx_call_control_id || null;
+                      console.log('[Recording] Retry - callControlId:', retryId);
+                      if (retryStore.activeCallId && retryId) {
+                        const retryRecord = async () => {
+                          try {
+                            if (retryStore.currentCallRecord?.telnyx_call_control_id !== retryId) {
+                              await fetch(`/api/projects/${slug}/calls/${retryStore.activeCallId}`, {
+                                method: 'PATCH',
+                                headers: { 'Content-Type': 'application/json' },
+                                body: JSON.stringify({ telnyx_call_control_id: retryId }),
+                              });
+                            }
+                            const res = await fetch(`/api/projects/${slug}/calls/${retryStore.activeCallId}/record`, {
+                              method: 'POST',
+                            });
+                            console.log('[Recording] Retry record endpoint response:', res.status);
+                          } catch (err) {
+                            console.log('[Recording] Retry recording failed:', err);
+                          }
+                        };
+                        retryRecord();
+                      }
+                    }, 2000);
                   }
                 }
                 break;
