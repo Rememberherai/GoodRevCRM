@@ -209,16 +209,28 @@ export async function sendEmail(
   userId: string,
   projectId?: string | null
 ): Promise<SendEmailResult> {
+  console.log('[GMAIL_SERVICE] ====== START sendEmail() ======');
+  console.log('[GMAIL_SERVICE] connection.id:', connection.id, 'connection.email:', connection.email);
+  console.log('[GMAIL_SERVICE] userId:', userId, 'projectId:', projectId);
+  console.log('[GMAIL_SERVICE] input.to:', input.to, 'input.subject:', input.subject);
+  console.log('[GMAIL_SERVICE] input.person_id:', input.person_id, 'input.organization_id:', input.organization_id);
+
   const supabase = createAdminClient();
+  console.log('[GMAIL_SERVICE] admin client created');
 
   // Generate tracking ID
   const trackingId = crypto.randomUUID();
+  console.log('[GMAIL_SERVICE] trackingId:', trackingId);
 
   // Get valid access token
+  console.log('[GMAIL_SERVICE] getting valid access token...');
   const accessToken = await getValidAccessToken(connection);
+  console.log('[GMAIL_SERVICE] access token obtained, length:', accessToken.length);
 
   // Create MIME message
+  console.log('[GMAIL_SERVICE] creating MIME message...');
   const mimeMessage = createMimeMessage(input, connection.email, trackingId);
+  console.log('[GMAIL_SERVICE] MIME message created, length:', mimeMessage.length);
 
   // Base64url encode the message
   const encodedMessage = Buffer.from(mimeMessage)
@@ -231,9 +243,11 @@ export async function sendEmail(
   const requestBody: { raw: string; threadId?: string } = { raw: encodedMessage };
   if (input.thread_id) {
     requestBody.threadId = input.thread_id;
+    console.log('[GMAIL_SERVICE] replying to thread:', input.thread_id);
   }
 
   // Send via Gmail API
+  console.log('[GMAIL_SERVICE] sending via Gmail API...');
   const response = await fetch(`${GMAIL_API_URL}/messages/send`, {
     method: 'POST',
     headers: {
@@ -242,10 +256,11 @@ export async function sendEmail(
     },
     body: JSON.stringify(requestBody),
   });
+  console.log('[GMAIL_SERVICE] Gmail API response status:', response.status, response.statusText);
 
   if (!response.ok) {
     const errorBody = await response.text();
-    console.error('Gmail API error:', response.status, errorBody.substring(0, 200));
+    console.error('[GMAIL_SERVICE] ERROR: Gmail API failed:', response.status, errorBody.substring(0, 500));
     throw new GmailServiceError(
       `Failed to send email: ${response.statusText}`,
       'send_failed',
@@ -254,9 +269,11 @@ export async function sendEmail(
   }
 
   const result = await response.json();
+  console.log('[GMAIL_SERVICE] Gmail API success — message_id:', result.id, 'threadId:', result.threadId);
 
   // Store sent email record
   const recipientEmail = Array.isArray(input.to) ? input.to[0] : input.to;
+  console.log('[GMAIL_SERVICE] inserting into sent_emails table...');
 
   const { data: sentEmail, error: insertError } = await supabase
     .from('sent_emails')
@@ -281,53 +298,62 @@ export async function sendEmail(
     .single();
 
   if (insertError) {
-    console.error('Error storing sent email:', insertError);
-    // Don't throw - email was sent successfully
+    console.error('[GMAIL_SERVICE] ERROR: sent_emails insert failed:', insertError.message, insertError.code, insertError.details);
+  } else {
+    console.log('[GMAIL_SERVICE] sent_emails insert SUCCESS, id:', sentEmail?.id);
   }
 
   // Also insert into the unified emails table so the email appears in the Emails tab immediately
   // (instead of waiting for Gmail sync to pick it up)
   const toEmails = Array.isArray(input.to) ? input.to : [input.to];
-  const { error: emailsInsertError } = await supabase
+  console.log('[GMAIL_SERVICE] upserting into emails table...');
+  const emailsPayload = {
+    gmail_connection_id: connection.id,
+    user_id: userId,
+    gmail_message_id: result.id,
+    gmail_thread_id: result.threadId,
+    direction: 'outbound',
+    from_email: connection.email,
+    from_name: null,
+    to_emails: toEmails,
+    cc_emails: input.cc ?? [],
+    bcc_emails: input.bcc ?? [],
+    subject: input.subject,
+    snippet: stripHtml(input.body_html).slice(0, 200),
+    body_html: input.body_html,
+    body_text: input.body_text ?? stripHtml(input.body_html),
+    email_date: new Date().toISOString(),
+    label_ids: ['SENT'],
+    person_id: input.person_id ?? null,
+    organization_id: input.organization_id ?? null,
+    opportunity_id: input.opportunity_id ?? null,
+    rfp_id: input.rfp_id ?? null,
+    project_id: projectId ?? null,
+    sent_email_id: sentEmail?.id ?? null,
+  };
+  console.log('[GMAIL_SERVICE] emails upsert payload keys:', Object.keys(emailsPayload));
+  const { data: emailsData, error: emailsInsertError } = await supabase
     .from('emails')
-    .upsert({
-      gmail_connection_id: connection.id,
-      user_id: userId,
-      gmail_message_id: result.id,
-      gmail_thread_id: result.threadId,
-      direction: 'outbound',
-      from_email: connection.email,
-      from_name: null,
-      to_emails: toEmails,
-      cc_emails: input.cc ?? [],
-      bcc_emails: input.bcc ?? [],
-      subject: input.subject,
-      snippet: stripHtml(input.body_html).slice(0, 200),
-      body_html: input.body_html,
-      body_text: input.body_text ?? stripHtml(input.body_html),
-      email_date: new Date().toISOString(),
-      label_ids: ['SENT'],
-      person_id: input.person_id ?? null,
-      organization_id: input.organization_id ?? null,
-      opportunity_id: input.opportunity_id ?? null,
-      rfp_id: input.rfp_id ?? null,
-      project_id: projectId ?? null,
-      sent_email_id: sentEmail?.id ?? null,
-    }, {
+    .upsert(emailsPayload, {
       onConflict: 'gmail_connection_id,gmail_message_id',
       ignoreDuplicates: true,
-    });
+    })
+    .select('id');
 
   if (emailsInsertError) {
-    console.error('Error storing email in unified table:', emailsInsertError);
+    console.error('[GMAIL_SERVICE] ERROR: emails upsert failed:', emailsInsertError.message, emailsInsertError.code, emailsInsertError.details);
+  } else {
+    console.log('[GMAIL_SERVICE] emails upsert SUCCESS, data:', JSON.stringify(emailsData));
   }
 
-  return {
+  const finalResult = {
     message_id: result.id,
     thread_id: result.threadId,
     tracking_id: trackingId,
     sent_email_id: sentEmail?.id ?? null,
   };
+  console.log('[GMAIL_SERVICE] ====== END sendEmail(), returning:', JSON.stringify(finalResult), '======');
+  return finalResult;
 }
 
 /**
