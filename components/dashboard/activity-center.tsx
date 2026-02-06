@@ -277,9 +277,9 @@ export function DashboardActivityCenter({
     <>
       <div className="grid gap-6 lg:grid-cols-3">
         {/* ================================================================
-            LEFT: Follow-up Queue (2/3 width on desktop)
+            COLUMN 1: Follow-up Queue (1/3 width on desktop)
             ================================================================ */}
-        <div className="lg:col-span-2 space-y-4">
+        <div className="space-y-4">
           <Card>
             <CardHeader className="pb-3">
               <div className="flex items-center justify-between">
@@ -359,7 +359,28 @@ export function DashboardActivityCenter({
         </div>
 
         {/* ================================================================
-            RIGHT: Sidebar (1/3 width on desktop, stacks on mobile)
+            COLUMN 2: Recent Activity (1/3 width, scrollable)
+            ================================================================ */}
+        <div className="space-y-4">
+          <Card className="h-[500px] flex flex-col">
+            <CardHeader className="pb-3 flex-shrink-0">
+              <CardTitle className="flex items-center gap-2 text-base">
+                <Clock className="h-4 w-4" />
+                Recent Activity
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="flex-1 overflow-y-auto">
+              <ActivityTimeline
+                activities={recentActivities}
+                loading={recentLoading}
+                emptyMessage="No recent activity yet"
+              />
+            </CardContent>
+          </Card>
+        </div>
+
+        {/* ================================================================
+            COLUMN 3: Upcoming Meetings & Quick Actions (1/3 width)
             ================================================================ */}
         <div className="space-y-6">
           {/* ---- Upcoming Meetings ---- */}
@@ -460,23 +481,6 @@ export function DashboardActivityCenter({
                   followUpCounts.upcoming === 0 &&
                   'No pending follow-ups'}
               </p>
-            </CardContent>
-          </Card>
-
-          {/* ---- Recent Activity Feed ---- */}
-          <Card>
-            <CardHeader className="pb-3">
-              <CardTitle className="flex items-center gap-2 text-base">
-                <Clock className="h-4 w-4" />
-                Recent Activity
-              </CardTitle>
-            </CardHeader>
-            <CardContent>
-              <ActivityTimeline
-                activities={recentActivities}
-                loading={recentLoading}
-                emptyMessage="No recent activity yet"
-              />
             </CardContent>
           </Card>
         </div>
