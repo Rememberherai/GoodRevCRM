@@ -13,6 +13,7 @@ import {
   Mail,
   Pencil,
   Percent,
+  Sparkles,
   Target,
   Trash2,
   Trophy,
@@ -45,6 +46,7 @@ import { RfpQuestionsList } from '@/components/rfps/rfp-questions-list';
 import { EntityActivitySection } from '@/components/activity/entity-activity-section';
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 import { SendEmailModal } from '@/components/gmail';
+import { RfpResearchTab } from '@/components/rfps/rfp-research-tab';
 
 interface RfpDetailClientProps {
   rfpId: string;
@@ -228,6 +230,10 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
           <TabsTrigger value="questions" className="flex items-center gap-1">
             <ListChecks className="h-3.5 w-3.5" />
             Questions
+          </TabsTrigger>
+          <TabsTrigger value="research" className="flex items-center gap-1">
+            <Sparkles className="h-3.5 w-3.5" />
+            Research
           </TabsTrigger>
           <TabsTrigger value="documents">Documents</TabsTrigger>
           <TabsTrigger value="activity">Activity</TabsTrigger>
@@ -506,6 +512,14 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
         {/* Questions Tab */}
         <TabsContent value="questions">
           <RfpQuestionsList rfpId={rfpId} />
+        </TabsContent>
+
+        {/* Research Tab */}
+        <TabsContent value="research">
+          <RfpResearchTab
+            rfpId={rfpId}
+            organizationName={rfp.organization?.name}
+          />
         </TabsContent>
 
         {/* Documents Tab */}

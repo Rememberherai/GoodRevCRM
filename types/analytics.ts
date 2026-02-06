@@ -145,6 +145,7 @@ export interface AiUsageLogEntry {
 
 export type AiFeature =
   | 'research'
+  | 'rfp_research'
   | 'sequence_generation'
   | 'contact_discovery'
   | 'rfp_response'
@@ -156,6 +157,7 @@ export type AiFeature =
 
 export const AI_FEATURE_LABELS: Record<AiFeature, string> = {
   research: 'Research',
+  rfp_research: 'RFP Research',
   sequence_generation: 'Sequences',
   contact_discovery: 'Contact Discovery',
   rfp_response: 'RFP Responses',
