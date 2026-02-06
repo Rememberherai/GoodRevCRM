@@ -96,22 +96,24 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     // Apply custom field filters using JSONB operators
+    // Note: Use ->> for text extraction, -> for JSON extraction
     if (source) {
-      query = query.eq('custom_fields->source', source);
+      query = query.eq('custom_fields->>source', source);
     }
 
     if (region) {
-      query = query.eq('custom_fields->region', region);
+      query = query.eq('custom_fields->>region', region);
     }
 
     if (committeeName) {
-      query = query.eq('custom_fields->committee_name', committeeName);
+      query = query.eq('custom_fields->>committee_name', committeeName);
     }
 
     if (minConfidence) {
       const confidence = parseInt(minConfidence, 10);
       if (!isNaN(confidence) && confidence >= 0 && confidence <= 100) {
-        query = query.gte('custom_fields->ai_confidence', confidence);
+        // Cast JSONB number to int for comparison
+        query = query.filter('custom_fields->>ai_confidence', 'gte', confidence.toString());
       }
     }
 
