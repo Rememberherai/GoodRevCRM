@@ -38,3 +38,7 @@ When building new features, always consider adding automation support:
 ## Git commits
 
 When committing to git, unless otherwise noted, only commit file changes from the current chat session. Exclude changes that were made elsewhere outside the current chat context.
+
+## Tracking incomplete work
+
+When something is left undone during a session (e.g., a feature partially implemented, a bug not fully fixed, or a task deferred), add a TODO item using the TodoWrite tool and also log it in `/docs/TODO.md` so it can be tracked across sessions.
