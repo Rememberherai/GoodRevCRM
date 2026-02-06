@@ -101,23 +101,14 @@ export function SequencesPageClient({
 
   const handleDuplicate = async (sequence: SequenceWithCounts) => {
     try {
-      // Create a copy with a new name
-      const response = await fetch(`/api/projects/${projectSlug}/sequences`, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          name: `${sequence.name} (Copy)`,
-          description: sequence.description,
-          settings: sequence.settings,
-        }),
-      });
+      const response = await fetch(
+        `/api/projects/${projectSlug}/sequences/${sequence.id}/duplicate`,
+        { method: 'POST' }
+      );
 
       if (!response.ok) throw new Error('Failed to duplicate sequence');
 
       const newSequence = await response.json();
-
-      // TODO: Also copy the steps
-
       setSequences((prev) => [newSequence, ...prev]);
     } catch (error) {
       console.error('Error duplicating sequence:', error);

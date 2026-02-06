@@ -90,6 +90,7 @@ export interface TelnyxConnection {
   sip_password: string | null;
   phone_number: string;
   phone_number_id: string | null;
+  messaging_profile_id: string | null;
   record_calls: boolean;
   amd_enabled: boolean;
   caller_id_name: string | null;

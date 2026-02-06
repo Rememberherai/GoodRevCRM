@@ -163,6 +163,9 @@ export function substituteVariables(
   });
 }
 
+// Alias for plain-text substitution (used by SMS steps)
+export const substituteVariablesPlain = substituteVariables;
+
 /**
  * Substitute variables with HTML-escaped values (for use in HTML contexts)
  */

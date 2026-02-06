@@ -1,18 +1,20 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail, GmailServiceError } from '@/lib/gmail/service';
-import { fetchVariableContext, substituteEmailContent } from './variables';
+import { sendOutboundSms } from '@/lib/telnyx/sms-service';
+import { fetchVariableContext, substituteEmailContent, substituteVariables } from './variables';
 import type { GmailConnection } from '@/types/gmail';
 
 interface SequenceStep {
   id: string;
   sequence_id: string;
   step_number: number;
-  step_type: 'email' | 'delay' | 'condition';
+  step_type: 'email' | 'delay' | 'condition' | 'sms';
   subject: string | null;
   body_html: string | null;
   body_text: string | null;
   delay_amount: number | null;
   delay_unit: 'minutes' | 'hours' | 'days' | 'weeks' | null;
+  sms_body: string | null;
 }
 
 interface SequenceEnrollment {
@@ -397,6 +399,103 @@ async function processEnrollment(
     }
   }
 
+  if (currentStep.step_type === 'sms') {
+    // Fetch variable context, using sequence's target org if set
+    const context = await fetchVariableContext(
+      enrollment.person_id,
+      enrollment.created_by,
+      sequence.organization_id
+    );
+
+    // Get person's phone number (prefer mobile)
+    const phoneNumber = context.person?.mobile_phone || context.person?.phone;
+    if (!phoneNumber) {
+      return { status: 'skipped', message: 'Person has no phone number' };
+    }
+
+    // Get SMS body and substitute variables
+    const smsBody = (currentStep as { sms_body?: string | null }).sms_body;
+    if (!smsBody) {
+      return { status: 'skipped', message: 'SMS step has no message body' };
+    }
+
+    const substitutedBody = substituteVariables(smsBody, context);
+
+    try {
+      // Send the SMS
+      await sendOutboundSms({
+        projectId: sequence.project_id,
+        userId: enrollment.created_by,
+        toNumber: phoneNumber,
+        body: substitutedBody,
+        personId: enrollment.person_id,
+        organizationId: sequence.organization_id,
+        sequenceEnrollmentId: enrollment.id,
+        sequenceStepId: currentStep.id,
+      });
+
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabaseAny = supabase as any;
+
+      // Move to next step
+      const nextStep = steps.find(s => s.step_number === currentStep.step_number + 1);
+
+      if (!nextStep) {
+        // No more steps, mark as completed
+        await supabaseAny
+          .from('sequence_enrollments')
+          .update({
+            status: 'completed',
+            completed_at: new Date().toISOString(),
+            next_send_at: null,
+            current_step: currentStep.step_number + 1,
+          })
+          .eq('id', enrollment.id);
+
+        await logSequenceCompletion(supabase, enrollment, sequence);
+        return { status: 'completed', message: 'SMS sent, sequence completed' };
+      }
+
+      // Calculate next send time based on next step
+      let nextSendAt = new Date();
+      if (nextStep.step_type === 'delay' && nextStep.delay_amount && nextStep.delay_unit) {
+        nextSendAt = calculateNextSendAt(nextStep.delay_amount, nextStep.delay_unit);
+        // Skip the delay step itself
+        const stepAfterDelay = steps.find(s => s.step_number === nextStep.step_number + 1);
+        await supabaseAny
+          .from('sequence_enrollments')
+          .update({
+            current_step: stepAfterDelay ? stepAfterDelay.step_number : nextStep.step_number + 1,
+            next_send_at: nextSendAt.toISOString(),
+          })
+          .eq('id', enrollment.id);
+      } else {
+        // Next step is not a delay, process it on next cron run
+        await supabaseAny
+          .from('sequence_enrollments')
+          .update({
+            current_step: nextStep.step_number,
+            next_send_at: nextSendAt.toISOString(),
+          })
+          .eq('id', enrollment.id);
+      }
+
+      return { status: 'sent', message: `SMS sent to ${phoneNumber}` };
+    } catch (error) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabaseAny = supabase as any;
+
+      // Mark as error to prevent infinite retry
+      await supabaseAny
+        .from('sequence_enrollments')
+        .update({
+          status: 'error',
+        })
+        .eq('id', enrollment.id);
+      return { status: 'error', message: error instanceof Error ? error.message : 'SMS send failed' };
+    }
+  }
+
   return { status: 'skipped', message: 'Unknown step type' };
 }
 
@@ -532,7 +631,7 @@ export async function checkForSequenceReplies(): Promise<number> {
   const supabaseAny = supabase as any;
 
   // Get active enrollments that have sent at least one email
-  const { data: _enrollments } = await supabaseAny
+  const { data: enrollments } = await supabaseAny
     .from('sequence_enrollments')
     .select(`
       id,
@@ -542,9 +641,36 @@ export async function checkForSequenceReplies(): Promise<number> {
     .eq('status', 'active')
     .not('sent_emails', 'is', null);
 
-  // Implementation would check each thread for new messages
-  // and mark enrollments as 'replied' if stop_on_reply is enabled
-  // TODO: Implement actual reply checking with Gmail API
+  // Check each thread for new inbound messages via the emails table
+  // (populated by Gmail push sync) and mark enrollments as 'replied'
+  if (!enrollments || enrollments.length === 0) {
+    return 0;
+  }
 
-  return 0; // Return count of replies detected
+  let repliesDetected = 0;
+
+  for (const enrollment of enrollments) {
+    const threadId = enrollment.sent_emails?.thread_id;
+    if (!threadId) continue;
+
+    // Check for inbound replies in this thread
+    const { data: replies } = await supabaseAny
+      .from('emails')
+      .select('id')
+      .eq('gmail_thread_id', threadId)
+      .eq('direction', 'inbound')
+      .limit(1);
+
+    if (replies && replies.length > 0) {
+      // Mark enrollment as replied
+      await supabaseAny
+        .from('sequence_enrollments')
+        .update({ status: 'replied' })
+        .eq('id', enrollment.id);
+
+      repliesDetected++;
+    }
+  }
+
+  return repliesDetected;
 }
