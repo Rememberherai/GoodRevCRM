@@ -29,3 +29,24 @@ export interface AddDiscoveredContactsRequest {
     linkedin_url?: string;
   }[];
 }
+
+// Bulk contact discovery types
+export interface OrganizationDiscoveryResult {
+  organizationId: string;
+  organizationName: string;
+  status: 'pending' | 'discovering' | 'success' | 'failed';
+  contacts: DiscoveredContact[];
+  error?: string;
+}
+
+export interface BulkDiscoveryProgress {
+  status: 'idle' | 'discovering' | 'completed' | 'cancelled';
+  current: number;
+  total: number;
+  completed: number;
+  failed: number;
+  results: OrganizationDiscoveryResult[];
+  currentOrgName?: string;
+}
+
+export type BulkContactSelection = Record<string, Set<string>>;

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Search, Building2, ExternalLink, MoreHorizontal, Pencil, Trash2, Upload, ClipboardPaste, Sparkles, Droplets } from 'lucide-react';
+import { Plus, Search, Building2, ExternalLink, MoreHorizontal, Pencil, Trash2, Upload, ClipboardPaste, Sparkles, Droplets, UserSearch } from 'lucide-react';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -38,6 +38,7 @@ import { NewOrganizationDialog } from '@/components/organizations/new-organizati
 import { BulkAddDialog } from '@/components/organizations/bulk-add-dialog';
 import { ImportWizard } from '@/components/import-export';
 import { BulkResearchDialog } from '@/components/research/bulk-research-dialog';
+import { BulkContactDiscoveryDialog } from '@/components/organizations/bulk-contact-discovery-dialog';
 import { EPAImportDialog } from '@/components/organizations/epa-import-dialog';
 import {
   Dialog,
@@ -53,6 +54,7 @@ export function OrganizationsPageClient() {
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [showBulkAddDialog, setShowBulkAddDialog] = useState(false);
   const [showBulkResearchDialog, setShowBulkResearchDialog] = useState(false);
+  const [showBulkContactDiscoveryDialog, setShowBulkContactDiscoveryDialog] = useState(false);
   const [showEPAImportDialog, setShowEPAImportDialog] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -126,10 +128,16 @@ export function OrganizationsPageClient() {
         </div>
         <div className="flex items-center gap-2">
           {selectedIds.size > 0 && (
-            <Button variant="outline" onClick={() => setShowBulkResearchDialog(true)}>
-              <Sparkles className="mr-2 h-4 w-4" />
-              Research ({selectedIds.size})
-            </Button>
+            <>
+              <Button variant="outline" onClick={() => setShowBulkContactDiscoveryDialog(true)}>
+                <UserSearch className="mr-2 h-4 w-4" />
+                Find People ({selectedIds.size})
+              </Button>
+              <Button variant="outline" onClick={() => setShowBulkResearchDialog(true)}>
+                <Sparkles className="mr-2 h-4 w-4" />
+                Research ({selectedIds.size})
+              </Button>
+            </>
           )}
           {slug === 'lillianah' && (
             <Button variant="outline" onClick={() => setShowEPAImportDialog(true)}>
@@ -340,6 +348,16 @@ export function OrganizationsPageClient() {
       <BulkResearchDialog
         open={showBulkResearchDialog}
         onOpenChange={setShowBulkResearchDialog}
+        organizationIds={Array.from(selectedIds)}
+        onComplete={() => {
+          clearSelection();
+          refresh();
+        }}
+      />
+
+      <BulkContactDiscoveryDialog
+        open={showBulkContactDiscoveryDialog}
+        onOpenChange={setShowBulkContactDiscoveryDialog}
         organizationIds={Array.from(selectedIds)}
         onComplete={() => {
           clearSelection();
