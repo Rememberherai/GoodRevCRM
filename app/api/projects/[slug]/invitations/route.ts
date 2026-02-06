@@ -36,7 +36,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     // Check if user is admin or owner
     const { data: membership } = await supabaseAny
-      .from('project_members')
+      .from('project_memberships')
       .select('role')
       .eq('project_id', project.id)
       .eq('user_id', user.id)
@@ -67,7 +67,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     let query = supabaseAny
       .from('project_invitations')
-      .select('*, inviter:users!project_invitations_invited_by_fkey(id, full_name, email)')
+      .select('id, project_id, email, role, invited_by, expires_at, accepted_at, created_at, inviter:users!project_invitations_invited_by_fkey(id, full_name, email)')
       .eq('project_id', project.id);
 
     const now = new Date().toISOString();

@@ -6,6 +6,11 @@ const envSchema = z.object({
   SUPABASE_SERVICE_ROLE_KEY: z.string().min(1),
   OPENROUTER_API_KEY: z.string().startsWith('sk-or-'),
   NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
+  // Security-critical secrets (optional but recommended)
+  CRON_SECRET: z.string().min(16).optional(),
+  FULLENRICH_WEBHOOK_SECRET: z.string().min(16).optional(),
+  GMAIL_CLIENT_ID: z.string().optional(),
+  GMAIL_CLIENT_SECRET: z.string().optional(),
 });
 
 // Parse environment variables (will throw if invalid)
@@ -16,6 +21,10 @@ function getEnv() {
     SUPABASE_SERVICE_ROLE_KEY: process.env.SUPABASE_SERVICE_ROLE_KEY,
     OPENROUTER_API_KEY: process.env.OPENROUTER_API_KEY,
     NEXT_PUBLIC_APP_URL: process.env.NEXT_PUBLIC_APP_URL,
+    CRON_SECRET: process.env.CRON_SECRET,
+    FULLENRICH_WEBHOOK_SECRET: process.env.FULLENRICH_WEBHOOK_SECRET,
+    GMAIL_CLIENT_ID: process.env.GMAIL_CLIENT_ID,
+    GMAIL_CLIENT_SECRET: process.env.GMAIL_CLIENT_SECRET,
   });
 
   if (!parsed.success) {

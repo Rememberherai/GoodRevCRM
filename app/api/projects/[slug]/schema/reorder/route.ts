@@ -44,6 +44,27 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { field_orders } = validationResult.data;
 
+    // Verify all supplied field IDs belong to this project
+    const fieldIds = field_orders.map((f) => f.id);
+    const { data: existingFields, error: lookupError } = await supabase
+      .from('custom_field_definitions')
+      .select('id')
+      .in('id', fieldIds)
+      .eq('project_id', project.id);
+
+    if (lookupError) {
+      return NextResponse.json({ error: 'Failed to verify fields' }, { status: 500 });
+    }
+
+    const existingIds = new Set((existingFields || []).map((f) => f.id));
+    const invalidIds = fieldIds.filter((id) => !existingIds.has(id));
+    if (invalidIds.length > 0) {
+      return NextResponse.json(
+        { error: 'Some field IDs do not belong to this project' },
+        { status: 400 }
+      );
+    }
+
     // Update each field's display_order
     // We do this in a loop since Supabase doesn't support batch updates easily
     const updates = field_orders.map(async ({ id, display_order }) => {

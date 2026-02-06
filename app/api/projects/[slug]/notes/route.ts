@@ -118,6 +118,58 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    const { person_id, organization_id, opportunity_id, rfp_id } = validationResult.data;
+
+    // Validate that referenced entities belong to this project
+    if (person_id) {
+      const { data: person } = await supabase
+        .from('people')
+        .select('id')
+        .eq('id', person_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!person) {
+        return NextResponse.json({ error: 'Person not found in this project' }, { status: 400 });
+      }
+    }
+    if (organization_id) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('id', organization_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!org) {
+        return NextResponse.json({ error: 'Organization not found in this project' }, { status: 400 });
+      }
+    }
+    if (opportunity_id) {
+      const { data: opp } = await supabase
+        .from('opportunities')
+        .select('id')
+        .eq('id', opportunity_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!opp) {
+        return NextResponse.json({ error: 'Opportunity not found in this project' }, { status: 400 });
+      }
+    }
+    if (rfp_id) {
+      const { data: rfp } = await supabase
+        .from('rfps')
+        .select('id')
+        .eq('id', rfp_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!rfp) {
+        return NextResponse.json({ error: 'RFP not found in this project' }, { status: 400 });
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 

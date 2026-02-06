@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import crypto from 'crypto';
 
 // FullEnrich API configuration
 // NOTE: Using v1 API - v2 has different response format that doesn't work
@@ -330,18 +331,19 @@ export class FullEnrichClient {
    * Verify webhook signature (for webhook handler)
    */
   verifyWebhookSignature(payload: string, signature: string, secret: string): boolean {
-    // Implementation depends on FullEnrich's webhook signature method
-    // Typically HMAC-SHA256
-    const crypto = require('crypto');
     const expectedSignature = crypto
       .createHmac('sha256', secret)
       .update(payload)
       .digest('hex');
 
-    return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expectedSignature)
-    );
+    const sigBuffer = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expectedSignature);
+
+    if (sigBuffer.length !== expectedBuffer.length) {
+      return false;
+    }
+
+    return crypto.timingSafeEqual(sigBuffer, expectedBuffer);
   }
 }
 

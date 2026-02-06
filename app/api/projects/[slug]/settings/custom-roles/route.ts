@@ -38,6 +38,24 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabaseAny = supabase as any;
+
+    // Check if user is admin or owner
+    const { data: membership } = await supabaseAny
+      .from('project_memberships')
+      .select('role')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membership || !['owner', 'admin'].includes(membership.role)) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions. Admin role required.' },
+        { status: 403 }
+      );
+    }
+
     // Parse and validate request body
     const body = await request.json();
     const validationResult = addRoleSchema.safeParse(body);
@@ -56,6 +74,15 @@ export async function POST(request: Request, context: RouteContext) {
     // Don't add if already exists (case-insensitive check)
     if (currentRoles.some((r) => r.toLowerCase() === role.toLowerCase())) {
       return NextResponse.json({ success: true, alreadyExists: true });
+    }
+
+    // Limit maximum number of custom roles
+    const MAX_CUSTOM_ROLES = 50;
+    if (currentRoles.length >= MAX_CUSTOM_ROLES) {
+      return NextResponse.json(
+        { error: `Maximum of ${MAX_CUSTOM_ROLES} custom roles allowed` },
+        { status: 400 }
+      );
     }
 
     // Add the new role

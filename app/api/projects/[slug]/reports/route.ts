@@ -114,7 +114,7 @@ export async function POST(
     // Check admin access
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: membership } = await (supabase as any)
-      .from('project_members')
+      .from('project_memberships')
       .select('role')
       .eq('project_id', project.id)
       .eq('user_id', user.id)

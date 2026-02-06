@@ -31,6 +31,21 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabaseAny = supabase as any;
+
+    // Verify project membership
+    const { data: membership } = await supabaseAny
+      .from('project_memberships')
+      .select('role')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membership) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const queryResult = automationQuerySchema.safeParse({
       is_active: searchParams.get('is_active') ?? undefined,
@@ -46,9 +61,6 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const { is_active, limit, offset } = queryResult.data;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabaseAny = supabase as any;
 
     let query = supabaseAny
       .from('automations')

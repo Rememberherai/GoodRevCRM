@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { syncEmailsForConnection } from '@/lib/gmail/sync';
+import { z } from 'zod';
 
 function createAdminClient() {
   return createSupabaseClient(
@@ -9,6 +10,10 @@ function createAdminClient() {
     process.env.SUPABASE_SERVICE_ROLE_KEY!
   );
 }
+
+const triggerSyncSchema = z.object({
+  connection_id: z.string().uuid(),
+});
 
 /**
  * POST /api/gmail/sync/trigger
@@ -22,12 +27,20 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { connection_id } = body;
-
-  if (!connection_id) {
-    return NextResponse.json({ error: 'Missing connection_id' }, { status: 400 });
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
+
+  const parsed = triggerSyncSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid or missing connection_id' }, { status: 400 });
+  }
+
+  const { connection_id } = parsed.data;
+
 
   // Verify user owns this connection
   const adminClient = createAdminClient();
@@ -54,8 +67,9 @@ export async function POST(request: Request) {
       ...result,
     });
   } catch (error) {
+    console.error('Sync trigger error:', error);
     return NextResponse.json({
-      error: error instanceof Error ? error.message : 'Sync failed',
+      error: 'Sync failed. Please try again later.',
     }, { status: 500 });
   }
 }

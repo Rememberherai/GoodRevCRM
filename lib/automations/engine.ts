@@ -25,7 +25,9 @@ function createAdminClient() {
     throw new Error('Missing Supabase credentials');
   }
 
-  return createClient(supabaseUrl, supabaseServiceKey);
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 }
 
 /**
@@ -46,11 +48,13 @@ function matchesTriggerConfig(
     const currentValue = event.data[fieldName];
     const previousValue = event.previousData?.[fieldName];
 
+    const norm = (v: unknown) => (v == null ? null : String(v));
+
     // Field must have actually changed
-    if (String(currentValue) === String(previousValue)) return false;
+    if (norm(currentValue) === norm(previousValue)) return false;
 
     // If to_value is specified, check it matches
-    if (triggerConfig.to_value !== undefined && String(currentValue) !== String(triggerConfig.to_value)) {
+    if (triggerConfig.to_value !== undefined && norm(currentValue) !== norm(triggerConfig.to_value)) {
       return false;
     }
   }
@@ -206,21 +210,23 @@ async function executeAutomation(
     const actionResults = [];
     let hasFailure = false;
 
-    for (const action of automation.actions) {
-      const result = await executeAction(action, {
-        projectId: event.projectId,
-        entityType: event.entityType,
-        entityId: event.entityId,
-        data: event.data,
-        automationId: automation.id,
-        automationName: automation.name,
-      });
+    try {
+      for (const action of automation.actions) {
+        const result = await executeAction(action, {
+          projectId: event.projectId,
+          entityType: event.entityType,
+          entityId: event.entityId,
+          data: event.data,
+          automationId: automation.id,
+          automationName: automation.name,
+        });
 
-      actionResults.push(result);
-      if (!result.success) hasFailure = true;
+        actionResults.push(result);
+        if (!result.success) hasFailure = true;
+      }
+    } finally {
+      currentChainDepth = Math.max(0, currentChainDepth - 1);
     }
-
-    currentChainDepth--;
 
     // Determine overall status
     const allFailed = actionResults.every((r) => !r.success);
@@ -245,7 +251,6 @@ async function executeAutomation(
       p_entity_id: event.entityId,
     });
   } catch (error) {
-    currentChainDepth = Math.max(0, currentChainDepth - 1);
     console.error(`[Automation] Error executing automation ${automation.name}:`, error);
 
     // Log the error (ignore log failures)
@@ -276,7 +281,8 @@ async function executeAutomation(
 export async function dryRunAutomation(
   automationId: string,
   entityType: AutomationEntityType,
-  entityId: string
+  entityId: string,
+  projectId: string
 ): Promise<{
   would_trigger: boolean;
   conditions_met: boolean;
@@ -290,6 +296,7 @@ export async function dryRunAutomation(
     .from('automations')
     .select('*')
     .eq('id', automationId)
+    .eq('project_id', projectId)
     .single();
 
   if (automationError || !automation) {
@@ -314,6 +321,7 @@ export async function dryRunAutomation(
     .from(tableName)
     .select('*')
     .eq('id', entityId)
+    .eq('project_id', projectId)
     .single();
 
   if (entityError || !entity) {

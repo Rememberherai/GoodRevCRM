@@ -151,6 +151,20 @@ export async function DELETE(_request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
+    // Check for active enrollments before allowing deletion
+    const { count: activeEnrollments } = await supabaseAny
+      .from('sequence_enrollments')
+      .select('*', { count: 'exact', head: true })
+      .eq('sequence_id', id)
+      .eq('status', 'active');
+
+    if (activeEnrollments && activeEnrollments > 0) {
+      return NextResponse.json(
+        { error: 'Cannot delete sequence with active enrollments. Cancel or complete all enrollments first.' },
+        { status: 409 }
+      );
+    }
+
     const { error } = await supabaseAny
       .from('sequences')
       .delete()

@@ -42,7 +42,7 @@ export const createNotificationSchema = z.object({
   type: z.enum(notificationTypes),
   title: z.string().min(1).max(255),
   message: z.string().min(1).max(2000),
-  data: z.record(z.string(), z.unknown()).optional(),
+  data: z.record(z.string().max(100), z.union([z.string().max(1000), z.number(), z.boolean(), z.null()])).refine((obj) => Object.keys(obj).length <= 20, { message: 'data may have at most 20 keys' }).optional(),
   entity_type: z.string().max(50).nullable().optional(),
   entity_id: z.string().uuid().nullable().optional(),
   priority: z.enum(notificationPriorities).optional(),

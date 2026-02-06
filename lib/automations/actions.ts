@@ -25,7 +25,9 @@ function createAdminClient() {
     throw new Error('Missing Supabase credentials');
   }
 
-  return createClient(supabaseUrl, supabaseServiceKey);
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 }
 
 // Map entity types to table names
@@ -134,14 +136,19 @@ async function executeUpdateField(
 
   if (!fieldName) return { action_type: action.type, success: false, error: 'No field_name specified' };
 
-  // Deny writes to protected columns
-  const protectedFields = ['id', 'project_id', 'created_at', 'created_by', 'deleted_at', 'updated_at'];
-  if (protectedFields.includes(fieldName)) {
-    return { action_type: action.type, success: false, error: `Cannot update protected field: ${fieldName}` };
-  }
-
   const tableName = entityTableMap[context.entityType];
   if (!tableName) return { action_type: action.type, success: false, error: `Unknown entity type: ${context.entityType}` };
+
+  // Allowlist of fields that automations may update per entity type
+  const ALLOWED_FIELDS: Record<string, string[]> = {
+    organizations: ['name', 'domain', 'industry', 'website', 'phone', 'linkedin_url', 'description', 'address_street', 'address_city', 'address_state', 'address_postal_code', 'address_country'],
+    people: ['first_name', 'last_name', 'email', 'phone', 'mobile_phone', 'job_title', 'department', 'linkedin_url', 'notes'],
+    opportunities: ['name', 'amount', 'stage', 'expected_close_date', 'probability', 'description', 'lost_reason', 'won_reason'],
+    rfps: ['title', 'status', 'due_date', 'description'],
+    tasks: ['title', 'description', 'priority', 'status', 'due_date'],
+    meetings: ['title', 'description', 'status', 'outcome_notes', 'next_steps'],
+    calls: ['status', 'disposition', 'disposition_notes', 'duration_seconds'],
+  };
 
   // Handle custom fields
   if (fieldName.startsWith('custom_fields.')) {
@@ -152,16 +159,23 @@ async function executeUpdateField(
     const { error } = await supabase
       .from(tableName)
       .update({ custom_fields: updatedCustomFields })
-      .eq('id', context.entityId);
+      .eq('id', context.entityId)
+      .eq('project_id', context.projectId);
 
     if (error) return { action_type: action.type, success: false, error: error.message };
     return { action_type: action.type, success: true, result: { field: fieldName, value } };
   }
 
+  const allowedForTable = ALLOWED_FIELDS[tableName] || [];
+  if (!allowedForTable.includes(fieldName)) {
+    return { action_type: action.type, success: false, error: `Field "${fieldName}" is not allowed for ${context.entityType}` };
+  }
+
   const { error } = await supabase
     .from(tableName)
     .update({ [fieldName]: value })
-    .eq('id', context.entityId);
+    .eq('id', context.entityId)
+    .eq('project_id', context.projectId);
 
   if (error) return { action_type: action.type, success: false, error: error.message };
   return { action_type: action.type, success: true, result: { field: fieldName, value } };
@@ -181,7 +195,8 @@ async function executeChangeStage(
   const { error } = await supabase
     .from('opportunities')
     .update({ stage })
-    .eq('id', context.entityId);
+    .eq('id', context.entityId)
+    .eq('project_id', context.projectId);
 
   if (error) return { action_type: action.type, success: false, error: error.message };
   return { action_type: action.type, success: true, result: { stage } };
@@ -201,7 +216,8 @@ async function executeChangeStatus(
   const { error } = await supabase
     .from('rfps')
     .update({ status })
-    .eq('id', context.entityId);
+    .eq('id', context.entityId)
+    .eq('project_id', context.projectId);
 
   if (error) return { action_type: action.type, success: false, error: error.message };
   return { action_type: action.type, success: true, result: { status } };
@@ -218,10 +234,22 @@ async function executeAssignOwner(
   const tableName = entityTableMap[context.entityType];
   if (!tableName) return { action_type: action.type, success: false, error: `Unknown entity type: ${context.entityType}` };
 
+  const { data: membership } = await supabase
+    .from('project_memberships')
+    .select('id')
+    .eq('project_id', context.projectId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (!membership) {
+    return { action_type: action.type, success: false, error: 'User is not a member of this project' };
+  }
+
   const { error } = await supabase
     .from(tableName)
     .update({ owner_id: userId })
-    .eq('id', context.entityId);
+    .eq('id', context.entityId)
+    .eq('project_id', context.projectId);
 
   if (error) return { action_type: action.type, success: false, error: error.message };
   return { action_type: action.type, success: true, result: { owner_id: userId } };
@@ -272,6 +300,7 @@ async function executeSendEmail(
     .from('email_templates')
     .select('*')
     .eq('id', templateId)
+    .eq('project_id', context.projectId)
     .single();
 
   if (templateError || !template) {
@@ -287,6 +316,7 @@ async function executeSendEmail(
       .from('people')
       .select('email')
       .eq('id', String(context.data.primary_contact_id))
+      .eq('project_id', context.projectId)
       .single();
     personEmail = person?.email || null;
   }
@@ -331,6 +361,18 @@ async function executeEnrollInSequence(
   // Only people can be enrolled in sequences
   if (context.entityType !== 'person') {
     return { action_type: action.type, success: false, error: 'Only people can be enrolled in sequences' };
+  }
+
+  // Validate sequence belongs to this project
+  const { data: sequence } = await supabase
+    .from('sequences')
+    .select('id')
+    .eq('id', sequenceId)
+    .eq('project_id', context.projectId)
+    .maybeSingle();
+
+  if (!sequence) {
+    return { action_type: action.type, success: false, error: 'Sequence not found in this project' };
   }
 
   // Check if already enrolled
@@ -385,6 +427,17 @@ async function executeAddTag(
   const tagId = String(action.config.tag_id || '');
   if (!tagId) return { action_type: action.type, success: false, error: 'No tag_id specified' };
 
+  const { data: tag } = await supabase
+    .from('tags')
+    .select('id')
+    .eq('id', tagId)
+    .eq('project_id', context.projectId)
+    .maybeSingle();
+
+  if (!tag) {
+    return { action_type: action.type, success: false, error: 'Tag not found in this project' };
+  }
+
   const { error } = await supabase
     .from('entity_tags')
     .upsert({
@@ -404,6 +457,17 @@ async function executeRemoveTag(
   const supabase = createAdminClient();
   const tagId = String(action.config.tag_id || '');
   if (!tagId) return { action_type: action.type, success: false, error: 'No tag_id specified' };
+
+  const { data: tag } = await supabase
+    .from('tags')
+    .select('id')
+    .eq('id', tagId)
+    .eq('project_id', context.projectId)
+    .maybeSingle();
+
+  if (!tag) {
+    return { action_type: action.type, success: false, error: 'Tag not found in this project' };
+  }
 
   const { error } = await supabase
     .from('entity_tags')
@@ -494,14 +558,23 @@ async function executeFireWebhook(
       return { action_type: action.type, success: false, error: 'Webhook URL must use HTTP or HTTPS' };
     }
     const hostname = parsed.hostname.toLowerCase();
+    const bare = hostname.replace(/^\[|\]$/g, '');
     if (
       hostname === 'localhost' ||
       hostname === '127.0.0.1' ||
       hostname === '0.0.0.0' ||
+      bare === '::1' ||
+      bare === '::' ||
+      bare.startsWith('::ffff:') ||
+      bare.startsWith('fe80:') ||
+      bare.startsWith('fc00:') ||
+      (bare.startsWith('fd') && bare.includes(':')) ||
       hostname.startsWith('10.') ||
       hostname.startsWith('192.168.') ||
       hostname.startsWith('169.254.') ||
       /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
+      /^0x/i.test(hostname) ||
+      /^0\d/.test(hostname) ||
       hostname.endsWith('.internal') ||
       hostname.endsWith('.local')
     ) {
@@ -512,13 +585,13 @@ async function executeFireWebhook(
   }
 
   const payload = {
+    ...(config.payload_template ? config.payload_template as Record<string, unknown> : {}),
     automation_id: context.automationId,
     automation_name: context.automationName,
     entity_type: context.entityType,
     entity_id: context.entityId,
     data: context.data,
     timestamp: new Date().toISOString(),
-    ...(config.payload_template ? config.payload_template as Record<string, unknown> : {}),
   };
 
   try {

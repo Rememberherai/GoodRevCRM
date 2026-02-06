@@ -74,11 +74,51 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Parse query params
+    // Parse query params with validation
     const { searchParams } = new URL(request.url);
-    const startDate = searchParams.get('start_date') || new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
-    const endDate = searchParams.get('end_date') || new Date().toISOString();
-    const userId = searchParams.get('user_id') || null;
+    const rawStartDate = searchParams.get('start_date');
+    const rawEndDate = searchParams.get('end_date');
+    const rawUserId = searchParams.get('user_id');
+
+    // Validate dates - must be valid ISO 8601 strings
+    const defaultStartDate = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000).toISOString();
+    const defaultEndDate = new Date().toISOString();
+
+    let startDate = defaultStartDate;
+    let endDate = defaultEndDate;
+
+    if (rawStartDate) {
+      const parsed = new Date(rawStartDate);
+      if (!isNaN(parsed.getTime())) {
+        startDate = parsed.toISOString();
+      }
+    }
+
+    if (rawEndDate) {
+      const parsed = new Date(rawEndDate);
+      if (!isNaN(parsed.getTime())) {
+        endDate = parsed.toISOString();
+      }
+    }
+
+    // Validate user_id as UUID if provided
+    let userId: string | null = null;
+    if (rawUserId) {
+      const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (uuidRegex.test(rawUserId)) {
+        // Verify user is a member of this project
+        const { data: membership } = await supabase
+          .from('project_memberships')
+          .select('id')
+          .eq('project_id', project.id)
+          .eq('user_id', rawUserId)
+          .maybeSingle();
+
+        if (membership) {
+          userId = rawUserId;
+        }
+      }
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const rpc = supabase.rpc.bind(supabase) as any;
@@ -105,7 +145,7 @@ export async function GET(request: Request, context: RouteContext) {
         p_user_id: userId,
       })
         .then((r: { data: ActivityTiles | null }) => r.data ?? DEFAULT_ACTIVITY_TILES)
-        .catch(() => DEFAULT_ACTIVITY_TILES),
+        .catch((err: unknown) => { console.error('Analytics RPC error (activity_tile_metrics):', err); return DEFAULT_ACTIVITY_TILES; }),
 
       // Opportunity funnel
       rpc('get_opportunity_funnel', {
@@ -123,7 +163,7 @@ export async function GET(request: Request, context: RouteContext) {
             })
           )
         )
-        .catch(() => [] as FunnelStage[]),
+        .catch((err: unknown) => { console.error('Analytics RPC error (opportunity_funnel):', err); return [] as FunnelStage[]; }),
 
       // RFP funnel
       rpc('get_rfp_funnel', {
@@ -141,7 +181,7 @@ export async function GET(request: Request, context: RouteContext) {
             })
           )
         )
-        .catch(() => [] as FunnelStage[]),
+        .catch((err: unknown) => { console.error('Analytics RPC error (rfp_funnel):', err); return [] as FunnelStage[]; }),
 
       // Pipeline
       rpc('get_pipeline_summary', {
@@ -149,7 +189,7 @@ export async function GET(request: Request, context: RouteContext) {
         p_user_id: userId,
       })
         .then((r: { data: PipelineStage[] | null }) => r.data ?? [])
-        .catch(() => [] as PipelineStage[]),
+        .catch((err: unknown) => { console.error('Analytics RPC error (pipeline_summary):', err); return [] as PipelineStage[]; }),
 
       // Conversion metrics
       rpc('get_conversion_metrics', {
@@ -159,7 +199,7 @@ export async function GET(request: Request, context: RouteContext) {
         p_user_id: userId,
       })
         .then((r: { data: ConversionMetric[] | null }) => r.data ?? [])
-        .catch(() => [] as ConversionMetric[]),
+        .catch((err: unknown) => { console.error('Analytics RPC error (conversion_metrics):', err); return [] as ConversionMetric[]; }),
 
       // Revenue metrics
       rpc('get_revenue_metrics', {
@@ -169,7 +209,7 @@ export async function GET(request: Request, context: RouteContext) {
         p_user_id: userId,
       })
         .then((r: { data: RevenueMetric[] | null }) => r.data ?? [])
-        .catch(() => [] as RevenueMetric[]),
+        .catch((err: unknown) => { console.error('Analytics RPC error (revenue_metrics):', err); return [] as RevenueMetric[]; }),
 
       // Email performance
       rpc('get_email_performance', {
@@ -179,7 +219,7 @@ export async function GET(request: Request, context: RouteContext) {
         p_user_id: userId,
       })
         .then((r: { data: EmailPerformance | null }) => r.data ?? DEFAULT_EMAIL)
-        .catch(() => DEFAULT_EMAIL),
+        .catch((err: unknown) => { console.error('Analytics RPC error (email_performance):', err); return DEFAULT_EMAIL; }),
 
       // AI usage
       rpc('get_ai_usage_stats', {
@@ -209,13 +249,13 @@ export async function GET(request: Request, context: RouteContext) {
           );
           return { byModel: rows, totals } as AiUsageStats;
         })
-        .catch(
-          () =>
-            ({
-              byModel: [],
-              totals: { totalTokens: 0, totalCalls: 0, totalPromptTokens: 0, totalCompletionTokens: 0 },
-            }) as AiUsageStats
-        ),
+        .catch((err: unknown) => {
+          console.error('Analytics RPC error (ai_usage_stats):', err);
+          return {
+            byModel: [],
+            totals: { totalTokens: 0, totalCalls: 0, totalPromptTokens: 0, totalCompletionTokens: 0 },
+          } as AiUsageStats;
+        }),
 
       // Enrichment stats
       rpc('get_enrichment_stats', {
@@ -225,7 +265,7 @@ export async function GET(request: Request, context: RouteContext) {
         p_user_id: userId,
       })
         .then((r: { data: EnrichmentStats | null }) => r.data ?? DEFAULT_ENRICHMENT)
-        .catch(() => DEFAULT_ENRICHMENT),
+        .catch((err: unknown) => { console.error('Analytics RPC error (enrichment_stats):', err); return DEFAULT_ENRICHMENT; }),
 
       // Team members
       Promise.resolve(
@@ -255,10 +295,10 @@ export async function GET(request: Request, context: RouteContext) {
               })
             )
         )
-        .catch(() => [] as TeamMember[]),
+        .catch((err: unknown) => { console.error('Analytics error (team_members):', err); return [] as TeamMember[]; }),
 
       // OpenRouter key info (bonus)
-      getOpenRouterKeyInfo().catch(() => null),
+      getOpenRouterKeyInfo().catch((err: unknown) => { console.error('Analytics error (openrouter_key_info):', err); return null; }),
     ]);
 
     const data: AnalyticsData = {

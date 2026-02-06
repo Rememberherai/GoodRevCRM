@@ -23,7 +23,9 @@ function createAdminClient() {
     throw new Error('Missing Supabase credentials');
   }
 
-  return createClient(supabaseUrl, supabaseServiceKey);
+  return createClient(supabaseUrl, supabaseServiceKey, {
+    auth: { autoRefreshToken: false, persistSession: false },
+  });
 }
 
 // Map entity types to table names
@@ -195,7 +197,8 @@ async function findInactiveEntities(
   projectId: string,
   config: TriggerConfig
 ): Promise<string[]> {
-  const days = config.days ?? 30;
+  const rawDays = config.days ?? 30;
+  const days = Math.min(Math.max(Math.floor(rawDays), 1), 365);
   const entityType = config.entity_type ?? 'organization';
   const tableName = entityTableMap[entityType];
   if (!tableName) return [];
@@ -257,7 +260,8 @@ async function findCreatedAgo(
   projectId: string,
   config: TriggerConfig
 ): Promise<string[]> {
-  const days = config.days ?? 7;
+  const rawDays = config.days ?? 7;
+  const days = Math.min(Math.max(Math.floor(rawDays), 1), 365);
   const entityType = config.entity_type ?? 'organization';
   const tableName = entityTableMap[entityType];
   if (!tableName) return [];

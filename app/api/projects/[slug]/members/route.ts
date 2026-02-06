@@ -208,7 +208,7 @@ export async function POST(request: Request, context: RouteContext) {
         token,
         expires_at: expiresAt.toISOString(),
       })
-      .select()
+      .select('id, project_id, email, role, invited_by, expires_at, created_at')
       .single();
 
     if (error) {

@@ -31,6 +31,23 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabaseAny = supabase as any;
+
+    const { data: membership } = await supabaseAny
+      .from('project_memberships')
+      .select('role')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membership || !['owner', 'admin'].includes(membership.role)) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions. Admin role required.' },
+        { status: 403 }
+      );
+    }
+
     const { searchParams } = new URL(request.url);
     const queryResult = webhookQuerySchema.safeParse({
       is_active: searchParams.get('is_active') ?? undefined,
@@ -46,9 +63,6 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const { is_active, limit, offset } = queryResult.data;
-
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const supabaseAny = supabase as any;
 
     let query = supabaseAny
       .from('webhooks')
@@ -108,7 +122,7 @@ export async function POST(request: Request, context: RouteContext) {
     const supabaseAny = supabase as any;
 
     const { data: membership } = await supabaseAny
-      .from('project_members')
+      .from('project_memberships')
       .select('role')
       .eq('project_id', project.id)
       .eq('user_id', user.id)

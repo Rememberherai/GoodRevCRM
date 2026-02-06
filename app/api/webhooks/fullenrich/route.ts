@@ -1,28 +1,15 @@
-import { createClient } from '@supabase/supabase-js';
 import { NextResponse } from 'next/server';
 import { enrichmentWebhookSchema, type EnrichmentRecord } from '@/lib/validators/enrichment';
 import type { EnrichmentPerson } from '@/lib/fullenrich/client';
-
-// Create admin client for webhook processing (bypasses RLS)
-function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase credentials');
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
+import { createAdminClient } from '@/lib/supabase/admin';
 
 // Verify webhook signature
 function verifySignature(payload: string, signature: string | null): boolean {
   const webhookSecret = process.env.FULLENRICH_WEBHOOK_SECRET;
 
-  // If no secret configured, skip verification (not recommended for production)
   if (!webhookSecret) {
-    console.warn('FULLENRICH_WEBHOOK_SECRET not configured, skipping signature verification');
-    return true;
+    console.error('FULLENRICH_WEBHOOK_SECRET not configured');
+    return false;
   }
 
   if (!signature) {
@@ -36,14 +23,10 @@ function verifySignature(payload: string, signature: string | null): boolean {
     .update(payload)
     .digest('hex');
 
-  try {
-    return crypto.timingSafeEqual(
-      Buffer.from(signature),
-      Buffer.from(expectedSignature)
-    );
-  } catch {
-    return false;
-  }
+  const sigBuf = Buffer.from(signature);
+  const expBuf = Buffer.from(expectedSignature);
+  if (sigBuf.length !== expBuf.length) return false;
+  return crypto.timingSafeEqual(sigBuf, expBuf);
 }
 
 // POST /api/webhooks/fullenrich - Handle enrichment completion webhook
@@ -69,41 +52,48 @@ export async function POST(request: Request) {
 
     const validationResult = enrichmentWebhookSchema.safeParse(payload);
     if (!validationResult.success) {
-      console.error('Invalid webhook payload:', validationResult.error);
+      console.error('Invalid webhook payload:', validationResult.error.message);
       return NextResponse.json(
-        { error: 'Invalid payload', details: validationResult.error.flatten() },
+        { error: 'Invalid payload' },
         { status: 400 }
       );
     }
 
     const webhookData = validationResult.data;
     const enrichmentId = webhookData.enrichment_id ?? webhookData.id ?? '';
+    if (!enrichmentId || enrichmentId.length > 255) {
+      return NextResponse.json({ error: 'Missing or invalid enrichment ID' }, { status: 400 });
+    }
     const { status, datas: results, cost, error } = webhookData;
     const credits_used = cost?.credits ?? 0;
 
     console.log('FullEnrich webhook received:', { enrichmentId, status, resultsCount: results?.length });
 
     // Create admin client (bypasses RLS for webhook processing)
-    const supabase = createAdminClient();
+    // Use type assertion for enrichment_jobs (not yet in Database type)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabase = createAdminClient() as any;
 
     // Find all enrichment jobs with this external job ID
     const { data: jobs, error: fetchError } = await supabase
       .from('enrichment_jobs')
       .select('id, person_id, project_id')
-      .eq('external_job_id', enrichmentId);
+      .eq('external_job_id', enrichmentId)
+      .order('created_at', { ascending: true });
 
     if (fetchError || !jobs || jobs.length === 0) {
-      console.error('Enrichment jobs not found for external ID:', enrichmentId);
+      console.error('Enrichment jobs not found for external ID:', enrichmentId.slice(0, 100).replace(/[\n\r]/g, ''));
       return NextResponse.json({ error: 'Jobs not found' }, { status: 404 });
     }
 
     // Handle failed/canceled/insufficient credits statuses
     if (status === 'CANCELED' || status === 'CREDITS_INSUFFICIENT' || status === 'RATE_LIMIT') {
-      const errorMessage = status === 'CREDITS_INSUFFICIENT'
+      const rawErrorMessage = status === 'CREDITS_INSUFFICIENT'
         ? 'Insufficient credits'
         : status === 'RATE_LIMIT'
           ? 'Rate limit exceeded'
           : error ?? 'Enrichment canceled';
+      const errorMessage = typeof rawErrorMessage === 'string' ? rawErrorMessage.slice(0, 500) : 'Enrichment failed';
 
       await supabase
         .from('enrichment_jobs')
@@ -157,12 +147,12 @@ export async function POST(request: Request) {
       }
 
       if (record.error) {
-        // Individual result failed
+        const truncatedError = typeof record.error === 'string' ? record.error.slice(0, 500) : 'Enrichment failed';
         await supabase
           .from('enrichment_jobs')
           .update({
             status: 'failed',
-            error: record.error,
+            error: truncatedError,
             completed_at: new Date().toISOString(),
           })
           .eq('id', job.id);
@@ -230,7 +220,7 @@ export async function POST(request: Request) {
       credits_used,
     });
   } catch (error) {
-    console.error('Error in POST /api/webhooks/fullenrich:', error);
+    console.error('Error in POST /api/webhooks/fullenrich:', error instanceof Error ? error.message : 'Unknown error');
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

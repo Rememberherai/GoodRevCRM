@@ -24,20 +24,42 @@ function extractDomain(email: string): string | null {
 }
 
 /**
+ * Get project IDs the user has access to
+ */
+async function getUserProjectIds(
+  userId: string,
+  supabase: SupabaseClient
+): Promise<string[]> {
+  const { data: memberships } = await supabase
+    .from('project_memberships')
+    .select('project_id')
+    .eq('user_id', userId);
+
+  return memberships?.map(m => m.project_id) ?? [];
+}
+
+/**
  * Match a single email address to CRM entities
  */
 export async function matchEmailAddress(
   emailAddress: string,
-  _userId: string,
+  userId: string,
   supabase: SupabaseClient
 ): Promise<MatchResult> {
   const normalizedEmail = emailAddress.toLowerCase().trim();
 
-  // 1. Try to match a person by email
+  // Get user's accessible projects for scoping
+  const projectIds = await getUserProjectIds(userId, supabase);
+  if (projectIds.length === 0) {
+    return { person_id: null, organization_id: null, project_id: null };
+  }
+
+  // 1. Try to match a person by email (scoped to user's projects)
   const { data: people } = await supabase
     .from('people')
     .select('id, project_id, email')
     .ilike('email', normalizedEmail)
+    .in('project_id', projectIds)
     .is('deleted_at', null)
     .limit(1);
 
@@ -59,13 +81,14 @@ export async function matchEmailAddress(
     };
   }
 
-  // 2. Try domain match against organizations
+  // 2. Try domain match against organizations (scoped to user's projects)
   const domain = extractDomain(normalizedEmail);
   if (domain) {
     const { data: orgs } = await supabase
       .from('organizations')
       .select('id, project_id')
       .ilike('domain', domain)
+      .in('project_id', projectIds)
       .is('deleted_at', null)
       .order('updated_at', { ascending: false })
       .limit(1);
@@ -89,7 +112,7 @@ export async function matchEmailAddress(
  */
 export async function bulkMatchEmails(
   emailAddresses: string[],
-  _userId: string,
+  userId: string,
   supabase: SupabaseClient
 ): Promise<Map<string, MatchResult>> {
   const results = new Map<string, MatchResult>();
@@ -97,11 +120,16 @@ export async function bulkMatchEmails(
 
   if (unique.length === 0) return results;
 
-  // Batch query people by email
+  // Get user's accessible projects for scoping
+  const projectIds = await getUserProjectIds(userId, supabase);
+  if (projectIds.length === 0) return results;
+
+  // Batch query people by email (scoped to user's projects)
   const { data: people } = await supabase
     .from('people')
     .select('id, project_id, email')
     .in('email', unique)
+    .in('project_id', projectIds)
     .is('deleted_at', null);
 
   const personByEmail = new Map<string, { id: string; project_id: string }>();
@@ -142,7 +170,7 @@ export async function bulkMatchEmails(
     }
   }
 
-  // Batch query organizations by domain
+  // Batch query organizations by domain (scoped to user's projects)
   const orgByDomain = new Map<string, { id: string; project_id: string }>();
   if (unmatchedDomains.length > 0) {
     const uniqueDomains = [...new Set(unmatchedDomains)];
@@ -150,6 +178,7 @@ export async function bulkMatchEmails(
       .from('organizations')
       .select('id, project_id, domain')
       .in('domain', uniqueDomains)
+      .in('project_id', projectIds)
       .is('deleted_at', null);
 
     if (orgs) {

@@ -56,7 +56,8 @@ export async function GET(request: Request, context: RouteContext) {
       .eq('project_id', project.id);
 
     if (search) {
-      query = query.ilike('name', `%${search}%`);
+      const sanitized = search.replace(/[%_\\]/g, '\\$&');
+      query = query.ilike('name', `%${sanitized}%`);
     }
 
     const { data: tags, error } = await query

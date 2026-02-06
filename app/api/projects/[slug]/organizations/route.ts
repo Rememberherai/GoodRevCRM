@@ -39,8 +39,10 @@ export async function GET(request: Request, context: RouteContext) {
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') ?? '1', 10);
-    const limit = parseInt(searchParams.get('limit') ?? '50', 10);
+    const rawPage = parseInt(searchParams.get('page') ?? '1', 10);
+    const rawLimit = parseInt(searchParams.get('limit') ?? '50', 10);
+    const page = Math.max(isNaN(rawPage) ? 1 : rawPage, 1);
+    const limit = Math.min(Math.max(isNaN(rawLimit) ? 50 : rawLimit, 1), 100);
     const search = searchParams.get('search') ?? '';
     const sortBy = searchParams.get('sortBy') ?? 'created_at';
     const sortOrder = searchParams.get('sortOrder') ?? 'desc';
@@ -56,12 +58,18 @@ export async function GET(request: Request, context: RouteContext) {
 
     // Apply search filter
     if (search) {
-      query = query.or(`name.ilike.%${search}%,domain.ilike.%${search}%,industry.ilike.%${search}%`);
+      const sanitized = search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""');
+      query = query.or(`name.ilike."%${sanitized}%",domain.ilike."%${sanitized}%",industry.ilike."%${sanitized}%"`);
     }
 
     // Apply sorting
+    const ALLOWED_SORT_COLUMNS = ['name', 'domain', 'industry', 'created_at', 'updated_at'];
     const ascending = sortOrder === 'asc';
-    query = query.order(sortBy, { ascending });
+    if (ALLOWED_SORT_COLUMNS.includes(sortBy)) {
+      query = query.order(sortBy, { ascending });
+    } else {
+      query = query.order('created_at', { ascending });
+    }
 
     // Apply pagination
     query = query.range(offset, offset + limit - 1);

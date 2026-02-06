@@ -121,6 +121,41 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const updates = validationResult.data;
 
+    // Validate cross-project references
+    if (updates.organization_id !== undefined && updates.organization_id !== null) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('id', updates.organization_id)
+        .eq('project_id', project.id)
+        .single();
+      if (!org) {
+        return NextResponse.json({ error: 'Organization not found in this project' }, { status: 400 });
+      }
+    }
+    if (updates.opportunity_id !== undefined && updates.opportunity_id !== null) {
+      const { data: opp } = await supabase
+        .from('opportunities')
+        .select('id')
+        .eq('id', updates.opportunity_id)
+        .eq('project_id', project.id)
+        .single();
+      if (!opp) {
+        return NextResponse.json({ error: 'Opportunity not found in this project' }, { status: 400 });
+      }
+    }
+    if (updates.owner_id !== undefined && updates.owner_id !== null) {
+      const { data: member } = await supabase
+        .from('project_memberships')
+        .select('user_id')
+        .eq('user_id', updates.owner_id)
+        .eq('project_id', project.id)
+        .single();
+      if (!member) {
+        return NextResponse.json({ error: 'Owner is not a member of this project' }, { status: 400 });
+      }
+    }
+
     // Fetch previous state for automation status change detection
     let previousStatus: string | null = null;
     if (updates.status !== undefined) {
@@ -240,25 +275,30 @@ export async function DELETE(_request: Request, context: RouteContext) {
     }
 
     // Soft delete by setting deleted_at
-    const { error } = await supabase
+    const { data: deleted, error } = await supabase
       .from('rfps')
       .update({ deleted_at: new Date().toISOString() } as RfpUpdate)
       .eq('id', id)
       .eq('project_id', project.id)
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .select('id')
+      .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'RFP not found' }, { status: 404 });
+      }
       console.error('Error deleting RFP:', error);
       return NextResponse.json({ error: 'Failed to delete RFP' }, { status: 500 });
     }
 
-    // Emit automation event
+    // Emit automation event only if a row was actually deleted
     emitAutomationEvent({
       projectId: project.id,
       triggerType: 'entity.deleted',
       entityType: 'rfp',
-      entityId: id,
-      data: { id, project_id: project.id },
+      entityId: deleted.id,
+      data: { id: deleted.id, project_id: project.id },
     });
 
     return NextResponse.json({ success: true });

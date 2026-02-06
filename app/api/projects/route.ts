@@ -84,9 +84,9 @@ export async function POST(request: Request) {
           { status: 409 }
         );
       }
-      // Return the actual error message for debugging
+      console.error('Project creation error details:', { message: error.message, code: error.code });
       return NextResponse.json(
-        { error: error.message || 'Failed to create project', code: error.code },
+        { error: 'Failed to create project' },
         { status: 500 }
       );
     }

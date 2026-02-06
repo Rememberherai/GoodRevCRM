@@ -1,12 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/gmail/service';
 import { syncEmailsForConnection } from '@/lib/gmail/sync';
-
-function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL!;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY!;
-  return createClient(supabaseUrl, supabaseServiceKey);
-}
 
 /**
  * Gmail Push Notification Webhook
@@ -14,6 +8,11 @@ function createAdminClient() {
  */
 export async function POST(request: Request) {
   try {
+    const webhookSecret = process.env.GMAIL_WEBHOOK_SECRET;
+    if (!webhookSecret || request.headers.get('authorization') !== `Bearer ${webhookSecret}`) {
+      return new Response('Unauthorized', { status: 401 });
+    }
+
     const body = await request.json();
 
     // Pub/Sub sends: { message: { data: base64, messageId, publishTime }, subscription }
@@ -32,11 +31,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Invalid notification data' }, { status: 400 });
     }
 
-    if (!notification.emailAddress) {
+    if (!notification.emailAddress || typeof notification.emailAddress !== 'string' || !notification.emailAddress.includes('@')) {
       return NextResponse.json({ error: 'Missing emailAddress' }, { status: 400 });
     }
 
-    console.log(`[Gmail Webhook] Notification for ${notification.emailAddress}, historyId: ${notification.historyId}`);
+    const emailForLog = notification.emailAddress.replace(/^(.{1,3}).*@/, '$1***@');
+    console.log(`[Gmail Webhook] Notification for ${emailForLog}, historyId: ${notification.historyId}`);
 
     // Look up the Gmail connection
     const supabase = createAdminClient();
@@ -48,29 +48,22 @@ export async function POST(request: Request) {
       .eq('sync_enabled', true);
 
     if (!connections || connections.length === 0) {
-      // No matching connection — acknowledge anyway to avoid retries
-      return NextResponse.json({ ok: true, skipped: true });
+      return NextResponse.json({ ok: true });
     }
 
     // Sync each matching connection
-    const results = [];
     for (const conn of connections) {
       try {
-        const result = await syncEmailsForConnection(conn.id);
-        results.push({ connection_id: conn.id, ...result });
+        await syncEmailsForConnection(conn.id);
       } catch (error) {
         console.error(`[Gmail Webhook] Sync failed for connection ${conn.id}:`, error);
-        results.push({
-          connection_id: conn.id,
-          error: error instanceof Error ? error.message : 'Unknown error',
-        });
       }
     }
 
-    return NextResponse.json({ ok: true, results });
+    return NextResponse.json({ ok: true });
   } catch (error) {
     console.error('[Gmail Webhook] Error:', error);
     // Return 200 to acknowledge and prevent Pub/Sub retries on permanent errors
-    return NextResponse.json({ ok: false, error: 'Internal error' }, { status: 200 });
+    return NextResponse.json({ ok: true });
   }
 }

@@ -36,6 +36,18 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // Verify user is a member of the project
+    const { data: membership } = await supabase
+      .from('project_memberships')
+      .select('id')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membership) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
     // Parse query parameters
     const { searchParams } = new URL(request.url);
     const entityType = searchParams.get('entityType');
@@ -90,6 +102,18 @@ export async function POST(request: Request, context: RouteContext) {
       .single();
 
     if (projectError || !project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    // Verify user is a member of the project
+    const { data: membership } = await supabase
+      .from('project_memberships')
+      .select('id')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membership) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 

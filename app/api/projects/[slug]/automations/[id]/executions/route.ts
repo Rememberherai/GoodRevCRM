@@ -64,7 +64,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     let query = supabaseAny
       .from('automation_executions')
-      .select('*')
+      .select('id, automation_id, conditions_met, status, error_message, duration_ms, entity_type, entity_id, executed_at')
       .eq('automation_id', id);
 
     if (status) {

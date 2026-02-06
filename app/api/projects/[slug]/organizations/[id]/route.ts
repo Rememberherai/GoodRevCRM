@@ -55,11 +55,13 @@ export async function GET(_request: Request, context: RouteContext) {
       supabase
         .from('person_organizations')
         .select('id', { count: 'exact', head: true })
-        .eq('organization_id', id),
+        .eq('organization_id', id)
+        .eq('project_id', project.id),
       supabase
         .from('opportunities')
         .select('id', { count: 'exact', head: true })
         .eq('organization_id', id)
+        .eq('project_id', project.id)
         .is('deleted_at', null),
     ]);
 
@@ -236,9 +238,14 @@ export async function DELETE(_request: Request, context: RouteContext) {
       .update({ deleted_at: new Date().toISOString() } as OrganizationUpdate)
       .eq('id', id)
       .eq('project_id', project.id)
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .select('id')
+      .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Organization not found' }, { status: 404 });
+      }
       console.error('Error deleting organization:', error);
       return NextResponse.json({ error: 'Failed to delete organization' }, { status: 500 });
     }

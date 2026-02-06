@@ -39,15 +39,19 @@ export async function GET(request: Request, context: RouteContext) {
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') ?? '1', 10);
-    const limit = parseInt(searchParams.get('limit') ?? '50', 10);
+    const rawPage = parseInt(searchParams.get('page') ?? '1', 10);
+    const rawLimit = parseInt(searchParams.get('limit') ?? '50', 10);
+    const page = Math.max(isNaN(rawPage) ? 1 : rawPage, 1);
+    const limit = Math.min(Math.max(isNaN(rawLimit) ? 50 : rawLimit, 1), 100);
     const search = searchParams.get('search') ?? '';
     const ALLOWED_SORT_COLUMNS = ['created_at', 'updated_at', 'title', 'status', 'due_date', 'estimated_value', 'rfp_number'];
     const rawSortBy = searchParams.get('sortBy') ?? 'created_at';
     const sortBy = ALLOWED_SORT_COLUMNS.includes(rawSortBy) ? rawSortBy : 'created_at';
     const sortOrder = searchParams.get('sortOrder') ?? 'desc';
     const status = searchParams.get('status');
-    const organizationId = searchParams.get('organizationId');
+    const rawOrganizationId = searchParams.get('organizationId');
+    const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+    const organizationId = rawOrganizationId && UUID_REGEX.test(rawOrganizationId) ? rawOrganizationId : null;
     const upcoming = searchParams.get('upcoming');
 
     const offset = (page - 1) * limit;
@@ -61,8 +65,8 @@ export async function GET(request: Request, context: RouteContext) {
 
     // Apply search filter (escape special PostgREST characters)
     if (search) {
-      const escaped = search.replace(/[%_\\,().]/g, (ch) => `\\${ch}`);
-      query = query.or(`title.ilike.%${escaped}%,rfp_number.ilike.%${escaped}%,description.ilike.%${escaped}%`);
+      const escaped = search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""');
+      query = query.or(`title.ilike."%${escaped}%",rfp_number.ilike."%${escaped}%",description.ilike."%${escaped}%"`);
     }
 
     // Apply status filter

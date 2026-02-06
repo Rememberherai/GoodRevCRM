@@ -422,9 +422,10 @@ describe('Import Row Validators', () => {
 
   describe('opportunityImportRowSchema', () => {
     it('should validate a valid opportunity row', () => {
+      // Note: opportunities use 'name' (not title) and 'amount' (not value)
       const input = {
-        title: 'New Deal',
-        value: 50000,
+        name: 'New Deal',
+        amount: 50000,
         probability: 75,
       };
 
@@ -432,31 +433,31 @@ describe('Import Row Validators', () => {
       expect(result.success).toBe(true);
     });
 
-    it('should require title', () => {
+    it('should require name', () => {
       const input = {
-        value: 50000,
+        amount: 50000,
       };
 
       const result = opportunityImportRowSchema.safeParse(input);
       expect(result.success).toBe(false);
     });
 
-    it('should coerce value to number', () => {
+    it('should coerce amount to number', () => {
       const input = {
-        title: 'New Deal',
-        value: '50000',
+        name: 'New Deal',
+        amount: '50000',
       };
 
       const result = opportunityImportRowSchema.safeParse(input);
       expect(result.success).toBe(true);
       if (result.success) {
-        expect(result.data.value).toBe(50000);
+        expect(result.data.amount).toBe(50000);
       }
     });
 
     it('should reject probability > 100', () => {
       const input = {
-        title: 'New Deal',
+        name: 'New Deal',
         probability: 150,
       };
 

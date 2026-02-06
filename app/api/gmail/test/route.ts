@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { gmailTestSchema } from '@/lib/validators/gmail';
-import { getValidAccessToken, createAdminClient } from '@/lib/gmail/service';
+import { getValidAccessToken } from '@/lib/gmail/service';
 import { isTokenExpired } from '@/lib/gmail/oauth';
 import { bulkMatchEmails } from '@/lib/gmail/contact-matcher';
 import type { GmailConnection } from '@/types/gmail';
@@ -264,9 +264,9 @@ async function testContactMatching(accessToken: string, userId: string): Promise
       };
     }
 
-    // Run bulk matching
-    const adminSupabase = createAdminClient();
-    const matches = await bulkMatchEmails(senderEmails, userId, adminSupabase);
+    // Run bulk matching using user-scoped client
+    const userSupabase = await createClient();
+    const matches = await bulkMatchEmails(senderEmails, userId, userSupabase);
     const matchedCount = [...matches.values()].filter(m => m.person_id || m.organization_id).length;
     const duration_ms = Math.round(performance.now() - start);
 
@@ -372,7 +372,7 @@ export async function POST(request: Request) {
     const supabaseAny = supabase as any;
     const { data: connection, error: connError } = await supabaseAny
       .from('gmail_connections')
-      .select('*')
+      .select('id, email, access_token, refresh_token, token_expires_at, status')
       .eq('id', connection_id)
       .eq('user_id', user.id)
       .single();

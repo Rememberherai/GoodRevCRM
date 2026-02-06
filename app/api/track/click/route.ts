@@ -26,12 +26,13 @@ export async function GET(request: Request) {
     return NextResponse.redirect(appUrl);
   }
 
-  // Decode the URL
-  let decodedUrl: string;
-  try {
-    decodedUrl = decodeURIComponent(targetUrl);
-  } catch {
-    decodedUrl = targetUrl;
+  // searchParams.get() already decodes percent-encoded values
+  const decodedUrl = targetUrl;
+
+  // Validate URL length and format
+  if (decodedUrl.length > 2048) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    return NextResponse.redirect(appUrl);
   }
 
   // Validate URL to prevent open redirect attacks
@@ -47,52 +48,59 @@ export async function GET(request: Request) {
     return NextResponse.redirect(appUrl);
   }
 
-  // Track the click asynchronously
-  if (trackingId) {
-    try {
-      const supabase = createAdminClient();
-      if (supabase) {
-        // Get request metadata
-        const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
-        const userAgent = request.headers.get('user-agent') ?? null;
+  // Require a valid tracking ID to prevent open redirect abuse
+  if (!trackingId) {
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    return NextResponse.redirect(appUrl);
+  }
 
-        // Find sent email by tracking ID
-        const { data: sentEmail } = await supabase
-          .from('sent_emails')
-          .select('id, project_id, person_id')
-          .eq('tracking_id', trackingId)
-          .single();
+  // Track the click and verify the tracking ID is legitimate
+  try {
+    const supabase = createAdminClient();
+    if (supabase) {
+      // Get request metadata
+      const ipAddress = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? null;
+      const userAgent = request.headers.get('user-agent') ?? null;
 
-        if (sentEmail) {
-          // Record click event
-          await supabase
-            .from('email_events')
-            .insert({
-              sent_email_id: sentEmail.id,
-              event_type: 'click',
-              occurred_at: new Date().toISOString(),
-              ip_address: ipAddress,
-              user_agent: userAgent,
-              link_url: decodedUrl,
-              metadata: {},
-            });
+      // Find sent email by tracking ID
+      const { data: sentEmail } = await supabase
+        .from('sent_emails')
+        .select('id, project_id, person_id')
+        .eq('tracking_id', trackingId)
+        .single();
 
-          // Emit automation event
-          if (sentEmail.project_id && sentEmail.person_id) {
-            emitAutomationEvent({
-              projectId: sentEmail.project_id,
-              triggerType: 'email.clicked',
-              entityType: 'person',
-              entityId: sentEmail.person_id,
-              data: { sent_email_id: sentEmail.id, person_id: sentEmail.person_id, link_url: decodedUrl },
-            });
-          }
-        }
+      if (!sentEmail) {
+        const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+        return NextResponse.redirect(appUrl);
       }
-    } catch (error) {
-      // Don't fail the redirect on tracking errors
-      console.error('Error tracking email click:', error);
+
+      // Record click event
+      await supabase
+        .from('email_events')
+        .insert({
+          sent_email_id: sentEmail.id,
+          event_type: 'click',
+          occurred_at: new Date().toISOString(),
+          ip_address: ipAddress,
+          user_agent: userAgent,
+          link_url: decodedUrl,
+          metadata: {},
+        });
+
+      // Emit automation event
+      if (sentEmail.project_id && sentEmail.person_id) {
+        emitAutomationEvent({
+          projectId: sentEmail.project_id,
+          triggerType: 'email.clicked',
+          entityType: 'person',
+          entityId: sentEmail.person_id,
+          data: { sent_email_id: sentEmail.id, person_id: sentEmail.person_id, link_url: decodedUrl },
+        });
+      }
     }
+  } catch (error) {
+    // Don't fail the redirect on tracking errors
+    console.error('Error tracking email click:', error);
   }
 
   // Redirect to the target URL

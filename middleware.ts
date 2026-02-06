@@ -45,7 +45,7 @@ export async function middleware(request: NextRequest) {
 
   // API routes and static assets
   const isApiRoute = pathname.startsWith('/api');
-  const isStaticAsset = pathname.startsWith('/_next') || pathname.includes('.');
+  const isStaticAsset = pathname.startsWith('/_next') || /\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|js|woff2?|ttf|eot|map)$/i.test(pathname);
 
   // If not logged in and trying to access protected route, redirect to login
   if (!user && !isPublicRoute && !isApiRoute && !isStaticAsset) {

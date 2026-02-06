@@ -60,15 +60,77 @@ export const automationEntityTypes = [
   'meeting',
 ] as const;
 
+const conditionValueSchema = z.union([
+  z.string().max(1000),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z.array(z.string().max(1000)).max(50),
+]);
+
 const conditionSchema = z.object({
-  field: z.string().min(1),
+  field: z.string().min(1).max(200),
   operator: z.enum(conditionOperators),
-  value: z.unknown().optional(),
+  value: conditionValueSchema.optional(),
 });
+
+const actionConfigSchema = z.record(z.string().max(100), z.unknown()).default({});
 
 const actionSchema = z.object({
   type: z.enum(actionTypes),
-  config: z.record(z.string(), z.unknown()).default({}),
+  config: actionConfigSchema,
+}).superRefine((data, ctx) => {
+  const { type, config } = data;
+  const addConfigIssue = (field: string, message: string) => {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, path: ['config', field], message });
+  };
+
+  if (type === 'fire_webhook') {
+    if (config.url !== undefined) {
+      const urlStr = String(config.url);
+      try {
+        const parsed = new URL(urlStr);
+        if (!['http:', 'https:'].includes(parsed.protocol)) {
+          addConfigIssue('url', 'URL must use http or https protocol');
+        }
+      } catch {
+        addConfigIssue('url', 'Invalid URL');
+      }
+    }
+  }
+
+  if (type === 'update_field') {
+    if (config.field_name !== undefined && typeof config.field_name !== 'string') {
+      addConfigIssue('field_name', 'field_name must be a string');
+    }
+  }
+
+  if (type === 'assign_owner') {
+    if (config.user_id !== undefined) {
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (typeof config.user_id !== 'string' || !uuidRe.test(config.user_id)) {
+        addConfigIssue('user_id', 'user_id must be a valid UUID');
+      }
+    }
+  }
+
+  if (type === 'send_email') {
+    if (config.template_id !== undefined) {
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (typeof config.template_id !== 'string' || !uuidRe.test(config.template_id)) {
+        addConfigIssue('template_id', 'template_id must be a valid UUID');
+      }
+    }
+  }
+
+  if (type === 'enroll_in_sequence') {
+    if (config.sequence_id !== undefined) {
+      const uuidRe = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+      if (typeof config.sequence_id !== 'string' || !uuidRe.test(config.sequence_id)) {
+        addConfigIssue('sequence_id', 'sequence_id must be a valid UUID');
+      }
+    }
+  }
 });
 
 const triggerConfigSchema = z.object({
@@ -83,9 +145,11 @@ const triggerConfigSchema = z.object({
   sequence_id: z.string().uuid().optional(),
   meeting_type: z.string().optional(),
   outcome: z.string().optional(),
+  disposition: z.string().optional(),
+  direction: z.string().optional(),
   days: z.number().min(1).max(365).optional(),
   days_before: z.number().min(1).max(365).optional(),
-}).passthrough();
+});
 
 // Create automation schema
 export const createAutomationSchema = z.object({

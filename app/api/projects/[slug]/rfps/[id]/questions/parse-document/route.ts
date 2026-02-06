@@ -9,6 +9,7 @@ import type { CompanyContext } from '@/lib/validators/project';
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['application/pdf', 'text/plain'];
+const PDF_MAGIC_BYTES = Buffer.from('%PDF-');
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
@@ -77,6 +78,17 @@ export async function POST(request: Request, context: RouteContext) {
 
     // Extract text from file
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    // Validate magic bytes for PDFs
+    if (file.type === 'application/pdf') {
+      const header = buffer.subarray(0, 5);
+      if (!header.equals(PDF_MAGIC_BYTES)) {
+        return NextResponse.json(
+          { error: 'Invalid PDF file. File content does not match PDF format.' },
+          { status: 400 }
+        );
+      }
+    }
     let documentText: string;
 
     if (file.type === 'application/pdf') {

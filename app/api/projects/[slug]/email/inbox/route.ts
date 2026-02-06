@@ -42,10 +42,13 @@ export async function GET(request: Request, context: RouteContext) {
     const url = new URL(request.url);
     const personId = url.searchParams.get('person_id');
     const organizationId = url.searchParams.get('organization_id');
-    const direction = url.searchParams.get('direction');
+    const directionParam = url.searchParams.get('direction');
+    const direction = directionParam && ['inbound', 'outbound'].includes(directionParam) ? directionParam : null;
     const threadId = url.searchParams.get('thread_id');
-    const limit = Math.min(parseInt(url.searchParams.get('limit') ?? '50'), 100);
-    const offset = parseInt(url.searchParams.get('offset') ?? '0');
+    const rawLimit = parseInt(url.searchParams.get('limit') ?? '50');
+    const rawOffset = parseInt(url.searchParams.get('offset') ?? '0');
+    const limit = Math.min(Math.max(isNaN(rawLimit) ? 50 : rawLimit, 1), 100);
+    const offset = Math.max(isNaN(rawOffset) ? 0 : rawOffset, 0);
 
     let query = supabase
       .from('emails')
@@ -62,13 +65,15 @@ export async function GET(request: Request, context: RouteContext) {
     const { data: emails, error, count } = await query;
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('[inbox] Failed to fetch emails:', error.message);
+      return NextResponse.json({ error: 'Failed to fetch inbox' }, { status: 500 });
     }
 
     return NextResponse.json({ emails, total: count });
   } catch (error) {
+    console.error('[inbox] Internal error:', error instanceof Error ? error.message : error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal error' },
+      { error: 'Failed to fetch inbox' },
       { status: 500 }
     );
   }

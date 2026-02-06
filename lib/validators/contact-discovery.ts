@@ -16,7 +16,8 @@ export const addDiscoveredContactsSchema = z.object({
         linkedin_url: z.string().url().max(500).optional().or(z.literal('')),
       })
     )
-    .min(1),
+    .min(1)
+    .max(100),
 });
 
 export type ContactDiscoveryInput = z.infer<typeof contactDiscoverySchema>;

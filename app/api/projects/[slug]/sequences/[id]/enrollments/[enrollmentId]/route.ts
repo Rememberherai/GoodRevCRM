@@ -129,6 +129,36 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
+    // Validate status transitions
+    if (validationResult.data.status) {
+      const VALID_TRANSITIONS: Record<string, string[]> = {
+        active: ['paused', 'completed'],
+        paused: ['active', 'completed'],
+      };
+      const allowed = VALID_TRANSITIONS[existingEnrollment.status] || [];
+      if (!allowed.includes(validationResult.data.status)) {
+        return NextResponse.json(
+          { error: `Cannot transition from '${existingEnrollment.status}' to '${validationResult.data.status}'` },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate current_step against actual sequence steps
+    if (validationResult.data.current_step !== undefined) {
+      const { data: steps } = await supabaseAny
+        .from('sequence_steps')
+        .select('step_number')
+        .eq('sequence_id', id);
+      const validStepNumbers = (steps ?? []).map((s: { step_number: number }) => s.step_number);
+      if (validStepNumbers.length > 0 && !validStepNumbers.includes(validationResult.data.current_step)) {
+        return NextResponse.json(
+          { error: `current_step ${validationResult.data.current_step} does not match any step in the sequence (valid: ${validStepNumbers.sort((a: number, b: number) => a - b).join(', ')})` },
+          { status: 400 }
+        );
+      }
+    }
+
     const { data: enrollment, error } = await supabaseAny
       .from('sequence_enrollments')
       .update(validationResult.data)

@@ -147,14 +147,19 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    const { error } = await supabase
+    const { data: _deleted, error } = await supabase
       .from('rfp_content_library')
       .update({ deleted_at: new Date().toISOString() } as ContentLibraryUpdate)
       .eq('id', entryId)
       .eq('project_id', project.id)
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .select()
+      .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Entry not found' }, { status: 404 });
+      }
       console.error('Error deleting entry:', error);
       return NextResponse.json({ error: 'Failed to delete entry' }, { status: 500 });
     }

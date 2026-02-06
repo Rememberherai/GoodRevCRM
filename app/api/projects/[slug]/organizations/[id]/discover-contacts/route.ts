@@ -164,7 +164,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (error instanceof Error && error.name === 'OpenRouterError') {
       return NextResponse.json(
-        { error: `AI service error: ${error.message}` },
+        { error: 'Contact discovery service temporarily unavailable' },
         { status: 502 }
       );
     }

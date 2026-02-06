@@ -102,6 +102,67 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const { attendee_person_ids, attendee_user_ids, ...meetingData } = validationResult.data;
 
+    // Validate cross-project entity references
+    if (meetingData.person_id) {
+      const { data: person } = await supabaseAny
+        .from('people')
+        .select('id')
+        .eq('id', meetingData.person_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!person) {
+        return NextResponse.json({ error: 'Invalid person_id' }, { status: 400 });
+      }
+    }
+    if (meetingData.organization_id) {
+      const { data: org } = await supabaseAny
+        .from('organizations')
+        .select('id')
+        .eq('id', meetingData.organization_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!org) {
+        return NextResponse.json({ error: 'Invalid organization_id' }, { status: 400 });
+      }
+    }
+    if (meetingData.opportunity_id) {
+      const { data: opp } = await supabaseAny
+        .from('opportunities')
+        .select('id')
+        .eq('id', meetingData.opportunity_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!opp) {
+        return NextResponse.json({ error: 'Invalid opportunity_id' }, { status: 400 });
+      }
+    }
+    if (meetingData.rfp_id) {
+      const { data: rfp } = await supabaseAny
+        .from('rfps')
+        .select('id')
+        .eq('id', meetingData.rfp_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!rfp) {
+        return NextResponse.json({ error: 'Invalid rfp_id' }, { status: 400 });
+      }
+    }
+    if (meetingData.assigned_to) {
+      const { data: member } = await supabaseAny
+        .from('project_memberships')
+        .select('user_id')
+        .eq('user_id', meetingData.assigned_to)
+        .eq('project_id', project.id)
+        .single();
+      if (!member) {
+        return NextResponse.json({ error: 'Invalid assigned_to user' }, { status: 400 });
+      }
+    }
+
     const updateData: Record<string, unknown> = {
       ...meetingData,
       updated_at: new Date().toISOString(),
@@ -161,6 +222,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       .from('meetings')
       .select(MEETING_SELECT)
       .eq('id', id)
+      .eq('project_id', project.id)
       .single();
 
     if (fetchError) {
@@ -220,7 +282,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     if (!isCreator) {
       // Check admin access
       const { data: membership } = await supabaseAny
-        .from('project_members')
+        .from('project_memberships')
         .select('role')
         .eq('project_id', project.id)
         .eq('user_id', user.id)

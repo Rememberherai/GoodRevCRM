@@ -30,7 +30,13 @@ export async function GET(request: Request) {
     // Handle OAuth errors from Google
     if (error) {
       console.error('Gmail OAuth error:', error);
-      return NextResponse.redirect(`${appUrl}${redirectPath}?gmail_error=${encodeURIComponent(error)}`);
+      const KNOWN_ERRORS: Record<string, string> = {
+        access_denied: 'access_denied',
+        invalid_scope: 'invalid_scope',
+        server_error: 'server_error',
+      };
+      const safeError = KNOWN_ERRORS[error] ?? 'oauth_error';
+      return NextResponse.redirect(`${appUrl}${redirectPath}?gmail_error=${safeError}`);
     }
 
     if (!code || !stateParam) {
@@ -73,7 +79,7 @@ export async function GET(request: Request) {
 
       const { data: existingConnection } = await supabaseAny
         .from('gmail_connections')
-        .select('id')
+        .select('id, refresh_token')
         .eq('user_id', user.id)
         .eq('email', profile.email)
         .single();
@@ -82,7 +88,7 @@ export async function GET(request: Request) {
         user_id: user.id,
         email: profile.email,
         access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token ?? '',
+        refresh_token: tokens.refresh_token || existingConnection?.refresh_token || '',
         token_expires_at: calculateTokenExpiry(tokens.expires_in),
         status: 'connected',
         updated_at: new Date().toISOString(),

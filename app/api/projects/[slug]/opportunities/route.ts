@@ -39,8 +39,10 @@ export async function GET(request: Request, context: RouteContext) {
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') ?? '1', 10);
-    const limit = parseInt(searchParams.get('limit') ?? '50', 10);
+    const rawPage = parseInt(searchParams.get('page') ?? '1', 10);
+    const rawLimit = parseInt(searchParams.get('limit') ?? '50', 10);
+    const page = Math.max(isNaN(rawPage) ? 1 : rawPage, 1);
+    const limit = Math.min(Math.max(isNaN(rawLimit) ? 50 : rawLimit, 1), 200);
     const search = searchParams.get('search') ?? '';
     const sortBy = searchParams.get('sortBy') ?? 'created_at';
     const sortOrder = searchParams.get('sortOrder') ?? 'desc';
@@ -59,7 +61,8 @@ export async function GET(request: Request, context: RouteContext) {
 
     // Apply search filter
     if (search) {
-      query = query.or(`name.ilike.%${search}%,description.ilike.%${search}%`);
+      const sanitized = search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""');
+      query = query.or(`name.ilike."%${sanitized}%",description.ilike."%${sanitized}%"`);
     }
 
     // Apply stage filter
@@ -78,8 +81,13 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     // Apply sorting
+    const ALLOWED_SORT_COLUMNS = ['created_at', 'updated_at', 'name', 'stage', 'amount', 'expected_close_date', 'probability'];
     const ascending = sortOrder === 'asc';
-    query = query.order(sortBy, { ascending });
+    if (ALLOWED_SORT_COLUMNS.includes(sortBy)) {
+      query = query.order(sortBy, { ascending });
+    } else {
+      query = query.order('created_at', { ascending });
+    }
 
     // Apply pagination
     query = query.range(offset, offset + limit - 1);
@@ -140,6 +148,32 @@ export async function POST(request: Request, context: RouteContext) {
         { error: 'Validation failed', details: validationResult.error.flatten() },
         { status: 400 }
       );
+    }
+
+    if (validationResult.data.organization_id) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('id', validationResult.data.organization_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!org) {
+        return NextResponse.json({ error: 'Organization not found in this project' }, { status: 400 });
+      }
+    }
+
+    if (validationResult.data.primary_contact_id) {
+      const { data: contact } = await supabase
+        .from('people')
+        .select('id')
+        .eq('id', validationResult.data.primary_contact_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!contact) {
+        return NextResponse.json({ error: 'Primary contact not found in this project' }, { status: 400 });
+      }
     }
 
     const oppData: OpportunityInsert = {

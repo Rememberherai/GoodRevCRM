@@ -24,8 +24,8 @@ const entityTypes = ['organization', 'person', 'opportunity', 'rfp'] as const;
 
 // Select option schema
 const selectOptionSchema = z.object({
-  value: z.string().min(1, 'Option value is required'),
-  label: z.string().min(1, 'Option label is required'),
+  value: z.string().min(1, 'Option value is required').max(100, 'Option value must be 100 characters or less'),
+  label: z.string().min(1, 'Option label is required').max(100, 'Option label must be 100 characters or less'),
   color: z.string().optional(),
 });
 
@@ -35,8 +35,14 @@ const validationRulesSchema = z.object({
   maxLength: z.number().int().min(1).optional(),
   min: z.number().optional(),
   max: z.number().optional(),
-  pattern: z.string().optional(),
-  patternMessage: z.string().optional(),
+  pattern: z.string().max(500, 'Pattern must be 500 characters or less').optional().refine(
+    (val) => {
+      if (!val) return true;
+      try { new RegExp(val); return true; } catch { return false; }
+    },
+    { message: 'Pattern must be a valid regular expression' }
+  ),
+  patternMessage: z.string().max(500, 'Pattern message must be 500 characters or less').optional(),
 }).optional();
 
 // Field name validation - must be snake_case and not conflict with system fields
@@ -150,7 +156,7 @@ export const customFieldDefinitionSchema = z.object({
   is_visible_in_list: z.boolean(),
   display_order: z.number().int().min(0),
   group_name: z.string().max(100).nullable(),
-  options: z.array(selectOptionSchema),
+  options: z.array(selectOptionSchema).max(500, 'Maximum 500 options allowed'),
   default_value: z.any().nullable(),
   validation_rules: validationRulesSchema,
   // AI extraction settings
@@ -227,7 +233,7 @@ export const updateCustomFieldDefinitionSchema = z.object({
   is_visible_in_list: z.boolean().optional(),
   display_order: z.number().int().min(0).optional(),
   group_name: z.string().max(100).nullable().optional(),
-  options: z.array(selectOptionSchema).optional(),
+  options: z.array(selectOptionSchema).max(500, 'Maximum 500 options allowed').optional(),
   default_value: z.any().nullable().optional(),
   validation_rules: validationRulesSchema,
   // AI extraction settings

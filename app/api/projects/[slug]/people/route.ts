@@ -39,8 +39,10 @@ export async function GET(request: Request, context: RouteContext) {
 
     // Parse query parameters
     const { searchParams } = new URL(request.url);
-    const page = parseInt(searchParams.get('page') ?? '1', 10);
-    const limit = parseInt(searchParams.get('limit') ?? '50', 10);
+    const rawPage = parseInt(searchParams.get('page') ?? '1', 10);
+    const rawLimit = parseInt(searchParams.get('limit') ?? '50', 10);
+    const page = Math.max(isNaN(rawPage) ? 1 : rawPage, 1);
+    const limit = Math.min(Math.max(isNaN(rawLimit) ? 50 : rawLimit, 1), 100);
     const search = searchParams.get('search') ?? '';
     const sortBy = searchParams.get('sortBy') ?? 'created_at';
     const sortOrder = searchParams.get('sortOrder') ?? 'desc';
@@ -57,8 +59,9 @@ export async function GET(request: Request, context: RouteContext) {
 
     // Apply search filter
     if (search) {
+      const sanitized = search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""');
       query = query.or(
-        `first_name.ilike.%${search}%,last_name.ilike.%${search}%,email.ilike.%${search}%,job_title.ilike.%${search}%`
+        `first_name.ilike."%${sanitized}%",last_name.ilike."%${sanitized}%",email.ilike."%${sanitized}%",job_title.ilike."%${sanitized}%"`
       );
     }
 
@@ -67,7 +70,8 @@ export async function GET(request: Request, context: RouteContext) {
       const { data: personIds } = await supabase
         .from('person_organizations')
         .select('person_id')
-        .eq('organization_id', organizationId);
+        .eq('organization_id', organizationId)
+        .eq('project_id', project.id);
 
       if (personIds && personIds.length > 0) {
         query = query.in(
@@ -84,8 +88,13 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     // Apply sorting
+    const ALLOWED_SORT_COLUMNS = ['first_name', 'last_name', 'email', 'created_at', 'updated_at', 'job_title'];
     const ascending = sortOrder === 'asc';
-    query = query.order(sortBy, { ascending });
+    if (ALLOWED_SORT_COLUMNS.includes(sortBy)) {
+      query = query.order(sortBy, { ascending });
+    } else {
+      query = query.order('created_at', { ascending });
+    }
 
     // Apply pagination
     query = query.range(offset, offset + limit - 1);
@@ -168,19 +177,27 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     // If organization_id is provided, create the person-organization link
-    if (organization_id && person) {
-      const { error: linkError } = await supabase
-        .from('person_organizations')
-        .insert({
-          person_id: (person as Person).id,
-          organization_id: organization_id as string,
-          project_id: project.id,
-          is_primary: true,
-        });
+    if (organization_id && typeof organization_id === 'string' && person) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('id', organization_id)
+        .eq('project_id', project.id)
+        .single();
 
-      if (linkError) {
-        console.error('Error linking person to organization:', linkError);
-        // Don't fail the request, person was created successfully
+      if (org) {
+        const { error: linkError } = await supabase
+          .from('person_organizations')
+          .insert({
+            person_id: (person as Person).id,
+            organization_id: organization_id,
+            project_id: project.id,
+            is_primary: true,
+          });
+
+        if (linkError) {
+          console.error('Error linking person to organization:', linkError);
+        }
       }
     }
 

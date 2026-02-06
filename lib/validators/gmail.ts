@@ -9,8 +9,8 @@ export const sendEmailSchema = z.object({
   cc: z.array(z.string().email('Invalid CC email')).optional(),
   bcc: z.array(z.string().email('Invalid BCC email')).optional(),
   subject: z.string().min(1, 'Subject is required').max(998, 'Subject too long'),
-  body_html: z.string().min(1, 'Email body is required'),
-  body_text: z.string().optional(),
+  body_html: z.string().min(1, 'Email body is required').max(100000, 'Email body too long'),
+  body_text: z.string().max(50000, 'Email text too long').optional(),
   reply_to_message_id: z.string().optional(),
   thread_id: z.string().optional(),
   // Entity associations

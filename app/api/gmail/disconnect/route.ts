@@ -58,7 +58,8 @@ export async function POST(request: Request) {
     const { error: deleteError } = await supabaseAny
       .from('gmail_connections')
       .delete()
-      .eq('id', connection_id);
+      .eq('id', connection_id)
+      .eq('user_id', user.id);
 
     if (deleteError) {
       console.error('Error deleting Gmail connection:', deleteError);

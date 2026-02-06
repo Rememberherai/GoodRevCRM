@@ -50,6 +50,18 @@ export async function GET(request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
+    // Verify sequence belongs to this project
+    const { data: sequence } = await supabaseAny
+      .from('sequences')
+      .select('id')
+      .eq('id', id)
+      .eq('project_id', project.id)
+      .single();
+
+    if (!sequence) {
+      return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
+    }
+
     let query = supabaseAny
       .from('sequence_enrollments')
       .select(`
@@ -160,6 +172,22 @@ export async function POST(request: Request, context: RouteContext) {
     if (!connection) {
       return NextResponse.json(
         { error: 'Gmail connection not found or inactive' },
+        { status: 400 }
+      );
+    }
+
+    // Verify all person_ids belong to this project
+    const { data: validPeople } = await supabaseAny
+      .from('people')
+      .select('id')
+      .in('id', personIds)
+      .eq('project_id', project.id);
+
+    const validPersonIds = new Set((validPeople ?? []).map((p: { id: string }) => p.id));
+    const invalidIds = personIds.filter((pid) => !validPersonIds.has(pid));
+    if (invalidIds.length > 0) {
+      return NextResponse.json(
+        { error: 'One or more person IDs do not belong to this project' },
         { status: 400 }
       );
     }

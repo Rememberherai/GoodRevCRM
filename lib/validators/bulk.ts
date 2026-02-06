@@ -20,25 +20,29 @@ export const bulkOperationSchema = z.object({
   entity_type: z.enum(bulkEntityTypes),
   entity_ids: z.array(z.string().uuid()).min(1).max(100),
   operation: z.enum(bulkOperations),
-  data: z.record(z.string(), z.unknown()).optional(),
+  data: z.record(z.string().max(100), z.union([z.string().max(10000), z.number(), z.boolean(), z.null(), z.undefined()])).optional(),
 });
 
 export type BulkOperationInput = z.infer<typeof bulkOperationSchema>;
 
+// Status enums for bulk operations
+const personStatuses = ['new', 'contacted', 'qualified', 'unqualified', 'active', 'inactive'] as const;
+const organizationStatuses = ['prospect', 'customer', 'partner', 'vendor', 'inactive'] as const;
+const opportunityStages = ['prospecting', 'qualification', 'proposal', 'negotiation', 'closed_won', 'closed_lost'] as const;
+
 // Bulk update schemas for each entity type
 export const bulkPersonUpdateSchema = z.object({
-  status: z.string().optional(),
+  status: z.enum(personStatuses).optional(),
   owner_id: z.string().uuid().optional(),
 });
 
 export const bulkOrganizationUpdateSchema = z.object({
-  status: z.string().optional(),
+  status: z.enum(organizationStatuses).optional(),
   owner_id: z.string().uuid().optional(),
 });
 
 export const bulkOpportunityUpdateSchema = z.object({
-  stage: z.string().optional(),
-  status: z.string().optional(),
+  stage: z.enum(opportunityStages).optional(),
   owner_id: z.string().uuid().optional(),
 });
 

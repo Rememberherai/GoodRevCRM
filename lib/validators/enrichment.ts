@@ -17,15 +17,35 @@ export const bulkEnrichSchema = z.object({
 
 export type BulkEnrichInput = z.infer<typeof bulkEnrichSchema>;
 
+// Allowed field names for enrichment updates
+const ENRICHMENT_ALLOWED_FIELDS = [
+  'email',
+  'phone',
+  'linkedin_url',
+  'job_title',
+  'company',
+  'headline',
+  'first_name',
+  'last_name',
+  'full_name',
+  'location_city',
+  'location_state',
+  'location_country',
+  'personal_email',
+  'work_email',
+] as const;
+
 // Schema for applying enrichment results
 export const applyEnrichmentSchema = z.object({
   job_id: z.string().uuid('Invalid job ID'),
   field_updates: z.array(
     z.object({
-      field_name: z.string().min(1, 'Field name is required'),
-      value: z.unknown(),
+      field_name: z.enum(ENRICHMENT_ALLOWED_FIELDS, {
+        message: 'Invalid enrichment field name',
+      }),
+      value: z.union([z.string().max(10000), z.number(), z.boolean(), z.null()]),
     })
-  ),
+  ).max(50, 'Maximum 50 field updates per request'),
 });
 
 export type ApplyEnrichmentInput = z.infer<typeof applyEnrichmentSchema>;
@@ -85,7 +105,8 @@ const enrichmentRecordSchema = z.object({
   error: z.string().nullable().optional(),
 });
 
-export const enrichmentWebhookSchema = z.object({
+// V1 webhook schema (FullEnrich native format)
+const v1WebhookSchema = z.object({
   enrichment_id: z.string().optional(),
   id: z.string().optional(),
   name: z.string().optional(),
@@ -96,6 +117,35 @@ export const enrichmentWebhookSchema = z.object({
   datas: z.array(enrichmentRecordSchema).optional(),
   error: z.string().optional(),
 });
+
+// Simplified webhook result schema for internal/test use
+const webhookResultSchema = z.object({
+  email: z.string().optional(),
+  first_name: z.string().optional(),
+  last_name: z.string().optional(),
+  job_title: z.string().optional(),
+  linkedin_url: z.string().optional(),
+  phone: z.string().optional(),
+  location: z.object({
+    city: z.string().optional(),
+    state: z.string().optional(),
+    country: z.string().optional(),
+  }).optional(),
+  confidence_score: z.number().optional(),
+  error: z.string().optional(),
+});
+
+// Simplified webhook schema for internal/test use
+const simplifiedWebhookSchema = z.object({
+  job_id: z.string(),
+  status: z.enum(['completed', 'failed'] as const),
+  results: z.array(webhookResultSchema).optional(),
+  error: z.string().optional(),
+  credits_used: z.number().optional(),
+});
+
+// Union of both webhook formats
+export const enrichmentWebhookSchema = z.union([v1WebhookSchema, simplifiedWebhookSchema]);
 
 export type EnrichmentWebhookPayload = z.infer<typeof enrichmentWebhookSchema>;
 export type EnrichmentRecord = z.infer<typeof enrichmentRecordSchema>;

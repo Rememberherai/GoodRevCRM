@@ -9,6 +9,14 @@ export const opportunityStages = [
   'closed_lost',
 ] as const;
 
+const MAX_CUSTOM_FIELD_KEYS = 50;
+const customFieldValueSchema = z.union([
+  z.string().max(1000),
+  z.number(),
+  z.boolean(),
+  z.null(),
+]);
+
 export const opportunitySchema = z.object({
   name: z
     .string()
@@ -23,6 +31,7 @@ export const opportunitySchema = z.object({
   amount: z
     .number()
     .min(0, 'Amount must be positive')
+    .max(999999999999, 'Amount exceeds maximum value')
     .nullable()
     .optional(),
   currency: z
@@ -37,10 +46,12 @@ export const opportunitySchema = z.object({
     .optional(),
   expected_close_date: z
     .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Expected close date must be in YYYY-MM-DD format')
     .nullable()
     .optional(),
   actual_close_date: z
     .string()
+    .regex(/^\d{4}-\d{2}-\d{2}$/, 'Actual close date must be in YYYY-MM-DD format')
     .nullable()
     .optional(),
   organization_id: z
@@ -83,7 +94,12 @@ export const opportunitySchema = z.object({
     .max(100, 'Campaign must be 100 characters or less')
     .nullable()
     .optional(),
-  custom_fields: z.record(z.string(), z.unknown()).optional(),
+  custom_fields: z
+    .record(z.string(), customFieldValueSchema)
+    .refine((obj) => Object.keys(obj).length <= MAX_CUSTOM_FIELD_KEYS, {
+      message: `Custom fields cannot exceed ${MAX_CUSTOM_FIELD_KEYS} keys`,
+    })
+    .optional(),
 });
 
 export const createOpportunitySchema = opportunitySchema;

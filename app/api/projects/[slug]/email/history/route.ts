@@ -104,7 +104,7 @@ export async function GET(request: Request, context: RouteContext) {
     if (emailIds.length > 0) {
       const { data: trackingStats } = await supabaseAny
         .from('email_tracking_stats')
-        .select('*')
+        .select('sent_email_id, opens, unique_opens, clicks, unique_clicks, replies, bounces')
         .in('sent_email_id', emailIds);
 
       stats = trackingStats ?? [];

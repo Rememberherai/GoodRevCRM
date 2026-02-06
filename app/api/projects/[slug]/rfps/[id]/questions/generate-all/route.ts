@@ -73,7 +73,8 @@ export async function POST(request: Request, context: RouteContext) {
 
     const rfp = rfpData as RfpRow & { organizations: any };
 
-    // Get all unanswered questions
+    // Get unanswered questions (limited to 20 to cap AI API costs)
+    const MAX_QUESTIONS_PER_CALL = 20;
     const { data: questionsData, error: questionsError } = await supabase
       .from('rfp_questions')
       .select('*')
@@ -81,7 +82,8 @@ export async function POST(request: Request, context: RouteContext) {
       .eq('project_id', project.id)
       .eq('status', 'unanswered')
       .is('deleted_at', null)
-      .order('sort_order', { ascending: true });
+      .order('sort_order', { ascending: true })
+      .limit(MAX_QUESTIONS_PER_CALL);
 
     if (questionsError) {
       return NextResponse.json({ error: 'Failed to fetch questions' }, { status: 500 });

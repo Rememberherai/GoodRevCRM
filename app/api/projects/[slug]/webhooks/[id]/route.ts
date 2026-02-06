@@ -36,7 +36,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const { data: webhook, error } = await supabaseAny
       .from('webhooks')
-      .select('*')
+      .select('id, name, url, events, headers, is_active, retry_count, timeout_ms, created_at, updated_at, created_by')
       .eq('id', id)
       .eq('project_id', project.id)
       .single();
@@ -108,7 +108,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     // Check admin permissions
     const { data: membership } = await supabaseAny
-      .from('project_members')
+      .from('project_memberships')
       .select('role')
       .eq('project_id', project.id)
       .eq('user_id', user.id)
@@ -185,7 +185,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     // Check admin permissions
     const { data: membership } = await supabaseAny
-      .from('project_members')
+      .from('project_memberships')
       .select('role')
       .eq('project_id', project.id)
       .eq('user_id', user.id)

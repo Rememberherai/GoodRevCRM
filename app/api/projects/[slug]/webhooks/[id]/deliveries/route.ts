@@ -65,7 +65,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     let query = supabaseAny
       .from('webhook_deliveries')
-      .select('*')
+      .select('id, webhook_id, event_type, status, response_status, payload, response_body, duration_ms, attempt_number, error_message, delivered_at, created_at')
       .eq('webhook_id', id);
 
     if (status) query = query.eq('status', status);

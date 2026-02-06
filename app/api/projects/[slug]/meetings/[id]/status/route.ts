@@ -159,6 +159,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       .from('meetings')
       .select(MEETING_SELECT)
       .eq('id', id)
+      .eq('project_id', project.id)
       .single();
 
     if (fullFetchError) {

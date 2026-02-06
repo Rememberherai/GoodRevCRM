@@ -72,11 +72,11 @@ export const createActivitySchema = z.object({
   entity_type: z.enum(activityEntityTypes),
   entity_id: z.string().uuid(),
   action: z.enum(activityActions),
-  changes: z.record(z.string(), z.object({
+  changes: z.record(z.string().max(100), z.object({
     old: z.unknown(),
     new: z.unknown(),
-  })).optional().default({}),
-  metadata: z.record(z.string(), z.unknown()).optional().default({}),
+  })).refine(obj => Object.keys(obj).length <= 50, { message: 'Too many change entries (max 50)' }).optional().default({}),
+  metadata: z.record(z.string().max(100), z.unknown()).refine(obj => Object.keys(obj).length <= 50, { message: 'Too many metadata entries (max 50)' }).optional().default({}),
 });
 
 export type CreateActivityInput = z.infer<typeof createActivitySchema>;

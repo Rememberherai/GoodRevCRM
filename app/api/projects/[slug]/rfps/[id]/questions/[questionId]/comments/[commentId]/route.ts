@@ -8,7 +8,7 @@ interface RouteContext {
 // DELETE /api/projects/[slug]/rfps/[id]/questions/[questionId]/comments/[commentId]
 export async function DELETE(_request: Request, context: RouteContext) {
   try {
-    const { commentId } = await context.params;
+    const { slug, id: rfpId, questionId, commentId } = await context.params;
     const supabase = await createClient();
 
     const {
@@ -19,11 +19,26 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    // Soft-delete the comment (RLS ensures only own comments)
+    // Resolve project from slug
+    const { data: project } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('slug', slug)
+      .is('deleted_at', null)
+      .single();
+
+    if (!project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    // Soft-delete the comment scoped to project/RFP/question
     const { error } = await supabase
       .from('rfp_question_comments')
       .update({ deleted_at: new Date().toISOString() })
       .eq('id', commentId)
+      .eq('project_id', project.id)
+      .eq('rfp_id', rfpId)
+      .eq('question_id', questionId)
       .eq('created_by', user.id);
 
     if (error) {

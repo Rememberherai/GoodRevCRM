@@ -157,7 +157,8 @@ describe('Bulk Operation Validators', () => {
 
   describe('bulkOrganizationUpdateSchema', () => {
     it('should validate status update', () => {
-      const input = { status: 'active' };
+      // Valid organization statuses: prospect, customer, partner, vendor, inactive
+      const input = { status: 'customer' };
       const result = bulkOrganizationUpdateSchema.safeParse(input);
       expect(result.success).toBe(true);
     });
@@ -166,6 +167,19 @@ describe('Bulk Operation Validators', () => {
       const input = { owner_id: '123e4567-e89b-12d3-a456-426614174000' };
       const result = bulkOrganizationUpdateSchema.safeParse(input);
       expect(result.success).toBe(true);
+    });
+
+    it('should accept all valid organization statuses', () => {
+      const statuses = ['prospect', 'customer', 'partner', 'vendor', 'inactive'];
+      for (const status of statuses) {
+        const result = bulkOrganizationUpdateSchema.safeParse({ status });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should reject invalid organization status', () => {
+      const result = bulkOrganizationUpdateSchema.safeParse({ status: 'active' });
+      expect(result.success).toBe(false);
     });
   });
 
@@ -177,13 +191,33 @@ describe('Bulk Operation Validators', () => {
     });
 
     it('should validate combined updates', () => {
+      // Note: opportunities use 'stage' not 'status' - there is no status field
       const input = {
         stage: 'closed_won',
-        status: 'active',
         owner_id: '123e4567-e89b-12d3-a456-426614174000',
       };
       const result = bulkOpportunityUpdateSchema.safeParse(input);
       expect(result.success).toBe(true);
+    });
+
+    it('should accept all valid opportunity stages', () => {
+      const stages = [
+        'prospecting',
+        'qualification',
+        'proposal',
+        'negotiation',
+        'closed_won',
+        'closed_lost',
+      ];
+      for (const stage of stages) {
+        const result = bulkOpportunityUpdateSchema.safeParse({ stage });
+        expect(result.success).toBe(true);
+      }
+    });
+
+    it('should reject invalid stages', () => {
+      const result = bulkOpportunityUpdateSchema.safeParse({ stage: 'invalid' });
+      expect(result.success).toBe(false);
     });
   });
 

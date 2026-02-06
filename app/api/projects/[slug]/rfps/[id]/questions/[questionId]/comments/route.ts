@@ -41,6 +41,7 @@ export async function GET(_request: Request, context: RouteContext) {
       `)
       .eq('question_id', questionId)
       .eq('rfp_id', rfpId)
+      .eq('project_id', project.id)
       .is('deleted_at', null)
       .order('created_at', { ascending: true });
 

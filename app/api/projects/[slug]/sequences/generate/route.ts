@@ -116,6 +116,32 @@ export async function POST(request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
+    // Validate organizationId belongs to this project if provided
+    if (input.organizationId) {
+      const { data: org } = await supabaseAny
+        .from('organizations')
+        .select('id')
+        .eq('id', input.organizationId)
+        .eq('project_id', project.id)
+        .single();
+      if (!org) {
+        return NextResponse.json({ error: 'Organization not found in this project' }, { status: 400 });
+      }
+    }
+
+    // Validate personId belongs to this project if provided
+    if (input.personId) {
+      const { data: person } = await supabaseAny
+        .from('people')
+        .select('id')
+        .eq('id', input.personId)
+        .eq('project_id', project.id)
+        .single();
+      if (!person) {
+        return NextResponse.json({ error: 'Person not found in this project' }, { status: 400 });
+      }
+    }
+
     // Create the sequence
     const { data: sequence, error: sequenceError } = await supabaseAny
       .from('sequences')
@@ -184,7 +210,7 @@ export async function POST(request: Request, context: RouteContext) {
   } catch (error) {
     console.error('Error in POST /api/projects/[slug]/sequences/generate:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

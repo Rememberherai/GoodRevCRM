@@ -1,5 +1,13 @@
 import { z } from 'zod';
 
+const MAX_CUSTOM_FIELD_KEYS = 50;
+const customFieldValueSchema = z.union([
+  z.string().max(1000),
+  z.number(),
+  z.boolean(),
+  z.null(),
+]);
+
 export const personSchema = z.object({
   first_name: z
     .string()
@@ -95,7 +103,12 @@ export const personSchema = z.object({
     .max(100, 'Country must be 100 characters or less')
     .nullable()
     .optional(),
-  custom_fields: z.record(z.string(), z.unknown()).optional(),
+  custom_fields: z
+    .record(z.string(), customFieldValueSchema)
+    .refine((obj) => Object.keys(obj).length <= MAX_CUSTOM_FIELD_KEYS, {
+      message: `Custom fields cannot exceed ${MAX_CUSTOM_FIELD_KEYS} keys`,
+    })
+    .optional(),
 });
 
 export const createPersonSchema = personSchema;

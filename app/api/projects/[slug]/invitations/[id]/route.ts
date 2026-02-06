@@ -35,7 +35,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     // Check if user is admin or owner
     const { data: membership } = await supabaseAny
-      .from('project_members')
+      .from('project_memberships')
       .select('role')
       .eq('project_id', project.id)
       .eq('user_id', user.id)

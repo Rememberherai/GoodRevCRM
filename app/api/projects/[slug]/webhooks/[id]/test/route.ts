@@ -2,6 +2,33 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { testWebhookSchema } from '@/lib/validators/webhook';
 
+const BLOCKED_HEADER_NAMES = new Set([
+  'host', 'transfer-encoding', 'content-length', 'connection',
+  'cookie', 'set-cookie', 'te', 'trailer', 'upgrade',
+]);
+
+function isPrivateUrl(urlString: string): boolean {
+  try {
+    const parsed = new URL(urlString);
+    const hostname = parsed.hostname;
+    if (hostname === 'localhost' || hostname === '::1') return true;
+    if (hostname.endsWith('.local') || hostname.endsWith('.internal')) return true;
+    const parts = hostname.split('.').map(Number);
+    if (parts.length === 4 && parts.every((p) => !isNaN(p))) {
+      const [a, b] = parts as [number, number, number, number];
+      if (a === 127) return true;
+      if (a === 10) return true;
+      if (a === 172 && b >= 16 && b <= 31) return true;
+      if (a === 192 && b === 168) return true;
+      if (a === 169 && b === 254) return true;
+      if (a === 0) return true;
+    }
+    return false;
+  } catch {
+    return true;
+  }
+}
+
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
 }
@@ -69,13 +96,29 @@ export async function POST(request: Request, context: RouteContext) {
       },
     };
 
-    // Build headers
+    if (isPrivateUrl(webhook.url)) {
+      return NextResponse.json(
+        { error: 'Webhook URL must not point to a private or internal address' },
+        { status: 400 }
+      );
+    }
+
+    // Build headers — filter out dangerous header names from custom headers
+    const safeCustomHeaders: Record<string, string> = {};
+    if (webhook.headers && typeof webhook.headers === 'object') {
+      for (const [key, value] of Object.entries(webhook.headers)) {
+        if (!BLOCKED_HEADER_NAMES.has(key.toLowerCase()) && typeof value === 'string') {
+          safeCustomHeaders[key] = value;
+        }
+      }
+    }
+
     const headers: Record<string, string> = {
       'Content-Type': 'application/json',
       'X-Webhook-Event': event_type,
       'X-Webhook-Delivery': 'test',
       'X-Webhook-Timestamp': testPayload.timestamp,
-      ...webhook.headers,
+      ...safeCustomHeaders,
     };
 
     // Add signature if secret is set
@@ -151,12 +194,17 @@ export async function POST(request: Request, context: RouteContext) {
       .select()
       .single();
 
+    const MAX_RESPONSE_BODY = 4096;
+    const truncatedBody = responseBody && responseBody.length > MAX_RESPONSE_BODY
+      ? responseBody.slice(0, MAX_RESPONSE_BODY) + '... (truncated)'
+      : responseBody;
+
     return NextResponse.json({
       success: responseStatus !== null && responseStatus >= 200 && responseStatus < 300,
       delivery,
       response: {
         status: responseStatus,
-        body: responseBody,
+        body: truncatedBody,
         duration_ms: durationMs,
       },
       error: errorMessage,

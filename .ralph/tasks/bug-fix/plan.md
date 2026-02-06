@@ -15,8 +15,8 @@
       "10.8",
       "10.9"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"ALREADY_FIXED": 8, "DEFERRED": 1}
   },
   {
     "id": 2,
@@ -32,8 +32,8 @@
       "11.6",
       "11.7"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "ALREADY_FIXED": 4, "DEFERRED": 2}
   },
   {
     "id": 3,
@@ -48,8 +48,8 @@
       "4.5",
       "4.6"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 4, "NOT_AN_ISSUE": 1, "DEFERRED": 1}
   },
   {
     "id": 4,
@@ -60,8 +60,8 @@
       "35.1",
       "35.22"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 2},
     "auto_defer": true
   },
   {
@@ -83,8 +83,8 @@
       "6.11",
       "6.12"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"ALREADY_FIXED": 10, "NOT_AN_ISSUE": 1, "DEFERRED": 1}
   },
   {
     "id": 6,
@@ -105,8 +105,8 @@
       "12.11",
       "12.12"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"ALREADY_FIXED": 7, "DEFERRED": 5}
   },
   {
     "id": 7,
@@ -122,8 +122,8 @@
       "5.6",
       "5.7"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"ALREADY_FIXED": 4, "DEFERRED": 3}
   },
   {
     "id": 8,
@@ -139,8 +139,8 @@
       "8.6",
       "8.7"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"ALREADY_FIXED": 3, "DEFERRED": 3, "FIXED": 1}
   },
   {
     "id": 9,
@@ -155,8 +155,8 @@
       "33.3",
       "33.5"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 6}
   },
   {
     "id": 10,
@@ -171,8 +171,8 @@
       "13.6",
       "13.7"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 4, "DEFERRED": 1, "NOT_AN_ISSUE": 1}
   },
   {
     "id": 11,
@@ -187,8 +187,8 @@
       "22.5",
       "22.7"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 4, "DEFERRED": 1, "NOT_AN_ISSUE": 1}
   },
   {
     "id": 12,
@@ -202,8 +202,8 @@
       "17.4",
       "17.5"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 5}
   },
   {
     "id": 13,
@@ -217,8 +217,8 @@
       "25.9",
       "35.5"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 5},
     "auto_defer": true
   },
   {
@@ -233,8 +233,8 @@
       "31.17",
       "31.18"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 3, "DEFERRED": 2}
   },
   {
     "id": 15,
@@ -248,8 +248,8 @@
       "34.15",
       "34.16"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 4, "DEFERRED": 1}
   },
   {
     "id": 16,
@@ -262,8 +262,8 @@
       "16.10",
       "16.12"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 2}
   },
   {
     "id": 17,
@@ -276,8 +276,8 @@
       "19.3",
       "19.4"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 4}
   },
   {
     "id": 18,
@@ -290,8 +290,8 @@
       "19.7",
       "19.8"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 3, "DEFERRED": 1}
   },
   {
     "id": 19,
@@ -304,8 +304,8 @@
       "26.5",
       "26.6"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 4}
   },
   {
     "id": 20,
@@ -318,8 +318,8 @@
       "28.6",
       "28.8"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "DEFERRED": 3}
   },
   {
     "id": 21,
@@ -332,8 +332,8 @@
       "32.8",
       "32.13"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 3, "DEFERRED": 1}
   },
   {
     "id": 22,
@@ -345,8 +345,8 @@
       "1.4",
       "1.5"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "DEFERRED": 2}
   },
   {
     "id": 23,
@@ -358,8 +358,8 @@
       "3.4",
       "3.5"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 3}
   },
   {
     "id": 24,
@@ -371,8 +371,8 @@
       "14.7",
       "14.10"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 1}
   },
   {
     "id": 25,
@@ -384,8 +384,8 @@
       "18.2",
       "18.3"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 3}
   },
   {
     "id": 26,
@@ -397,8 +397,8 @@
       "20.4",
       "20.6"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 1}
   },
   {
     "id": 27,
@@ -410,8 +410,8 @@
       "23.5",
       "23.11"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 1}
   },
   {
     "id": 28,
@@ -423,8 +423,8 @@
       "27.3",
       "27.7"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 3}
   },
   {
     "id": 29,
@@ -436,8 +436,8 @@
       "35.11",
       "35.12"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 3},
     "auto_defer": true
   },
   {
@@ -449,8 +449,8 @@
       "1.2",
       "1.3"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "DEFERRED": 1}
   },
   {
     "id": 31,
@@ -461,8 +461,8 @@
       "9.1",
       "9.2"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "ALREADY_FIXED": 1}
   },
   {
     "id": 32,
@@ -473,8 +473,8 @@
       "13.2",
       "14.8"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"DEFERRED": 2}
   },
   {
     "id": 33,
@@ -485,8 +485,8 @@
       "23.1",
       "23.2"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 34,
@@ -497,8 +497,8 @@
       "27.2",
       "27.10"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 35,
@@ -509,8 +509,8 @@
       "30.1",
       "30.2"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "DEFERRED": 1}
   },
   {
     "id": 36,
@@ -521,8 +521,8 @@
       "31.10",
       "31.11"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 37,
@@ -533,8 +533,8 @@
       "34.12",
       "34.14"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 38,
@@ -545,8 +545,8 @@
       "35.3",
       "35.4"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 2},
     "auto_defer": true
   },
   {
@@ -558,8 +558,8 @@
       "35.9",
       "35.10"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 2},
     "auto_defer": true
   },
   {
@@ -570,8 +570,8 @@
     "findings": [
       "2.1"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"DEFERRED": 1}
   },
   {
     "id": 41,
@@ -581,8 +581,8 @@
     "findings": [
       "20.7"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 42,
@@ -592,8 +592,8 @@
     "findings": [
       "20.12"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"DEFERRED": 1}
   },
   {
     "id": 43,
@@ -603,8 +603,8 @@
     "findings": [
       "31.1"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 44,
@@ -614,8 +614,8 @@
     "findings": [
       "31.12"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 45,
@@ -625,8 +625,8 @@
     "findings": [
       "33.10"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 46,
@@ -636,8 +636,8 @@
     "findings": [
       "33.11"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 47,
@@ -647,8 +647,8 @@
     "findings": [
       "35.6"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 1},
     "auto_defer": true
   },
   {
@@ -659,8 +659,8 @@
     "findings": [
       "35.7"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 1},
     "auto_defer": true
   },
   {
@@ -671,8 +671,8 @@
     "findings": [
       "35.8"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 1},
     "auto_defer": true
   },
   {
@@ -683,8 +683,8 @@
     "findings": [
       "35.18"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 1},
     "auto_defer": true
   },
   {
@@ -703,8 +703,8 @@
       "16.11",
       "16.13"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"ALREADY_FIXED": 5, "DEFERRED": 4}
   },
   {
     "id": 52,
@@ -719,8 +719,8 @@
       "15.9",
       "15.10"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"ALREADY_FIXED": 4, "DEFERRED": 2}
   },
   {
     "id": 53,
@@ -735,8 +735,8 @@
       "33.9",
       "33.21"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 4, "DEFERRED": 2}
   },
   {
     "id": 54,
@@ -750,8 +750,8 @@
       "7.4",
       "7.5"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "NOT_AN_ISSUE": 1, "DEFERRED": 3}
   },
   {
     "id": 55,
@@ -765,8 +765,8 @@
       "24.4",
       "24.5"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 5}
   },
   {
     "id": 56,
@@ -780,8 +780,8 @@
       "28.7",
       "28.11"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 3}
   },
   {
     "id": 57,
@@ -795,8 +795,8 @@
       "33.14",
       "33.15"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 3, "DEFERRED": 2}
   },
   {
     "id": 58,
@@ -809,8 +809,8 @@
       "14.5",
       "14.6"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 2}
   },
   {
     "id": 59,
@@ -823,8 +823,8 @@
       "23.8",
       "23.12"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 2}
   },
   {
     "id": 60,
@@ -837,8 +837,8 @@
       "26.11",
       "33.18"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 4}
   },
   {
     "id": 61,
@@ -851,8 +851,8 @@
       "32.3",
       "32.4"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "DEFERRED": 3}
   },
   {
     "id": 62,
@@ -864,8 +864,8 @@
       "3.3",
       "3.6"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 1}
   },
   {
     "id": 63,
@@ -877,8 +877,8 @@
       "15.5",
       "15.6"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 1}
   },
   {
     "id": 64,
@@ -890,8 +890,8 @@
       "18.5",
       "18.6"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 1}
   },
   {
     "id": 65,
@@ -903,8 +903,8 @@
       "18.8",
       "18.9"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 3}
   },
   {
     "id": 66,
@@ -916,8 +916,8 @@
       "18.11",
       "18.12"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "DEFERRED": 2}
   },
   {
     "id": 67,
@@ -929,8 +929,8 @@
       "19.10",
       "19.11"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 3}
   },
   {
     "id": 68,
@@ -942,8 +942,8 @@
       "21.2",
       "21.6"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 1}
   },
   {
     "id": 69,
@@ -955,8 +955,8 @@
       "22.9",
       "22.10"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 1}
   },
   {
     "id": 70,
@@ -968,8 +968,8 @@
       "27.8",
       "27.9"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "DEFERRED": 2}
   },
   {
     "id": 71,
@@ -981,8 +981,8 @@
       "29.2",
       "29.9"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 3}
   },
   {
     "id": 72,
@@ -994,8 +994,8 @@
       "29.6",
       "29.7"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 1}
   },
   {
     "id": 73,
@@ -1007,8 +1007,8 @@
       "30.6",
       "30.13"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 1}
   },
   {
     "id": 74,
@@ -1020,8 +1020,8 @@
       "32.12",
       "33.13"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 3}
   },
   {
     "id": 75,
@@ -1033,8 +1033,8 @@
       "33.8",
       "33.16"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "ALREADY_FIXED": 1}
   },
   {
     "id": 76,
@@ -1046,8 +1046,8 @@
       "34.5",
       "34.8"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "DEFERRED": 2}
   },
   {
     "id": 77,
@@ -1059,8 +1059,8 @@
       "34.7",
       "34.17"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 1}
   },
   {
     "id": 78,
@@ -1072,8 +1072,8 @@
       "34.13",
       "34.18"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "DEFERRED": 2}
   },
   {
     "id": 79,
@@ -1084,8 +1084,8 @@
       "17.6",
       "17.7"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 80,
@@ -1096,8 +1096,8 @@
       "18.13",
       "33.1"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"DEFERRED": 2}
   },
   {
     "id": 81,
@@ -1108,8 +1108,8 @@
       "20.1",
       "20.2"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 82,
@@ -1120,8 +1120,8 @@
       "20.5",
       "20.13"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 83,
@@ -1132,8 +1132,8 @@
       "20.15",
       "20.16"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "DEFERRED": 1}
   },
   {
     "id": 84,
@@ -1144,8 +1144,8 @@
       "22.6",
       "33.17"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 85,
@@ -1156,8 +1156,8 @@
       "26.1",
       "26.2"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 86,
@@ -1168,8 +1168,8 @@
       "26.7",
       "26.12"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "DEFERRED": 1}
   },
   {
     "id": 87,
@@ -1180,8 +1180,8 @@
       "29.5",
       "29.8"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "DEFERRED": 1}
   },
   {
     "id": 88,
@@ -1192,8 +1192,8 @@
       "30.3",
       "30.4"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1, "DEFERRED": 1}
   },
   {
     "id": 89,
@@ -1204,8 +1204,8 @@
       "31.7",
       "31.8"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 90,
@@ -1216,8 +1216,8 @@
       "31.19",
       "31.20"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 91,
@@ -1228,8 +1228,8 @@
       "32.5",
       "33.4"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 92,
@@ -1240,8 +1240,8 @@
       "33.12",
       "33.19"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 93,
@@ -1252,8 +1252,8 @@
       "35.15",
       "35.16"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 2},
     "auto_defer": true
   },
   {
@@ -1264,8 +1264,8 @@
     "findings": [
       "2.5"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"DEFERRED": 1}
   },
   {
     "id": 95,
@@ -1275,8 +1275,8 @@
     "findings": [
       "9.3"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 96,
@@ -1286,8 +1286,8 @@
     "findings": [
       "9.4"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 97,
@@ -1297,8 +1297,8 @@
     "findings": [
       "14.2"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 98,
@@ -1308,8 +1308,8 @@
     "findings": [
       "17.8"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 99,
@@ -1319,8 +1319,8 @@
     "findings": [
       "20.8"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 100,
@@ -1330,8 +1330,8 @@
     "findings": [
       "20.9"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 101,
@@ -1341,8 +1341,8 @@
     "findings": [
       "20.10"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 102,
@@ -1352,8 +1352,8 @@
     "findings": [
       "20.14"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 103,
@@ -1363,8 +1363,8 @@
     "findings": [
       "23.4"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"DEFERRED": 1}
   },
   {
     "id": 104,
@@ -1374,8 +1374,8 @@
     "findings": [
       "23.9"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 105,
@@ -1385,8 +1385,8 @@
     "findings": [
       "23.10"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 106,
@@ -1396,8 +1396,8 @@
     "findings": [
       "26.8"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 107,
@@ -1407,8 +1407,8 @@
     "findings": [
       "27.5"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 108,
@@ -1418,8 +1418,8 @@
     "findings": [
       "27.6"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 109,
@@ -1429,8 +1429,8 @@
     "findings": [
       "30.7"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 110,
@@ -1440,8 +1440,8 @@
     "findings": [
       "30.8"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 111,
@@ -1451,8 +1451,8 @@
     "findings": [
       "30.9"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 112,
@@ -1462,8 +1462,8 @@
     "findings": [
       "30.11"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 113,
@@ -1473,8 +1473,8 @@
     "findings": [
       "31.2"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 114,
@@ -1484,8 +1484,8 @@
     "findings": [
       "31.5"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 115,
@@ -1495,8 +1495,8 @@
     "findings": [
       "31.9"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 116,
@@ -1506,8 +1506,8 @@
     "findings": [
       "31.13"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 117,
@@ -1517,8 +1517,8 @@
     "findings": [
       "32.9"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 118,
@@ -1528,8 +1528,8 @@
     "findings": [
       "35.14"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 1},
     "auto_defer": true
   },
   {
@@ -1540,8 +1540,8 @@
     "findings": [
       "35.17"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 1},
     "auto_defer": true
   },
   {
@@ -1552,8 +1552,8 @@
     "findings": [
       "35.23"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 1},
     "auto_defer": true
   },
   {
@@ -1567,8 +1567,8 @@
       "21.5",
       "21.7"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2, "DEFERRED": 2}
   },
   {
     "id": 122,
@@ -1579,8 +1579,8 @@
       "15.7",
       "15.8"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 123,
@@ -1591,8 +1591,8 @@
       "32.10",
       "32.11"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 124,
@@ -1603,8 +1603,8 @@
       "34.9",
       "34.10"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 2}
   },
   {
     "id": 125,
@@ -1614,8 +1614,8 @@
     "findings": [
       "2.4"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 126,
@@ -1625,8 +1625,8 @@
     "findings": [
       "9.7"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"DEFERRED": 1}
   },
   {
     "id": 127,
@@ -1636,8 +1636,8 @@
     "findings": [
       "14.9"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 128,
@@ -1647,8 +1647,8 @@
     "findings": [
       "20.11"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 129,
@@ -1658,8 +1658,8 @@
     "findings": [
       "22.11"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 130,
@@ -1669,8 +1669,8 @@
     "findings": [
       "25.7"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"NOT_AN_ISSUE": 1}
   },
   {
     "id": 131,
@@ -1680,8 +1680,8 @@
     "findings": [
       "28.10"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 132,
@@ -1691,8 +1691,8 @@
     "findings": [
       "29.3"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 133,
@@ -1702,8 +1702,8 @@
     "findings": [
       "30.10"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"NOT_AN_ISSUE": 1}
   },
   {
     "id": 134,
@@ -1713,8 +1713,8 @@
     "findings": [
       "30.12"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 135,
@@ -1724,8 +1724,8 @@
     "findings": [
       "31.6"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"NOT_AN_ISSUE": 1}
   },
   {
     "id": 136,
@@ -1735,8 +1735,8 @@
     "findings": [
       "31.21"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 137,
@@ -1746,8 +1746,8 @@
     "findings": [
       "33.20"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"FIXED": 1}
   },
   {
     "id": 138,
@@ -1757,8 +1757,8 @@
     "findings": [
       "35.13"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 1},
     "auto_defer": true
   },
   {
@@ -1769,8 +1769,8 @@
     "findings": [
       "35.19"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 1},
     "auto_defer": true
   },
   {
@@ -1781,8 +1781,8 @@
     "findings": [
       "35.21"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 1},
     "auto_defer": true
   },
   {
@@ -1793,8 +1793,8 @@
     "findings": [
       "2.6"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"DEFERRED": 1}
   },
   {
     "id": 142,
@@ -1804,8 +1804,8 @@
     "findings": [
       "28.9"
     ],
-    "passes": false,
-    "status_counts": {}
+    "passes": true,
+    "status_counts": {"DEFERRED": 1}
   },
   {
     "id": 143,
@@ -1815,8 +1815,15 @@
     "findings": [
       "35.20"
     ],
-    "passes": false,
-    "status_counts": {},
+    "passes": true,
+    "status_counts": {"DEFERRED": 1},
     "auto_defer": true
+  }
+,
+  {
+    "category": "audit-pass",
+    "description": "Pass 1: Verification pass 1 of 2",
+    "passes": true,
+    "notes": "Build passes. Spot-checked 5 critical fixes (cron secret fail-closed, search sanitization, pagination bounds, open redirect, click tracking). All verified intact."
   }
 ]

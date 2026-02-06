@@ -58,7 +58,7 @@ export async function GET(_request: Request, context: RouteContext) {
         .limit(5),
       supabase
         .from('opportunities')
-        .select('id, name, stage, value, created_at')
+        .select('id, name, stage, amount, created_at')
         .eq('project_id', project.id)
         .is('deleted_at', null)
         .order('created_at', { ascending: false })
@@ -76,7 +76,7 @@ export async function GET(_request: Request, context: RouteContext) {
       .from('tasks')
       .select('id, title, status, priority, due_date, assignee:users!tasks_assigned_to_fkey(id, full_name, avatar_url)')
       .eq('project_id', project.id)
-      .in('status', ['todo', 'in_progress'])
+      .in('status', ['pending', 'in_progress'])
       .not('due_date', 'is', null)
       .order('due_date', { ascending: true })
       .limit(10);
@@ -84,7 +84,7 @@ export async function GET(_request: Request, context: RouteContext) {
     // Get pipeline summary
     const { data: pipelineData } = await supabase
       .from('opportunities')
-      .select('stage, value')
+      .select('stage, amount')
       .eq('project_id', project.id)
       .is('deleted_at', null);
 
@@ -96,7 +96,7 @@ export async function GET(_request: Request, context: RouteContext) {
           acc[stage] = { count: 0, value: 0 };
         }
         acc[stage].count += 1;
-        acc[stage].value += opp.value || 0;
+        acc[stage].value += opp.amount || 0;
         return acc;
       },
       {} as Record<string, { count: number; value: number }>

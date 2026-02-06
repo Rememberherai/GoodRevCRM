@@ -6,6 +6,9 @@ interface RouteContext {
   params: Promise<{ slug: string; threadId: string }>;
 }
 
+const GMAIL_THREAD_ID_REGEX = /^[a-f0-9]+$/i;
+const MAX_THREAD_MESSAGES = 200;
+
 /**
  * GET /api/projects/[slug]/email/thread/[threadId]
  * Fetch all messages in an email thread (both inbound and outbound)
@@ -13,6 +16,11 @@ interface RouteContext {
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { slug, threadId } = await context.params;
+
+    if (!threadId || !GMAIL_THREAD_ID_REGEX.test(threadId)) {
+      return NextResponse.json({ error: 'Invalid thread ID format' }, { status: 400 });
+    }
+
     const supabase = await createClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -35,13 +43,15 @@ export async function GET(_request: Request, context: RouteContext) {
     // Fetch all messages in the thread
     const { data, error } = await supabase
       .from('emails')
-      .select('*')
+      .select('id, gmail_message_id, gmail_thread_id, direction, from_email, from_name, to_emails, cc_emails, subject, snippet, body_html, body_text, email_date, label_ids, attachments, person_id, organization_id, sent_email_id, created_at')
       .eq('project_id', project.id)
       .eq('gmail_thread_id', threadId)
-      .order('email_date', { ascending: true });
+      .order('email_date', { ascending: true })
+      .limit(MAX_THREAD_MESSAGES);
 
     if (error) {
-      return NextResponse.json({ error: error.message }, { status: 500 });
+      console.error('Failed to fetch thread:', error);
+      return NextResponse.json({ error: 'Failed to fetch thread' }, { status: 500 });
     }
 
     const messages = (data ?? []) as unknown as SyncedEmail[];
@@ -55,7 +65,7 @@ export async function GET(_request: Request, context: RouteContext) {
     if (sentEmailIds.length > 0) {
       const { data: stats } = await supabase
         .from('email_tracking_stats' as 'emails')
-        .select('*')
+        .select('sent_email_id, opens, unique_opens, clicks, unique_clicks, replies, bounces, first_open_at, last_open_at')
         .in('sent_email_id', sentEmailIds);
 
       if (stats) {
@@ -79,8 +89,9 @@ export async function GET(_request: Request, context: RouteContext) {
 
     return NextResponse.json(thread);
   } catch (error) {
+    console.error('Thread fetch error:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal error' },
+      { error: 'Internal error' },
       { status: 500 }
     );
   }

@@ -1,4 +1,4 @@
-import { createClient } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/supabase/admin';
 
 interface Person {
   id: string;
@@ -32,18 +32,8 @@ interface VariableContext {
   sender: User | null;
 }
 
-/**
- * Create admin client for fetching data
- */
-function createAdminClient() {
-  const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const supabaseServiceKey = process.env.SUPABASE_SERVICE_ROLE_KEY;
-
-  if (!supabaseUrl || !supabaseServiceKey) {
-    throw new Error('Missing Supabase credentials');
-  }
-
-  return createClient(supabaseUrl, supabaseServiceKey);
+function escapeHtml(s: string): string {
+  return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
 /**
@@ -174,6 +164,19 @@ export function substituteVariables(
 }
 
 /**
+ * Substitute variables with HTML-escaped values (for use in HTML contexts)
+ */
+export function substituteVariablesHtml(
+  template: string,
+  context: VariableContext
+): string {
+  return template.replace(/\{\{(\w+)\}\}/g, (match, variableName) => {
+    const value = getVariableValue(variableName, context);
+    return value ? escapeHtml(value) : match;
+  });
+}
+
+/**
  * Substitute variables in subject and body
  */
 export function substituteEmailContent(
@@ -184,7 +187,7 @@ export function substituteEmailContent(
 ): { subject: string; bodyHtml: string; bodyText: string } {
   return {
     subject: substituteVariables(subject, context),
-    bodyHtml: substituteVariables(bodyHtml, context),
+    bodyHtml: substituteVariablesHtml(bodyHtml, context),
     bodyText: bodyText ? substituteVariables(bodyText, context) : substituteVariables(bodyHtml, context).replace(/<[^>]+>/g, ''),
   };
 }

@@ -128,6 +128,74 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    const { assigned_to, person_id, organization_id, opportunity_id, rfp_id } = validationResult.data;
+
+    // Validate assigned_to is a project member
+    if (assigned_to) {
+      const { data: member } = await supabase
+        .from('project_memberships')
+        .select('id')
+        .eq('project_id', project.id)
+        .eq('user_id', assigned_to)
+        .single();
+      if (!member) {
+        return NextResponse.json(
+          { error: 'assigned_to must be a member of this project' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Validate referenced entities belong to the same project and not soft-deleted
+    if (person_id) {
+      const { data: person } = await supabase
+        .from('people')
+        .select('id')
+        .eq('id', person_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!person) {
+        return NextResponse.json({ error: 'person_id not found in this project' }, { status: 400 });
+      }
+    }
+    if (organization_id) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('id', organization_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!org) {
+        return NextResponse.json({ error: 'organization_id not found in this project' }, { status: 400 });
+      }
+    }
+    if (opportunity_id) {
+      const { data: opp } = await supabase
+        .from('opportunities')
+        .select('id')
+        .eq('id', opportunity_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!opp) {
+        return NextResponse.json({ error: 'opportunity_id not found in this project' }, { status: 400 });
+      }
+    }
+    if (rfp_id) {
+      const { data: rfpData } = await supabase
+        .from('rfps')
+        .select('id')
+        .eq('id', rfp_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!rfpData) {
+        return NextResponse.json({ error: 'rfp_id not found in this project' }, { status: 400 });
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 

@@ -8,6 +8,7 @@ type ContentLibraryInsert = Database['public']['Tables']['rfp_content_library'][
 
 const MAX_FILE_SIZE = 10 * 1024 * 1024; // 10MB
 const ALLOWED_TYPES = ['application/pdf', 'text/plain'];
+const PDF_MAGIC_BYTES = [0x25, 0x50, 0x44, 0x46]; // %PDF
 
 const extractedEntrySchema = z.object({
   title: z.string(),
@@ -87,6 +88,18 @@ export async function POST(request: Request, context: RouteContext) {
     console.log('[content-library/upload] pdf module imported successfully');
 
     const buffer = Buffer.from(await file.arrayBuffer());
+
+    // Validate actual file content matches claimed MIME type
+    if (file.type === 'application/pdf') {
+      const isPdf = PDF_MAGIC_BYTES.every((byte, i) => buffer[i] === byte);
+      if (!isPdf) {
+        return NextResponse.json(
+          { error: 'Invalid file content. File does not appear to be a valid PDF.' },
+          { status: 400 }
+        );
+      }
+    }
+
     let documentText: string;
 
     if (file.type === 'application/pdf') {
@@ -198,7 +211,7 @@ export async function POST(request: Request, context: RouteContext) {
   } catch (error) {
     console.error('[content-library/upload] Unhandled error:', error instanceof Error ? error.stack : error);
     return NextResponse.json(
-      { error: 'Failed to process file', debug: error instanceof Error ? error.message : String(error) },
+      { error: 'Failed to process file' },
       { status: 500 }
     );
   }

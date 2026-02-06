@@ -1,6 +1,6 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { pushSubscriptionSchema } from '@/lib/validators/notification';
+import { pushSubscriptionSchema, unsubscribeSchema } from '@/lib/validators/notification';
 
 // POST /api/notifications/push - Register push subscription
 export async function POST(request: NextRequest) {
@@ -28,6 +28,13 @@ export async function POST(request: NextRequest) {
     }
 
     const { endpoint, p256dh, auth, user_agent } = validationResult.data;
+
+    if (!endpoint.startsWith('https://')) {
+      return NextResponse.json(
+        { error: 'Push endpoint must use HTTPS' },
+        { status: 400 }
+      );
+    }
 
     // Upsert subscription
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
@@ -76,11 +83,16 @@ export async function DELETE(request: NextRequest) {
 
     // Get endpoint from body
     const body = await request.json();
-    const { endpoint } = body;
+    const validationResult = unsubscribeSchema.safeParse(body);
 
-    if (!endpoint) {
-      return NextResponse.json({ error: 'Endpoint is required' }, { status: 400 });
+    if (!validationResult.success) {
+      return NextResponse.json(
+        { error: 'Validation failed', details: validationResult.error.flatten() },
+        { status: 400 }
+      );
     }
+
+    const { endpoint } = validationResult.data;
 
     // Delete subscription
     // eslint-disable-next-line @typescript-eslint/no-explicit-any

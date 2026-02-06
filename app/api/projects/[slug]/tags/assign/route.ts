@@ -43,6 +43,33 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { tag_ids, entity_type, entity_ids } = validationResult.data;
 
+    const entityTableMap: Record<string, string> = {
+      person: 'people',
+      organization: 'organizations',
+      opportunity: 'opportunities',
+      task: 'tasks',
+    };
+    const tableName = entityTableMap[entity_type];
+    if (!tableName) {
+      return NextResponse.json({ error: 'Invalid entity type' }, { status: 400 });
+    }
+
+    const uniqueEntityIds = [...new Set(entity_ids)];
+    const softDeleteTypes = new Set(['person', 'organization', 'opportunity']);
+    let entityQuery = supabase
+      .from(tableName)
+      .select('id')
+      .in('id', uniqueEntityIds)
+      .eq('project_id', project.id);
+    if (softDeleteTypes.has(entity_type)) {
+      entityQuery = entityQuery.is('deleted_at', null);
+    }
+    const { data: validEntities } = await entityQuery;
+
+    if (!validEntities || validEntities.length !== uniqueEntityIds.length) {
+      return NextResponse.json({ error: 'Some entity IDs do not belong to this project' }, { status: 400 });
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
@@ -104,6 +131,33 @@ export async function DELETE(request: Request, context: RouteContext) {
     }
 
     const { tag_ids, entity_type, entity_ids } = validationResult.data;
+
+    const entityTableMap: Record<string, string> = {
+      person: 'people',
+      organization: 'organizations',
+      opportunity: 'opportunities',
+      task: 'tasks',
+    };
+    const tableName = entityTableMap[entity_type];
+    if (!tableName) {
+      return NextResponse.json({ error: 'Invalid entity type' }, { status: 400 });
+    }
+
+    const uniqueEntityIds = [...new Set(entity_ids)];
+    const softDeleteTypes = new Set(['person', 'organization', 'opportunity']);
+    let entityQuery = supabase
+      .from(tableName)
+      .select('id')
+      .in('id', uniqueEntityIds)
+      .eq('project_id', project.id);
+    if (softDeleteTypes.has(entity_type)) {
+      entityQuery = entityQuery.is('deleted_at', null);
+    }
+    const { data: validEntities } = await entityQuery;
+
+    if (!validEntities || validEntities.length !== uniqueEntityIds.length) {
+      return NextResponse.json({ error: 'Some entity IDs do not belong to this project' }, { status: 400 });
+    }
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;

@@ -52,6 +52,16 @@ export async function GET(_request: Request, context: RouteContext) {
   }
 }
 
+// Valid import job status transitions
+const VALID_STATUS_TRANSITIONS: Record<string, string[]> = {
+  pending: ['validating', 'cancelled'],
+  validating: ['processing', 'failed', 'cancelled'],
+  processing: ['completed', 'failed', 'cancelled'],
+  completed: [],
+  failed: [],
+  cancelled: [],
+};
+
 // PATCH /api/projects/[slug]/import/[id] - Update import job
 export async function PATCH(request: Request, context: RouteContext) {
   try {
@@ -90,6 +100,37 @@ export async function PATCH(request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
+    // Fetch current job to validate status transition and ownership
+    const { data: currentJob, error: fetchError } = await supabaseAny
+      .from('import_jobs')
+      .select('status, user_id')
+      .eq('id', id)
+      .eq('project_id', project.id)
+      .single();
+
+    if (fetchError || !currentJob) {
+      return NextResponse.json({ error: 'Import job not found' }, { status: 404 });
+    }
+
+    // Verify ownership - only job creator can update
+    if (currentJob.user_id !== user.id) {
+      return NextResponse.json({ error: 'Not authorized to update this import job' }, { status: 403 });
+    }
+
+    // Validate status transition if status is being updated
+    if (validationResult.data.status) {
+      const currentStatus = currentJob.status as string;
+      const newStatus = validationResult.data.status;
+      const allowedTransitions = VALID_STATUS_TRANSITIONS[currentStatus] || [];
+
+      if (!allowedTransitions.includes(newStatus)) {
+        return NextResponse.json(
+          { error: `Invalid status transition from '${currentStatus}' to '${newStatus}'` },
+          { status: 400 }
+        );
+      }
+    }
+
     // Build update object
     const updates: Record<string, unknown> = { ...validationResult.data };
 
@@ -110,6 +151,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       .update(updates)
       .eq('id', id)
       .eq('project_id', project.id)
+      .eq('user_id', user.id)
       .select()
       .single();
 

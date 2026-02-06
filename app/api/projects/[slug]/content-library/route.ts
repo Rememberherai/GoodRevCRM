@@ -36,7 +36,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     const url = new URL(request.url);
     const category = url.searchParams.get('category');
-    const search = url.searchParams.get('search');
+    const search = url.searchParams.get('search')?.slice(0, 500) || null;
 
     let query = supabase
       .from('rfp_content_library')

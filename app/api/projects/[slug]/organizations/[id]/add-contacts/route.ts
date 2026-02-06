@@ -80,9 +80,10 @@ export async function POST(request: Request, context: RouteContext) {
           .single();
 
         if (personError || !person) {
+          console.error('Error creating person:', personError);
           errors.push({
             contact,
-            error: personError?.message ?? 'Failed to create person',
+            error: 'Failed to create contact',
           });
           continue;
         }
@@ -98,15 +99,19 @@ export async function POST(request: Request, context: RouteContext) {
         });
 
         if (linkError) {
-          // Person was created but link failed - log but don't fail the whole request
           console.error('Error linking person to organization:', linkError);
+          errors.push({
+            contact,
+            error: 'Contact created but failed to link to organization',
+          });
         }
 
         createdPeople.push(person);
       } catch (err) {
+        console.error('Error processing contact:', err);
         errors.push({
           contact,
-          error: err instanceof Error ? err.message : 'Unknown error',
+          error: 'Failed to process contact',
         });
       }
     }

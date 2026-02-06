@@ -125,10 +125,10 @@ export class OpenRouterClient {
       } catch {
         errorBody = await response.text();
       }
+      console.error('[OpenRouter] API error:', response.status, errorBody);
       throw new OpenRouterError(
         `OpenRouter API error: ${response.status} ${response.statusText}`,
-        response.status,
-        errorBody
+        response.status
       );
     }
 

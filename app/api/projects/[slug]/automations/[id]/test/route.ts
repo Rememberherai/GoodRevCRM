@@ -59,7 +59,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { entity_type, entity_id } = validationResult.data;
 
-    const result = await dryRunAutomation(id, entity_type, entity_id);
+    const result = await dryRunAutomation(id, entity_type, entity_id, project.id);
 
     return NextResponse.json({
       test: true,
@@ -68,7 +68,7 @@ export async function POST(request: Request, context: RouteContext) {
   } catch (error) {
     console.error('Error in POST /api/projects/[slug]/automations/[id]/test:', error);
     return NextResponse.json(
-      { error: error instanceof Error ? error.message : 'Internal server error' },
+      { error: 'Internal server error' },
       { status: 500 }
     );
   }

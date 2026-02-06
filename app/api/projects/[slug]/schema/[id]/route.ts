@@ -81,6 +81,20 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    const { data: membership } = await supabase
+      .from('project_memberships')
+      .select('role')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membership || !['owner', 'admin'].includes(membership.role)) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions. Admin role required.' },
+        { status: 403 }
+      );
+    }
+
     // Check that the field exists
     const { data: existingField, error: fieldError } = await supabase
       .from('custom_field_definitions')
@@ -170,6 +184,20 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     if (projectError || !project) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    const { data: membership } = await supabase
+      .from('project_memberships')
+      .select('role')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membership || !['owner', 'admin'].includes(membership.role)) {
+      return NextResponse.json(
+        { error: 'Insufficient permissions. Admin role required.' },
+        { status: 403 }
+      );
     }
 
     // Get the field to be deleted (for entity type)

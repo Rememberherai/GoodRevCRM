@@ -33,7 +33,8 @@ export async function GET() {
     .order('created_at', { ascending: false });
 
   if (error) {
-    return NextResponse.json({ error: error.message }, { status: 500 });
+    console.error('Gmail sync status fetch error:', error.message);
+    return NextResponse.json({ error: 'Failed to fetch sync status' }, { status: 500 });
   }
 
   const connections = (data as unknown as ConnectionRow[]) ?? [];
@@ -46,7 +47,7 @@ export async function GET() {
       initial_sync_done: c.initial_sync_done ?? false,
       last_sync_at: c.last_sync_at,
       sync_errors_count: c.sync_errors_count ?? 0,
-      last_sync_error: c.last_sync_error,
+      last_sync_error: c.last_sync_error ? 'Sync error occurred' : null,
       watch_expiration: c.watch_expiration,
       status: c.status,
     })),

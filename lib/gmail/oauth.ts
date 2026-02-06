@@ -98,7 +98,8 @@ export async function exchangeCodeForTokens(code: string): Promise<GoogleOAuthTo
 
   if (!response.ok) {
     const error = await response.text();
-    throw new GmailOAuthError(`Failed to exchange code: ${error}`, 'token_exchange_failed', response.status);
+    console.error('Google token exchange error:', error);
+    throw new GmailOAuthError('Failed to exchange authorization code', 'token_exchange_failed', response.status);
   }
 
   const data = await response.json();
@@ -106,6 +107,15 @@ export async function exchangeCodeForTokens(code: string): Promise<GoogleOAuthTo
 
   if (!parsed.success) {
     throw new GmailOAuthError('Invalid token response from Google');
+  }
+
+  const grantedScopes = parsed.data.scope.split(' ');
+  const missingScopes = GMAIL_SCOPES.filter(s => !grantedScopes.includes(s));
+  if (missingScopes.length > 0) {
+    throw new GmailOAuthError(
+      `Missing required Gmail permissions: ${missingScopes.join(', ')}. Please reconnect and grant all requested permissions.`,
+      'insufficient_scopes'
+    );
   }
 
   return parsed.data;
@@ -132,7 +142,8 @@ export async function refreshAccessToken(refreshToken: string): Promise<GoogleOA
 
   if (!response.ok) {
     const error = await response.text();
-    throw new GmailOAuthError(`Failed to refresh token: ${error}`, 'token_refresh_failed', response.status);
+    console.error('Google token refresh error:', error);
+    throw new GmailOAuthError('Failed to refresh access token', 'token_refresh_failed', response.status);
   }
 
   const data = await response.json();
@@ -177,11 +188,12 @@ export async function getUserProfile(accessToken: string): Promise<GmailProfile>
  * Revoke an access token
  */
 export async function revokeToken(token: string): Promise<void> {
-  const response = await fetch(`https://oauth2.googleapis.com/revoke?token=${token}`, {
+  const response = await fetch('https://oauth2.googleapis.com/revoke', {
     method: 'POST',
     headers: {
       'Content-Type': 'application/x-www-form-urlencoded',
     },
+    body: new URLSearchParams({ token }),
   });
 
   if (!response.ok) {

@@ -29,7 +29,12 @@ export async function GET() {
       return NextResponse.json({ error: 'Failed to fetch connections' }, { status: 500 });
     }
 
-    return NextResponse.json({ connections: connections ?? [] });
+    const sanitized = (connections ?? []).map((c: any) => ({
+      ...c,
+      error_message: c.error_message ? 'Sync error occurred' : null,
+    }));
+
+    return NextResponse.json({ connections: sanitized });
   } catch (error) {
     console.error('Error in GET /api/gmail/connections:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -1,15 +1,14 @@
 import { NextResponse } from 'next/server';
+import { z } from 'zod';
 import { createClient } from '@/lib/supabase/server';
-import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createAdminClient } from '@/lib/gmail/service';
 import { registerWatch, stopWatch } from '@/lib/gmail/sync';
 import type { GmailConnection } from '@/types/gmail';
 
-function createAdminClient() {
-  return createSupabaseClient(
-    process.env.NEXT_PUBLIC_SUPABASE_URL!,
-    process.env.SUPABASE_SERVICE_ROLE_KEY!
-  );
-}
+const toggleSchema = z.object({
+  connection_id: z.string().uuid(),
+  enabled: z.boolean(),
+});
 
 /**
  * POST /api/gmail/sync/toggle
@@ -23,25 +22,36 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const body = await request.json();
-  const { connection_id, enabled } = body;
-
-  if (!connection_id || typeof enabled !== 'boolean') {
-    return NextResponse.json({ error: 'Missing connection_id or enabled' }, { status: 400 });
+  let body: unknown;
+  try {
+    body = await request.json();
+  } catch {
+    return NextResponse.json({ error: 'Invalid JSON body' }, { status: 400 });
   }
 
-  // Verify user owns this connection
-  const adminClient = createAdminClient();
-  const { data: connection, error: connError } = await adminClient
+  const parsed = toggleSchema.safeParse(body);
+  if (!parsed.success) {
+    return NextResponse.json({ error: 'Invalid request: connection_id (UUID) and enabled (boolean) required' }, { status: 400 });
+  }
+
+  const { connection_id, enabled } = parsed.data;
+
+  // Use type assertion since gmail_connections table isn't in generated types yet
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabaseAny = supabase as any;
+
+  // Verify user owns this connection using user-scoped client (RLS enforced)
+  const { data: connection, error: connError } = await supabaseAny
     .from('gmail_connections')
-    .select('*')
+    .select('id, user_id, email, access_token, refresh_token, token_expires_at, sync_enabled, history_id, watch_expiration')
     .eq('id', connection_id)
-    .eq('user_id', user.id)
     .single();
 
-  if (connError || !connection) {
+  if (connError || !connection || connection.user_id !== user.id) {
     return NextResponse.json({ error: 'Connection not found' }, { status: 404 });
   }
+
+  const adminClient = createAdminClient();
 
   if (enabled) {
     // Enable sync — register watch
@@ -64,8 +74,9 @@ export async function POST(request: Request) {
         watch_expiration: watchResult.expiration,
       });
     } catch (error) {
+      console.error('[Gmail Sync Toggle] registerWatch failed:', error);
       return NextResponse.json({
-        error: error instanceof Error ? error.message : 'Failed to register watch',
+        error: 'Failed to enable sync. Please try reconnecting your Gmail account.',
       }, { status: 500 });
     }
   } else {

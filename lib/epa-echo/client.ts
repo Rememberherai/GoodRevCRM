@@ -140,7 +140,7 @@ export class EPAEchoClient {
       throw new EPAEchoError(
         'Invalid response from EPA ECHO API',
         undefined,
-        { data, errors: parsed.error.flatten() }
+        'EPA data import failed'
       );
     }
 
@@ -217,6 +217,8 @@ export class EPAEchoClient {
     maxResults: number = 250,
     onProgress?: (fetched: number, total: number) => void
   ): Promise<EPAFacility[]> {
+    maxResults = Math.min(Math.max(maxResults, 1), 1000);
+
     // Step 1: Get QID
     const { qid, totalRows } = await this.queryFacilities(options);
 

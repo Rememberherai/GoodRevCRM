@@ -50,10 +50,12 @@ export async function GET(request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
+    const sanitizedQuery = query.replace(/[%_\\]/g, '\\$&');
+
     // Call the global_search function
     const { data: results, error } = await supabaseAny.rpc('global_search', {
       p_project_id: project.id,
-      p_search_query: query,
+      p_search_query: sanitizedQuery,
       p_types: types,
       p_limit: limit,
     });

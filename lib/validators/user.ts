@@ -38,7 +38,7 @@ export type UserSettingsInput = z.infer<typeof userSettingsSchema>;
 // Update profile schema
 export const updateProfileSchema = z.object({
   full_name: z.string().min(1).max(255).optional(),
-  avatar_url: z.string().url().nullable().optional(),
+  avatar_url: z.string().url().startsWith('https://', { message: 'Avatar URL must use HTTPS' }).nullable().optional(),
 });
 
 export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
@@ -46,7 +46,7 @@ export type UpdateProfileInput = z.infer<typeof updateProfileSchema>;
 // Member query schema
 export const memberQuerySchema = z.object({
   role: z.enum(projectRoles).optional(),
-  search: z.string().optional(),
+  search: z.string().max(200).optional(),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
   offset: z.coerce.number().min(0).optional().default(0),
 });

@@ -102,7 +102,20 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (updates.answer_html !== undefined) updateData.answer_html = updates.answer_html;
     if (updates.status !== undefined) updateData.status = updates.status;
     if (updates.priority !== undefined) updateData.priority = updates.priority;
-    if (updates.assigned_to !== undefined) updateData.assigned_to = updates.assigned_to;
+    if (updates.assigned_to !== undefined) {
+      if (updates.assigned_to !== null) {
+        const { data: member } = await supabase
+          .from('project_memberships')
+          .select('id')
+          .eq('project_id', project.id)
+          .eq('user_id', updates.assigned_to)
+          .single();
+        if (!member) {
+          return NextResponse.json({ error: 'Assigned user is not a project member' }, { status: 400 });
+        }
+      }
+      updateData.assigned_to = updates.assigned_to;
+    }
     if (updates.sort_order !== undefined) updateData.sort_order = updates.sort_order;
     if (updates.notes !== undefined) updateData.notes = updates.notes;
 

@@ -70,7 +70,8 @@ export async function GET(_request: Request, context: RouteContext) {
         )
       `
       )
-      .eq('person_id', id);
+      .eq('person_id', id)
+      .eq('project_id', project.id);
 
     // Get related counts
     const { count: oppsCount } = await supabase
@@ -222,16 +223,25 @@ export async function DELETE(_request: Request, context: RouteContext) {
     }
 
     // Soft delete by setting deleted_at
-    const { error } = await supabase
+    const { data: deletedPerson, error } = await supabase
       .from('people')
       .update({ deleted_at: new Date().toISOString() } as PersonUpdate)
       .eq('id', id)
       .eq('project_id', project.id)
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .select('id')
+      .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Person not found' }, { status: 404 });
+      }
       console.error('Error deleting person:', error);
       return NextResponse.json({ error: 'Failed to delete person' }, { status: 500 });
+    }
+
+    if (!deletedPerson) {
+      return NextResponse.json({ error: 'Person not found' }, { status: 404 });
     }
 
     // Emit automation event

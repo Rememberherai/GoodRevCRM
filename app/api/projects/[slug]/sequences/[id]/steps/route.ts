@@ -104,6 +104,13 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
     }
 
+    if (sequence.status === 'active') {
+      return NextResponse.json(
+        { error: 'Cannot modify steps while sequence is active. Pause the sequence first.' },
+        { status: 409 }
+      );
+    }
+
     const body = await request.json();
     const validationResult = createStepSchema.safeParse(body);
 

@@ -1,5 +1,8 @@
 import { z } from 'zod';
 
+const isoDateRegex = /^\d{4}-\d{2}-\d{2}(T\d{2}:\d{2}(:\d{2}(\.\d{1,6})?)?(Z|[+-]\d{2}:\d{2})?)?$/;
+const isoDateString = z.string().regex(isoDateRegex, 'Must be a valid ISO 8601 date');
+
 export const rfpStatuses = [
   'identified',
   'reviewing',
@@ -44,20 +47,16 @@ export const rfpSchema = z.object({
     .uuid('Must be a valid UUID')
     .nullable()
     .optional(),
-  issue_date: z
-    .string()
+  issue_date: isoDateString
     .nullable()
     .optional(),
-  due_date: z
-    .string()
+  due_date: isoDateString
     .nullable()
     .optional(),
-  questions_due_date: z
-    .string()
+  questions_due_date: isoDateString
     .nullable()
     .optional(),
-  decision_date: z
-    .string()
+  decision_date: isoDateString
     .nullable()
     .optional(),
   estimated_value: z
@@ -107,8 +106,7 @@ export const rfpSchema = z.object({
     .enum(goNoGoOptions)
     .nullable()
     .optional(),
-  go_no_go_date: z
-    .string()
+  go_no_go_date: isoDateString
     .nullable()
     .optional(),
   go_no_go_notes: z
@@ -145,7 +143,10 @@ export const rfpSchema = z.object({
     .nullable()
     .optional()
     .or(z.literal('')),
-  custom_fields: z.record(z.string(), z.unknown()).optional(),
+  custom_fields: z.record(z.string(), z.union([z.string(), z.number(), z.boolean(), z.null()])).refine(
+    (obj) => Object.keys(obj).length <= 50,
+    { message: 'Maximum of 50 custom fields allowed' }
+  ).optional(),
 });
 
 export const createRfpSchema = rfpSchema;

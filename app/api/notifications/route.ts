@@ -1,6 +1,11 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
-import { notificationQuerySchema, markReadSchema, archiveSchema } from '@/lib/validators/notification';
+import { notificationQuerySchema, markReadSchema, markAllReadSchema, createNotificationSchema, archiveSchema } from '@/lib/validators/notification';
+import { z } from 'zod';
+
+const deleteNotificationSchema = z.object({
+  notification_ids: z.array(z.string().uuid()).min(1).max(100),
+});
 
 // GET /api/notifications - List notifications
 export async function GET(request: NextRequest) {
@@ -125,32 +130,45 @@ export async function POST(request: NextRequest) {
       }
 
       case 'mark_all_read': {
-        const projectId = body.project_id as string | null;
+        const markAllResult = markAllReadSchema.safeParse(body);
+        if (!markAllResult.success) {
+          return NextResponse.json(
+            { error: 'Validation failed', details: markAllResult.error.flatten() },
+            { status: 400 }
+          );
+        }
 
         const { data: count } = await supabase.rpc(
           'mark_all_notifications_read' as never,
-          { p_project_id: projectId || null } as never
+          { p_project_id: markAllResult.data.project_id || null } as never
         );
 
         return NextResponse.json({ updated: count || 0 });
       }
 
       case 'create': {
-        const { type, title, message, data: notifData, entity_type, entity_id, priority, action_url, project_id: projId } = body;
+        const createResult = createNotificationSchema.omit({ user_id: true }).safeParse(body);
+        if (!createResult.success) {
+          return NextResponse.json(
+            { error: 'Validation failed', details: createResult.error.flatten() },
+            { status: 400 }
+          );
+        }
 
+        const validated = createResult.data;
         const { data: notificationId, error: createError } = await supabase.rpc(
           'create_notification' as never,
           {
             p_user_id: user.id,
-            p_type: type || 'custom',
-            p_title: title,
-            p_message: message,
-            p_project_id: projId || null,
-            p_data: notifData || {},
-            p_entity_type: entity_type || null,
-            p_entity_id: entity_id || null,
-            p_priority: priority || 'normal',
-            p_action_url: action_url || null,
+            p_type: validated.type,
+            p_title: validated.title,
+            p_message: validated.message,
+            p_project_id: validated.project_id || null,
+            p_data: validated.data || {},
+            p_entity_type: validated.entity_type || null,
+            p_entity_id: validated.entity_id || null,
+            p_priority: validated.priority || 'normal',
+            p_action_url: validated.action_url || null,
           } as never
         );
 
@@ -180,16 +198,19 @@ export async function POST(request: NextRequest) {
       }
 
       case 'delete': {
-        const deleteIds = body.notification_ids as string[];
-        if (!deleteIds?.length) {
-          return NextResponse.json({ error: 'Missing notification_ids' }, { status: 400 });
+        const deleteResult = deleteNotificationSchema.safeParse(body);
+        if (!deleteResult.success) {
+          return NextResponse.json(
+            { error: 'Validation failed', details: deleteResult.error.flatten() },
+            { status: 400 }
+          );
         }
 
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const { error: deleteError } = await (supabase as any)
           .from('notifications')
           .delete()
-          .in('id', deleteIds)
+          .in('id', deleteResult.data.notification_ids)
           .eq('user_id', user.id);
 
         if (deleteError) {
@@ -197,7 +218,7 @@ export async function POST(request: NextRequest) {
           return NextResponse.json({ error: 'Failed to delete notifications' }, { status: 500 });
         }
 
-        return NextResponse.json({ deleted: deleteIds.length });
+        return NextResponse.json({ deleted: deleteResult.data.notification_ids.length });
       }
 
       default:

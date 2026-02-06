@@ -1,5 +1,8 @@
 import type { AutomationCondition, ConditionOperator } from '@/types/automation';
 
+// Blocklist of prototype-polluting keys
+const BLOCKED_KEYS = new Set(['__proto__', 'constructor', 'prototype']);
+
 /**
  * Get a nested field value from an object using dot notation
  * Supports custom_fields.field_name access
@@ -9,6 +12,7 @@ function getFieldValue(data: Record<string, unknown>, fieldPath: string): unknow
   let current: unknown = data;
 
   for (const part of parts) {
+    if (BLOCKED_KEYS.has(part)) return undefined;
     if (current === null || current === undefined) return undefined;
     if (typeof current !== 'object') return undefined;
     current = (current as Record<string, unknown>)[part];

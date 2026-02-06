@@ -77,6 +77,13 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    if (userId === user.id) {
+      return NextResponse.json(
+        { error: 'Cannot change your own role' },
+        { status: 403 }
+      );
+    }
+
     const body = await request.json();
     const validationResult = updateMemberRoleSchema.safeParse(body);
 

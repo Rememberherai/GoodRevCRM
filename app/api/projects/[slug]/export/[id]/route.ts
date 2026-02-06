@@ -45,8 +45,14 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Export job not found' }, { status: 404 });
     }
 
-    // Check if expired
+    // Check if expired — update DB so list endpoint stays consistent
     if (job.expires_at && new Date(job.expires_at) < new Date()) {
+      await supabaseAny
+        .from('export_jobs')
+        .update({ status: 'expired', file_url: null })
+        .eq('id', id)
+        .eq('project_id', project.id);
+
       return NextResponse.json({
         ...job,
         status: 'expired',
@@ -96,6 +102,29 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
+    // Validate file_url against expected storage domain
+    if (validationResult.data.file_url) {
+      const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
+      if (!supabaseUrl || !validationResult.data.file_url.startsWith(supabaseUrl)) {
+        return NextResponse.json(
+          { error: 'file_url must point to the application storage domain' },
+          { status: 400 }
+        );
+      }
+    }
+
+    // Cap expires_at to max 7 days from now
+    if (validationResult.data.expires_at) {
+      const maxExpiry = new Date();
+      maxExpiry.setDate(maxExpiry.getDate() + 7);
+      if (new Date(validationResult.data.expires_at) > maxExpiry) {
+        return NextResponse.json(
+          { error: 'expires_at cannot be more than 7 days from now' },
+          { status: 400 }
+        );
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
@@ -119,6 +148,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       .update(updates)
       .eq('id', id)
       .eq('project_id', project.id)
+      .eq('user_id', user.id)
       .select()
       .single();
 

@@ -45,8 +45,8 @@ export const createStepSchema = z.object({
   step_type: z.enum(['email', 'delay', 'condition']),
   step_number: z.number().int().min(1).optional(),
   subject: z.string().max(998).nullable().optional(),
-  body_html: z.string().nullable().optional(),
-  body_text: z.string().nullable().optional(),
+  body_html: z.string().max(500000).nullable().optional(),
+  body_text: z.string().max(500000).nullable().optional(),
   delay_amount: z.number().int().min(1).nullable().optional(),
   delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional(),
   condition: stepConditionSchema.nullable().optional(),
@@ -58,8 +58,8 @@ export type CreateStepInput = z.infer<typeof createStepSchema>;
 export const updateStepSchema = z.object({
   step_number: z.number().int().min(1).optional(),
   subject: z.string().max(998).nullable().optional(),
-  body_html: z.string().nullable().optional(),
-  body_text: z.string().nullable().optional(),
+  body_html: z.string().max(500000).nullable().optional(),
+  body_text: z.string().max(500000).nullable().optional(),
   delay_amount: z.number().int().min(1).nullable().optional(),
   delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional(),
   condition: stepConditionSchema.nullable().optional(),
@@ -97,7 +97,7 @@ export type UpdateEnrollmentInput = z.infer<typeof updateEnrollmentSchema>;
 // Signature schemas
 export const createSignatureSchema = z.object({
   name: z.string().min(1, 'Name is required').max(100),
-  content_html: z.string().min(1, 'Content is required'),
+  content_html: z.string().min(1, 'Content is required').max(50000),
   is_default: z.boolean().default(false),
 });
 
@@ -105,7 +105,7 @@ export type CreateSignatureInput = z.infer<typeof createSignatureSchema>;
 
 export const updateSignatureSchema = z.object({
   name: z.string().min(1).max(100).optional(),
-  content_html: z.string().min(1).optional(),
+  content_html: z.string().min(1).max(50000).optional(),
   is_default: z.boolean().optional(),
 });
 
@@ -158,22 +158,22 @@ export type Tone = z.infer<typeof toneSchema>;
 const companyContextSchema = z.object({
   name: z.string().min(1, 'Company name is required'),
   description: z.string().min(10, 'Please provide a brief company description').max(2000),
-  products: z.array(z.string()).optional(),
-  valuePropositions: z.array(z.string()).optional(),
+  products: z.array(z.string().max(500)).max(20).optional(),
+  valuePropositions: z.array(z.string().max(500)).max(20).optional(),
 });
 
 // Target audience for AI generation
 const targetAudienceSchema = z.object({
   description: z.string().min(10, 'Please describe your target audience').max(1000),
-  painPoints: z.array(z.string()).optional(),
-  jobTitles: z.array(z.string()).optional(),
+  painPoints: z.array(z.string().max(500)).max(20).optional(),
+  jobTitles: z.array(z.string().max(200)).max(20).optional(),
 });
 
 // Campaign goals for AI generation
 const campaignGoalsSchema = z.object({
   primaryCta: z.string().min(1, 'Primary CTA is required').max(200),
-  secondaryCtas: z.array(z.string()).optional(),
-  keyMessages: z.array(z.string()).optional(),
+  secondaryCtas: z.array(z.string().max(200)).max(10).optional(),
+  keyMessages: z.array(z.string().max(500)).max(20).optional(),
 });
 
 // Delay preferences for sequence timing
@@ -203,8 +203,8 @@ const generatedStepSchema = z.object({
   step_number: z.number().int().min(1),
   step_type: z.enum(['email', 'delay']),
   subject: z.string().nullable().optional(),
-  body_html: z.string().nullable().optional(),
-  body_text: z.string().nullable().optional(),
+  body_html: z.string().max(500000).nullable().optional(),
+  body_text: z.string().max(500000).nullable().optional(),
   delay_amount: z.number().int().min(1).nullable().optional(),
   delay_unit: z.enum(['hours', 'days', 'weeks']).nullable().optional(),
 });

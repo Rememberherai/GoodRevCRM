@@ -129,6 +129,43 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const updates = validationResult.data;
 
+    // Validate cross-project references
+    if (updates.organization_id !== undefined && updates.organization_id !== null) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('id', updates.organization_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!org) {
+        return NextResponse.json({ error: 'Organization not found in this project' }, { status: 400 });
+      }
+    }
+    if (updates.primary_contact_id !== undefined && updates.primary_contact_id !== null) {
+      const { data: contact } = await supabase
+        .from('people')
+        .select('id')
+        .eq('id', updates.primary_contact_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!contact) {
+        return NextResponse.json({ error: 'Contact not found in this project' }, { status: 400 });
+      }
+    }
+    if (updates.owner_id !== undefined && updates.owner_id !== null) {
+      const { data: member } = await supabase
+        .from('project_memberships')
+        .select('user_id')
+        .eq('user_id', updates.owner_id)
+        .eq('project_id', project.id)
+        .single();
+      if (!member) {
+        return NextResponse.json({ error: 'Owner is not a member of this project' }, { status: 400 });
+      }
+    }
+
     // Fetch previous state for automation stage change detection
     let previousStage: string | null = null;
     if (updates.stage !== undefined) {
@@ -192,7 +229,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     });
 
     // Emit stage change event if stage actually changed
-    if (updates.stage && previousStage && updates.stage !== previousStage) {
+    if (updates.stage !== undefined && updates.stage !== previousStage) {
       emitAutomationEvent({
         projectId: project.id,
         triggerType: 'opportunity.stage_changed',
@@ -237,19 +274,24 @@ export async function DELETE(_request: Request, context: RouteContext) {
     }
 
     // Soft delete by setting deleted_at
-    const { error } = await supabase
+    const { data: _deleted, error } = await supabase
       .from('opportunities')
       .update({ deleted_at: new Date().toISOString() } as OpportunityUpdate)
       .eq('id', id)
       .eq('project_id', project.id)
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .select('id')
+      .single();
 
     if (error) {
+      if (error.code === 'PGRST116') {
+        return NextResponse.json({ error: 'Opportunity not found' }, { status: 404 });
+      }
       console.error('Error deleting opportunity:', error);
       return NextResponse.json({ error: 'Failed to delete opportunity' }, { status: 500 });
     }
 
-    // Emit automation event
+    // Emit automation event only if a row was actually deleted
     emitAutomationEvent({
       projectId: project.id,
       triggerType: 'entity.deleted',

@@ -41,8 +41,8 @@ export const timeRanges = ['day', 'week', 'month', 'quarter', 'year'] as const;
 // Report config schema
 export const reportConfigSchema = z.object({
   chart_type: z.enum(chartTypes).optional(),
-  metrics: z.array(z.string()).optional(),
-  group_by: z.string().optional(),
+  metrics: z.array(z.string().max(100)).max(20).optional(),
+  group_by: z.string().max(100).optional(),
   time_range: z.enum(timeRanges).optional(),
   show_comparison: z.boolean().optional(),
   custom_query: z.string().max(5000).optional(),
@@ -114,12 +114,20 @@ export const reportRunQuerySchema = z.object({
 
 export type ReportRunQueryInput = z.infer<typeof reportRunQuerySchema>;
 
-// Widget config schema
+// Widget config schema - filter values constrained to primitives
+const filterValueSchema = z.union([
+  z.string().max(500),
+  z.number(),
+  z.boolean(),
+  z.null(),
+  z.array(z.union([z.string().max(500), z.number(), z.boolean()])).max(100),
+]);
+
 export const widgetConfigSchema = z.object({
   title: z.string().max(100).optional(),
   time_range: z.enum(timeRanges).optional(),
   limit: z.number().min(1).max(50).optional(),
-  filters: z.record(z.string(), z.unknown()).optional(),
+  filters: z.record(z.string().max(100), filterValueSchema).optional(),
 });
 
 export type WidgetConfigInput = z.infer<typeof widgetConfigSchema>;

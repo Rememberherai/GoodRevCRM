@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { preferenceQuerySchema, updatePreferencesSchema } from '@/lib/validators/notification';
+import { isValidUUID } from '@/lib/validation-helpers';
 
 // GET /api/notifications/preferences - Get user preferences
 export async function GET(request: NextRequest) {
@@ -37,6 +38,9 @@ export async function GET(request: NextRequest) {
       .eq('user_id', user.id);
 
     if (project_id) {
+      if (!isValidUUID(project_id)) {
+        return NextResponse.json({ error: 'Invalid project_id' }, { status: 400 });
+      }
       query = query.or(`project_id.eq.${project_id},project_id.is.null`);
     }
 

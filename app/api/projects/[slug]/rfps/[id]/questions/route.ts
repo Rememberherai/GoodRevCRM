@@ -59,6 +59,7 @@ export async function GET(request: Request, context: RouteContext) {
       .from('rfp_questions')
       .select('*', { count: 'exact' })
       .eq('rfp_id', id)
+      .eq('project_id', project.id)
       .is('deleted_at', null);
 
     // Apply filters

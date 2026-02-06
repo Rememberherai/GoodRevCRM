@@ -119,9 +119,9 @@ export async function POST(request: Request, context: RouteContext) {
     const { data: job, error } = await supabaseAny
       .from('import_jobs')
       .insert({
+        ...validationResult.data,
         project_id: project.id,
         user_id: user.id,
-        ...validationResult.data,
       })
       .select()
       .single();

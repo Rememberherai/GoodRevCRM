@@ -60,32 +60,44 @@ export async function GET(request: Request) {
       .single();
 
     if (sentEmail) {
-      // Record open event
-      await supabase
+      // Check if this email was already opened (deduplication)
+      const { data: existingOpen } = await supabase
         .from('email_events')
-        .insert({
-          sent_email_id: sentEmail.id,
-          event_type: 'open',
-          occurred_at: new Date().toISOString(),
-          ip_address: ipAddress,
-          user_agent: userAgent,
-          metadata: {},
-        });
+        .select('id')
+        .eq('sent_email_id', sentEmail.id)
+        .eq('event_type', 'open')
+        .limit(1)
+        .maybeSingle();
 
-      // Emit automation event
-      if (sentEmail.project_id && sentEmail.person_id) {
-        emitAutomationEvent({
-          projectId: sentEmail.project_id,
-          triggerType: 'email.opened',
-          entityType: 'person',
-          entityId: sentEmail.person_id,
-          data: { sent_email_id: sentEmail.id, person_id: sentEmail.person_id },
-        });
+      // Only record if this is the first open event
+      if (!existingOpen) {
+        await supabase
+          .from('email_events')
+          .insert({
+            sent_email_id: sentEmail.id,
+            event_type: 'open',
+            occurred_at: new Date().toISOString(),
+            ip_address: ipAddress,
+            user_agent: userAgent,
+            metadata: {},
+          });
+
+        // Emit automation event only for first open
+        if (sentEmail.project_id && sentEmail.person_id) {
+          emitAutomationEvent({
+            projectId: sentEmail.project_id,
+            triggerType: 'email.opened',
+            entityType: 'person',
+            entityId: sentEmail.person_id,
+            data: { sent_email_id: sentEmail.id, person_id: sentEmail.person_id },
+          });
+        }
       }
     }
   } catch (error) {
     // Don't fail the request on tracking errors
-    console.error('Error tracking email open:', error);
+    // Log generic message to avoid exposing database schema details
+    console.error('Error tracking email open:', error instanceof Error ? error.message : 'Unknown error');
   }
 
   return response;

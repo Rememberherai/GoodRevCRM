@@ -91,6 +91,22 @@ export async function PATCH(request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
+    // Validate assigned_to is a project member
+    if (validationResult.data.assigned_to) {
+      const { data: member } = await supabase
+        .from('project_memberships')
+        .select('id')
+        .eq('project_id', project.id)
+        .eq('user_id', validationResult.data.assigned_to)
+        .single();
+      if (!member) {
+        return NextResponse.json(
+          { error: 'assigned_to must be a member of this project' },
+          { status: 400 }
+        );
+      }
+    }
+
     const updateData: Record<string, unknown> = {
       ...validationResult.data,
       updated_at: new Date().toISOString(),
@@ -169,16 +185,29 @@ export async function DELETE(_request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
-    const { error } = await supabaseAny
+    const { data: deletedTask, error } = await supabaseAny
       .from('tasks')
       .delete()
       .eq('id', id)
-      .eq('project_id', project.id);
+      .eq('project_id', project.id)
+      .select()
+      .single();
 
-    if (error) {
+    if (error || !deletedTask) {
+      if (error?.code === 'PGRST116' || !deletedTask) {
+        return NextResponse.json({ error: 'Task not found' }, { status: 404 });
+      }
       console.error('Error deleting task:', error);
       return NextResponse.json({ error: 'Failed to delete task' }, { status: 500 });
     }
+
+    emitAutomationEvent({
+      projectId: project.id,
+      triggerType: 'entity.deleted',
+      entityType: 'task',
+      entityId: id,
+      data: deletedTask as Record<string, unknown>,
+    });
 
     return new NextResponse(null, { status: 204 });
   } catch (error) {

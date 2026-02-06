@@ -13,7 +13,8 @@ export type CompanyContext = z.infer<typeof companyContextSchema>;
 // Project settings schema
 export const projectSettingsSchema = z.object({
   company_context: companyContextSchema.optional(),
-}).passthrough(); // Allow additional settings
+  customRoles: z.array(z.string().min(1).max(100)).max(50).optional(),
+});
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 

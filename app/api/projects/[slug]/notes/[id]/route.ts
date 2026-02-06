@@ -98,6 +98,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       })
       .eq('id', id)
       .eq('project_id', project.id)
+      .eq('created_by', user.id)
       .select('*, author:users!notes_created_by_fkey(id, full_name, email, avatar_url)')
       .single();
 
@@ -149,7 +150,8 @@ export async function DELETE(_request: Request, context: RouteContext) {
       .from('notes')
       .delete()
       .eq('id', id)
-      .eq('project_id', project.id);
+      .eq('project_id', project.id)
+      .eq('created_by', user.id);
 
     if (error) {
       console.error('Error deleting note:', error);

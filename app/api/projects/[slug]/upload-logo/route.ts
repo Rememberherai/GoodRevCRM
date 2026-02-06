@@ -7,7 +7,7 @@ interface RouteContext {
 }
 
 const MAX_FILE_SIZE = 2 * 1024 * 1024; // 2MB
-const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif', 'image/svg+xml'];
+const ALLOWED_TYPES = ['image/jpeg', 'image/png', 'image/webp', 'image/gif'];
 
 export async function POST(request: Request, context: RouteContext) {
   try {
@@ -44,7 +44,7 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     if (!ALLOWED_TYPES.includes(file.type)) {
-      return NextResponse.json({ error: 'Invalid file type. Allowed: JPEG, PNG, WebP, GIF, SVG' }, { status: 400 });
+      return NextResponse.json({ error: 'Invalid file type. Allowed: JPEG, PNG, WebP, GIF' }, { status: 400 });
     }
 
     if (file.size > MAX_FILE_SIZE) {
@@ -59,8 +59,25 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'entityId required for organization logos' }, { status: 400 });
     }
 
+    if (entityId && !/^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(entityId)) {
+      return NextResponse.json({ error: 'Invalid entityId format' }, { status: 400 });
+    }
+
+    if (entityType === 'organization') {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('id', entityId!)
+        .eq('project_id', project.id)
+        .single();
+
+      if (!org) {
+        return NextResponse.json({ error: 'Organization not found in this project' }, { status: 404 });
+      }
+    }
+
     // Determine storage path
-    const ext = file.type === 'image/svg+xml' ? 'svg' : 'webp';
+    const ext = 'webp';
     const storagePath = entityType === 'project'
       ? `${project.id}/project.${ext}`
       : `${project.id}/org/${entityId}.${ext}`;
