@@ -227,6 +227,7 @@ export function BookMeetingModal({
                         min={5}
                         max={480}
                         {...field}
+                        onChange={(e) => field.onChange(e.target.valueAsNumber || 0)}
                       />
                     </FormControl>
                     <FormMessage />
