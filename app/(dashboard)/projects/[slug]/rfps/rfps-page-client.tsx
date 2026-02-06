@@ -8,6 +8,7 @@ import { useRfps } from '@/hooks/use-rfps';
 import { STATUS_LABELS, RFP_STATUSES, type RfpStatus } from '@/types/rfp';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -41,6 +42,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { NewRfpDialog } from '@/components/rfps/new-rfp-dialog';
+import { BulkActionsBar } from '@/components/bulk/bulk-actions-bar';
+import type { BulkOperation } from '@/types/bulk';
 
 const STATUS_COLORS: Record<RfpStatus, string> = {
   identified: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300',
@@ -58,6 +61,8 @@ export function RfpsPageClient() {
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const {
     rfps,
@@ -69,6 +74,7 @@ export function RfpsPageClient() {
     remove,
     filterByStatus,
     goToPage,
+    refresh,
   } = useRfps();
 
   const [stats, setStats] = useState<{
@@ -98,6 +104,55 @@ export function RfpsPageClient() {
       setDeleteId(null);
     } catch {
       // Error is handled by the hook
+    }
+  };
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === rfps.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(rfps.map((rfp) => rfp.id)));
+    }
+  };
+
+  const handleBulkAction = async (operation: BulkOperation) => {
+    if (selectedIds.size === 0) return;
+
+    setBulkLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entity_type: 'rfp',
+          entity_ids: Array.from(selectedIds),
+          operation,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Bulk operation failed');
+      }
+
+      // Clear selection and refresh the list
+      setSelectedIds(new Set());
+      refresh();
+    } catch (err) {
+      console.error('Bulk action error:', err);
+    } finally {
+      setBulkLoading(false);
     }
   };
 
@@ -213,10 +268,27 @@ export function RfpsPageClient() {
         </div>
       )}
 
+      {selectedIds.size > 0 && (
+        <BulkActionsBar
+          selectedCount={selectedIds.size}
+          entityType="rfp"
+          onClearSelection={() => setSelectedIds(new Set())}
+          onBulkAction={handleBulkAction}
+          loading={bulkLoading}
+        />
+      )}
+
       <div className="rounded-md border">
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]">
+                <Checkbox
+                  checked={rfps.length > 0 && selectedIds.size === rfps.length}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Select all"
+                />
+              </TableHead>
               <TableHead>Title</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Progress</TableHead>
@@ -228,13 +300,13 @@ export function RfpsPageClient() {
           <TableBody>
             {isLoading && rfps.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : rfps.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={7} className="text-center py-8">
                   <div className="flex flex-col items-center gap-2">
                     <FileText className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">No RFPs yet</p>
@@ -251,7 +323,14 @@ export function RfpsPageClient() {
               </TableRow>
             ) : (
               rfps.map((rfp) => (
-                <TableRow key={rfp.id}>
+                <TableRow key={rfp.id} data-state={selectedIds.has(rfp.id) ? 'selected' : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(rfp.id)}
+                      onCheckedChange={() => toggleSelection(rfp.id)}
+                      aria-label={`Select ${rfp.title}`}
+                    />
+                  </TableCell>
                   <TableCell>
                     <Link
                       href={`/projects/${slug}/rfps/${rfp.id}`}

@@ -1,6 +1,6 @@
 // Bulk operation types
 
-export type BulkEntityType = 'person' | 'organization' | 'opportunity' | 'task';
+export type BulkEntityType = 'person' | 'organization' | 'opportunity' | 'task' | 'rfp';
 
 export type BulkOperation =
   | 'update'

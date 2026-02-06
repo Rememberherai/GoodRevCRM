@@ -1,7 +1,7 @@
 import { z } from 'zod';
 
 // Entity types that support bulk operations
-export const bulkEntityTypes = ['person', 'organization', 'opportunity', 'task'] as const;
+export const bulkEntityTypes = ['person', 'organization', 'opportunity', 'task', 'rfp'] as const;
 
 // Bulk operations
 export const bulkOperations = [

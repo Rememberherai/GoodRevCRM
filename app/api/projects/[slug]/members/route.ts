@@ -216,9 +216,17 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to create invitation' }, { status: 500 });
     }
 
-    // TODO: Send invitation email
+    // Generate invite URL for manual sharing (email sending not yet implemented)
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const inviteUrl = `${appUrl}/invite/${token}`;
 
-    return NextResponse.json(invitation, { status: 201 });
+    return NextResponse.json(
+      {
+        ...invitation,
+        invite_url: inviteUrl,
+      },
+      { status: 201 }
+    );
   } catch (error) {
     console.error('Error in POST /api/projects/[slug]/members:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

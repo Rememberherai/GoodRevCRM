@@ -148,8 +148,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
       const err = await res.json();
       throw new Error(err.error || 'Failed to send invitation');
     }
-    toast.success('Invitation sent');
+    const result = await res.json();
     fetchMembers();
+    // Return the result so the dialog can show the invite link
+    return { invite_url: result.invite_url, email: data.email };
   };
 
   const form = useForm<UpdateProjectInput>({

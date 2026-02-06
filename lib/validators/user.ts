@@ -61,3 +61,10 @@ export const invitationQuerySchema = z.object({
 });
 
 export type InvitationQueryInput = z.infer<typeof invitationQuerySchema>;
+
+// Accept invitation schema
+export const acceptInvitationSchema = z.object({
+  token: z.string().regex(/^[a-f0-9]{64}$/, 'Invalid invitation token'),
+});
+
+export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;

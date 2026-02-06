@@ -94,6 +94,15 @@ export async function POST(request: Request, context: RouteContext) {
           data
         );
         break;
+
+      case 'rfp':
+        affectedCount = await handleRfpBulkOperation(
+          supabaseAny,
+          project.id,
+          entity_ids,
+          operation
+        );
+        break;
     }
 
     return NextResponse.json({
@@ -259,5 +268,26 @@ async function handleTaskBulkOperation(
 
     default:
       throw new Error(`Unsupported operation for tasks: ${operation}`);
+  }
+}
+
+async function handleRfpBulkOperation(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  projectId: string,
+  entityIds: string[],
+  operation: string
+): Promise<number> {
+  switch (operation) {
+    case 'delete': {
+      const { data: count } = await supabase.rpc('bulk_delete_rfps', {
+        p_project_id: projectId,
+        p_rfp_ids: entityIds,
+      });
+      return count ?? 0;
+    }
+
+    default:
+      throw new Error(`Unsupported operation for RFPs: ${operation}`);
   }
 }
