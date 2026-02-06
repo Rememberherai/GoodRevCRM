@@ -57,6 +57,7 @@ export const OPPORTUNITY_COLUMNS: ColumnDefinition[] = [
 export const RFP_COLUMNS: ColumnDefinition[] = [
   { key: 'title', label: 'Title', type: 'system', fieldType: 'text', sortable: true, defaultVisible: true, minWidth: 200 },
   { key: 'status', label: 'Status', type: 'system', fieldType: 'select', sortable: true, defaultVisible: true },
+  { key: 'progress', label: 'Progress', type: 'system', fieldType: 'text', sortable: false, defaultVisible: true },
   { key: 'due_date', label: 'Due Date', type: 'system', fieldType: 'datetime', sortable: true, defaultVisible: true },
   { key: 'estimated_value', label: 'Est. Value', type: 'system', fieldType: 'currency', sortable: true, defaultVisible: true },
   { key: 'organization', label: 'Organization', type: 'system', fieldType: 'text', sortable: true, defaultVisible: false, entityReference: 'organization' },
@@ -85,7 +86,7 @@ export const DEFAULT_VISIBLE_COLUMNS: Record<EntityType, string[]> = {
   organization: ['name', 'industry', 'website', 'employee_count'],
   person: ['name', 'job_title', 'email', 'phone'],
   opportunity: ['name', 'stage', 'amount', 'probability', 'expected_close_date'],
-  rfp: ['title', 'status', 'due_date', 'estimated_value'],
+  rfp: ['title', 'status', 'progress', 'due_date', 'estimated_value'],
 };
 
 /**

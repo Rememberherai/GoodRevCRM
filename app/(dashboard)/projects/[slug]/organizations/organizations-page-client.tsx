@@ -3,8 +3,9 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Search, Building2, ExternalLink, MoreHorizontal, Pencil, Trash2, Upload, ClipboardPaste, Sparkles, Droplets, UserSearch } from 'lucide-react';
+import { Plus, Search, Building2, MoreHorizontal, Pencil, Trash2, Upload, ClipboardPaste, Sparkles, Droplets, UserSearch } from 'lucide-react';
 import { useOrganizations } from '@/hooks/use-organizations';
+import { useColumnPreferences } from '@/hooks/use-column-preferences';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -40,6 +41,8 @@ import { ImportWizard } from '@/components/import-export';
 import { BulkResearchDialog } from '@/components/research/bulk-research-dialog';
 import { BulkContactDiscoveryDialog } from '@/components/organizations/bulk-contact-discovery-dialog';
 import { EPAImportDialog } from '@/components/organizations/epa-import-dialog';
+import { ColumnPicker } from '@/components/table/column-picker';
+import { renderCellValue } from '@/lib/table-columns/renderers';
 import {
   Dialog,
   DialogContent,
@@ -93,6 +96,15 @@ export function OrganizationsPageClient() {
     refresh,
   } = useOrganizations();
 
+  const {
+    columns,
+    allColumns,
+    isLoading: columnsLoading,
+    isSaving,
+    toggleColumn,
+    resetToDefaults,
+  } = useColumnPreferences('organization');
+
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
     search(searchInput);
@@ -116,6 +128,52 @@ export function OrganizationsPageClient() {
       .toUpperCase()
       .slice(0, 2);
   };
+
+  // Render cell content based on column key
+  const renderCell = (org: typeof organizations[0], columnKey: string) => {
+    // Special handling for name column with avatar
+    if (columnKey === 'name') {
+      return (
+        <Link
+          href={`/projects/${slug}/organizations/${org.id}`}
+          className="flex items-center gap-3 hover:underline"
+        >
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={org.logo_url ?? undefined} alt={org.name} />
+            <AvatarFallback>{getInitials(org.name)}</AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="font-medium">{org.name}</div>
+            {org.domain && (
+              <div className="text-sm text-muted-foreground">
+                {org.domain}
+              </div>
+            )}
+          </div>
+        </Link>
+      );
+    }
+
+    // Special handling for industry with badge
+    if (columnKey === 'industry') {
+      return org.industry ? (
+        <Badge variant="secondary">{org.industry}</Badge>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      );
+    }
+
+    // Find the column definition and use the generic renderer
+    const column = columns.find(c => c.key === columnKey);
+    if (column) {
+      return renderCellValue(org as unknown as Record<string, unknown>, column);
+    }
+
+    return <span className="text-muted-foreground">—</span>;
+  };
+
+  // Calculate total columns for colspan (checkbox + visible columns + actions)
+  const totalColumns = columns.length + 2;
 
   return (
     <div className="space-y-6">
@@ -160,20 +218,28 @@ export function OrganizationsPageClient() {
         </div>
       </div>
 
-      <form onSubmit={handleSearch} className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search organizations..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Button type="submit" variant="secondary">
-          Search
-        </Button>
-      </form>
+      <div className="flex items-center gap-4">
+        <form onSubmit={handleSearch} className="flex items-center gap-4 flex-1">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search organizations..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Button type="submit" variant="secondary">
+            Search
+          </Button>
+        </form>
+        <ColumnPicker
+          columns={allColumns}
+          onToggle={toggleColumn}
+          onReset={resetToDefaults}
+          isSaving={isSaving}
+        />
+      </div>
 
       {error && (
         <div className="rounded-md bg-destructive/15 p-4 text-destructive">
@@ -192,23 +258,27 @@ export function OrganizationsPageClient() {
                   aria-label="Select all"
                 />
               </TableHead>
-              <TableHead>Organization</TableHead>
-              <TableHead>Industry</TableHead>
-              <TableHead>Website</TableHead>
-              <TableHead>Employees</TableHead>
+              {columns.map((column) => (
+                <TableHead
+                  key={column.key}
+                  style={column.minWidth ? { minWidth: column.minWidth } : undefined}
+                >
+                  {column.label}
+                </TableHead>
+              ))}
               <TableHead className="w-[70px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && organizations.length === 0 ? (
+            {(isLoading || columnsLoading) && organizations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={totalColumns} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : organizations.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={totalColumns} className="text-center py-8">
                   <div className="flex flex-col items-center gap-2">
                     <Building2 className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">No organizations yet</p>
@@ -234,54 +304,11 @@ export function OrganizationsPageClient() {
                       onClick={(e) => e.stopPropagation()}
                     />
                   </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/projects/${slug}/organizations/${org.id}`}
-                      className="flex items-center gap-3 hover:underline"
-                    >
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={org.logo_url ?? undefined} alt={org.name} />
-                        <AvatarFallback>{getInitials(org.name)}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-medium">{org.name}</div>
-                        {org.domain && (
-                          <div className="text-sm text-muted-foreground">
-                            {org.domain}
-                          </div>
-                        )}
-                      </div>
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    {org.industry ? (
-                      <Badge variant="secondary">{org.industry}</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {org.website ? (
-                      <a
-                        href={org.website}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="flex items-center gap-1 text-primary hover:underline"
-                      >
-                        <ExternalLink className="h-3 w-3" />
-                        Visit
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {org.employee_count ? (
-                      org.employee_count.toLocaleString()
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
+                  {columns.map((column) => (
+                    <TableCell key={column.key}>
+                      {renderCell(org, column.key)}
+                    </TableCell>
+                  ))}
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse, type NextRequest } from 'next/server';
 import { z } from 'zod';
 import type { EntityType } from '@/types/custom-field';
-import type { ColumnConfig } from '@/types/table-columns';
+import type { Json } from '@/types/database';
 import { getDefaultColumnConfig, COLUMN_DEFINITIONS } from '@/lib/table-columns/definitions';
 
 interface RouteContext {
@@ -148,7 +148,7 @@ export async function POST(request: NextRequest, context: RouteContext) {
           project_id: project.id,
           user_id: user.id,
           entity_type,
-          columns: columns as unknown as ColumnConfig[],
+          columns: columns as unknown as Json,
         },
         {
           onConflict: 'project_id,user_id,entity_type',

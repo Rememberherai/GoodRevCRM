@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Search, Users, Mail, Phone, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { usePeople } from '@/hooks/use-people';
+import { useColumnPreferences } from '@/hooks/use-column-preferences';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -37,6 +38,8 @@ import { Badge } from '@/components/ui/badge';
 import { SendEmailModal } from '@/components/gmail';
 import { BulkActionsBar } from '@/components/bulk/bulk-actions-bar';
 import { BulkEnrichWithReviewModal } from '@/components/enrichment/bulk-enrich-with-review-modal';
+import { ColumnPicker } from '@/components/table/column-picker';
+import { renderCellValue } from '@/lib/table-columns/renderers';
 
 export function PeoplePageClient() {
   const params = useParams();
@@ -57,6 +60,15 @@ export function PeoplePageClient() {
     goToPage,
     refresh,
   } = usePeople();
+
+  const {
+    columns,
+    allColumns,
+    isLoading: columnsLoading,
+    isSaving,
+    toggleColumn,
+    resetToDefaults,
+  } = useColumnPreferences('person');
 
   const toggleSelection = (id: string) => {
     setSelectedIds((prev) => {
@@ -107,6 +119,85 @@ export function PeoplePageClient() {
     return `${firstName} ${lastName}`.trim();
   };
 
+  // Render cell content based on column key
+  const renderCell = (person: typeof people[0], columnKey: string) => {
+    // Special handling for name column with avatar
+    if (columnKey === 'name') {
+      return (
+        <Link
+          href={`/projects/${slug}/people/${person.id}`}
+          className="flex items-center gap-3 hover:underline"
+        >
+          <Avatar className="h-10 w-10">
+            <AvatarImage src={person.avatar_url ?? undefined} alt={getFullName(person.first_name, person.last_name)} />
+            <AvatarFallback>{getInitials(person.first_name, person.last_name)}</AvatarFallback>
+          </Avatar>
+          <div>
+            <div className="font-medium">
+              {getFullName(person.first_name, person.last_name)}
+            </div>
+            {person.department && (
+              <div className="text-sm text-muted-foreground">
+                {person.department}
+              </div>
+            )}
+          </div>
+        </Link>
+      );
+    }
+
+    // Special handling for job_title with badge
+    if (columnKey === 'job_title') {
+      return person.job_title ? (
+        <Badge variant="secondary">{person.job_title}</Badge>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      );
+    }
+
+    // Special handling for email with click-to-email
+    if (columnKey === 'email') {
+      return person.email ? (
+        <button
+          type="button"
+          onClick={() => setSendEmailTo({ email: person.email!, personId: person.id })}
+          className="flex items-center gap-1 text-primary hover:underline"
+        >
+          <Mail className="h-3 w-3" />
+          {person.email}
+        </button>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      );
+    }
+
+    // Special handling for phone with tel link
+    if (columnKey === 'phone') {
+      return person.phone ? (
+        <a
+          href={`tel:${person.phone}`}
+          className="flex items-center gap-1 hover:underline"
+        >
+          <Phone className="h-3 w-3" />
+          {person.phone}
+        </a>
+      ) : (
+        <span className="text-muted-foreground">—</span>
+      );
+    }
+
+    // Find the column definition and use the generic renderer
+    const column = columns.find(c => c.key === columnKey);
+    if (column) {
+      return renderCellValue(person as unknown as Record<string, unknown>, column);
+    }
+
+    return <span className="text-muted-foreground">—</span>;
+  };
+
+  // Calculate total columns for colspan (checkbox + visible columns + actions)
+  const totalColumns = columns.length + 2;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -118,20 +209,28 @@ export function PeoplePageClient() {
         </div>
       </div>
 
-      <form onSubmit={handleSearch} className="flex items-center gap-4">
-        <div className="relative flex-1 max-w-sm">
-          <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-          <Input
-            placeholder="Search people..."
-            value={searchInput}
-            onChange={(e) => setSearchInput(e.target.value)}
-            className="pl-10"
-          />
-        </div>
-        <Button type="submit" variant="secondary">
-          Search
-        </Button>
-      </form>
+      <div className="flex items-center gap-4">
+        <form onSubmit={handleSearch} className="flex items-center gap-4 flex-1">
+          <div className="relative flex-1 max-w-sm">
+            <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search people..."
+              value={searchInput}
+              onChange={(e) => setSearchInput(e.target.value)}
+              className="pl-10"
+            />
+          </div>
+          <Button type="submit" variant="secondary">
+            Search
+          </Button>
+        </form>
+        <ColumnPicker
+          columns={allColumns}
+          onToggle={toggleColumn}
+          onReset={resetToDefaults}
+          isSaving={isSaving}
+        />
+      </div>
 
       {error && (
         <div className="rounded-md bg-destructive/15 p-4 text-destructive">
@@ -150,23 +249,27 @@ export function PeoplePageClient() {
                   aria-label="Select all"
                 />
               </TableHead>
-              <TableHead>Name</TableHead>
-              <TableHead>Title</TableHead>
-              <TableHead>Email</TableHead>
-              <TableHead>Phone</TableHead>
+              {columns.map((column) => (
+                <TableHead
+                  key={column.key}
+                  style={column.minWidth ? { minWidth: column.minWidth } : undefined}
+                >
+                  {column.label}
+                </TableHead>
+              ))}
               <TableHead className="w-[70px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && people.length === 0 ? (
+            {(isLoading || columnsLoading) && people.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={totalColumns} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : people.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={totalColumns} className="text-center py-8">
                   <div className="flex flex-col items-center gap-2">
                     <Users className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">No people yet</p>
@@ -186,61 +289,11 @@ export function PeoplePageClient() {
                       aria-label={`Select ${person.first_name} ${person.last_name}`}
                     />
                   </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/projects/${slug}/people/${person.id}`}
-                      className="flex items-center gap-3 hover:underline"
-                    >
-                      <Avatar className="h-10 w-10">
-                        <AvatarImage src={person.avatar_url ?? undefined} alt={getFullName(person.first_name, person.last_name)} />
-                        <AvatarFallback>{getInitials(person.first_name, person.last_name)}</AvatarFallback>
-                      </Avatar>
-                      <div>
-                        <div className="font-medium">
-                          {getFullName(person.first_name, person.last_name)}
-                        </div>
-                        {person.department && (
-                          <div className="text-sm text-muted-foreground">
-                            {person.department}
-                          </div>
-                        )}
-                      </div>
-                    </Link>
-                  </TableCell>
-                  <TableCell>
-                    {person.job_title ? (
-                      <Badge variant="secondary">{person.job_title}</Badge>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {person.email ? (
-                      <button
-                        type="button"
-                        onClick={() => setSendEmailTo({ email: person.email!, personId: person.id })}
-                        className="flex items-center gap-1 text-primary hover:underline"
-                      >
-                        <Mail className="h-3 w-3" />
-                        {person.email}
-                      </button>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    {person.phone ? (
-                      <a
-                        href={`tel:${person.phone}`}
-                        className="flex items-center gap-1 hover:underline"
-                      >
-                        <Phone className="h-3 w-3" />
-                        {person.phone}
-                      </a>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
+                  {columns.map((column) => (
+                    <TableCell key={column.key}>
+                      {renderCell(person, column.key)}
+                    </TableCell>
+                  ))}
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
@@ -300,7 +353,7 @@ export function PeoplePageClient() {
         </div>
       )}
 
-      
+
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
           <AlertDialogHeader>

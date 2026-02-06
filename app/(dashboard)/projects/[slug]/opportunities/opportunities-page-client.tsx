@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Search, Target, DollarSign, MoreHorizontal, Pencil, Trash2, Calendar } from 'lucide-react';
 import { useOpportunities } from '@/hooks/use-opportunities';
+import { useColumnPreferences } from '@/hooks/use-column-preferences';
 import { STAGE_LABELS, OPPORTUNITY_STAGES, type OpportunityStage } from '@/types/opportunity';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -41,6 +42,8 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { NewOpportunityDialog } from '@/components/opportunities/new-opportunity-dialog';
+import { ColumnPicker } from '@/components/table/column-picker';
+import { renderCellValue } from '@/lib/table-columns/renderers';
 
 const STAGE_COLORS: Record<OpportunityStage, string> = {
   prospecting: 'bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-300',
@@ -69,6 +72,15 @@ export function OpportunitiesPageClient() {
     filterByStage,
     goToPage,
   } = useOpportunities();
+
+  const {
+    columns,
+    allColumns,
+    isLoading: columnsLoading,
+    isSaving,
+    toggleColumn,
+    resetToDefaults,
+  } = useColumnPreferences('opportunity');
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -103,6 +115,68 @@ export function OpportunitiesPageClient() {
       year: 'numeric',
     });
   };
+
+  // Render cell content based on column key
+  const renderCell = (opp: typeof opportunities[0], columnKey: string) => {
+    // Special handling for name column
+    if (columnKey === 'name') {
+      return (
+        <>
+          <Link
+            href={`/projects/${slug}/opportunities/${opp.id}`}
+            className="font-medium hover:underline"
+          >
+            {opp.name}
+          </Link>
+          {opp.description && (
+            <div className="text-sm text-muted-foreground truncate max-w-[250px]">
+              {opp.description}
+            </div>
+          )}
+        </>
+      );
+    }
+
+    // Special handling for stage with colored badge
+    if (columnKey === 'stage') {
+      return (
+        <Badge className={STAGE_COLORS[opp.stage]} variant="secondary">
+          {STAGE_LABELS[opp.stage]}
+        </Badge>
+      );
+    }
+
+    // Special handling for amount with icon
+    if (columnKey === 'amount') {
+      return (
+        <div className="flex items-center gap-1">
+          <DollarSign className="h-3 w-3 text-muted-foreground" />
+          {formatCurrency(opp.amount, opp.currency)}
+        </div>
+      );
+    }
+
+    // Special handling for expected_close_date with icon
+    if (columnKey === 'expected_close_date') {
+      return (
+        <div className="flex items-center gap-1">
+          <Calendar className="h-3 w-3 text-muted-foreground" />
+          {formatDate(opp.expected_close_date)}
+        </div>
+      );
+    }
+
+    // Find the column definition and use the generic renderer
+    const column = columns.find(c => c.key === columnKey);
+    if (column) {
+      return renderCellValue(opp as unknown as Record<string, unknown>, column);
+    }
+
+    return <span className="text-muted-foreground">—</span>;
+  };
+
+  // Calculate total columns for colspan
+  const totalColumns = columns.length + 1;
 
   return (
     <div className="space-y-6">
@@ -150,6 +224,12 @@ export function OpportunitiesPageClient() {
             ))}
           </SelectContent>
         </Select>
+        <ColumnPicker
+          columns={allColumns}
+          onToggle={toggleColumn}
+          onReset={resetToDefaults}
+          isSaving={isSaving}
+        />
       </div>
 
       {error && (
@@ -162,24 +242,27 @@ export function OpportunitiesPageClient() {
         <Table>
           <TableHeader>
             <TableRow>
-              <TableHead>Name</TableHead>
-              <TableHead>Stage</TableHead>
-              <TableHead>Amount</TableHead>
-              <TableHead>Probability</TableHead>
-              <TableHead>Expected Close</TableHead>
+              {columns.map((column) => (
+                <TableHead
+                  key={column.key}
+                  style={column.minWidth ? { minWidth: column.minWidth } : undefined}
+                >
+                  {column.label}
+                </TableHead>
+              ))}
               <TableHead className="w-[70px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && opportunities.length === 0 ? (
+            {(isLoading || columnsLoading) && opportunities.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={totalColumns} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : opportunities.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-8">
+                <TableCell colSpan={totalColumns} className="text-center py-8">
                   <div className="flex flex-col items-center gap-2">
                     <Target className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">No opportunities yet</p>
@@ -197,43 +280,11 @@ export function OpportunitiesPageClient() {
             ) : (
               opportunities.map((opp) => (
                 <TableRow key={opp.id}>
-                  <TableCell>
-                    <Link
-                      href={`/projects/${slug}/opportunities/${opp.id}`}
-                      className="font-medium hover:underline"
-                    >
-                      {opp.name}
-                    </Link>
-                    {opp.description && (
-                      <div className="text-sm text-muted-foreground truncate max-w-[250px]">
-                        {opp.description}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={STAGE_COLORS[opp.stage]} variant="secondary">
-                      {STAGE_LABELS[opp.stage]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <DollarSign className="h-3 w-3 text-muted-foreground" />
-                      {formatCurrency(opp.amount, opp.currency)}
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    {opp.probability !== null ? (
-                      <span>{opp.probability}%</span>
-                    ) : (
-                      <span className="text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <Calendar className="h-3 w-3 text-muted-foreground" />
-                      {formatDate(opp.expected_close_date)}
-                    </div>
-                  </TableCell>
+                  {columns.map((column) => (
+                    <TableCell key={column.key}>
+                      {renderCell(opp, column.key)}
+                    </TableCell>
+                  ))}
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>

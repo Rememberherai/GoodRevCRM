@@ -5,6 +5,7 @@ import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Search, FileText, Calendar, DollarSign, MoreHorizontal, Pencil, Trash2, AlertTriangle, ListChecks } from 'lucide-react';
 import { useRfps } from '@/hooks/use-rfps';
+import { useColumnPreferences } from '@/hooks/use-column-preferences';
 import { STATUS_LABELS, RFP_STATUSES, type RfpStatus } from '@/types/rfp';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -43,6 +44,8 @@ import {
 import { Badge } from '@/components/ui/badge';
 import { NewRfpDialog } from '@/components/rfps/new-rfp-dialog';
 import { BulkActionsBar } from '@/components/bulk/bulk-actions-bar';
+import { ColumnPicker } from '@/components/table/column-picker';
+import { renderCellValue } from '@/lib/table-columns/renderers';
 import type { BulkOperation } from '@/types/bulk';
 
 const STATUS_COLORS: Record<RfpStatus, string> = {
@@ -76,6 +79,15 @@ export function RfpsPageClient() {
     goToPage,
     refresh,
   } = useRfps();
+
+  const {
+    columns,
+    allColumns,
+    isLoading: columnsLoading,
+    isSaving,
+    toggleColumn,
+    resetToDefaults,
+  } = useColumnPreferences('rfp');
 
   const [stats, setStats] = useState<{
     total: number;
@@ -219,6 +231,100 @@ export function RfpsPageClient() {
     return due <= sevenDaysFromNow && due >= new Date();
   };
 
+  // Render cell content based on column key
+  const renderCell = (rfp: typeof rfps[0], columnKey: string) => {
+    // Special handling for title column
+    if (columnKey === 'title') {
+      return (
+        <>
+          <Link
+            href={`/projects/${slug}/rfps/${rfp.id}`}
+            className="font-medium hover:underline"
+          >
+            {rfp.title}
+          </Link>
+          {rfp.rfp_number && (
+            <div className="text-sm text-muted-foreground">
+              #{rfp.rfp_number}
+            </div>
+          )}
+        </>
+      );
+    }
+
+    // Special handling for status with colored badge
+    if (columnKey === 'status') {
+      return (
+        <Badge className={STATUS_COLORS[rfp.status]} variant="secondary">
+          {STATUS_LABELS[rfp.status]}
+        </Badge>
+      );
+    }
+
+    // Special handling for progress (question counts)
+    if (columnKey === 'progress') {
+      const rfpWithCounts = rfp as typeof rfp & { question_counts?: { answered: number; total: number } };
+      if (rfpWithCounts.question_counts) {
+        return (
+          <div className="flex items-center gap-2">
+            <ListChecks className="h-3 w-3 text-muted-foreground" />
+            <span className="text-sm">
+              {rfpWithCounts.question_counts.answered}/{rfpWithCounts.question_counts.total}
+            </span>
+          </div>
+        );
+      }
+      return <span className="text-sm text-muted-foreground">—</span>;
+    }
+
+    // Special handling for due_date with overdue/soon indicators
+    if (columnKey === 'due_date') {
+      return (
+        <div className="flex items-center gap-2">
+          {isOverdue(rfp.due_date, rfp.status) && (
+            <AlertTriangle className="h-4 w-4 text-destructive" />
+          )}
+          {isDueSoon(rfp.due_date, rfp.status) && (
+            <AlertTriangle className="h-4 w-4 text-amber-500" />
+          )}
+          <div className="flex items-center gap-1">
+            <Calendar className="h-3 w-3 text-muted-foreground" />
+            <span className={
+              isOverdue(rfp.due_date, rfp.status)
+                ? 'text-destructive font-medium'
+                : isDueSoon(rfp.due_date, rfp.status)
+                  ? 'text-amber-600 font-medium'
+                  : ''
+            }>
+              {formatDate(rfp.due_date)}
+            </span>
+          </div>
+        </div>
+      );
+    }
+
+    // Special handling for estimated_value with icon
+    if (columnKey === 'estimated_value') {
+      return (
+        <div className="flex items-center gap-1">
+          <DollarSign className="h-3 w-3 text-muted-foreground" />
+          {formatCurrency(rfp.estimated_value, rfp.currency)}
+        </div>
+      );
+    }
+
+    // Find the column definition and use the generic renderer
+    const column = columns.find(c => c.key === columnKey);
+    if (column) {
+      return renderCellValue(rfp as unknown as Record<string, unknown>, column);
+    }
+
+    return <span className="text-muted-foreground">—</span>;
+  };
+
+  // Calculate total columns for colspan (checkbox + visible columns + actions)
+  const totalColumns = columns.length + 2;
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
@@ -290,6 +396,12 @@ export function RfpsPageClient() {
             ))}
           </SelectContent>
         </Select>
+        <ColumnPicker
+          columns={allColumns}
+          onToggle={toggleColumn}
+          onReset={resetToDefaults}
+          isSaving={isSaving}
+        />
       </div>
 
       {error && (
@@ -321,24 +433,27 @@ export function RfpsPageClient() {
                   aria-label="Select all"
                 />
               </TableHead>
-              <TableHead>Title</TableHead>
-              <TableHead>Status</TableHead>
-              <TableHead>Progress</TableHead>
-              <TableHead>Due Date</TableHead>
-              <TableHead>Estimated Value</TableHead>
+              {columns.map((column) => (
+                <TableHead
+                  key={column.key}
+                  style={column.minWidth ? { minWidth: column.minWidth } : undefined}
+                >
+                  {column.label}
+                </TableHead>
+              ))}
               <TableHead className="w-[70px]"></TableHead>
             </TableRow>
           </TableHeader>
           <TableBody>
-            {isLoading && rfps.length === 0 ? (
+            {(isLoading || columnsLoading) && rfps.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={totalColumns} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : rfps.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={7} className="text-center py-8">
+                <TableCell colSpan={totalColumns} className="text-center py-8">
                   <div className="flex flex-col items-center gap-2">
                     <FileText className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">No RFPs yet</p>
@@ -363,64 +478,11 @@ export function RfpsPageClient() {
                       aria-label={`Select ${rfp.title}`}
                     />
                   </TableCell>
-                  <TableCell>
-                    <Link
-                      href={`/projects/${slug}/rfps/${rfp.id}`}
-                      className="font-medium hover:underline"
-                    >
-                      {rfp.title}
-                    </Link>
-                    {rfp.rfp_number && (
-                      <div className="text-sm text-muted-foreground">
-                        #{rfp.rfp_number}
-                      </div>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <Badge className={STATUS_COLORS[rfp.status]} variant="secondary">
-                      {STATUS_LABELS[rfp.status]}
-                    </Badge>
-                  </TableCell>
-                  <TableCell>
-                    {(rfp as any).question_counts ? (
-                      <div className="flex items-center gap-2">
-                        <ListChecks className="h-3 w-3 text-muted-foreground" />
-                        <span className="text-sm">
-                          {(rfp as any).question_counts.answered}/{(rfp as any).question_counts.total}
-                        </span>
-                      </div>
-                    ) : (
-                      <span className="text-sm text-muted-foreground">—</span>
-                    )}
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-2">
-                      {isOverdue(rfp.due_date, rfp.status) && (
-                        <AlertTriangle className="h-4 w-4 text-destructive" />
-                      )}
-                      {isDueSoon(rfp.due_date, rfp.status) && (
-                        <AlertTriangle className="h-4 w-4 text-amber-500" />
-                      )}
-                      <div className="flex items-center gap-1">
-                        <Calendar className="h-3 w-3 text-muted-foreground" />
-                        <span className={
-                          isOverdue(rfp.due_date, rfp.status)
-                            ? 'text-destructive font-medium'
-                            : isDueSoon(rfp.due_date, rfp.status)
-                              ? 'text-amber-600 font-medium'
-                              : ''
-                        }>
-                          {formatDate(rfp.due_date)}
-                        </span>
-                      </div>
-                    </div>
-                  </TableCell>
-                  <TableCell>
-                    <div className="flex items-center gap-1">
-                      <DollarSign className="h-3 w-3 text-muted-foreground" />
-                      {formatCurrency(rfp.estimated_value, rfp.currency)}
-                    </div>
-                  </TableCell>
+                  {columns.map((column) => (
+                    <TableCell key={column.key}>
+                      {renderCell(rfp, column.key)}
+                    </TableCell>
+                  ))}
                   <TableCell>
                     <DropdownMenu>
                       <DropdownMenuTrigger asChild>
