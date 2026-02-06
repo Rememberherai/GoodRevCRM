@@ -7,6 +7,7 @@ import { Search, Users, Mail, Phone, MoreHorizontal, Pencil, Trash2 } from 'luci
 import { usePeople } from '@/hooks/use-people';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Table,
   TableBody,
@@ -34,6 +35,8 @@ import {
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { SendEmailModal } from '@/components/gmail';
+import { BulkActionsBar } from '@/components/bulk/bulk-actions-bar';
+import { BulkEnrichWithReviewModal } from '@/components/enrichment/bulk-enrich-with-review-modal';
 
 export function PeoplePageClient() {
   const params = useParams();
@@ -41,6 +44,8 @@ export function PeoplePageClient() {
   const [searchInput, setSearchInput] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [sendEmailTo, setSendEmailTo] = useState<{ email: string; personId: string } | null>(null);
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkEnrichOpen, setBulkEnrichOpen] = useState(false);
 
   const {
     people,
@@ -50,7 +55,34 @@ export function PeoplePageClient() {
     search,
     remove,
     goToPage,
+    refresh,
   } = usePeople();
+
+  const toggleSelection = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === people.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(people.map((p) => p.id)));
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+  };
+
+  const selectedPeople = people.filter((p) => selectedIds.has(p.id));
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,6 +143,13 @@ export function PeoplePageClient() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[50px]">
+                <Checkbox
+                  checked={people.length > 0 && selectedIds.size === people.length}
+                  onCheckedChange={toggleSelectAll}
+                  aria-label="Select all"
+                />
+              </TableHead>
               <TableHead>Name</TableHead>
               <TableHead>Title</TableHead>
               <TableHead>Email</TableHead>
@@ -121,13 +160,13 @@ export function PeoplePageClient() {
           <TableBody>
             {isLoading && people.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   Loading...
                 </TableCell>
               </TableRow>
             ) : people.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={5} className="text-center py-8">
+                <TableCell colSpan={6} className="text-center py-8">
                   <div className="flex flex-col items-center gap-2">
                     <Users className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">No people yet</p>
@@ -139,7 +178,14 @@ export function PeoplePageClient() {
               </TableRow>
             ) : (
               people.map((person) => (
-                <TableRow key={person.id}>
+                <TableRow key={person.id} data-state={selectedIds.has(person.id) ? 'selected' : undefined}>
+                  <TableCell>
+                    <Checkbox
+                      checked={selectedIds.has(person.id)}
+                      onCheckedChange={() => toggleSelection(person.id)}
+                      aria-label={`Select ${person.first_name} ${person.last_name}`}
+                    />
+                  </TableCell>
                   <TableCell>
                     <Link
                       href={`/projects/${slug}/people/${person.id}`}
@@ -282,6 +328,30 @@ export function PeoplePageClient() {
         projectSlug={slug}
         defaultTo={sendEmailTo?.email ?? ''}
         personId={sendEmailTo?.personId}
+      />
+
+      {selectedIds.size > 0 && (
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+          <BulkActionsBar
+            selectedCount={selectedIds.size}
+            entityType="person"
+            onClearSelection={clearSelection}
+            onBulkAction={async () => {}}
+            showEnrich
+            onEnrich={() => setBulkEnrichOpen(true)}
+          />
+        </div>
+      )}
+
+      <BulkEnrichWithReviewModal
+        open={bulkEnrichOpen}
+        onClose={() => setBulkEnrichOpen(false)}
+        selectedPeople={selectedPeople}
+        projectSlug={slug}
+        onComplete={() => {
+          clearSelection();
+          refresh();
+        }}
       />
     </div>
   );

@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Trash2, UserPlus, Tag, CheckCircle, RefreshCw } from 'lucide-react';
+import { X, Trash2, UserPlus, Tag, CheckCircle, RefreshCw, Sparkles } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -29,6 +29,8 @@ interface BulkActionsBarProps {
   loading?: boolean;
   showComplete?: boolean;
   showRestore?: boolean;
+  showEnrich?: boolean;
+  onEnrich?: () => void;
 }
 
 export function BulkActionsBar({
@@ -39,6 +41,8 @@ export function BulkActionsBar({
   loading = false,
   showComplete = false,
   showRestore = false,
+  showEnrich = false,
+  onEnrich,
 }: BulkActionsBarProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [actionInProgress, setActionInProgress] = useState(false);
@@ -71,6 +75,18 @@ export function BulkActionsBar({
         </span>
 
         <div className="flex items-center gap-1">
+          {showEnrich && onEnrich && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onEnrich}
+              disabled={loading || actionInProgress}
+            >
+              <Sparkles className="h-4 w-4 mr-1" />
+              Enrich
+            </Button>
+          )}
+
           {showComplete && (
             <Button
               variant="ghost"
