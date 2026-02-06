@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Sparkles,
   Loader2,
@@ -90,36 +90,53 @@ export function BulkEnrichWithReviewModal({
   const [skippedCount, setSkippedCount] = useState(0);
   const [selectedFields, setSelectedFields] = useState<Record<string, string>>({});
   const [isApplying, setIsApplying] = useState(false);
+  const personIdsRef = useRef<string[]>([]);
+  const pollCountRef = useRef(0);
+  const phaseRef = useRef<Phase>('confirming');
 
-  // Reset state when modal opens
+  // Reset state when modal opens/closes
   useEffect(() => {
     if (open) {
       setPhase('confirming');
+      phaseRef.current = 'confirming';
       setJobs([]);
       setCurrentReviewIndex(0);
       setAppliedCount(0);
       setSkippedCount(0);
       setSelectedFields({});
+      personIdsRef.current = [];
+      pollCountRef.current = 0;
     }
   }, [open]);
 
   // Poll for job completion
   const pollJobs = useCallback(async () => {
-    if (phase !== 'processing') return;
+    if (phase !== 'processing' || personIdsRef.current.length === 0) return;
+
+    console.log('[BulkEnrich] Polling for jobs...', personIdsRef.current);
 
     try {
-      // Poll for each person's enrichment job
-      const response = await fetch(
-        `/api/projects/${projectSlug}/enrich?poll=true`
-      );
-      const data = await response.json();
+      // Poll for each person's enrichment job individually
+      const personIds = personIdsRef.current;
+      const enrichmentJobs: EnrichmentJob[] = [];
 
-      if (!response.ok) {
-        console.error('Poll error:', data.error);
-        return;
+      // Fetch jobs for each person (in parallel)
+      const responses = await Promise.all(
+        personIds.map((personId) =>
+          fetch(
+            `/api/projects/${projectSlug}/enrich?poll=true&person_id=${personId}`
+          ).then((r) => r.json())
+        )
+      );
+
+      for (const data of responses) {
+        if (data.jobs && data.jobs.length > 0) {
+          // Get the most recent job for this person
+          enrichmentJobs.push(data.jobs[0]);
+        }
       }
 
-      const enrichmentJobs = data.jobs as EnrichmentJob[];
+      console.log('[BulkEnrich] Poll results:', enrichmentJobs.map(j => ({ person_id: j.person_id, status: j.status, hasResult: !!j.result })));
 
       // Update job states based on enrichment jobs
       setJobs((prevJobs) => {
@@ -155,9 +172,11 @@ export function BulkEnrichWithReviewModal({
             );
             setCurrentReviewIndex(firstCompletedIndex);
             setPhase('reviewing');
+            phaseRef.current = 'reviewing';
           } else {
             // All failed
             setPhase('completed');
+            phaseRef.current = 'completed';
           }
         }
 
@@ -168,15 +187,42 @@ export function BulkEnrichWithReviewModal({
     }
   }, [phase, projectSlug]);
 
-  // Set up polling interval
+  // Set up polling with exponential backoff
   useEffect(() => {
     if (phase !== 'processing') return;
 
-    const interval = setInterval(pollJobs, 3000);
-    // Initial poll
-    pollJobs();
+    let timeoutId: NodeJS.Timeout;
 
-    return () => clearInterval(interval);
+    const scheduleNextPoll = () => {
+      // Exponential backoff: 3s, 4.5s, 6.75s, up to max 15s
+      const baseInterval = 3000;
+      const maxInterval = 15000;
+      const backoffFactor = 1.5;
+      const interval = Math.min(
+        baseInterval * Math.pow(backoffFactor, pollCountRef.current),
+        maxInterval
+      );
+
+      console.log(`[BulkEnrich] Next poll in ${Math.round(interval / 1000)}s (poll #${pollCountRef.current + 1})`);
+
+      timeoutId = setTimeout(async () => {
+        pollCountRef.current += 1;
+        await pollJobs();
+        // Schedule next poll if still processing
+        if (phaseRef.current === 'processing') {
+          scheduleNextPoll();
+        }
+      }, interval);
+    };
+
+    // Initial poll immediately
+    pollJobs().then(() => {
+      scheduleNextPoll();
+    });
+
+    return () => {
+      if (timeoutId) clearTimeout(timeoutId);
+    };
   }, [phase, pollJobs]);
 
   const startEnrichment = async () => {
@@ -191,7 +237,10 @@ export function BulkEnrichWithReviewModal({
       error: null,
     }));
     setJobs(initialJobs);
+    personIdsRef.current = selectedPeople.map((p) => p.id);
+    pollCountRef.current = 0;
     setPhase('processing');
+    phaseRef.current = 'processing';
 
     try {
       const response = await fetch(`/api/projects/${projectSlug}/enrich`, {
@@ -222,6 +271,7 @@ export function BulkEnrichWithReviewModal({
         error instanceof Error ? error.message : 'Bulk enrichment failed';
       toast.error(message);
       setPhase('completed');
+      phaseRef.current = 'completed';
     }
   };
 
@@ -487,6 +537,7 @@ export function BulkEnrichWithReviewModal({
     const currentJob = getCurrentJob();
     if (!currentJob) {
       setPhase('completed');
+      phaseRef.current = 'completed';
       return;
     }
 
@@ -502,6 +553,7 @@ export function BulkEnrichWithReviewModal({
     } else {
       // All done
       setPhase('completed');
+      phaseRef.current = 'completed';
     }
   };
 
