@@ -6,7 +6,7 @@ export type PersonInsert = Database['public']['Tables']['people']['Insert'];
 export type PersonUpdate = Database['public']['Tables']['people']['Update'];
 
 export interface PersonWithRelations extends Person {
-  organizations?: Organization[];
+  organizations?: PersonOrganization[];
   organization_count?: number;
   opportunities_count?: number;
 }
