@@ -129,7 +129,15 @@ export async function GET(request: Request, context: RouteContext) {
             console.log('Polling external job:', externalJobId, 'for', jobGroup.length, 'internal jobs');
             try {
               const result = await client.getJobStatus(externalJobId);
-              console.log('FullEnrich poll result:', JSON.stringify(result, null, 2));
+              console.log('FullEnrich poll result status:', result.status, 'results count:', result.results?.length);
+              if (result.status === 'completed' && result.results) {
+                console.log('FullEnrich results summary:', JSON.stringify(result.results.map((r: EnrichmentPerson, i: number) => ({
+                  index: i,
+                  custom: r._custom,
+                  email: r.email,
+                  linkedin: r.linkedin_url,
+                })), null, 2));
+              }
 
               // Check if job is finished
               if (result.status === 'completed' && result.results && result.results.length > 0) {
@@ -139,7 +147,12 @@ export async function GET(request: Request, context: RouteContext) {
 
                   // Log the custom fields for debugging
                   console.log('Matching job:', job.id, 'person:', job.person_id);
-                  console.log('Results _custom fields:', result.results.map((r: EnrichmentPerson) => r._custom));
+                  console.log('Available results count:', result.results.length);
+                  console.log('Results _custom fields:', JSON.stringify(result.results.map((r: EnrichmentPerson) => ({
+                    custom: r._custom,
+                    hasEmail: !!r.email,
+                    hasLinkedIn: !!r.linkedin_url,
+                  }))));
 
                   // Primary matching: use _custom.job_id passed through FullEnrich
                   let enrichmentResult = result.results.find((r: EnrichmentPerson) => {
