@@ -395,7 +395,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
                     <ClickToDialButton
                       phoneNumber={person.phone}
                       personId={personId}
-                      organizationId={person.organizations?.[0]?.id}
+                      organizationId={person.organizations?.[0]?.organization_id}
                     />
                   </div>
                 )}
@@ -406,7 +406,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
                     <ClickToDialButton
                       phoneNumber={person.mobile_phone}
                       personId={personId}
-                      organizationId={person.organizations?.[0]?.id}
+                      organizationId={person.organizations?.[0]?.organization_id}
                     />
                   </div>
                 )}
@@ -614,7 +614,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
         projectSlug={slug}
         defaultTo={person.email ?? ''}
         personId={personId}
-        organizationId={person.organizations?.[0]?.id}
+        organizationId={person.organizations?.[0]?.organization_id}
       />
 
       <EnrichmentReviewModal
