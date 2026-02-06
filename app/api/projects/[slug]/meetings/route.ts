@@ -181,7 +181,35 @@ export async function POST(request: Request, context: RouteContext) {
 
       if (attendeeError) {
         console.error('Error creating meeting attendees:', attendeeError);
+        warnings.push('Some attendees could not be added');
       }
+    }
+
+    // Log to activity_log
+    const { error: activityError } = await supabaseAny
+      .from('activity_log')
+      .insert({
+        project_id: project.id,
+        user_id: user.id,
+        entity_type: 'meeting',
+        entity_id: meeting.id,
+        action: 'created',
+        activity_type: 'meeting',
+        person_id: meetingData.person_id ?? null,
+        organization_id: meetingData.organization_id ?? null,
+        opportunity_id: meetingData.opportunity_id ?? null,
+        subject: `Meeting scheduled: ${meetingData.title}`,
+        outcome: 'meeting_booked',
+        metadata: {
+          meeting_id: meeting.id,
+          meeting_type: meetingData.meeting_type,
+          scheduled_at: meetingData.scheduled_at,
+          duration_minutes: meetingData.duration_minutes,
+        },
+      });
+
+    if (activityError) {
+      console.error('Error logging meeting creation activity:', activityError);
     }
 
     // Fetch the meeting back with all relations
@@ -193,10 +221,10 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (fetchError) {
       console.error('Error fetching created meeting:', fetchError);
-      return NextResponse.json(meeting, { status: 201 });
+      return NextResponse.json({ meeting, warnings: warnings.length > 0 ? warnings : undefined }, { status: 201 });
     }
 
-    return NextResponse.json(fullMeeting, { status: 201 });
+    return NextResponse.json({ ...fullMeeting, warnings: warnings.length > 0 ? warnings : undefined }, { status: 201 });
   } catch (error) {
     console.error('Error in POST /api/projects/[slug]/meetings:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
