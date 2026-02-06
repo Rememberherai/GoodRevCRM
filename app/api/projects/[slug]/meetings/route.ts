@@ -145,6 +145,47 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { attendee_person_ids, attendee_user_ids, ...meetingData } = validationResult.data;
 
+    // Validate cross-project entity references (29.1)
+    const validationErrors: string[] = [];
+    if (meetingData.person_id) {
+      const { data: person } = await supabaseAny.from('people').select('id').eq('id', meetingData.person_id).eq('project_id', project.id).is('deleted_at', null).single();
+      if (!person) validationErrors.push('person_id does not belong to this project');
+    }
+    if (meetingData.organization_id) {
+      const { data: org } = await supabaseAny.from('organizations').select('id').eq('id', meetingData.organization_id).eq('project_id', project.id).is('deleted_at', null).single();
+      if (!org) validationErrors.push('organization_id does not belong to this project');
+    }
+    if (meetingData.opportunity_id) {
+      const { data: opp } = await supabaseAny.from('opportunities').select('id').eq('id', meetingData.opportunity_id).eq('project_id', project.id).is('deleted_at', null).single();
+      if (!opp) validationErrors.push('opportunity_id does not belong to this project');
+    }
+    if (meetingData.rfp_id) {
+      const { data: rfp } = await supabaseAny.from('rfps').select('id').eq('id', meetingData.rfp_id).eq('project_id', project.id).is('deleted_at', null).single();
+      if (!rfp) validationErrors.push('rfp_id does not belong to this project');
+    }
+    if (meetingData.assigned_to) {
+      const { data: member } = await supabaseAny.from('project_memberships').select('user_id').eq('user_id', meetingData.assigned_to).eq('project_id', project.id).single();
+      if (!member) validationErrors.push('assigned_to user is not a member of this project');
+    }
+
+    // Validate attendee references (29.2)
+    if (attendee_person_ids && attendee_person_ids.length > 0) {
+      const { data: validPeople } = await supabaseAny.from('people').select('id').eq('project_id', project.id).in('id', attendee_person_ids);
+      const validPersonIds = new Set((validPeople ?? []).map((p: { id: string }) => p.id));
+      const invalidPersonIds = attendee_person_ids.filter((id: string) => !validPersonIds.has(id));
+      if (invalidPersonIds.length > 0) validationErrors.push(`Some attendee_person_ids do not belong to this project: ${invalidPersonIds.join(', ')}`);
+    }
+    if (attendee_user_ids && attendee_user_ids.length > 0) {
+      const { data: validMembers } = await supabaseAny.from('project_memberships').select('user_id').eq('project_id', project.id).in('user_id', attendee_user_ids);
+      const validUserIds = new Set((validMembers ?? []).map((m: { user_id: string }) => m.user_id));
+      const invalidUserIds = attendee_user_ids.filter((id: string) => !validUserIds.has(id));
+      if (invalidUserIds.length > 0) validationErrors.push(`Some attendee_user_ids are not members of this project: ${invalidUserIds.join(', ')}`);
+    }
+
+    if (validationErrors.length > 0) {
+      return NextResponse.json({ error: 'Validation failed', details: validationErrors }, { status: 400 });
+    }
+
     const { data: meeting, error } = await supabaseAny
       .from('meetings')
       .insert({
@@ -174,6 +215,7 @@ export async function POST(request: Request, context: RouteContext) {
       })),
     ];
 
+    const warnings: string[] = [];
     if (attendeeRows.length > 0) {
       const { error: attendeeError } = await supabaseAny
         .from('meeting_attendees')
