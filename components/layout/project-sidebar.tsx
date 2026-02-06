@@ -10,7 +10,6 @@ import {
   LayoutDashboard,
   Settings,
   Mail,
-  Search,
   Library,
   BarChart3,
   Newspaper,
@@ -72,11 +71,6 @@ const navItems = [
 ];
 
 const bottomNavItems = [
-  {
-    title: 'Search',
-    href: '/search',
-    icon: Search,
-  },
   {
     title: 'Settings',
     href: '/settings',
