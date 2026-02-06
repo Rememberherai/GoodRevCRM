@@ -246,6 +246,154 @@ export async function fetchNewsForProject(projectId: string): Promise<FetchResul
 }
 
 /**
+ * Fetch news for a specific organization (single keyword search using org name)
+ */
+export async function fetchNewsForOrganization(
+  projectId: string,
+  organizationId: string,
+  organizationName: string
+): Promise<FetchResult> {
+  const supabase = createAdminClient();
+  const result: FetchResult = {
+    articlesProcessed: 0,
+    tokensUsed: 0,
+    tokensRemaining: 0,
+    errors: [],
+  };
+
+  // Check token budget
+  const { allowed, tokensUsed } = await canFetch();
+  result.tokensRemaining = TOKEN_LIMIT - tokensUsed;
+
+  if (!allowed) {
+    result.errors.push('Token limit approaching, skipping fetch');
+    return result;
+  }
+
+  // Use organization name as the keyword
+  const keywords = [organizationName];
+  console.log('[News] Fetching news for organization:', organizationName);
+
+  // Calculate date range (last 7 days)
+  const dateEnd = new Date().toISOString().split('T')[0];
+  const dateStart = new Date(Date.now() - 7 * 24 * 60 * 60 * 1000).toISOString().split('T')[0];
+
+  let client: NewsApiClient;
+  try {
+    client = new NewsApiClient();
+  } catch (e) {
+    result.errors.push(e instanceof Error ? e.message : 'Failed to create NewsAPI client');
+    return result;
+  }
+
+  try {
+    const response = await client.searchArticles({
+      keywords,
+      keywordOper: 'and', // Use 'and' for more precise org-specific search
+      dateStart,
+      dateEnd,
+      sortBy: 'date',
+      count: 50, // Fewer articles for org-specific search
+    });
+
+    console.log('[News] API returned', response.articles.results.length, 'articles for organization', organizationName);
+    result.tokensUsed = 1; // Each search costs 1 token
+
+    // Log the fetch
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from('news_fetch_log').insert({
+      project_id: projectId,
+      tokens_used: 1,
+      articles_fetched: response.articles.results.length,
+      keywords_searched: keywords,
+    });
+
+    // Process each article
+    for (const article of response.articles.results) {
+      if (!article.url || !article.title) continue;
+
+      const matchedKeywords = findMatchedKeywords(article, keywords);
+      if (matchedKeywords.length === 0) {
+        // The API returned it, so it matched something — use the org name
+        matchedKeywords.push(organizationName);
+      }
+
+      const authorName = article.authors?.[0]?.name || null;
+
+      // Upsert article via RPC
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: articleId, error: upsertError } = await (supabase as any).rpc('upsert_news_article', {
+        p_project_id: projectId,
+        p_title: article.title,
+        p_body: article.body || null,
+        p_description: (article.body || '').slice(0, 300) || null,
+        p_source_name: article.source?.title || null,
+        p_author: authorName,
+        p_url: article.url,
+        p_image_url: article.image || null,
+        p_published_at: article.dateTime || article.dateTimePub || null,
+        p_matched_keywords: matchedKeywords,
+        p_sentiment: article.sentiment ?? null,
+      });
+
+      if (upsertError) {
+        result.errors.push(`Upsert error for ${article.url}: ${upsertError.message}`);
+        continue;
+      }
+
+      result.articlesProcessed++;
+
+      if (!articleId) continue;
+
+      // Link directly to this organization with match_type 'org_fetch'
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      await (supabase as any).from('news_article_entities').upsert(
+        { article_id: articleId, organization_id: organizationId, match_type: 'org_fetch' },
+        { onConflict: 'article_id,organization_id' }
+      ).then(({ error }: { error: any }) => {
+        if (error) console.warn('[News] Entity link error:', error.message);
+      });
+
+      // Emit automation event for new articles
+      const event: AutomationEvent = {
+        projectId,
+        triggerType: 'news.article_found' as AutomationEvent['triggerType'],
+        entityType: 'organization',
+        entityId: organizationId,
+        data: {
+          article_title: article.title,
+          article_url: article.url,
+          matched_keywords: matchedKeywords,
+          source_name: article.source?.title || null,
+          organization_name: organizationName,
+        },
+      };
+      emitAutomationEvent(event);
+    }
+  } catch (e) {
+    const message = e instanceof NewsApiError
+      ? `NewsAPI error: ${e.message}`
+      : e instanceof Error
+        ? e.message
+        : 'Unknown fetch error';
+    result.errors.push(message);
+
+    // Log failed fetch
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    await (supabase as any).from('news_fetch_log').insert({
+      project_id: projectId,
+      tokens_used: 1,
+      articles_fetched: 0,
+      keywords_searched: keywords,
+      error_message: message,
+    });
+  }
+
+  result.tokensRemaining = TOKEN_LIMIT - tokensUsed - result.tokensUsed;
+  return result;
+}
+
+/**
  * Fetch news for all projects (used by cron)
  */
 export async function fetchNewsForAllProjects(): Promise<{

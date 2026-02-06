@@ -66,6 +66,7 @@ import { EntityEmailTab } from '@/components/email/entity-email-tab';
 import { SendEmailModal } from '@/components/gmail';
 import { EntityCommentsFeed } from '@/components/comments';
 import { OrgNewsSection } from '@/components/news/org-news-section';
+import { OrgNewsFetchCard } from '@/components/news/org-news-fetch-card';
 import { ClickToDialButton } from '@/components/calls/click-to-dial-button';
 import { CallLogTable } from '@/components/calls/call-log-table';
 import { SmsConversation } from '@/components/sms/sms-conversation';
@@ -226,6 +227,12 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
   const [showEditFieldDialog, setShowEditFieldDialog] = useState(false);
   const [showDeleteFieldDialog, setShowDeleteFieldDialog] = useState(false);
   const [selectedField, setSelectedField] = useState<CustomFieldDefinition | null>(null);
+
+  // News refresh state
+  const [newsRefreshKey, setNewsRefreshKey] = useState(0);
+  const handleNewsFetchComplete = useCallback(() => {
+    setNewsRefreshKey(prev => prev + 1);
+  }, []);
 
   const { organization, isLoading, error, refresh } = useOrganization(organizationId);
   const { fields: customFields } = useEntityCustomFields('organization');
@@ -801,8 +808,16 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
             </CardContent>
           </Card>
 
+          {/* News Fetch Card */}
+          <OrgNewsFetchCard
+            projectSlug={slug}
+            organizationId={organizationId}
+            organizationName={organization.name}
+            onFetchComplete={handleNewsFetchComplete}
+          />
+
           {/* Related News */}
-          <OrgNewsSection projectSlug={slug} organizationId={organizationId} />
+          <OrgNewsSection key={newsRefreshKey} projectSlug={slug} organizationId={organizationId} />
         </TabsContent>
 
         {/* People Tab */}
