@@ -31,6 +31,8 @@ interface BulkActionsBarProps {
   showRestore?: boolean;
   showEnrich?: boolean;
   onEnrich?: () => void;
+  showResearch?: boolean;
+  onResearch?: () => void;
 }
 
 export function BulkActionsBar({
@@ -43,6 +45,8 @@ export function BulkActionsBar({
   showRestore = false,
   showEnrich = false,
   onEnrich,
+  showResearch = false,
+  onResearch,
 }: BulkActionsBarProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [actionInProgress, setActionInProgress] = useState(false);
@@ -84,6 +88,18 @@ export function BulkActionsBar({
             >
               <Sparkles className="h-4 w-4 mr-1" />
               Enrich
+            </Button>
+          )}
+
+          {showResearch && onResearch && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onResearch}
+              disabled={loading || actionInProgress}
+            >
+              <Sparkles className="h-4 w-4 mr-1" />
+              AI Research
             </Button>
           )}
 

@@ -156,6 +156,36 @@ export function RfpsPageClient() {
     }
   };
 
+  const handleBulkResearch = async () => {
+    if (selectedIds.size === 0) return;
+
+    setBulkLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/rfps/bulk-research`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          rfp_ids: Array.from(selectedIds),
+        }),
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Bulk research failed');
+      }
+
+      const result = await response.json();
+      console.log(`Started research for ${result.started} RFPs`);
+
+      // Clear selection
+      setSelectedIds(new Set());
+    } catch (err) {
+      console.error('Bulk research error:', err);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   const formatCurrency = (amount: number | null, currency: string | null) => {
     if (amount === null) return '—';
     return new Intl.NumberFormat('en-US', {
@@ -275,6 +305,8 @@ export function RfpsPageClient() {
           onClearSelection={() => setSelectedIds(new Set())}
           onBulkAction={handleBulkAction}
           loading={bulkLoading}
+          showResearch
+          onResearch={handleBulkResearch}
         />
       )}
 
