@@ -413,7 +413,8 @@ export function RfpsPageClient() {
           </SelectTrigger>
           <SelectContent>
             <SelectItem value="all">All Sources</SelectItem>
-            <SelectItem value="municipal_minutes">Municipal Minutes</SelectItem>
+            <SelectItem value="municipal_rfp">Municipal RFP (Formal)</SelectItem>
+            <SelectItem value="municipal_minutes">Municipal Minutes (Discussions)</SelectItem>
             <SelectItem value="epa">EPA</SelectItem>
             <SelectItem value="manual">Manual Entry</SelectItem>
           </SelectContent>

@@ -11,11 +11,12 @@ You'll see **5 new filter dropdowns** above the RFP table:
 
 ### 1. **Source Filter**
 - **All Sources** - Shows everything
-- **Municipal Minutes** - Shows ONLY opportunities from municipal meetings
+- **Municipal RFP (Formal)** - Shows ONLY formal RFPs/tenders from municipal meetings with submission deadlines
+- **Municipal Minutes (Discussions)** - Shows project discussions, planning stages, and mentions from meetings
 - **EPA** - Shows EPA-sourced RFPs
 - **Manual Entry** - Shows manually entered RFPs
 
-**Use this to**: Instantly view only municipal meeting opportunities
+**Use this to**: Separate formal municipal RFPs from general project discussions and planning
 
 ### 2. **Region Filter**
 - **All Regions** - Shows all provinces
@@ -48,21 +49,26 @@ Works as before - filter by RFP status (identified, reviewing, won, lost, etc.)
 
 ## Example Filtering Workflows
 
-### Find All Municipal Minutes Opportunities
-1. Set **Source** = "Municipal Minutes"
+### Find Only Formal Municipal RFPs (Ready to Bid)
+1. Set **Source** = "Municipal RFP (Formal)"
 2. Leave other filters on "All"
-3. Result: All waste/water opportunities from Canadian municipal meetings
+3. Result: Only active RFPs/tenders with submission deadlines
 
-### Find High-Confidence Ontario Opportunities
-1. Set **Source** = "Municipal Minutes"
+### Find Project Discussions and Planning (Early Stage Opportunities)
+1. Set **Source** = "Municipal Minutes (Discussions)"
+2. Leave other filters on "All"
+3. Result: Projects in discussion/planning stages - good for early relationship building
+
+### Find High-Confidence Ontario Formal RFPs
+1. Set **Source** = "Municipal RFP (Formal)"
 2. Set **Region** = "Ontario"
 3. Set **Confidence** = "80%+ (Good)"
-4. Result: Only high-quality Ontario municipal opportunities
+4. Result: Only high-quality formal RFPs in Ontario ready to bid
 
 ### Find Water Commission Discussions Across Canada
-1. Set **Source** = "Municipal Minutes"
+1. Set **Source** = "Municipal Minutes (Discussions)"
 2. Set **Committee** = "Water Commission"
-3. Result: All water commission meeting items
+3. Result: All water commission planning discussions
 
 ## What Data is Captured
 
@@ -78,7 +84,8 @@ Each municipal RFP includes:
 - **Currency** - Usually CAD
 
 ### Research Metadata (in custom_fields)
-- **source** - Always "municipal_minutes"
+- **source** - "municipal_rfp" for formal RFPs or "municipal_minutes" for discussions
+- **opportunity_type** - "formal_rfp", "project_discussion", or "planning_stage"
 - **region** - Province (e.g., "Nova Scotia")
 - **country** - Always "Canada"
 - **meeting_url** - Direct link to the specific meeting minutes
