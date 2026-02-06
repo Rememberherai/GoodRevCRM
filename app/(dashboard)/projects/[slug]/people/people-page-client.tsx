@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Search, Users, Mail, Phone, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Search, Users, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
 import { usePeople } from '@/hooks/use-people';
 import { useColumnPreferences } from '@/hooks/use-column-preferences';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,8 @@ import { BulkActionsBar } from '@/components/bulk/bulk-actions-bar';
 import { BulkEnrichWithReviewModal } from '@/components/enrichment/bulk-enrich-with-review-modal';
 import { ColumnPicker } from '@/components/table/column-picker';
 import { renderCellValue } from '@/lib/table-columns/renderers';
+import { ClickableEmail } from '@/components/contacts/clickable-email';
+import { ClickablePhone } from '@/components/contacts/clickable-phone';
 
 export function PeoplePageClient() {
   const params = useParams();
@@ -157,32 +159,25 @@ export function PeoplePageClient() {
 
     // Special handling for email with click-to-email
     if (columnKey === 'email') {
-      return person.email ? (
-        <button
-          type="button"
-          onClick={() => setSendEmailTo({ email: person.email!, personId: person.id })}
-          className="flex items-center gap-1 text-primary hover:underline"
-        >
-          <Mail className="h-3 w-3" />
-          {person.email}
-        </button>
-      ) : (
-        <span className="text-muted-foreground">—</span>
+      return (
+        <ClickableEmail
+          email={person.email}
+          onEmailClick={() => setSendEmailTo({ email: person.email!, personId: person.id })}
+          showIcon={true}
+          variant="link"
+        />
       );
     }
 
-    // Special handling for phone with tel link
+    // Special handling for phone with click-to-dial
     if (columnKey === 'phone') {
-      return person.phone ? (
-        <a
-          href={`tel:${person.phone}`}
-          className="flex items-center gap-1 hover:underline"
-        >
-          <Phone className="h-3 w-3" />
-          {person.phone}
-        </a>
-      ) : (
-        <span className="text-muted-foreground">—</span>
+      return (
+        <ClickablePhone
+          phoneNumber={person.phone}
+          personId={person.id}
+          showIcon={true}
+          variant="link"
+        />
       );
     }
 

@@ -15,6 +15,7 @@ import {
 } from 'lucide-react';
 import { useState, useEffect, useRef, useCallback } from 'react';
 import { onDispositionSaved } from '@/stores/call';
+import { ClickablePhone } from '@/components/contacts/clickable-phone';
 
 interface CallLogTableProps {
   personId?: string;
@@ -218,9 +219,14 @@ export function CallLogTable({
                       {call.person.first_name} {call.person.last_name}
                     </span>
                   ) : (
-                    <span className="text-muted-foreground">
-                      {call.direction === 'outbound' ? call.to_number : call.from_number}
-                    </span>
+                    <ClickablePhone
+                      phoneNumber={call.direction === 'outbound' ? call.to_number : call.from_number}
+                      personId={personId}
+                      organizationId={organizationId}
+                      showIcon={false}
+                      variant="ghost"
+                      className="text-muted-foreground"
+                    />
                   )}
                 </td>
                 <td className="px-3 py-2">

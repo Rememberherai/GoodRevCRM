@@ -8,7 +8,6 @@ import {
   Building2,
   Globe,
   Pencil,
-  Phone,
   Trash2,
   Users,
   Target,
@@ -77,6 +76,8 @@ import { PhoneCall, MessageSquareText } from 'lucide-react';
 import { LogoUpload } from '@/components/ui/logo-upload';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
+import { ClickableEmail } from '@/components/contacts/clickable-email';
+import { ClickablePhone } from '@/components/contacts/clickable-phone';
 // Activity types no longer needed - EntityActivitySection handles its own data
 import type { CompanyContext } from '@/lib/validators/project';
 import type { Person } from '@/types/person';
@@ -933,15 +934,35 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
                         )}
                       </div>
                       {person.email && (
-                        <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
-                          <Mail className="h-4 w-4" />
-                          <span>{person.email}</span>
+                        <div
+                          className="hidden md:flex items-center gap-2 text-sm"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <ClickableEmail
+                            email={person.email}
+                            onEmailClick={() => {
+                              // Open email modal - would need to implement state for this
+                              window.location.href = `mailto:${person.email}`;
+                            }}
+                            showIcon={true}
+                            variant="link"
+                            size="sm"
+                          />
                         </div>
                       )}
                       {person.phone && (
-                        <div className="hidden lg:flex items-center gap-2 text-sm text-muted-foreground">
-                          <Phone className="h-4 w-4" />
-                          <span>{person.phone}</span>
+                        <div
+                          className="hidden lg:flex items-center gap-2 text-sm"
+                          onClick={(e) => e.preventDefault()}
+                        >
+                          <ClickablePhone
+                            phoneNumber={person.phone}
+                            personId={person.id}
+                            organizationId={organizationId}
+                            showIcon={true}
+                            variant="link"
+                            size="sm"
+                          />
                         </div>
                       )}
                     </Link>

@@ -10,7 +10,6 @@ import {
   Mail,
   MapPin,
   Pencil,
-  Phone,
   Smartphone,
   Sparkles,
   Trash2,
@@ -48,7 +47,8 @@ import { ActivityTimeline } from '@/components/activity/activity-timeline';
 import { EntityEmailTab } from '@/components/email/entity-email-tab';
 import { SendEmailModal } from '@/components/gmail';
 import { EntityCommentsFeed } from '@/components/comments';
-import { ClickToDialButton } from '@/components/calls/click-to-dial-button';
+import { ClickableEmail } from '@/components/contacts/clickable-email';
+import { ClickablePhone } from '@/components/contacts/clickable-phone';
 import { CallLogTable } from '@/components/calls/call-log-table';
 import { SmsConversation } from '@/components/sms/sms-conversation';
 import { PhoneCall, MessageSquareText, ExternalLink, Copy, Check, UserPlus, Users, ClipboardList } from 'lucide-react';
@@ -484,35 +484,34 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
               <CardContent className="space-y-4">
                 {person.email && (
                   <div className="flex items-center gap-2">
-                    <Mail className="h-4 w-4 text-muted-foreground" />
-                    <button
-                      type="button"
-                      onClick={() => setShowSendEmail(true)}
-                      className="text-primary hover:underline"
-                    >
-                      {person.email}
-                    </button>
+                    <ClickableEmail
+                      email={person.email}
+                      onEmailClick={() => setShowSendEmail(true)}
+                      showIcon={true}
+                      variant="link"
+                    />
                   </div>
                 )}
                 {person.phone && (
                   <div className="flex items-center gap-2">
-                    <Phone className="h-4 w-4 text-muted-foreground" />
-                    <span className="select-all">{person.phone}</span>
-                    <ClickToDialButton
+                    <ClickablePhone
                       phoneNumber={person.phone}
                       personId={personId}
                       organizationId={person.organizations?.[0]?.organization_id}
+                      showIcon={true}
+                      variant="link"
                     />
                   </div>
                 )}
                 {person.mobile_phone && (
                   <div className="flex items-center gap-2">
                     <Smartphone className="h-4 w-4 text-muted-foreground" />
-                    <span className="select-all">{person.mobile_phone}</span>
-                    <ClickToDialButton
+                    <ClickablePhone
                       phoneNumber={person.mobile_phone}
                       personId={personId}
                       organizationId={person.organizations?.[0]?.organization_id}
+                      showIcon={false}
+                      variant="link"
                     />
                   </div>
                 )}
