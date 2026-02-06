@@ -366,8 +366,9 @@ async function performInitialSync(
       if (match.person_id || match.organization_id) {
         result.contacts_matched++;
 
-        // Log activity for inbound emails
-        if (email.direction === 'inbound' && match.project_id) {
+        // Log activity for inbound emails only when a person is matched
+        // (domain-only org matches would create noise from system emails)
+        if (email.direction === 'inbound' && match.project_id && match.person_id) {
           await logEmailActivity(supabase, connection, email, match);
         }
       }
@@ -524,8 +525,9 @@ async function performIncrementalSync(
       result.messages_stored++;
       result.contacts_matched++;
 
-      // Log activity for inbound emails
-      if (parsed.direction === 'inbound' && match.project_id) {
+      // Log activity for inbound emails only when a person is matched
+      // (domain-only org matches would create noise from system emails)
+      if (parsed.direction === 'inbound' && match.project_id && match.person_id) {
         await logEmailActivity(supabase, connection, parsed, match);
       }
     }
