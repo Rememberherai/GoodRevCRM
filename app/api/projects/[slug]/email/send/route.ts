@@ -154,7 +154,38 @@ export async function POST(request: Request, context: RouteContext) {
           },
         };
         console.log('[EMAIL_SEND] activity payload:', JSON.stringify(activityPayload));
-        const { data: activityData, error: activityError } = await adminClient.from('activity_log').insert(activityPayload).select();
+        let { data: activityData, error: activityError } = await adminClient.from('activity_log').insert(activityPayload).select();
+
+        // If FK constraint failed, retry without the invalid entity references
+        if (activityError?.code === '23503') {
+          console.log('[EMAIL_SEND] FK constraint failed, retrying without entity FK references...');
+          const minimalPayload = {
+            project_id: project.id,
+            user_id: user.id,
+            entity_type: entityType,
+            entity_id: entityId,
+            action: 'logged',
+            activity_type: 'email',
+            outcome: 'email_sent',
+            direction: 'outbound',
+            subject: validationResult.data.subject,
+            notes: validationResult.data.body_text || validationResult.data.body_html.replace(/<[^>]*>/g, '').slice(0, 1000),
+            // Omit person_id, organization_id, opportunity_id, rfp_id to avoid FK issues
+            metadata: {
+              sent_email_id: result.sent_email_id,
+              message_id: result.message_id,
+              to: validationResult.data.to,
+              original_person_id: personId,
+              original_organization_id: organizationId,
+              original_opportunity_id: opportunityId,
+              original_rfp_id: rfpId,
+            },
+          };
+          const retryResult = await adminClient.from('activity_log').insert(minimalPayload).select();
+          activityData = retryResult.data;
+          activityError = retryResult.error;
+        }
+
         if (activityError) {
           console.error('[EMAIL_SEND] ERROR: Activity log insert failed:', activityError.message, activityError.code, activityError.details, activityError.hint);
         } else {
