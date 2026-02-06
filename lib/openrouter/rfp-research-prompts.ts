@@ -124,4 +124,4 @@ Important:
 - Provide at least 3 key insights and 3 recommended actions`;
 }
 
-export const RFP_RESEARCH_MODEL = 'perplexity/llama-3.1-sonar-huge-128k-online';
+export const RFP_RESEARCH_MODEL = 'perplexity/sonar-pro-search';
