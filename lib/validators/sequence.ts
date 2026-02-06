@@ -42,11 +42,12 @@ const stepConditionSchema = z.object({
 
 // Create step schema
 export const createStepSchema = z.object({
-  step_type: z.enum(['email', 'delay', 'condition']),
+  step_type: z.enum(['email', 'delay', 'condition', 'sms']),
   step_number: z.number().int().min(1).optional(),
   subject: z.string().max(998).nullable().optional(),
   body_html: z.string().max(500000).nullable().optional(),
   body_text: z.string().max(500000).nullable().optional(),
+  sms_body: z.string().max(1600).nullable().optional(),
   delay_amount: z.number().int().min(1).nullable().optional(),
   delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional(),
   condition: stepConditionSchema.nullable().optional(),
@@ -60,6 +61,7 @@ export const updateStepSchema = z.object({
   subject: z.string().max(998).nullable().optional(),
   body_html: z.string().max(500000).nullable().optional(),
   body_text: z.string().max(500000).nullable().optional(),
+  sms_body: z.string().max(1600).nullable().optional(),
   delay_amount: z.number().int().min(1).nullable().optional(),
   delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional(),
   condition: stepConditionSchema.nullable().optional(),
@@ -201,10 +203,11 @@ export type GenerateSequenceInput = z.infer<typeof generateSequenceInputSchema>;
 // Generated step schema (for AI response validation)
 const generatedStepSchema = z.object({
   step_number: z.number().int().min(1),
-  step_type: z.enum(['email', 'delay']),
+  step_type: z.enum(['email', 'delay', 'sms']),
   subject: z.string().nullable().optional(),
   body_html: z.string().max(500000).nullable().optional(),
   body_text: z.string().max(500000).nullable().optional(),
+  sms_body: z.string().max(1600).nullable().optional(),
   delay_amount: z.number().int().min(1).nullable().optional(),
   delay_unit: z.enum(['hours', 'days', 'weeks']).nullable().optional(),
 });

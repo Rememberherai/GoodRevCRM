@@ -34,6 +34,7 @@ export type ActivityAction =
 export type ActivityType =
   | 'call'
   | 'email'
+  | 'sms'
   | 'meeting'
   | 'note'
   | 'task'
@@ -53,6 +54,10 @@ export type ActivityOutcome =
   | 'email_received'
   | 'email_opened'
   | 'email_replied'
+  | 'sms_sent'
+  | 'sms_received'
+  | 'sms_delivered'
+  | 'sms_failed'
   | 'proposal_sent'
   | 'follow_up_scheduled'
   | 'not_interested'
@@ -138,19 +143,21 @@ export interface ActivitySummary {
 // Constants
 
 export const activityTypes: ActivityType[] = [
-  'call', 'email', 'meeting', 'note', 'task', 'sequence_completed', 'system',
+  'call', 'email', 'sms', 'meeting', 'note', 'task', 'sequence_completed', 'system',
 ];
 
 export const activityOutcomes: ActivityOutcome[] = [
   'call_no_answer', 'call_left_message', 'call_back_later', 'wrong_number', 'do_not_call',
   'quality_conversation', 'meeting_booked',
-  'email_sent', 'email_received', 'email_opened', 'email_replied', 'proposal_sent',
-  'follow_up_scheduled', 'not_interested', 'other',
+  'email_sent', 'email_received', 'email_opened', 'email_replied',
+  'sms_sent', 'sms_received', 'sms_delivered', 'sms_failed',
+  'proposal_sent', 'follow_up_scheduled', 'not_interested', 'other',
 ];
 
 export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
   call: 'Call',
   email: 'Email',
+  sms: 'SMS',
   meeting: 'Meeting',
   note: 'Note',
   task: 'Task',
@@ -170,6 +177,10 @@ export const OUTCOME_LABELS: Record<ActivityOutcome, string> = {
   email_received: 'Email Received',
   email_opened: 'Email Opened',
   email_replied: 'Email Replied',
+  sms_sent: 'SMS Sent',
+  sms_received: 'SMS Received',
+  sms_delivered: 'SMS Delivered',
+  sms_failed: 'SMS Failed',
   proposal_sent: 'Proposal Sent',
   follow_up_scheduled: 'Follow-up Scheduled',
   not_interested: 'Not Interested',
@@ -179,6 +190,7 @@ export const OUTCOME_LABELS: Record<ActivityOutcome, string> = {
 export const ACTIVITY_TYPE_OUTCOMES: Record<ActivityType, ActivityOutcome[]> = {
   call: ['call_no_answer', 'call_left_message', 'call_back_later', 'wrong_number', 'do_not_call', 'quality_conversation', 'meeting_booked', 'not_interested', 'other'],
   email: ['email_sent', 'email_received', 'email_replied', 'meeting_booked', 'not_interested', 'other'],
+  sms: ['sms_sent', 'sms_received', 'sms_delivered', 'sms_failed', 'other'],
   meeting: ['quality_conversation', 'meeting_booked', 'proposal_sent', 'follow_up_scheduled', 'not_interested', 'other'],
   note: ['other'],
   task: ['follow_up_scheduled', 'other'],

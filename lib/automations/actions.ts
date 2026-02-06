@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import type { AutomationAction, AutomationEntityType } from '@/types/automation';
+import { sendOutboundSms } from '@/lib/telnyx/sms-service';
 
 interface ActionContext {
   projectId: string;
@@ -64,6 +65,8 @@ export async function executeAction(
         return await executeSendNotification(action, context);
       case 'send_email':
         return await executeSendEmail(action, context);
+      case 'send_sms':
+        return await executeSendSms(action, context);
       case 'enroll_in_sequence':
         return await executeEnrollInSequence(action, context);
       case 'add_tag':
@@ -348,6 +351,98 @@ async function executeSendEmail(
 
   if (draftError) return { action_type: action.type, success: false, error: draftError.message };
   return { action_type: action.type, success: true, result: { draft_id: draft.id, to: personEmail } };
+}
+
+async function executeSendSms(
+  action: AutomationAction,
+  context: ActionContext
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+  const config = action.config;
+  const messageTemplate = String(config.message || '');
+
+  if (!messageTemplate) {
+    return { action_type: action.type, success: false, error: 'No message specified' };
+  }
+
+  // Only people can receive SMS (need phone number)
+  if (context.entityType !== 'person') {
+    return { action_type: action.type, success: false, error: 'send_sms only applies to people' };
+  }
+
+  // Get person phone number
+  const { data: person } = await supabase
+    .from('people')
+    .select('id, first_name, last_name, email, mobile_phone, phone, organization_id')
+    .eq('id', context.entityId)
+    .eq('project_id', context.projectId)
+    .single();
+
+  if (!person) {
+    return { action_type: action.type, success: false, error: 'Person not found' };
+  }
+
+  const toNumber = person.mobile_phone || person.phone;
+  if (!toNumber) {
+    return { action_type: action.type, success: false, error: 'Person has no phone number' };
+  }
+
+  // Find Telnyx connection for the project
+  const { data: telnyxConnection } = await supabase
+    .from('telnyx_connections')
+    .select('id, api_key_enc, messaging_profile_id, outbound_phone_number')
+    .eq('project_id', context.projectId)
+    .eq('status', 'active')
+    .limit(1)
+    .single();
+
+  if (!telnyxConnection) {
+    return { action_type: action.type, success: false, error: 'No active Telnyx connection found' };
+  }
+
+  if (!telnyxConnection.messaging_profile_id) {
+    return { action_type: action.type, success: false, error: 'Telnyx connection has no messaging profile configured' };
+  }
+
+  // Simple variable substitution in message
+  let message = messageTemplate
+    .replace(/\{\{first_name\}\}/gi, person.first_name || '')
+    .replace(/\{\{last_name\}\}/gi, person.last_name || '')
+    .replace(/\{\{email\}\}/gi, person.email || '')
+    .replace(/\{\{phone\}\}/gi, toNumber);
+
+  // Trim and validate message length
+  message = message.trim();
+  if (message.length > 1600) {
+    message = message.substring(0, 1600);
+  }
+
+  try {
+    // Use a system user ID for automation-triggered SMS
+    // (the created_by field on the entity if available, otherwise null)
+    const userId = String(context.data.owner_id || context.data.created_by || '');
+
+    const result = await sendOutboundSms({
+      projectId: context.projectId,
+      userId,
+      toNumber,
+      body: message,
+      personId: context.entityId,
+      organizationId: person.organization_id || undefined,
+    });
+
+    return {
+      action_type: action.type,
+      success: true,
+      result: { sms_id: result.smsId, telnyx_message_id: result.telnyxMessageId, to: toNumber },
+    };
+  } catch (error) {
+    return {
+      action_type: action.type,
+      success: false,
+      error: error instanceof Error ? error.message : 'Failed to send SMS',
+    };
+  }
 }
 
 async function executeEnrollInSequence(

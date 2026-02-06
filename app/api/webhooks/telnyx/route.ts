@@ -1,7 +1,22 @@
 import { NextResponse } from 'next/server';
-import { processCallEvent, verifyWebhookSignature, type TelnyxWebhookEvent } from '@/lib/telnyx/webhooks';
+import {
+  processCallEvent,
+  processSmsEvent,
+  verifyWebhookSignature,
+  type TelnyxWebhookEvent,
+  type TelnyxSmsWebhookEvent,
+} from '@/lib/telnyx/webhooks';
 
-// POST /api/webhooks/telnyx - Receive Telnyx webhook events
+// SMS event types to route to the SMS handler
+const SMS_EVENT_TYPES = [
+  'message.sent',
+  'message.delivered',
+  'message.failed',
+  'message.received',
+  'message.finalized',
+];
+
+// POST /api/webhooks/telnyx - Receive Telnyx webhook events (calls and SMS)
 export async function POST(request: Request) {
   try {
     const body = await request.text();
@@ -23,14 +38,25 @@ export async function POST(request: Request) {
       return NextResponse.json({ received: true }, { status: 200 });
     }
 
-    const event = parsed as TelnyxWebhookEvent;
+    const eventType = parsed.data.event_type as string;
 
-    console.log('[Telnyx Webhook] Received event:', event.data.event_type, 'call_control_id:', event.data.payload?.call_control_id);
+    console.log('[Telnyx Webhook] Received event:', eventType);
 
-    // Process the event asynchronously (fire-and-forget)
-    processCallEvent(event).catch((err) => {
-      console.error('Error processing Telnyx webhook event:', err);
-    });
+    // Route to appropriate handler based on event type
+    if (SMS_EVENT_TYPES.includes(eventType)) {
+      // SMS event
+      const smsEvent = parsed as TelnyxSmsWebhookEvent;
+      processSmsEvent(smsEvent).catch((err) => {
+        console.error('Error processing Telnyx SMS webhook event:', err);
+      });
+    } else {
+      // Call event
+      const callEvent = parsed as TelnyxWebhookEvent;
+      console.log('[Telnyx Webhook] Call event - call_control_id:', callEvent.data.payload?.call_control_id);
+      processCallEvent(callEvent).catch((err) => {
+        console.error('Error processing Telnyx call webhook event:', err);
+      });
+    }
 
     // Always return 200 immediately to acknowledge receipt
     return NextResponse.json({ received: true }, { status: 200 });

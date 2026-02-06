@@ -50,7 +50,8 @@ import { SendEmailModal } from '@/components/gmail';
 import { EntityCommentsFeed } from '@/components/comments';
 import { ClickToDialButton } from '@/components/calls/click-to-dial-button';
 import { CallLogTable } from '@/components/calls/call-log-table';
-import { PhoneCall } from 'lucide-react';
+import { SmsConversation } from '@/components/sms/sms-conversation';
+import { PhoneCall, MessageSquareText } from 'lucide-react';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ActivityWithUser } from '@/types/activity';
 
@@ -359,6 +360,10 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
             <PhoneCall className="h-4 w-4" />
             Calls
           </TabsTrigger>
+          <TabsTrigger value="sms" className="gap-2">
+            <MessageSquareText className="h-4 w-4" />
+            SMS
+          </TabsTrigger>
           <TabsTrigger value="comments" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Comments
@@ -563,6 +568,20 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
               <CallLogTable personId={personId} />
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* SMS Tab */}
+        <TabsContent value="sms" className="space-y-6">
+          <SmsConversation
+            personId={personId}
+            phoneNumbers={[
+              ...(person.mobile_phone
+                ? [{ number: person.mobile_phone, label: 'Mobile' }]
+                : []),
+              ...(person.phone ? [{ number: person.phone, label: 'Phone' }] : []),
+            ]}
+            entityName={`${person.first_name} ${person.last_name}`}
+          />
         </TabsContent>
 
         {/* Comments Tab */}

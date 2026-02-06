@@ -68,7 +68,8 @@ import { EntityCommentsFeed } from '@/components/comments';
 import { OrgNewsSection } from '@/components/news/org-news-section';
 import { ClickToDialButton } from '@/components/calls/click-to-dial-button';
 import { CallLogTable } from '@/components/calls/call-log-table';
-import { PhoneCall } from 'lucide-react';
+import { SmsConversation } from '@/components/sms/sms-conversation';
+import { PhoneCall, MessageSquareText } from 'lucide-react';
 import { LogoUpload } from '@/components/ui/logo-upload';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
@@ -526,6 +527,10 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
           <TabsTrigger value="calls" className="gap-2">
             <PhoneCall className="h-4 w-4" />
             Calls
+          </TabsTrigger>
+          <TabsTrigger value="sms" className="gap-2">
+            <MessageSquareText className="h-4 w-4" />
+            SMS
           </TabsTrigger>
           <TabsTrigger value="comments" className="gap-2">
             <MessageSquare className="h-4 w-4" />
@@ -1094,6 +1099,15 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
         {/* Calls Tab */}
         <TabsContent value="calls" className="space-y-6">
           <CallLogTable organizationId={organizationId} />
+        </TabsContent>
+
+        {/* SMS Tab */}
+        <TabsContent value="sms" className="space-y-6">
+          <SmsConversation
+            organizationId={organizationId}
+            phoneNumbers={organization.phone ? [{ number: organization.phone, label: 'Main' }] : []}
+            entityName={organization.name}
+          />
         </TabsContent>
 
         {/* Comments Tab */}

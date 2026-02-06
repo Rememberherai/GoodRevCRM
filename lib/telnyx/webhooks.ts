@@ -437,6 +437,285 @@ async function handleRecordingSaved(
   }
 }
 
+// ============================================================================
+// SMS Webhook Event Processing
+// ============================================================================
+
+export interface TelnyxSmsWebhookPayload {
+  id: string;
+  record_type: string;
+  direction: string;
+  from: { phone_number: string; carrier?: string; line_type?: string };
+  to: Array<{ phone_number: string; status: string; carrier?: string; line_type?: string }>;
+  text: string;
+  parts: number;
+  messaging_profile_id: string;
+  type: string;
+  errors?: Array<{ code: string; title: string; detail?: string }>;
+}
+
+export interface TelnyxSmsWebhookEvent {
+  data: {
+    event_type: string;
+    id: string;
+    occurred_at: string;
+    payload: TelnyxSmsWebhookPayload;
+  };
+  meta: {
+    attempt: number;
+    delivered_to: string;
+  };
+}
+
+/**
+ * Process SMS webhook events from Telnyx
+ */
+export async function processSmsEvent(event: TelnyxSmsWebhookEvent): Promise<void> {
+  const eventType = event.data.event_type;
+  const payload = event.data.payload;
+
+  console.log(`[SMS Webhook] Processing event: ${eventType}`, { messageId: payload.id });
+
+  switch (eventType) {
+    case 'message.sent':
+      await handleSmsSent(payload);
+      break;
+    case 'message.delivered':
+      await handleSmsDelivered(payload);
+      break;
+    case 'message.failed':
+      await handleSmsFailed(payload);
+      break;
+    case 'message.received':
+      await handleSmsReceived(payload);
+      break;
+    default:
+      console.log(`[SMS Webhook] Unhandled event type: ${eventType}`);
+  }
+}
+
+async function handleSmsSent(payload: TelnyxSmsWebhookPayload): Promise<void> {
+  const supabase = createAdminClient();
+
+  const { error } = await supabase
+    .from('sms_messages')
+    .update({
+      status: 'sent',
+      sent_at: new Date().toISOString(),
+    })
+    .eq('telnyx_message_id', payload.id);
+
+  if (error) {
+    console.error('[SMS Webhook] Error updating SMS on sent:', error);
+  }
+}
+
+async function handleSmsDelivered(payload: TelnyxSmsWebhookPayload): Promise<void> {
+  const supabase = createAdminClient();
+
+  const { data: sms, error } = await supabase
+    .from('sms_messages')
+    .update({
+      status: 'delivered',
+      delivered_at: new Date().toISOString(),
+    })
+    .eq('telnyx_message_id', payload.id)
+    .select('id, project_id, person_id, organization_id')
+    .single();
+
+  if (error) {
+    console.error('[SMS Webhook] Error updating SMS on delivered:', error);
+    return;
+  }
+
+  if (sms) {
+    emitAutomationEvent({
+      projectId: sms.project_id,
+      triggerType: 'sms.delivered',
+      entityType: 'person',
+      entityId: sms.person_id || sms.id,
+      data: {
+        sms_id: sms.id,
+        person_id: sms.person_id,
+        organization_id: sms.organization_id,
+      },
+    }).catch((err) => console.error('[SMS Webhook] Error emitting sms.delivered event:', err));
+  }
+}
+
+async function handleSmsFailed(payload: TelnyxSmsWebhookPayload): Promise<void> {
+  const supabase = createAdminClient();
+  const errorInfo = payload.errors?.[0];
+
+  const { data: sms, error } = await supabase
+    .from('sms_messages')
+    .update({
+      status: 'failed',
+      error_code: errorInfo?.code ?? null,
+      error_message: errorInfo?.title ?? errorInfo?.detail ?? 'Unknown error',
+    })
+    .eq('telnyx_message_id', payload.id)
+    .select('id, project_id, person_id, organization_id')
+    .single();
+
+  if (error) {
+    console.error('[SMS Webhook] Error updating SMS on failed:', error);
+    return;
+  }
+
+  if (sms) {
+    emitAutomationEvent({
+      projectId: sms.project_id,
+      triggerType: 'sms.failed',
+      entityType: 'person',
+      entityId: sms.person_id || sms.id,
+      data: {
+        sms_id: sms.id,
+        person_id: sms.person_id,
+        error_code: errorInfo?.code,
+        error_message: errorInfo?.title,
+      },
+    }).catch((err) => console.error('[SMS Webhook] Error emitting sms.failed event:', err));
+  }
+}
+
+async function handleSmsReceived(payload: TelnyxSmsWebhookPayload): Promise<void> {
+  const supabase = createAdminClient();
+  const fromNumber = payload.from?.phone_number;
+  const toNumber = payload.to?.[0]?.phone_number;
+
+  if (!fromNumber || !toNumber) {
+    console.error('[SMS Webhook] Missing from/to number in received event');
+    return;
+  }
+
+  // Find Telnyx connection by the receiving phone number
+  const { data: connection } = await supabase
+    .from('telnyx_connections')
+    .select('id, project_id')
+    .eq('phone_number', toNumber)
+    .eq('status', 'active')
+    .single();
+
+  if (!connection) {
+    console.log('[SMS Webhook] No connection found for number:', toNumber);
+    return;
+  }
+
+  // Try to match to a person by phone number
+  const person = await matchInboundPhoneToPerson(supabase, connection.project_id, fromNumber);
+
+  // Create inbound SMS record
+  const { data: sms, error } = await supabase
+    .from('sms_messages')
+    .insert({
+      project_id: connection.project_id,
+      telnyx_connection_id: connection.id,
+      telnyx_message_id: payload.id,
+      direction: 'inbound',
+      status: 'received',
+      from_number: fromNumber,
+      to_number: toNumber,
+      body: payload.text,
+      segments: payload.parts,
+      person_id: person?.id ?? null,
+      organization_id: person?.organization_id ?? null,
+      received_at: new Date().toISOString(),
+    })
+    .select('*')
+    .single();
+
+  if (error) {
+    console.error('[SMS Webhook] Error creating inbound SMS record:', error);
+    return;
+  }
+
+  if (sms) {
+    // Create activity log entry
+    await createSmsActivityFromWebhook(supabase, sms);
+
+    // Emit automation event
+    emitAutomationEvent({
+      projectId: connection.project_id,
+      triggerType: 'sms.received',
+      entityType: 'person',
+      entityId: person?.id || sms.id,
+      data: {
+        sms_id: sms.id,
+        from_number: fromNumber,
+        body: payload.text,
+        person_id: person?.id,
+        organization_id: person?.organization_id,
+      },
+    }).catch((err) => console.error('[SMS Webhook] Error emitting sms.received event:', err));
+  }
+}
+
+// Helper to match inbound phone to person
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function matchInboundPhoneToPerson(
+  supabase: ReturnType<typeof createAdminClient>,
+  projectId: string,
+  phoneNumber: string
+): Promise<{ id: string; organization_id: string | null } | null> {
+  // Normalize the phone number
+  const strippedPhone = phoneNumber.replace(/\D/g, '');
+  const withPlus = phoneNumber.startsWith('+') ? phoneNumber : `+${strippedPhone}`;
+
+  const { data: person } = await supabase
+    .from('people')
+    .select('id, organization_id')
+    .eq('project_id', projectId)
+    .is('deleted_at', null)
+    .or(
+      `phone.eq.${phoneNumber},mobile_phone.eq.${phoneNumber},` +
+        `phone.eq.${strippedPhone},mobile_phone.eq.${strippedPhone},` +
+        `phone.eq.${withPlus},mobile_phone.eq.${withPlus}`
+    )
+    .limit(1)
+    .single();
+
+  return person ?? null;
+}
+
+// Create activity from inbound SMS
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+async function createSmsActivityFromWebhook(
+  supabase: ReturnType<typeof createAdminClient>,
+  sms: any
+): Promise<void> {
+  try {
+    const directionLabel = sms.direction === 'outbound' ? 'Outbound' : 'Inbound';
+    const phoneNumber = sms.direction === 'outbound' ? sms.to_number : sms.from_number;
+
+    await supabase.from('activity_log').insert({
+      project_id: sms.project_id,
+      user_id: sms.user_id,
+      entity_type: 'person',
+      entity_id: sms.person_id || sms.id,
+      action: sms.direction === 'outbound' ? 'sent' : 'received',
+      activity_type: 'sms',
+      outcome: sms.direction === 'outbound' ? 'sms_sent' : 'sms_received',
+      person_id: sms.person_id,
+      organization_id: sms.organization_id,
+      direction: sms.direction,
+      subject: `${directionLabel} SMS ${sms.direction === 'outbound' ? 'to' : 'from'} ${phoneNumber}`,
+      notes: sms.body?.substring(0, 500),
+      metadata: {
+        sms_id: sms.id,
+        full_body: sms.body,
+        phone_number: phoneNumber,
+      },
+    });
+  } catch (err) {
+    console.error('[SMS Webhook] Error creating SMS activity:', err);
+  }
+}
+
+// ============================================================================
+// Call Activity Creation
+// ============================================================================
+
 // Create an activity_log entry from a completed call
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 async function createActivityFromCall(supabase: any, call: any): Promise<void> {

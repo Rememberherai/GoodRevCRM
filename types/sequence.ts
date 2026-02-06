@@ -5,7 +5,7 @@ export type SequenceStatus = 'draft' | 'active' | 'paused' | 'archived';
 export type EnrollmentStatus = 'active' | 'paused' | 'completed' | 'bounced' | 'replied' | 'unsubscribed';
 
 // Step type
-export type StepType = 'email' | 'delay' | 'condition';
+export type StepType = 'email' | 'delay' | 'condition' | 'sms';
 
 // Delay unit
 export type DelayUnit = 'minutes' | 'hours' | 'days' | 'weeks';
@@ -44,12 +44,17 @@ export interface SequenceStep {
   sequence_id: string;
   step_number: number;
   step_type: StepType;
+  // Email step fields
   subject: string | null;
   body_html: string | null;
   body_text: string | null;
+  // Delay step fields
   delay_amount: number | null;
   delay_unit: DelayUnit | null;
+  // Condition step fields
   condition: StepCondition | null;
+  // SMS step fields
+  sms_body: string | null;
   created_at: string;
   updated_at: string;
 }

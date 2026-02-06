@@ -14,6 +14,11 @@ export type TriggerType =
   | 'email.clicked'
   | 'email.replied'
   | 'email.bounced'
+  // SMS events
+  | 'sms.sent'
+  | 'sms.delivered'
+  | 'sms.failed'
+  | 'sms.received'
   // Sequence events
   | 'sequence.completed'
   | 'sequence.replied'
@@ -42,6 +47,7 @@ export type ActionType =
   | 'assign_owner'
   | 'send_notification'
   | 'send_email'
+  | 'send_sms'
   | 'enroll_in_sequence'
   | 'add_tag'
   | 'remove_tag'
@@ -220,6 +226,15 @@ export const triggerTypeGroups = {
       { type: 'call.dispositioned' as TriggerType, label: 'Call Dispositioned', description: 'When a call disposition is recorded' },
     ],
   },
+  sms: {
+    label: 'SMS Events',
+    triggers: [
+      { type: 'sms.sent' as TriggerType, label: 'SMS Sent', description: 'When an SMS message is sent' },
+      { type: 'sms.delivered' as TriggerType, label: 'SMS Delivered', description: 'When an SMS is confirmed delivered' },
+      { type: 'sms.failed' as TriggerType, label: 'SMS Failed', description: 'When an SMS fails to send or deliver' },
+      { type: 'sms.received' as TriggerType, label: 'SMS Received', description: 'When an inbound SMS is received' },
+    ],
+  },
   news: {
     label: 'News Events',
     triggers: [
@@ -247,6 +262,7 @@ export const actionTypeOptions = [
   { type: 'assign_owner' as ActionType, label: 'Assign Owner', description: 'Change the entity owner' },
   { type: 'send_notification' as ActionType, label: 'Send Notification', description: 'Send an in-app notification' },
   { type: 'send_email' as ActionType, label: 'Send Email', description: 'Send an email from a template' },
+  { type: 'send_sms' as ActionType, label: 'Send SMS', description: 'Send an SMS message to a person' },
   { type: 'enroll_in_sequence' as ActionType, label: 'Enroll in Sequence', description: 'Enroll a person in an email sequence' },
   { type: 'add_tag' as ActionType, label: 'Add Tag', description: 'Add a tag to the entity' },
   { type: 'remove_tag' as ActionType, label: 'Remove Tag', description: 'Remove a tag from the entity' },
