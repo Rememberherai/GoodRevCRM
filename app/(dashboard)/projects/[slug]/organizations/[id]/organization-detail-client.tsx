@@ -27,6 +27,7 @@ import {
   RefreshCw,
   MessageSquare,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
 import { useOrganization } from '@/hooks/use-organizations';
 import { useOrganizationStore, deleteOrganization, updateOrganizationApi } from '@/stores/organization';
 import { useEntityCustomFields } from '@/hooks/use-custom-fields';
@@ -65,6 +66,8 @@ import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-sec
 import { EntityEmailTab } from '@/components/email/entity-email-tab';
 import { SendEmailModal } from '@/components/gmail';
 import { EntityCommentsFeed } from '@/components/comments';
+import { BulkActionsBar } from '@/components/bulk/bulk-actions-bar';
+import { BulkEnrichWithReviewModal } from '@/components/enrichment/bulk-enrich-with-review-modal';
 import { OrgNewsSection } from '@/components/news/org-news-section';
 import { OrgNewsFetchCard } from '@/components/news/org-news-fetch-card';
 import { ClickToDialButton } from '@/components/calls/click-to-dial-button';
@@ -213,6 +216,8 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
   const [showSendEmail, setShowSendEmail] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
+  const [selectedPeopleIds, setSelectedPeopleIds] = useState<Set<string>>(new Set());
+  const [bulkEnrichOpen, setBulkEnrichOpen] = useState(false);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
   const [rfps, setRfps] = useState<Rfp[]>([]);
@@ -389,6 +394,32 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
     loadPeople();
     refresh();
   };
+
+  const togglePersonSelection = (id: string) => {
+    setSelectedPeopleIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+      return next;
+    });
+  };
+
+  const toggleSelectAllPeople = () => {
+    if (selectedPeopleIds.size === people.length) {
+      setSelectedPeopleIds(new Set());
+    } else {
+      setSelectedPeopleIds(new Set(people.map((p) => p.id)));
+    }
+  };
+
+  const clearPeopleSelection = () => {
+    setSelectedPeopleIds(new Set());
+  };
+
+  const selectedPeople = people.filter((p) => selectedPeopleIds.has(p.id));
 
   const handleOpportunityAdded = () => {
     loadOpportunities();
@@ -860,41 +891,77 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
               </CardContent>
             </Card>
           ) : (
-            <div className="grid gap-3">
-              {people.map((person) => (
-                <Link
-                  key={person.id}
-                  href={`/projects/${slug}/people/${person.id}?from=org&orgId=${organizationId}`}
-                  className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-                >
-                  <Avatar className="h-12 w-12">
-                    <AvatarImage src={person.avatar_url ?? undefined} alt={getFullName(person.first_name, person.last_name)} />
-                    <AvatarFallback>{getPersonInitials(person.first_name, person.last_name)}</AvatarFallback>
-                  </Avatar>
-                  <div className="flex-1 min-w-0">
-                    <div className="font-medium">
-                      {getFullName(person.first_name, person.last_name)}
-                    </div>
-                    {person.job_title && (
-                      <div className="text-sm text-muted-foreground">
-                        {person.job_title}
+            <>
+              <div className="flex items-center gap-4 p-4 rounded-lg border bg-muted/20">
+                <Checkbox
+                  checked={people.length > 0 && selectedPeopleIds.size === people.length}
+                  onCheckedChange={toggleSelectAllPeople}
+                  aria-label="Select all people"
+                />
+                <span className="text-sm text-muted-foreground">
+                  {selectedPeopleIds.size > 0 ? `${selectedPeopleIds.size} selected` : 'Select all'}
+                </span>
+              </div>
+              <div className="grid gap-3">
+                {people.map((person) => (
+                  <div
+                    key={person.id}
+                    className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
+                  >
+                    <Checkbox
+                      checked={selectedPeopleIds.has(person.id)}
+                      onCheckedChange={() => togglePersonSelection(person.id)}
+                      aria-label={`Select ${getFullName(person.first_name, person.last_name)}`}
+                      onClick={(e) => e.stopPropagation()}
+                    />
+                    <Link
+                      href={`/projects/${slug}/people/${person.id}?from=org&orgId=${organizationId}`}
+                      className="flex items-center gap-4 flex-1 min-w-0"
+                    >
+                      <Avatar className="h-12 w-12">
+                        <AvatarImage src={person.avatar_url ?? undefined} alt={getFullName(person.first_name, person.last_name)} />
+                        <AvatarFallback>{getPersonInitials(person.first_name, person.last_name)}</AvatarFallback>
+                      </Avatar>
+                      <div className="flex-1 min-w-0">
+                        <div className="font-medium">
+                          {getFullName(person.first_name, person.last_name)}
+                        </div>
+                        {person.job_title && (
+                          <div className="text-sm text-muted-foreground">
+                            {person.job_title}
+                          </div>
+                        )}
                       </div>
-                    )}
+                      {person.email && (
+                        <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
+                          <Mail className="h-4 w-4" />
+                          <span>{person.email}</span>
+                        </div>
+                      )}
+                      {person.phone && (
+                        <div className="hidden lg:flex items-center gap-2 text-sm text-muted-foreground">
+                          <Phone className="h-4 w-4" />
+                          <span>{person.phone}</span>
+                        </div>
+                      )}
+                    </Link>
                   </div>
-                  {person.email && (
-                    <div className="hidden md:flex items-center gap-2 text-sm text-muted-foreground">
-                      <Mail className="h-4 w-4" />
-                      <span>{person.email}</span>
-                    </div>
-                  )}
-                  {person.phone && (
-                    <div className="hidden lg:flex items-center gap-2 text-sm text-muted-foreground">
-                      <Phone className="h-4 w-4" />
-                      <span>{person.phone}</span>
-                    </div>
-                  )}
-                </Link>
-              ))}
+                ))}
+              </div>
+            </>
+          )}
+
+          {/* Bulk Actions Bar */}
+          {selectedPeopleIds.size > 0 && (
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+              <BulkActionsBar
+                selectedCount={selectedPeopleIds.size}
+                entityType="person"
+                onClearSelection={clearPeopleSelection}
+                onBulkAction={async () => {}}
+                showEnrich
+                onEnrich={() => setBulkEnrichOpen(true)}
+              />
             </div>
           )}
         </TabsContent>
@@ -1227,6 +1294,17 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
         entityType="organization"
         open={showResearchSettings}
         onOpenChange={setShowResearchSettings}
+      />
+
+      <BulkEnrichWithReviewModal
+        open={bulkEnrichOpen}
+        onClose={() => setBulkEnrichOpen(false)}
+        selectedPeople={selectedPeople}
+        projectSlug={slug}
+        onComplete={() => {
+          clearPeopleSelection();
+          loadPeople();
+        }}
       />
     </div>
   );
