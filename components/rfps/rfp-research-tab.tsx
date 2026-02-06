@@ -22,7 +22,7 @@ interface RfpResearchTabProps {
 }
 
 export function RfpResearchTab({ rfpId, organizationName }: RfpResearchTabProps) {
-  const { results, latest, isLoading, isRunning, error, runResearch } =
+  const { results, latest, isLoading, isRunning, error, runResearch, cancelResearch } =
     useRfpResearch(rfpId);
   const [additionalContext, setAdditionalContext] = useState('');
   const [showContextInput, setShowContextInput] = useState(false);
@@ -126,7 +126,7 @@ export function RfpResearchTab({ rfpId, organizationName }: RfpResearchTabProps)
             AI is scouring the web for information about this RFP. This may take a minute or two.
           </CardDescription>
         </CardHeader>
-        <CardContent>
+        <CardContent className="space-y-4">
           <div className="text-center text-sm text-muted-foreground">
             <p>Gathering intelligence on:</p>
             <ul className="mt-2 space-y-1">
@@ -137,6 +137,11 @@ export function RfpResearchTab({ rfpId, organizationName }: RfpResearchTabProps)
               <li>Key decision makers</li>
               <li>Recent news and press releases</li>
             </ul>
+          </div>
+          <div className="flex justify-center pt-2">
+            <Button variant="outline" size="sm" onClick={cancelResearch}>
+              Cancel Research
+            </Button>
           </div>
         </CardContent>
       </Card>

@@ -10,6 +10,7 @@ interface UseRfpResearchReturn {
   error: string | null;
   runResearch: (additionalContext?: string) => Promise<void>;
   refresh: () => Promise<void>;
+  cancelResearch: () => void;
 }
 
 export function useRfpResearch(rfpId: string): UseRfpResearchReturn {
@@ -24,6 +25,10 @@ export function useRfpResearch(rfpId: string): UseRfpResearchReturn {
 
   const pollingRef = useRef<NodeJS.Timeout | null>(null);
   const runningJobIdRef = useRef<string | null>(null);
+  const pollAttemptsRef = useRef<number>(0);
+
+  // Maximum polling attempts (3 seconds * 60 = 3 minutes max)
+  const MAX_POLL_ATTEMPTS = 60;
 
   // Stop polling
   const stopPolling = useCallback(() => {
@@ -32,17 +37,37 @@ export function useRfpResearch(rfpId: string): UseRfpResearchReturn {
       pollingRef.current = null;
     }
     runningJobIdRef.current = null;
+    pollAttemptsRef.current = 0;
   }, []);
 
   // Poll for job completion
   const pollForCompletion = useCallback(
     async (jobId: string) => {
       try {
+        pollAttemptsRef.current += 1;
+
+        // Check if we've exceeded max attempts
+        if (pollAttemptsRef.current > MAX_POLL_ATTEMPTS) {
+          console.error('[RFP Research] Max polling attempts exceeded');
+          stopPolling();
+          setIsRunning(false);
+          setError('Research timed out. Please try again.');
+          return;
+        }
+
         const response = await fetch(
           `/api/projects/${projectSlug}/rfps/${rfpId}/research/${jobId}`
         );
 
         if (!response.ok) {
+          // If the job is not found, it might have been deleted or failed to create
+          if (response.status === 404) {
+            console.error('[RFP Research] Job not found:', jobId);
+            stopPolling();
+            setIsRunning(false);
+            setError('Research job not found. Please try again.');
+            return;
+          }
           throw new Error('Failed to fetch research status');
         }
 
@@ -66,11 +91,19 @@ export function useRfpResearch(rfpId: string): UseRfpResearchReturn {
           }
         }
       } catch (err) {
-        console.error('Polling error:', err);
-        // Don't stop polling on transient errors
+        console.error('[RFP Research] Polling error:', err);
+        // Increment failed attempts counter
+        const failedAttempts = (pollAttemptsRef.current || 0);
+
+        // Stop polling after 5 consecutive failures
+        if (failedAttempts > 5) {
+          stopPolling();
+          setIsRunning(false);
+          setError('Lost connection while polling for research status. Please refresh and try again.');
+        }
       }
     },
-    [projectSlug, rfpId, stopPolling]
+    [projectSlug, rfpId, stopPolling, MAX_POLL_ATTEMPTS]
   );
 
   // Start polling for a job
@@ -78,6 +111,7 @@ export function useRfpResearch(rfpId: string): UseRfpResearchReturn {
     (jobId: string) => {
       stopPolling();
       runningJobIdRef.current = jobId;
+      pollAttemptsRef.current = 0;
 
       // Poll every 3 seconds
       pollingRef.current = setInterval(() => {
@@ -174,6 +208,13 @@ export function useRfpResearch(rfpId: string): UseRfpResearchReturn {
     };
   }, [stopPolling]);
 
+  // Cancel ongoing research
+  const cancelResearch = useCallback(() => {
+    stopPolling();
+    setIsRunning(false);
+    setError('Research cancelled by user');
+  }, [stopPolling]);
+
   return {
     results,
     latest,
@@ -182,5 +223,6 @@ export function useRfpResearch(rfpId: string): UseRfpResearchReturn {
     error,
     runResearch,
     refresh: loadResearch,
+    cancelResearch,
   };
 }
