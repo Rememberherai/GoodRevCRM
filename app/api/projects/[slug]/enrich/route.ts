@@ -141,6 +141,9 @@ export async function GET(request: Request, context: RouteContext) {
 
               // Check if job is finished
               if (result.status === 'completed' && result.results && result.results.length > 0) {
+                // Track which jobs got matched
+                const matchedJobIds = new Set<string>();
+
                 // For bulk enrichment, match results to jobs
                 for (const job of jobGroup) {
                   const inputData = job.input_data as EnrichmentInput;
@@ -216,6 +219,8 @@ export async function GET(request: Request, context: RouteContext) {
                   }
 
                   if (enrichmentResult) {
+                    matchedJobIds.add(job.id);
+
                     // Update job in database with enrichment results (but NOT the person record)
                     await supabaseQuery
                       .from('enrichment_jobs')
@@ -239,6 +244,54 @@ export async function GET(request: Request, context: RouteContext) {
                     }
                   } else {
                     console.log('No matching result found for job:', job.id, 'input:', inputData);
+                  }
+                }
+
+                // Mark unmatched jobs as failed (FullEnrich couldn't find data for them)
+                for (const job of jobGroup) {
+                  if (!matchedJobIds.has(job.id)) {
+                    console.log('Marking job as failed - no result from FullEnrich:', job.id);
+                    await supabaseQuery
+                      .from('enrichment_jobs')
+                      .update({
+                        status: 'failed',
+                        error: 'No data found by enrichment provider',
+                        completed_at: new Date().toISOString(),
+                      })
+                      .eq('id', job.id);
+
+                    const jobIndex = jobs.findIndex((j: EnrichmentJobRow) => j.id === job.id);
+                    if (jobIndex !== -1) {
+                      jobs[jobIndex] = {
+                        ...jobs[jobIndex],
+                        status: 'failed',
+                        error: 'No data found by enrichment provider',
+                        completed_at: new Date().toISOString(),
+                      };
+                    }
+                  }
+                }
+              } else if (result.status === 'completed' && (!result.results || result.results.length === 0)) {
+                // FullEnrich completed but found no data for any contacts
+                console.log('FullEnrich completed with no results - marking all jobs as failed');
+                for (const job of jobGroup) {
+                  await supabaseQuery
+                    .from('enrichment_jobs')
+                    .update({
+                      status: 'failed',
+                      error: 'No data found by enrichment provider',
+                      completed_at: new Date().toISOString(),
+                    })
+                    .eq('id', job.id);
+
+                  const jobIndex = jobs.findIndex((j: EnrichmentJobRow) => j.id === job.id);
+                  if (jobIndex !== -1) {
+                    jobs[jobIndex] = {
+                      ...jobs[jobIndex],
+                      status: 'failed',
+                      error: 'No data found by enrichment provider',
+                      completed_at: new Date().toISOString(),
+                    };
                   }
                 }
               } else if (result.status === 'failed') {
