@@ -5,11 +5,41 @@ import { syncEmailsForConnection } from '@/lib/gmail/sync';
 /**
  * Gmail Push Notification Webhook
  * Receives Pub/Sub messages when Gmail mailboxes change
+ * Authentication via Google OIDC token (configured in Pub/Sub subscription)
  */
 export async function POST(request: Request) {
   try {
-    const webhookSecret = process.env.GMAIL_WEBHOOK_SECRET;
-    if (!webhookSecret || request.headers.get('authorization') !== `Bearer ${webhookSecret}`) {
+    // Verify the OIDC token from Google Pub/Sub
+    const authHeader = request.headers.get('authorization');
+    if (!authHeader?.startsWith('Bearer ')) {
+      console.error('[Gmail Webhook] Missing or invalid Authorization header');
+      return new Response('Unauthorized', { status: 401 });
+    }
+
+    const token = authHeader.slice(7);
+    const expectedAudience = 'https://good-rev-crm.vercel.app/api/gmail/webhook';
+
+    // Verify the token with Google
+    const verifyResponse = await fetch(
+      `https://oauth2.googleapis.com/tokeninfo?id_token=${token}`
+    );
+
+    if (!verifyResponse.ok) {
+      console.error('[Gmail Webhook] Token verification failed');
+      return new Response('Unauthorized', { status: 401 });
+    }
+
+    const tokenInfo = await verifyResponse.json();
+
+    // Verify the audience matches our webhook URL
+    if (tokenInfo.aud !== expectedAudience) {
+      console.error('[Gmail Webhook] Invalid audience:', tokenInfo.aud);
+      return new Response('Unauthorized', { status: 401 });
+    }
+
+    // Verify it's from our service account
+    if (!tokenInfo.email?.endsWith('.iam.gserviceaccount.com')) {
+      console.error('[Gmail Webhook] Invalid issuer email:', tokenInfo.email);
       return new Response('Unauthorized', { status: 401 });
     }
 
