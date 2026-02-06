@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
@@ -40,6 +40,7 @@ import { MemberList } from '@/components/team/member-list';
 import { InviteMemberDialog } from '@/components/team/invite-member-dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { AutomationPanel } from '@/components/automations/automation-panel';
+import { ContactProvidersSettings } from '@/components/settings/contact-providers-settings';
 import type { ProjectRole } from '@/types/user';
 
 
@@ -245,6 +246,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             <Zap className="h-4 w-4" />
             Automation
           </TabsTrigger>
+          <TabsTrigger value="contact-discovery" className="gap-2">
+            <UserSearch className="h-4 w-4" />
+            Contact Discovery
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6 mt-6">
@@ -417,6 +422,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
 
         <TabsContent value="automation" className="space-y-6 mt-6">
           <AutomationPanel slug={slug} />
+        </TabsContent>
+
+        <TabsContent value="contact-discovery" className="space-y-6 mt-6">
+          <ContactProvidersSettings slug={slug} />
         </TabsContent>
 
       </Tabs>

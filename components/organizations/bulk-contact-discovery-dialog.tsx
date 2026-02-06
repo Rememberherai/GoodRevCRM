@@ -112,7 +112,10 @@ export function BulkContactDiscoveryDialog({
   // Abort ref for cancellation
   const abortRef = useRef(false);
 
-  // Fetch custom roles when dialog opens
+  // Check if contact providers are configured
+  const [hasProviders, setHasProviders] = useState<boolean | null>(null);
+
+  // Fetch custom roles and check for providers when dialog opens
   useEffect(() => {
     if (open) {
       fetch(`/api/projects/${slug}/settings`)
@@ -123,6 +126,20 @@ export function BulkContactDiscoveryDialog({
         })
         .catch((err) => {
           console.error('Failed to fetch project settings:', err);
+        });
+
+      // Check if contact providers are configured
+      fetch(`/api/projects/${slug}/settings/contact-providers`)
+        .then((res) => res.json())
+        .then((data) => {
+          const providers = data.providers || {};
+          const hasEnabled = Object.values(providers).some(
+            (p: unknown) => (p as { enabled?: boolean; apiKeyMasked?: string })?.enabled && (p as { apiKeyMasked?: string })?.apiKeyMasked
+          );
+          setHasProviders(hasEnabled);
+        })
+        .catch(() => {
+          setHasProviders(false);
         });
     }
   }, [open, slug]);
@@ -261,17 +278,41 @@ export function BulkContactDiscoveryDialog({
         }
 
         try {
-          const response = await fetch(
-            `/api/projects/${slug}/organizations/${orgId}/discover-contacts`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ roles, max_results: 10 }),
-            }
-          );
+          // Use search-contacts (waterfall) if providers are configured, otherwise fall back to discover-contacts (LLM)
+          const endpoint = hasProviders
+            ? `/api/projects/${slug}/organizations/${orgId}/search-contacts`
+            : `/api/projects/${slug}/organizations/${orgId}/discover-contacts`;
+
+          const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ roles, max_results: 10 }),
+          });
 
           if (!response.ok) {
             const data = await response.json();
+            // If search-contacts fails due to no providers, fall back to discover-contacts
+            if (hasProviders && data.error?.includes('No contact discovery providers')) {
+              const fallbackResponse = await fetch(
+                `/api/projects/${slug}/organizations/${orgId}/discover-contacts`,
+                {
+                  method: 'POST',
+                  headers: { 'Content-Type': 'application/json' },
+                  body: JSON.stringify({ roles, max_results: 10 }),
+                }
+              );
+              if (!fallbackResponse.ok) {
+                const fallbackData = await fallbackResponse.json();
+                throw new Error(fallbackData.error ?? 'Discovery failed');
+              }
+              const fallbackData = await fallbackResponse.json();
+              return {
+                organizationId: orgId,
+                organizationName: orgName,
+                status: 'success' as const,
+                contacts: fallbackData.contacts ?? [],
+              };
+            }
             throw new Error(data.error ?? 'Discovery failed');
           }
 

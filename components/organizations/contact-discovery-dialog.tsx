@@ -69,9 +69,10 @@ export function ContactDiscoveryDialog({
   // State for custom roles fetched from project settings
   const [customRoles, setCustomRoles] = useState<string[]>([]);
 
-  // Fetch custom roles when dialog opens
+  // Fetch custom roles and check for contact providers when dialog opens
   useEffect(() => {
     if (open) {
+      // Fetch project settings for custom roles
       fetch(`/api/projects/${slug}/settings`)
         .then((res) => res.json())
         .then((data) => {
@@ -80,6 +81,20 @@ export function ContactDiscoveryDialog({
         })
         .catch((err) => {
           console.error('Failed to fetch project settings:', err);
+        });
+
+      // Check if contact providers are configured
+      fetch(`/api/projects/${slug}/settings/contact-providers`)
+        .then((res) => res.json())
+        .then((data) => {
+          const providers = data.providers || {};
+          const hasEnabled = Object.values(providers).some(
+            (p: unknown) => (p as { enabled?: boolean; apiKeyMasked?: string })?.enabled && (p as { apiKeyMasked?: string })?.apiKeyMasked
+          );
+          setHasProviders(hasEnabled);
+        })
+        .catch(() => {
+          setHasProviders(false);
         });
     }
   }, [open, slug]);
@@ -103,6 +118,8 @@ export function ContactDiscoveryDialog({
   const [notes, setNotes] = useState<string | undefined>();
   const [error, setError] = useState<string | null>(null);
   const [addedCount, setAddedCount] = useState(0);
+  const [providerUsed, setProviderUsed] = useState<string | null>(null);
+  const [hasProviders, setHasProviders] = useState<boolean | null>(null);
 
   const handleClose = () => {
     // Reset state
@@ -114,6 +131,7 @@ export function ContactDiscoveryDialog({
     setNotes(undefined);
     setError(null);
     setAddedCount(0);
+    setProviderUsed(null);
     onOpenChange(false);
   };
 
@@ -168,27 +186,50 @@ export function ContactDiscoveryDialog({
     setStep('searching');
 
     try {
-      const response = await fetch(
-        `/api/projects/${slug}/organizations/${organizationId}/discover-contacts`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ roles, max_results: 15 }),
-        }
-      );
+      // Use search-contacts (waterfall) if providers are configured, otherwise fall back to discover-contacts (LLM)
+      const endpoint = hasProviders
+        ? `/api/projects/${slug}/organizations/${organizationId}/search-contacts`
+        : `/api/projects/${slug}/organizations/${organizationId}/discover-contacts`;
+
+      const response = await fetch(endpoint, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ roles, max_results: 15 }),
+      });
 
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error ?? 'Failed to discover contacts');
+        // If search-contacts fails due to no providers, fall back to discover-contacts
+        if (hasProviders && data.error?.includes('No contact discovery providers')) {
+          setHasProviders(false);
+          const fallbackResponse = await fetch(
+            `/api/projects/${slug}/organizations/${organizationId}/discover-contacts`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ roles, max_results: 15 }),
+            }
+          );
+          const fallbackData = await fallbackResponse.json();
+          if (!fallbackResponse.ok) {
+            throw new Error(fallbackData.error ?? 'Failed to discover contacts');
+          }
+          setContacts(fallbackData.contacts ?? []);
+          setNotes(fallbackData.notes);
+          setProviderUsed(null);
+        } else {
+          throw new Error(data.error ?? 'Failed to discover contacts');
+        }
+      } else {
+        setContacts(data.contacts ?? []);
+        setNotes(data.notes);
+        setProviderUsed(data.provider_used ?? null);
       }
-
-      setContacts(data.contacts ?? []);
-      setNotes(data.notes);
 
       // Auto-select all contacts with confidence >= 0.7
       const autoSelected = new Set<string>(
-        (data.contacts ?? [])
+        (contacts.length > 0 ? contacts : data.contacts ?? [])
           .filter((c: DiscoveredContact) => c.confidence >= 0.7)
           .map((c: DiscoveredContact) => c.id)
       );
@@ -445,9 +486,9 @@ export function ContactDiscoveryDialog({
                             )}
                           </div>
                           {contact.source_hint && (
-                            <p className="text-xs text-muted-foreground mt-1">
-                              Source: {contact.source_hint}
-                            </p>
+                            <Badge variant="outline" className="text-xs mt-1">
+                              {contact.source_hint}
+                            </Badge>
                           )}
                         </div>
                       </div>
@@ -455,6 +496,11 @@ export function ContactDiscoveryDialog({
                   </div>
                 </ScrollArea>
 
+                {providerUsed && (
+                  <p className="text-sm text-muted-foreground">
+                    Found via {providerUsed}
+                  </p>
+                )}
                 {notes && (
                   <p className="text-sm text-muted-foreground italic">{notes}</p>
                 )}

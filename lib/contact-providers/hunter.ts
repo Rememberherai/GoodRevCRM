@@ -1,0 +1,109 @@
+import { BaseContactProvider } from './base-provider';
+import { ContactSearchParams, DiscoveredContact } from './types';
+
+const HUNTER_BASE_URL = 'https://api.hunter.io/v2';
+
+interface HunterEmail {
+  value: string;
+  type: 'personal' | 'generic';
+  confidence: number;
+  first_name: string | null;
+  last_name: string | null;
+  position: string | null;
+  department: string | null;
+  seniority: string | null;
+  linkedin: string | null;
+  twitter: string | null;
+  phone_number: string | null;
+  verification: {
+    date: string;
+    status: 'valid' | 'accept_all' | 'unknown';
+  };
+}
+
+interface HunterDomainSearchResponse {
+  data?: {
+    domain: string;
+    organization: string;
+    emails: HunterEmail[];
+  };
+  meta?: {
+    results: number;
+    limit: number;
+    offset: number;
+  };
+  errors?: { id: string; code: number; details: string }[];
+}
+
+export class HunterProvider extends BaseContactProvider {
+  name = 'hunter';
+  displayName = 'Hunter.io';
+  priority = 2;
+  costPerContact = 0.05;
+
+  async searchContacts(params: ContactSearchParams): Promise<DiscoveredContact[]> {
+    const domain = params.domain || this.extractDomainFromUrl(params.organizationName);
+
+    if (!domain) {
+      console.warn('Hunter requires a domain to search');
+      return [];
+    }
+
+    const queryParams = new URLSearchParams({
+      domain,
+      api_key: this.apiKey,
+      limit: String(params.maxResults || 10),
+      type: 'personal', // Only get personal emails, not generic
+    });
+
+    // Add job titles filter
+    if (params.roles.length > 0) {
+      queryParams.set('job_titles', params.roles.join(','));
+    }
+
+    // Add seniority filter for executive-level roles
+    const executiveKeywords = ['ceo', 'cto', 'cfo', 'coo', 'vp', 'vice president', 'director', 'head'];
+    const hasExecutiveRoles = params.roles.some((role) =>
+      executiveKeywords.some((kw) => role.toLowerCase().includes(kw))
+    );
+    if (hasExecutiveRoles) {
+      queryParams.set('seniority', 'executive,senior');
+    }
+
+    const response = await fetch(`${HUNTER_BASE_URL}/domain-search?${queryParams}`, {
+      method: 'GET',
+      headers: {
+        'Accept': 'application/json',
+      },
+    });
+
+    if (!response.ok) {
+      if (response.status === 429) {
+        throw new Error('Hunter rate limit exceeded');
+      }
+      throw new Error(`Hunter API error: ${response.status}`);
+    }
+
+    const data: HunterDomainSearchResponse = await response.json();
+
+    if (data.errors || !data.data?.emails) {
+      return [];
+    }
+
+    return data.data.emails
+      .filter((email) => email.type === 'personal')
+      .slice(0, params.maxResults || 10)
+      .map((email) => ({
+        id: this.generateId(),
+        name: this.buildFullName(email.first_name, email.last_name),
+        firstName: email.first_name,
+        lastName: email.last_name,
+        email: email.value,
+        title: email.position,
+        linkedinUrl: email.linkedin ? `https://linkedin.com/in/${email.linkedin}` : null,
+        phone: email.phone_number,
+        confidence: this.normalizeConfidence(email.confidence, 100),
+        source: this.name,
+      }));
+  }
+}
