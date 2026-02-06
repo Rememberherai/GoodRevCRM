@@ -48,11 +48,11 @@ export function useActivities(options: UseActivitiesOptions): UseActivitiesRetur
       const params = new URLSearchParams();
       params.set('limit', String(limit));
       params.set('offset', String(currentOffset));
-      if (personId) params.set('personId', personId);
-      if (organizationId) params.set('organizationId', organizationId);
-      if (opportunityId) params.set('opportunityId', opportunityId);
-      if (rfpId) params.set('rfpId', rfpId);
-      if (activityType) params.set('activityType', activityType);
+      if (personId) params.set('person_id', personId);
+      if (organizationId) params.set('organization_id', organizationId);
+      if (opportunityId) params.set('opportunity_id', opportunityId);
+      if (rfpId) params.set('rfp_id', rfpId);
+      if (activityType) params.set('activity_type', activityType);
       return params.toString();
     },
     [limit, personId, organizationId, opportunityId, rfpId, activityType]
