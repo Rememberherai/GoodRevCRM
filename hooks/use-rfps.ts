@@ -27,6 +27,10 @@ export function useRfps() {
     sortOrder,
     statusFilter,
     organizationFilter,
+    sourceFilter,
+    regionFilter,
+    committeeFilter,
+    minConfidenceFilter,
     setRfps,
     addRfp,
     updateRfp,
@@ -37,6 +41,10 @@ export function useRfps() {
     setSorting,
     setStatusFilter,
     setOrganizationFilter,
+    setSourceFilter,
+    setRegionFilter,
+    setCommitteeFilter,
+    setMinConfidenceFilter,
     setPage,
   } = useRfpStore();
 
@@ -53,6 +61,10 @@ export function useRfps() {
         sortOrder,
         status: statusFilter ?? undefined,
         organizationId: organizationFilter ?? undefined,
+        source: sourceFilter ?? undefined,
+        region: regionFilter ?? undefined,
+        committee: committeeFilter ?? undefined,
+        minConfidence: minConfidenceFilter ?? undefined,
       });
       setRfps(result.rfps, result.pagination);
     } catch (err) {
@@ -67,6 +79,10 @@ export function useRfps() {
     sortOrder,
     statusFilter,
     organizationFilter,
+    sourceFilter,
+    regionFilter,
+    committeeFilter,
+    minConfidenceFilter,
     setRfps,
     setLoading,
     setError,
@@ -153,6 +169,34 @@ export function useRfps() {
     [setOrganizationFilter]
   );
 
+  const filterBySource = useCallback(
+    (source: string | null) => {
+      setSourceFilter(source);
+    },
+    [setSourceFilter]
+  );
+
+  const filterByRegion = useCallback(
+    (region: string | null) => {
+      setRegionFilter(region);
+    },
+    [setRegionFilter]
+  );
+
+  const filterByCommittee = useCallback(
+    (committee: string | null) => {
+      setCommitteeFilter(committee);
+    },
+    [setCommitteeFilter]
+  );
+
+  const filterByMinConfidence = useCallback(
+    (confidence: number | null) => {
+      setMinConfidenceFilter(confidence);
+    },
+    [setMinConfidenceFilter]
+  );
+
   const goToPage = useCallback(
     (page: number) => {
       setPage(page);
@@ -175,6 +219,10 @@ export function useRfps() {
     sortOrder,
     statusFilter,
     organizationFilter,
+    sourceFilter,
+    regionFilter,
+    committeeFilter,
+    minConfidenceFilter,
     refresh: loadRfps,
     create,
     update,
@@ -183,6 +231,10 @@ export function useRfps() {
     sort,
     filterByStatus,
     filterByOrganization,
+    filterBySource,
+    filterByRegion,
+    filterByCommittee,
+    filterByMinConfidence,
     goToPage,
   };
 }

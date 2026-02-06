@@ -73,9 +73,17 @@ export function RfpsPageClient() {
     isLoading,
     error,
     statusFilter,
+    sourceFilter,
+    regionFilter,
+    committeeFilter,
+    minConfidenceFilter,
     search,
     remove,
     filterByStatus,
+    filterBySource,
+    filterByRegion,
+    filterByCommittee,
+    filterByMinConfidence,
     goToPage,
     refresh,
   } = useRfps();
@@ -394,6 +402,71 @@ export function RfpsPageClient() {
                 {STATUS_LABELS[status]}
               </SelectItem>
             ))}
+          </SelectContent>
+        </Select>
+        <Select
+          value={sourceFilter ?? 'all'}
+          onValueChange={(value) => filterBySource(value === 'all' ? null : value)}
+        >
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Source" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Sources</SelectItem>
+            <SelectItem value="municipal_minutes">Municipal Minutes</SelectItem>
+            <SelectItem value="epa">EPA</SelectItem>
+            <SelectItem value="manual">Manual Entry</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={regionFilter ?? 'all'}
+          onValueChange={(value) => filterByRegion(value === 'all' ? null : value)}
+        >
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Region" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Regions</SelectItem>
+            <SelectItem value="Nova Scotia">Nova Scotia</SelectItem>
+            <SelectItem value="Ontario">Ontario</SelectItem>
+            <SelectItem value="British Columbia">British Columbia</SelectItem>
+            <SelectItem value="Alberta">Alberta</SelectItem>
+            <SelectItem value="Quebec">Quebec</SelectItem>
+            <SelectItem value="Manitoba">Manitoba</SelectItem>
+            <SelectItem value="Saskatchewan">Saskatchewan</SelectItem>
+            <SelectItem value="New Brunswick">New Brunswick</SelectItem>
+            <SelectItem value="Prince Edward Island">Prince Edward Island</SelectItem>
+            <SelectItem value="Newfoundland and Labrador">Newfoundland and Labrador</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={committeeFilter ?? 'all'}
+          onValueChange={(value) => filterByCommittee(value === 'all' ? null : value)}
+        >
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Committee" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Committees</SelectItem>
+            <SelectItem value="Regional Council">Regional Council</SelectItem>
+            <SelectItem value="Public Works">Public Works</SelectItem>
+            <SelectItem value="Water Commission">Water Commission</SelectItem>
+            <SelectItem value="Environment">Environment</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={minConfidenceFilter?.toString() ?? 'all'}
+          onValueChange={(value) => filterByMinConfidence(value === 'all' ? null : parseInt(value, 10))}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Confidence" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Confidence</SelectItem>
+            <SelectItem value="90">90%+ (High)</SelectItem>
+            <SelectItem value="80">80%+ (Good)</SelectItem>
+            <SelectItem value="70">70%+ (Medium)</SelectItem>
+            <SelectItem value="50">50%+ (Low)</SelectItem>
           </SelectContent>
         </Select>
         <ColumnPicker

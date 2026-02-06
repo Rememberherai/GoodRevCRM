@@ -20,6 +20,10 @@ interface RfpState {
   sortOrder: 'asc' | 'desc';
   statusFilter: RfpStatus | null;
   organizationFilter: string | null;
+  sourceFilter: string | null;
+  regionFilter: string | null;
+  committeeFilter: string | null;
+  minConfidenceFilter: number | null;
 
   // Actions
   setRfps: (rfps: Rfp[], pagination: PaginationState) => void;
@@ -33,6 +37,10 @@ interface RfpState {
   setSorting: (sortBy: string, sortOrder: 'asc' | 'desc') => void;
   setStatusFilter: (status: RfpStatus | null) => void;
   setOrganizationFilter: (organizationId: string | null) => void;
+  setSourceFilter: (source: string | null) => void;
+  setRegionFilter: (region: string | null) => void;
+  setCommitteeFilter: (committee: string | null) => void;
+  setMinConfidenceFilter: (confidence: number | null) => void;
   setPage: (page: number) => void;
   reset: () => void;
 }
@@ -53,6 +61,10 @@ const initialState = {
   sortOrder: 'asc' as const,
   statusFilter: null,
   organizationFilter: null,
+  sourceFilter: null,
+  regionFilter: null,
+  committeeFilter: null,
+  minConfidenceFilter: null,
 };
 
 export const useRfpStore = create<RfpState>((set) => ({
@@ -111,6 +123,18 @@ export const useRfpStore = create<RfpState>((set) => ({
   setOrganizationFilter: (organizationFilter) =>
     set({ organizationFilter, pagination: { ...initialState.pagination } }),
 
+  setSourceFilter: (sourceFilter) =>
+    set({ sourceFilter, pagination: { ...initialState.pagination } }),
+
+  setRegionFilter: (regionFilter) =>
+    set({ regionFilter, pagination: { ...initialState.pagination } }),
+
+  setCommitteeFilter: (committeeFilter) =>
+    set({ committeeFilter, pagination: { ...initialState.pagination } }),
+
+  setMinConfidenceFilter: (minConfidenceFilter) =>
+    set({ minConfidenceFilter, pagination: { ...initialState.pagination } }),
+
   setPage: (page) =>
     set((state) => ({ pagination: { ...state.pagination, page } })),
 
@@ -129,6 +153,10 @@ export async function fetchRfps(
     status?: RfpStatus;
     organizationId?: string;
     upcoming?: boolean;
+    source?: string;
+    region?: string;
+    committee?: string;
+    minConfidence?: number;
   } = {}
 ): Promise<{
   rfps: Rfp[];
@@ -143,6 +171,10 @@ export async function fetchRfps(
   if (options.status) params.set('status', options.status);
   if (options.organizationId) params.set('organizationId', options.organizationId);
   if (options.upcoming) params.set('upcoming', 'true');
+  if (options.source) params.set('source', options.source);
+  if (options.region) params.set('region', options.region);
+  if (options.committee) params.set('committee', options.committee);
+  if (options.minConfidence !== undefined) params.set('minConfidence', options.minConfidence.toString());
 
   const response = await fetch(
     `/api/projects/${projectSlug}/rfps?${params.toString()}`

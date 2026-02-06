@@ -54,6 +54,12 @@ export async function GET(request: Request, context: RouteContext) {
     const organizationId = rawOrganizationId && UUID_REGEX.test(rawOrganizationId) ? rawOrganizationId : null;
     const upcoming = searchParams.get('upcoming');
 
+    // Custom field filters
+    const source = searchParams.get('source'); // e.g., 'municipal_minutes'
+    const region = searchParams.get('region'); // e.g., 'Nova Scotia'
+    const committeeName = searchParams.get('committee'); // e.g., 'Regional Council'
+    const minConfidence = searchParams.get('minConfidence'); // e.g., '70'
+
     const offset = (page - 1) * limit;
 
     // Build query
@@ -87,6 +93,26 @@ export async function GET(request: Request, context: RouteContext) {
         .gte('due_date', now)
         .lte('due_date', thirtyDaysFromNow)
         .not('status', 'in', '("won","lost","no_bid")');
+    }
+
+    // Apply custom field filters using JSONB operators
+    if (source) {
+      query = query.eq('custom_fields->source', source);
+    }
+
+    if (region) {
+      query = query.eq('custom_fields->region', region);
+    }
+
+    if (committeeName) {
+      query = query.eq('custom_fields->committee_name', committeeName);
+    }
+
+    if (minConfidence) {
+      const confidence = parseInt(minConfidence, 10);
+      if (!isNaN(confidence) && confidence >= 0 && confidence <= 100) {
+        query = query.gte('custom_fields->ai_confidence', confidence);
+      }
     }
 
     // Apply sorting
