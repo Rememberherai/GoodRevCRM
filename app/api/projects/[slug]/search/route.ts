@@ -53,10 +53,10 @@ export async function GET(request: Request, context: RouteContext) {
     const sanitizedQuery = query.replace(/[%_\\]/g, '\\$&');
 
     // Call the global_search function
-    const { data: results, error } = await supabaseAny.rpc('global_search', {
+    const { data: rawResults, error } = await supabaseAny.rpc('global_search', {
       p_project_id: project.id,
-      p_search_query: sanitizedQuery,
-      p_types: types,
+      p_query: sanitizedQuery,
+      p_entity_types: types,
       p_limit: limit,
     });
 
@@ -64,6 +64,18 @@ export async function GET(request: Request, context: RouteContext) {
       console.error('Error performing search:', error);
       return NextResponse.json({ error: 'Search failed' }, { status: 500 });
     }
+
+    // Transform results to match frontend expected format
+    const results = (rawResults ?? []).map((r: { entity_id: string; entity_type: string; name: string; subtitle: string | null; match_field: string; relevance: number }) => ({
+      id: r.entity_id,
+      type: r.entity_type,
+      title: r.name,
+      subtitle: r.subtitle,
+      metadata: {
+        match_field: r.match_field,
+        relevance: r.relevance,
+      },
+    }));
 
     // Group results by type
     const grouped = {
@@ -75,7 +87,7 @@ export async function GET(request: Request, context: RouteContext) {
       notes: [] as typeof results,
     };
 
-    for (const result of results ?? []) {
+    for (const result of results) {
       const type = result.type as keyof typeof grouped;
       if (grouped[type]) {
         grouped[type].push(result);
@@ -83,10 +95,10 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     return NextResponse.json({
-      results: results ?? [],
+      results,
       grouped,
       query,
-      total: results?.length ?? 0,
+      total: results.length,
     });
   } catch (error) {
     console.error('Error in GET /api/projects/[slug]/search:', error);
