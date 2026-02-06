@@ -52,6 +52,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
     defaultValues: {
       api_key: '',
       call_control_app_id: '',
+      messaging_profile_id: '',
       sip_connection_id: '',
       sip_username: '',
       sip_password: '',
@@ -76,6 +77,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
         form.reset({
           api_key: '••••••••••••••••', // Masked
           call_control_app_id: data.connection.call_control_app_id ?? '',
+          messaging_profile_id: data.connection.messaging_profile_id ?? '',
           sip_connection_id: data.connection.sip_connection_id ?? '',
           sip_username: data.connection.sip_username ?? '',
           sip_password: '', // Don't show
@@ -113,6 +115,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
             amd_enabled: values.amd_enabled,
             caller_id_name: values.caller_id_name || null,
             call_control_app_id: values.call_control_app_id || null,
+            messaging_profile_id: values.messaging_profile_id || null,
             sip_connection_id: values.sip_connection_id || null,
             sip_username: values.sip_username || null,
             ...(values.sip_password ? { sip_password: values.sip_password } : {}),
@@ -164,6 +167,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
       form.reset({
         api_key: '',
         call_control_app_id: '',
+        messaging_profile_id: '',
         sip_connection_id: '',
         sip_username: '',
         sip_password: '',
@@ -298,6 +302,23 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
                 )}
               />
 
+              <FormField
+                control={form.control}
+                name="messaging_profile_id"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormLabel>Messaging Profile ID</FormLabel>
+                    <FormControl>
+                      <Input {...field} value={field.value ?? ''} placeholder="e.g., 40019c2c-2dab-47e6-a876-3f8efe06f15d" />
+                    </FormControl>
+                    <FormDescription>
+                      From Messaging → Messaging Profiles in Telnyx portal (required for SMS)
+                    </FormDescription>
+                    <FormMessage />
+                  </FormItem>
+                )}
+              />
+
               {webhookUrl && (
                 <div className="border rounded-md p-4 space-y-2 bg-muted/50">
                   <div className="flex items-center justify-between">
@@ -320,7 +341,7 @@ export function TelnyxSettingsPanel({ slug }: TelnyxSettingsPanelProps) {
                     {webhookUrl}
                   </code>
                   <p className="text-xs text-muted-foreground">
-                    Add this URL in your Telnyx Call Control Application settings for call events (recordings, hangups, etc.)
+                    Add this URL in your Telnyx Call Control Application and Messaging Profile settings for call and SMS events
                   </p>
                 </div>
               )}

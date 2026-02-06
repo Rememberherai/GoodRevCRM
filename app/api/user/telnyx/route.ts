@@ -10,6 +10,7 @@ const telnyxUpdateSchema = z.object({
   amd_enabled: z.boolean().optional(),
   caller_id_name: z.string().max(50).nullable().optional(),
   call_control_app_id: z.string().nullable().optional(),
+  messaging_profile_id: z.string().nullable().optional(),
   sip_connection_id: z.string().nullable().optional(),
   sip_username: z.string().nullable().optional(),
   sip_password: z.string().nullable().optional(),
@@ -28,7 +29,7 @@ export async function GET() {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: connection } = await (supabase as any)
       .from('telnyx_connections')
-      .select('id, user_id, phone_number, phone_number_id, record_calls, amd_enabled, caller_id_name, status, error_message, last_call_at, call_control_app_id, sip_connection_id, sip_username, created_at, updated_at')
+      .select('id, user_id, phone_number, phone_number_id, record_calls, amd_enabled, caller_id_name, status, error_message, last_call_at, call_control_app_id, messaging_profile_id, sip_connection_id, sip_username, created_at, updated_at')
       .eq('user_id', user.id)
       .eq('status', 'active')
       .single();
@@ -98,6 +99,7 @@ export async function POST(request: Request) {
         created_by: user.id,
         api_key: encryptedApiKey,
         call_control_app_id: input.call_control_app_id ?? null,
+        messaging_profile_id: input.messaging_profile_id ?? null,
         sip_connection_id: input.sip_connection_id ?? null,
         sip_username: input.sip_username ?? null,
         sip_password: input.sip_password ?? null,
@@ -108,7 +110,7 @@ export async function POST(request: Request) {
         caller_id_name: input.caller_id_name ?? null,
         status: 'active',
       })
-      .select('id, user_id, phone_number, record_calls, amd_enabled, caller_id_name, status, call_control_app_id, sip_connection_id, sip_username, created_at')
+      .select('id, user_id, phone_number, record_calls, amd_enabled, caller_id_name, status, call_control_app_id, messaging_profile_id, sip_connection_id, sip_username, created_at')
       .single();
 
     if (error) {
@@ -148,6 +150,7 @@ export async function PATCH(request: Request) {
     if (input.amd_enabled !== undefined) updates.amd_enabled = input.amd_enabled;
     if (input.caller_id_name !== undefined) updates.caller_id_name = input.caller_id_name;
     if (input.call_control_app_id !== undefined) updates.call_control_app_id = input.call_control_app_id;
+    if (input.messaging_profile_id !== undefined) updates.messaging_profile_id = input.messaging_profile_id;
     if (input.sip_connection_id !== undefined) updates.sip_connection_id = input.sip_connection_id;
     if (input.sip_username !== undefined) updates.sip_username = input.sip_username;
     if (input.sip_password !== undefined) updates.sip_password = input.sip_password;
@@ -162,7 +165,7 @@ export async function PATCH(request: Request) {
       .update(updates)
       .eq('user_id', user.id)
       .eq('status', 'active')
-      .select('id, user_id, phone_number, record_calls, amd_enabled, caller_id_name, status, call_control_app_id, sip_connection_id, sip_username, updated_at')
+      .select('id, user_id, phone_number, record_calls, amd_enabled, caller_id_name, status, call_control_app_id, messaging_profile_id, sip_connection_id, sip_username, updated_at')
       .single();
 
     if (error) {
