@@ -100,7 +100,7 @@ export function NewSequenceDialog({
   if (mode === 'ai-wizard') {
     return (
       <Dialog open={open} onOpenChange={handleClose}>
-        <DialogContent className="max-w-[90vw] w-[1400px] max-h-[90vh] overflow-hidden flex flex-col">
+        <DialogContent className="sm:max-w-[90vw] w-[1400px] max-h-[90vh] overflow-hidden flex flex-col">
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2">
               <Sparkles className="h-5 w-5 text-purple-500" />
