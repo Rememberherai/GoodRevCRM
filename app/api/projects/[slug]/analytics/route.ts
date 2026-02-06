@@ -271,27 +271,23 @@ export async function GET(request: Request, context: RouteContext) {
       Promise.resolve(
         supabase
           .from('project_memberships')
-          .select('user_id, users(id, email, full_name, avatar_url)')
+          .select('user_id, users!project_memberships_user_id_fkey(id, email, full_name, avatar_url)')
           .eq('project_id', project.id)
       )
         .then(
-          (r: {
-            data:
-              | Array<{
-                  user_id: string;
-                  users: { id: string; email: string; full_name: string | null; avatar_url: string | null } | null;
-                }>
-              | null;
-          }) =>
-            (r.data ?? []).map(
+          (r) =>
+            ((r.data ?? []) as Array<{
+              user_id: string;
+              users: { id: string; email: string; full_name: string | null; avatar_url: string | null } | null;
+            }>).map(
               (m): TeamMember => ({
                 userId: m.user_id,
                 fullName:
-                  (m.users as unknown as { full_name: string | null })?.full_name ??
-                  (m.users as unknown as { email: string })?.email ??
+                  m.users?.full_name ??
+                  m.users?.email ??
                   'Unknown',
-                email: (m.users as unknown as { email: string })?.email ?? '',
-                avatarUrl: (m.users as unknown as { avatar_url: string | null })?.avatar_url ?? null,
+                email: m.users?.email ?? '',
+                avatarUrl: m.users?.avatar_url ?? null,
               })
             )
         )

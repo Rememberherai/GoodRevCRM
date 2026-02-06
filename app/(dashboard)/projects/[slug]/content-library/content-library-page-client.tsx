@@ -259,7 +259,7 @@ export function ContentLibraryPageClient() {
                         from {entry.source_document_name}
                       </span>
                     )}
-                    {entry.usage_count > 0 && (
+                    {(entry.usage_count ?? 0) > 0 && (
                       <span className="text-xs text-muted-foreground ml-1">
                         Used {entry.usage_count}x
                       </span>

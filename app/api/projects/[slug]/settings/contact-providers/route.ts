@@ -143,7 +143,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     // Check if user has permission (owner or admin)
     const { data: membership } = await supabase
-      .from('project_members')
+      .from('project_memberships')
       .select('role')
       .eq('project_id', project.id)
       .eq('user_id', user.id)
