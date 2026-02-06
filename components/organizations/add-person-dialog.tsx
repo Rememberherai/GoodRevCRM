@@ -49,6 +49,7 @@ export function AddPersonDialog({
       first_name: '',
       last_name: '',
       email: '',
+      phone: '',
       job_title: '',
     },
   });
@@ -124,17 +125,32 @@ export function AddPersonDialog({
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="add-email">Email</Label>
-              <Input
-                id="add-email"
-                type="email"
-                {...register('email')}
-                placeholder="john@example.com"
-              />
-              {errors.email && (
-                <p className="text-sm text-destructive">{errors.email.message}</p>
-              )}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="add-email">Email</Label>
+                <Input
+                  id="add-email"
+                  type="email"
+                  {...register('email')}
+                  placeholder="john@example.com"
+                />
+                {errors.email && (
+                  <p className="text-sm text-destructive">{errors.email.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="add-phone">Phone</Label>
+                <Input
+                  id="add-phone"
+                  type="tel"
+                  {...register('phone')}
+                  placeholder="+1 (555) 123-4567"
+                />
+                {errors.phone && (
+                  <p className="text-sm text-destructive">{errors.phone.message}</p>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">

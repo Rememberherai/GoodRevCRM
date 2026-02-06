@@ -35,6 +35,7 @@ export function NewPersonDialog({ open, onOpenChange }: NewPersonDialogProps) {
       first_name: '',
       last_name: '',
       email: '',
+      phone: '',
       job_title: '',
     },
   });
@@ -96,17 +97,32 @@ export function NewPersonDialog({ open, onOpenChange }: NewPersonDialogProps) {
               </div>
             </div>
 
-            <div className="space-y-2">
-              <Label htmlFor="new-email">Email</Label>
-              <Input
-                id="new-email"
-                type="email"
-                {...register('email')}
-                placeholder="john@example.com"
-              />
-              {errors.email && (
-                <p className="text-sm text-destructive">{errors.email.message}</p>
-              )}
+            <div className="grid grid-cols-2 gap-4">
+              <div className="space-y-2">
+                <Label htmlFor="new-email">Email</Label>
+                <Input
+                  id="new-email"
+                  type="email"
+                  {...register('email')}
+                  placeholder="john@example.com"
+                />
+                {errors.email && (
+                  <p className="text-sm text-destructive">{errors.email.message}</p>
+                )}
+              </div>
+
+              <div className="space-y-2">
+                <Label htmlFor="new-phone">Phone</Label>
+                <Input
+                  id="new-phone"
+                  type="tel"
+                  {...register('phone')}
+                  placeholder="+1 (555) 123-4567"
+                />
+                {errors.phone && (
+                  <p className="text-sm text-destructive">{errors.phone.message}</p>
+                )}
+              </div>
             </div>
 
             <div className="space-y-2">
