@@ -6,6 +6,7 @@ import Link from 'next/link';
 import { Plus, Search, Building2, MoreHorizontal, Pencil, Trash2, Upload, ClipboardPaste, Sparkles, Droplets, UserSearch } from 'lucide-react';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useColumnPreferences } from '@/hooks/use-column-preferences';
+import { useEntityCustomFields } from '@/hooks/use-custom-fields';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import {
@@ -96,6 +97,8 @@ export function OrganizationsPageClient() {
     refresh,
   } = useOrganizations();
 
+  const { fields: customFields } = useEntityCustomFields('organization');
+
   const {
     columns,
     allColumns,
@@ -103,7 +106,7 @@ export function OrganizationsPageClient() {
     isSaving,
     toggleColumn,
     resetToDefaults,
-  } = useColumnPreferences('organization');
+  } = useColumnPreferences('organization', { customFields });
 
   const handleSearch = (e: React.FormEvent) => {
     e.preventDefault();
