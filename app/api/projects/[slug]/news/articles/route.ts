@@ -37,6 +37,26 @@ export async function GET(request: Request, context: RouteContext) {
 
     const offset = (page - 1) * limit;
 
+    // If filtering by org, first get the linked article IDs
+    let orgArticleIds: string[] = [];
+    if (orgId) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: entityLinks } = await (supabase as any)
+        .from('news_article_entities')
+        .select('article_id')
+        .eq('organization_id', orgId);
+
+      orgArticleIds = (entityLinks || []).map((l: any) => l.article_id);
+
+      // If no articles linked to this org, return early
+      if (orgArticleIds.length === 0) {
+        return NextResponse.json({
+          articles: [],
+          pagination: { page, limit, total: 0, totalPages: 0 },
+        });
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     let query = (supabase as any)
       .from('news_articles')
@@ -44,6 +64,11 @@ export async function GET(request: Request, context: RouteContext) {
       .eq('project_id', project.id)
       .order('published_at', { ascending: false, nullsFirst: false })
       .range(offset, offset + limit - 1);
+
+    // Filter by org-linked articles if applicable
+    if (orgId && orgArticleIds.length > 0) {
+      query = query.in('id', orgArticleIds);
+    }
 
     if (keyword) {
       query = query.contains('matched_keywords', [keyword]);
@@ -63,19 +88,7 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: error.message }, { status: 500 });
     }
 
-    // If filtering by org, get articles linked to that org
     let filteredArticles = articles || [];
-    if (orgId && articles?.length) {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: entityLinks } = await (supabase as any)
-        .from('news_article_entities')
-        .select('article_id')
-        .eq('organization_id', orgId)
-        .in('article_id', articles.map((a: any) => a.id));
-
-      const linkedIds = new Set((entityLinks || []).map((l: any) => l.article_id));
-      filteredArticles = articles.filter((a: any) => linkedIds.has(a.id));
-    }
 
     // Fetch linked organizations for each article
     if (filteredArticles.length) {
@@ -112,8 +125,8 @@ export async function GET(request: Request, context: RouteContext) {
       pagination: {
         page,
         limit,
-        total: orgId ? filteredArticles.length : (count ?? 0),
-        totalPages: Math.ceil((orgId ? filteredArticles.length : (count ?? 0)) / limit),
+        total: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / limit),
       },
     });
   } catch (error) {
