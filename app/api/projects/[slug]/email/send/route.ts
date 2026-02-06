@@ -142,7 +142,7 @@ export async function POST(request: Request, context: RouteContext) {
           outcome: 'email_sent',
           direction: 'outbound',
           subject: validationResult.data.subject,
-          notes: validationResult.data.body_text || validationResult.data.body_html.replace(/<[^>]*>/g, '').slice(0, 1000),
+          notes: validationResult.data.body_html || validationResult.data.body_text,
           person_id: personId,
           organization_id: organizationId,
           opportunity_id: opportunityId,
@@ -169,7 +169,7 @@ export async function POST(request: Request, context: RouteContext) {
             outcome: 'email_sent',
             direction: 'outbound',
             subject: validationResult.data.subject,
-            notes: validationResult.data.body_text || validationResult.data.body_html.replace(/<[^>]*>/g, '').slice(0, 1000),
+            notes: validationResult.data.body_html || validationResult.data.body_text,
             // Omit person_id, organization_id, opportunity_id, rfp_id to avoid FK issues
             metadata: {
               sent_email_id: result.sent_email_id,

@@ -574,7 +574,7 @@ async function logEmailActivity(
       outcome: 'email_received',
       direction: 'inbound',
       subject: email.subject,
-      notes: email.snippet,
+      notes: email.body_html || email.body_text || email.snippet,
       person_id: match.person_id,
       organization_id: match.organization_id,
       metadata: {
