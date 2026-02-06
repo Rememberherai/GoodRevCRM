@@ -115,6 +115,12 @@ export class HunterProvider extends BaseContactProvider {
 
     const data: HunterDomainSearchResponse = await response.json();
 
+    console.log('Hunter response:', {
+      domain,
+      totalEmails: data.data?.emails?.length ?? 0,
+      errors: data.errors,
+    });
+
     if (data.errors || !data.data?.emails) {
       return [];
     }
@@ -122,11 +128,18 @@ export class HunterProvider extends BaseContactProvider {
     // Filter by roles client-side since job_titles param can cause 400 errors
     const emails = data.data.emails.filter((email) => email.type === 'personal');
 
+    console.log('Hunter personal emails:', emails.length, 'roles:', params.roles);
+
     // If roles are specified, filter to matching positions
-    const filteredEmails =
-      params.roles.length > 0
-        ? emails.filter((email) => this.matchesTitle(email.position, params.roles))
-        : emails;
+    // But if no matches found, return all personal emails (user can filter manually)
+    let filteredEmails = emails;
+    if (params.roles.length > 0) {
+      const matched = emails.filter((email) => this.matchesTitle(email.position, params.roles));
+      if (matched.length > 0) {
+        filteredEmails = matched;
+      }
+      console.log('Hunter matched by role:', matched.length);
+    }
 
     return filteredEmails.slice(0, params.maxResults || 10).map((email) => ({
       id: this.generateId(),

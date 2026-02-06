@@ -222,9 +222,32 @@ export function ContactDiscoveryDialog({
           throw new Error(data.error ?? 'Failed to discover contacts');
         }
       } else {
-        setContacts(data.contacts ?? []);
-        setNotes(data.notes);
-        setProviderUsed(data.provider_used ?? null);
+        // If waterfall returned no contacts, fall back to AI discovery
+        if (hasProviders && (!data.contacts || data.contacts.length === 0)) {
+          const fallbackResponse = await fetch(
+            `/api/projects/${slug}/organizations/${organizationId}/discover-contacts`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ roles, max_results: 15 }),
+            }
+          );
+          const fallbackData = await fallbackResponse.json();
+          if (fallbackResponse.ok && fallbackData.contacts?.length > 0) {
+            setContacts(fallbackData.contacts);
+            setNotes(fallbackData.notes);
+            setProviderUsed('AI (fallback)');
+          } else {
+            // No results from either source
+            setContacts([]);
+            setNotes(data.notes);
+            setProviderUsed(data.provider_used ?? null);
+          }
+        } else {
+          setContacts(data.contacts ?? []);
+          setNotes(data.notes);
+          setProviderUsed(data.provider_used ?? null);
+        }
       }
 
       // Auto-select all contacts with confidence >= 0.7

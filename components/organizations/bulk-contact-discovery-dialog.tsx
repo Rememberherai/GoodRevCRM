@@ -318,6 +318,29 @@ export function BulkContactDiscoveryDialog({
 
           const data = await response.json();
 
+          // If waterfall returned no contacts, fall back to AI discovery
+          if (hasProviders && (!data.contacts || data.contacts.length === 0)) {
+            const fallbackResponse = await fetch(
+              `/api/projects/${slug}/organizations/${orgId}/discover-contacts`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({ roles, max_results: 10 }),
+              }
+            );
+            if (fallbackResponse.ok) {
+              const fallbackData = await fallbackResponse.json();
+              if (fallbackData.contacts?.length > 0) {
+                return {
+                  organizationId: orgId,
+                  organizationName: orgName,
+                  status: 'success' as const,
+                  contacts: fallbackData.contacts,
+                };
+              }
+            }
+          }
+
           return {
             organizationId: orgId,
             organizationName: orgName,
