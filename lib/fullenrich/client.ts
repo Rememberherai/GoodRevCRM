@@ -301,6 +301,13 @@ export class FullEnrichClient {
       })),
     };
 
+    console.log('[FullEnrich] Sending bulk enrich with custom fields:',
+      JSON.stringify(payload.datas.map(d => ({
+        name: `${d.firstname} ${d.lastname}`,
+        custom: d.custom
+      })), null, 2)
+    );
+
     return this.request(
       '/contact/enrich/bulk',
       {
