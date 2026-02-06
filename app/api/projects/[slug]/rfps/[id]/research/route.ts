@@ -231,6 +231,17 @@ export async function POST(request: Request, context: RouteContext) {
   }
 }
 
+// Extract JSON from response that may have extra text
+function extractJson(content: string): string {
+  // Find the first { and last } to extract the JSON object
+  const start = content.indexOf('{');
+  const end = content.lastIndexOf('}');
+  if (start !== -1 && end !== -1 && end > start) {
+    return content.substring(start, end + 1);
+  }
+  return content;
+}
+
 // Background research execution function
 async function executeResearch(
   jobId: string,
@@ -246,14 +257,46 @@ async function executeResearch(
 
     console.log('[RFP Research] Starting research for job:', jobId);
 
-    // Call the AI with structured JSON output
-    const result = await client.completeJsonWithUsage(prompt, rfpResearchResultSchema, {
-      model: RFP_RESEARCH_MODEL,
-      temperature: 0.2,
-      maxTokens: 8192,
-    });
+    // Call the AI - use chat directly since Claude may add text after JSON
+    const response = await client.chat(
+      [{ role: 'user', content: prompt }],
+      {
+        model: RFP_RESEARCH_MODEL,
+        temperature: 0.2,
+        maxTokens: 8192,
+        responseFormat: 'json_object',
+      }
+    );
+
+    const content = response.choices[0]?.message?.content;
+    if (!content) {
+      throw new Error('No content in AI response');
+    }
 
     console.log('[RFP Research] AI response received for job:', jobId);
+
+    // Extract and parse JSON
+    const jsonContent = extractJson(content);
+    let parsedData: unknown;
+    try {
+      parsedData = JSON.parse(jsonContent);
+    } catch {
+      console.error('[RFP Research] JSON parse failed, content:', jsonContent.substring(0, 500));
+      throw new Error('Failed to parse JSON from AI response');
+    }
+
+    // Validate against schema
+    const validationResult = rfpResearchResultSchema.safeParse(parsedData);
+    if (!validationResult.success) {
+      console.error('[RFP Research] Schema validation failed:', validationResult.error.message);
+      throw new Error(`Schema validation failed: ${validationResult.error.message}`);
+    }
+
+    const result = {
+      data: validationResult.data,
+      usage: response.usage ?? null,
+      model: response.model,
+    };
 
     // Log AI usage
     await logAiUsage(adminClient, {
