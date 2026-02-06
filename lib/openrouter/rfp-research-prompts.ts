@@ -124,4 +124,5 @@ Important:
 - Provide at least 3 key insights and 3 recommended actions`;
 }
 
-export const RFP_RESEARCH_MODEL = 'perplexity/sonar-pro-search';
+// Use Claude for research - reliable JSON output
+export const RFP_RESEARCH_MODEL = 'anthropic/claude-3.5-sonnet';

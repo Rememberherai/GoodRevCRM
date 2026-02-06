@@ -246,7 +246,7 @@ async function executeResearch(
 
     console.log('[RFP Research] Starting research for job:', jobId);
 
-    // Call the AI with web search enabled model
+    // Call the AI with structured JSON output
     const result = await client.completeJsonWithUsage(prompt, rfpResearchResultSchema, {
       model: RFP_RESEARCH_MODEL,
       temperature: 0.2,
