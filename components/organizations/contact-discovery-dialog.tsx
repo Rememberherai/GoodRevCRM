@@ -186,73 +186,78 @@ export function ContactDiscoveryDialog({
     setStep('searching');
 
     try {
-      // Use search-contacts (waterfall) if providers are configured, otherwise fall back to discover-contacts (LLM)
-      const endpoint = hasProviders
-        ? `/api/projects/${slug}/organizations/${organizationId}/search-contacts`
-        : `/api/projects/${slug}/organizations/${organizationId}/discover-contacts`;
-
-      const response = await fetch(endpoint, {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ roles, max_results: 15 }),
-      });
-
-      const data = await response.json();
-
-      if (!response.ok) {
-        // If search-contacts fails due to no providers, fall back to discover-contacts
-        if (hasProviders && data.error?.includes('No contact discovery providers')) {
-          setHasProviders(false);
-          const fallbackResponse = await fetch(
-            `/api/projects/${slug}/organizations/${organizationId}/discover-contacts`,
-            {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({ roles, max_results: 15 }),
-            }
-          );
-          const fallbackData = await fallbackResponse.json();
-          if (!fallbackResponse.ok) {
-            throw new Error(fallbackData.error ?? 'Failed to discover contacts');
-          }
-          setContacts(fallbackData.contacts ?? []);
-          setNotes(fallbackData.notes);
-          setProviderUsed(null);
-        } else {
-          throw new Error(data.error ?? 'Failed to discover contacts');
+      // Always run AI discovery first
+      const aiResponse = await fetch(
+        `/api/projects/${slug}/organizations/${organizationId}/discover-contacts`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ roles, max_results: 15 }),
         }
-      } else {
-        // If waterfall returned no contacts, fall back to AI discovery
-        if (hasProviders && (!data.contacts || data.contacts.length === 0)) {
-          const fallbackResponse = await fetch(
-            `/api/projects/${slug}/organizations/${organizationId}/discover-contacts`,
+      );
+
+      const aiData = await aiResponse.json();
+
+      let combinedContacts: DiscoveredContact[] = [];
+      let combinedNotes: string | undefined;
+      let sources: string[] = [];
+
+      // Start with AI results
+      if (aiResponse.ok && aiData.contacts?.length > 0) {
+        // Add source label to AI contacts
+        combinedContacts = aiData.contacts.map((c: DiscoveredContact) => ({
+          ...c,
+          source_hint: 'AI Discovery',
+        }));
+        combinedNotes = aiData.notes;
+        sources.push('AI');
+      }
+
+      // Then append waterfall provider results (Hunter.io, etc.) if providers are configured
+      if (hasProviders) {
+        try {
+          const waterfallResponse = await fetch(
+            `/api/projects/${slug}/organizations/${organizationId}/search-contacts`,
             {
               method: 'POST',
               headers: { 'Content-Type': 'application/json' },
               body: JSON.stringify({ roles, max_results: 15 }),
             }
           );
-          const fallbackData = await fallbackResponse.json();
-          if (fallbackResponse.ok && fallbackData.contacts?.length > 0) {
-            setContacts(fallbackData.contacts);
-            setNotes(fallbackData.notes);
-            setProviderUsed('AI (fallback)');
-          } else {
-            // No results from either source
-            setContacts([]);
-            setNotes(data.notes);
-            setProviderUsed(data.provider_used ?? null);
+
+          const waterfallData = await waterfallResponse.json();
+
+          if (waterfallResponse.ok && waterfallData.contacts?.length > 0) {
+            // Add source label to waterfall contacts
+            const waterfallContacts = waterfallData.contacts.map((c: DiscoveredContact, idx: number) => ({
+              ...c,
+              id: c.id || `waterfall-${idx}`, // Ensure unique IDs
+              source_hint: waterfallData.provider_used || 'Hunter.io',
+            }));
+
+            // Append waterfall results below AI results
+            combinedContacts = [...combinedContacts, ...waterfallContacts];
+            sources.push(waterfallData.provider_used || 'Providers');
+
+            // Combine notes if both have notes
+            if (waterfallData.notes) {
+              combinedNotes = combinedNotes
+                ? `${combinedNotes} | ${waterfallData.notes}`
+                : waterfallData.notes;
+            }
           }
-        } else {
-          setContacts(data.contacts ?? []);
-          setNotes(data.notes);
-          setProviderUsed(data.provider_used ?? null);
+        } catch (waterfallErr) {
+          console.warn('Waterfall providers failed, continuing with AI results only:', waterfallErr);
         }
       }
 
+      setContacts(combinedContacts);
+      setNotes(combinedNotes);
+      setProviderUsed(sources.length > 0 ? sources.join(' + ') : null);
+
       // Auto-select all contacts with confidence >= 0.7
       const autoSelected = new Set<string>(
-        (contacts.length > 0 ? contacts : data.contacts ?? [])
+        combinedContacts
           .filter((c: DiscoveredContact) => c.confidence >= 0.7)
           .map((c: DiscoveredContact) => c.id)
       );

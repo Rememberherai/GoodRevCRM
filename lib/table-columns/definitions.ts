@@ -98,14 +98,16 @@ export function getColumnsWithCustomFields(
 ): ColumnDefinition[] {
   const systemColumns = COLUMN_DEFINITIONS[entityType];
 
+  // For organizations, show all custom fields in column picker
+  // For other entities, only show fields marked as visible_in_list
   const customColumns: ColumnDefinition[] = customFields
-    .filter(f => f.is_visible_in_list)
+    .filter(f => entityType === 'organization' || f.is_visible_in_list)
     .map(f => ({
       key: `custom_${f.id}`,
       label: f.label,
       type: 'custom' as const,
       fieldType: f.field_type,
-      sortable: f.is_filterable,
+      sortable: true,
       defaultVisible: false,
     }));
 

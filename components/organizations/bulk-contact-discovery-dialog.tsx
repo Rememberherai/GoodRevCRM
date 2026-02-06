@@ -278,66 +278,57 @@ export function BulkContactDiscoveryDialog({
         }
 
         try {
-          // Use search-contacts (waterfall) if providers are configured, otherwise fall back to discover-contacts (LLM)
-          const endpoint = hasProviders
-            ? `/api/projects/${slug}/organizations/${orgId}/search-contacts`
-            : `/api/projects/${slug}/organizations/${orgId}/discover-contacts`;
+          let combinedContacts: any[] = [];
 
-          const response = await fetch(endpoint, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ roles, max_results: 10 }),
-          });
+          // Always run AI discovery first
+          const aiResponse = await fetch(
+            `/api/projects/${slug}/organizations/${orgId}/discover-contacts`,
+            {
+              method: 'POST',
+              headers: { 'Content-Type': 'application/json' },
+              body: JSON.stringify({ roles, max_results: 10 }),
+            }
+          );
 
-          if (!response.ok) {
-            const data = await response.json();
-            // If search-contacts fails due to no providers, fall back to discover-contacts
-            if (hasProviders && data.error?.includes('No contact discovery providers')) {
-              const fallbackResponse = await fetch(
-                `/api/projects/${slug}/organizations/${orgId}/discover-contacts`,
+          if (aiResponse.ok) {
+            const aiData = await aiResponse.json();
+            if (aiData.contacts?.length > 0) {
+              // Add source label to AI contacts
+              combinedContacts = aiData.contacts.map((c: any) => ({
+                ...c,
+                source_hint: 'AI Discovery',
+              }));
+            }
+          }
+
+          // Then append waterfall provider results (Hunter.io, etc.) if providers are configured
+          if (hasProviders) {
+            try {
+              const waterfallResponse = await fetch(
+                `/api/projects/${slug}/organizations/${orgId}/search-contacts`,
                 {
                   method: 'POST',
                   headers: { 'Content-Type': 'application/json' },
                   body: JSON.stringify({ roles, max_results: 10 }),
                 }
               );
-              if (!fallbackResponse.ok) {
-                const fallbackData = await fallbackResponse.json();
-                throw new Error(fallbackData.error ?? 'Discovery failed');
-              }
-              const fallbackData = await fallbackResponse.json();
-              return {
-                organizationId: orgId,
-                organizationName: orgName,
-                status: 'success' as const,
-                contacts: fallbackData.contacts ?? [],
-              };
-            }
-            throw new Error(data.error ?? 'Discovery failed');
-          }
 
-          const data = await response.json();
+              if (waterfallResponse.ok) {
+                const waterfallData = await waterfallResponse.json();
+                if (waterfallData.contacts?.length > 0) {
+                  // Add source label to waterfall contacts
+                  const waterfallContacts = waterfallData.contacts.map((c: any, idx: number) => ({
+                    ...c,
+                    id: c.id || `waterfall-${idx}`,
+                    source_hint: waterfallData.provider_used || 'Hunter.io',
+                  }));
 
-          // If waterfall returned no contacts, fall back to AI discovery
-          if (hasProviders && (!data.contacts || data.contacts.length === 0)) {
-            const fallbackResponse = await fetch(
-              `/api/projects/${slug}/organizations/${orgId}/discover-contacts`,
-              {
-                method: 'POST',
-                headers: { 'Content-Type': 'application/json' },
-                body: JSON.stringify({ roles, max_results: 10 }),
+                  // Append waterfall results below AI results
+                  combinedContacts = [...combinedContacts, ...waterfallContacts];
+                }
               }
-            );
-            if (fallbackResponse.ok) {
-              const fallbackData = await fallbackResponse.json();
-              if (fallbackData.contacts?.length > 0) {
-                return {
-                  organizationId: orgId,
-                  organizationName: orgName,
-                  status: 'success' as const,
-                  contacts: fallbackData.contacts,
-                };
-              }
+            } catch (waterfallErr) {
+              console.warn('Waterfall providers failed for org, continuing with AI results only:', waterfallErr);
             }
           }
 
@@ -345,7 +336,7 @@ export function BulkContactDiscoveryDialog({
             organizationId: orgId,
             organizationName: orgName,
             status: 'success' as const,
-            contacts: data.contacts ?? [],
+            contacts: combinedContacts,
           };
         } catch (error) {
           return {
