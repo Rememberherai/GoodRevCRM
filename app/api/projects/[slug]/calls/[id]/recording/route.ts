@@ -10,11 +10,13 @@ interface RouteContext {
 // GET /api/projects/[slug]/calls/[id]/recording - Fetch recording from Telnyx API
 // Without ?stream=true: Returns JSON with recording metadata (used by polling)
 // With ?stream=true: Proxies the actual audio binary (used by the audio player)
+// With ?check=true: Lightweight check for transcription status only (used for polling)
 export async function GET(request: Request, context: RouteContext) {
   try {
     const { slug, id } = await context.params;
     const url = new URL(request.url);
     const streamMode = url.searchParams.get('stream') === 'true';
+    const checkMode = url.searchParams.get('check') === 'true';
     const supabase = await createClient();
 
     const { data: { user } } = await supabase.auth.getUser();
@@ -35,6 +37,22 @@ export async function GET(request: Request, context: RouteContext) {
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
+
+    // Check mode: lightweight transcription status check for polling
+    if (checkMode) {
+      const { data: call, error: callError } = await supabaseAny
+        .from('calls')
+        .select('transcription')
+        .eq('id', id)
+        .eq('project_id', project.id)
+        .single();
+
+      if (callError || !call) {
+        return NextResponse.json({ error: 'Call not found' }, { status: 404 });
+      }
+
+      return NextResponse.json({ transcription: call.transcription ?? null });
+    }
 
     // Fetch the call record with person info for the player page
     const { data: call, error: callError } = await supabaseAny
@@ -391,6 +409,30 @@ audio{width:100%;height:40px;border-radius:8px}
   </div>
 </div>
 ${hasRecording && !transcription ? `<script>
+var pollInterval = null;
+var pollCount = 0;
+var maxPolls = 60; // Poll for up to 5 minutes (5 second intervals)
+
+async function pollForTranscription() {
+  try {
+    var res = await fetch('${esc(apiPath)}?check=true');
+    if (!res.ok) return false;
+    var data = await res.json();
+    if (data.transcription) {
+      clearInterval(pollInterval);
+      var badge = document.getElementById('transcriptBadge');
+      var body = document.getElementById('transcriptBody');
+      badge.textContent = 'Available';
+      badge.className = 'transcript-badge transcript-badge-ready';
+      body.innerHTML = '<div class="transcript-content">' + data.transcription.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
+      return true;
+    }
+  } catch(e) {
+    console.log('Poll error:', e);
+  }
+  return false;
+}
+
 async function doTranscribe() {
   var btn = document.getElementById('transcribeBtn');
   var badge = document.getElementById('transcriptBadge');
@@ -398,21 +440,50 @@ async function doTranscribe() {
   btn.disabled = true;
   btn.innerHTML = '<span class="spinner"></span> Transcribing...';
   badge.textContent = 'Processing...';
+
   try {
     var res = await fetch('${esc(apiPath)}', { method: 'POST', headers: { 'Content-Type': 'application/json' } });
-    if (!res.ok) throw new Error('Failed: ' + res.status);
     var data = await res.json();
+
     if (data.transcription) {
       badge.textContent = 'Available';
       badge.className = 'transcript-badge transcript-badge-ready';
       body.innerHTML = '<div class="transcript-content">' + data.transcription.replace(/&/g,'&amp;').replace(/</g,'&lt;').replace(/>/g,'&gt;') + '</div>';
-    } else {
-      badge.textContent = 'Failed';
-      body.innerHTML = '<div class="transcript-empty">Transcription returned empty. Try again later.</div>';
+      return;
     }
+
+    // If no transcription yet, start polling
+    badge.textContent = 'Processing...';
+    body.innerHTML = '<div class="transcript-empty"><span class="spinner"></span> Transcription in progress. This may take a few minutes for longer recordings...</div>';
+
+    pollCount = 0;
+    pollInterval = setInterval(async function() {
+      pollCount++;
+      if (pollCount >= maxPolls) {
+        clearInterval(pollInterval);
+        badge.textContent = 'Timed out';
+        body.innerHTML = '<div class="transcript-empty">Transcription is taking longer than expected. Please refresh the page to check status.</div>';
+        return;
+      }
+      await pollForTranscription();
+    }, 5000);
+
   } catch(e) {
-    badge.textContent = 'Error';
-    body.innerHTML = '<div class="transcript-empty">Transcription failed: ' + e.message + '</div>';
+    // On error, start polling in case the transcription is still processing
+    badge.textContent = 'Processing...';
+    body.innerHTML = '<div class="transcript-empty"><span class="spinner"></span> Transcription in progress. Checking status...</div>';
+
+    pollCount = 0;
+    pollInterval = setInterval(async function() {
+      pollCount++;
+      if (pollCount >= maxPolls) {
+        clearInterval(pollInterval);
+        badge.textContent = 'Error';
+        body.innerHTML = '<div class="transcript-empty">Transcription failed. Please refresh and try again.</div>';
+        return;
+      }
+      await pollForTranscription();
+    }, 5000);
   }
 }
 </script>` : ''}
@@ -541,7 +612,19 @@ export async function POST(_request: Request, context: RouteContext) {
 
     const apiKey = decryptApiKey(connection.api_key);
 
-    await triggerTranscription(supabaseAny, call, apiKey);
+    // Run transcription and handle errors gracefully
+    try {
+      await triggerTranscription(supabaseAny, call, apiKey);
+    } catch (transcriptionError) {
+      console.error('[Transcription] Error during transcription:', transcriptionError);
+      // Return status: 'processing' so frontend knows to poll
+      // The transcription may have partially succeeded or can be retried
+      return NextResponse.json({
+        transcription: null,
+        status: 'error',
+        message: transcriptionError instanceof Error ? transcriptionError.message : 'Transcription failed'
+      });
+    }
 
     // Re-fetch to get the saved transcription
     const { data: updated } = await supabaseAny
@@ -550,7 +633,10 @@ export async function POST(_request: Request, context: RouteContext) {
       .eq('id', id)
       .single();
 
-    return NextResponse.json({ transcription: updated?.transcription ?? null });
+    return NextResponse.json({
+      transcription: updated?.transcription ?? null,
+      status: updated?.transcription ? 'completed' : 'processing'
+    });
   } catch (error) {
     console.error('Error in POST /api/projects/[slug]/calls/[id]/recording:', error);
     return NextResponse.json({ error: 'Transcription failed' }, { status: 500 });
