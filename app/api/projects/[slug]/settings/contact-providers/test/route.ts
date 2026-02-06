@@ -12,6 +12,7 @@ interface RouteContext {
 }
 
 // POST /api/projects/[slug]/settings/contact-providers/test?provider=leadmagic - Test provider connection
+// Accepts optional { apiKey } in body to test unsaved keys
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { slug } = await context.params;
@@ -44,25 +45,39 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    const settings = (project.settings as Record<string, unknown>)?.contact_providers as
-      | ContactProviderSettings
-      | undefined;
-
-    if (!settings) {
-      return NextResponse.json({ error: 'No provider settings configured' }, { status: 400 });
+    // Check if API key was provided in request body (for testing unsaved keys)
+    let apiKey: string | null = null;
+    try {
+      const body = await request.json();
+      if (body?.apiKey && typeof body.apiKey === 'string') {
+        apiKey = body.apiKey;
+      }
+    } catch {
+      // No body or invalid JSON, will try to get from saved settings
     }
 
-    const providerConfig =
-      settings.providers[providerName as keyof typeof settings.providers];
+    // If no API key in body, get from saved settings
+    if (!apiKey) {
+      const settings = (project.settings as Record<string, unknown>)?.contact_providers as
+        | ContactProviderSettings
+        | undefined;
 
-    if (!providerConfig?.apiKey) {
-      return NextResponse.json({ error: 'Provider not configured' }, { status: 400 });
+      if (!settings) {
+        return NextResponse.json({ error: 'No provider settings configured' }, { status: 400 });
+      }
+
+      const providerConfig =
+        settings.providers[providerName as keyof typeof settings.providers];
+
+      if (!providerConfig?.apiKey) {
+        return NextResponse.json({ error: 'Provider not configured' }, { status: 400 });
+      }
+
+      // Decrypt API key
+      apiKey = isEncrypted(providerConfig.apiKey)
+        ? decrypt(providerConfig.apiKey)
+        : providerConfig.apiKey;
     }
-
-    // Decrypt API key
-    const apiKey = isEncrypted(providerConfig.apiKey)
-      ? decrypt(providerConfig.apiKey)
-      : providerConfig.apiKey;
 
     // Create provider and test connection
     const provider = createProvider(providerName, apiKey);

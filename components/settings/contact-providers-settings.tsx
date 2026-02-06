@@ -169,9 +169,17 @@ export function ContactProvidersSettings({ slug }: ContactProvidersSettingsProps
     }));
 
     try {
+      const state = providers[name];
+      // Send API key in body if user entered a new one (for testing before saving)
+      const body = state.apiKey ? JSON.stringify({ apiKey: state.apiKey }) : undefined;
+
       const response = await fetch(
         `/api/projects/${slug}/settings/contact-providers/test?provider=${name}`,
-        { method: 'POST' }
+        {
+          method: 'POST',
+          headers: body ? { 'Content-Type': 'application/json' } : undefined,
+          body,
+        }
       );
 
       const result = response.ok ? 'success' : 'error';
