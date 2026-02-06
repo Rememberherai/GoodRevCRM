@@ -93,6 +93,7 @@ export function BulkEnrichWithReviewModal({
   const personIdsRef = useRef<string[]>([]);
   const pollCountRef = useRef(0);
   const phaseRef = useRef<Phase>('confirming');
+  const MAX_POLL_COUNT = 40; // ~3 minutes with backoff
 
   // Reset state when modal opens/closes
   useEffect(() => {
@@ -208,9 +209,16 @@ export function BulkEnrichWithReviewModal({
       timeoutId = setTimeout(async () => {
         pollCountRef.current += 1;
         await pollJobs();
-        // Schedule next poll if still processing
+        // Schedule next poll if still processing and under max poll count
         if (phaseRef.current === 'processing') {
-          scheduleNextPoll();
+          if (pollCountRef.current >= MAX_POLL_COUNT) {
+            console.log('[BulkEnrich] Max poll count reached, timing out');
+            toast.error('Enrichment is taking too long. Jobs will continue in background.');
+            setPhase('completed');
+            phaseRef.current = 'completed';
+          } else {
+            scheduleNextPoll();
+          }
         }
       }, interval);
     };
