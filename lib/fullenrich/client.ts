@@ -89,6 +89,7 @@ const enrichmentJobResponseSchema = fullEnrichApiResponseSchema.transform((data)
   const results = data.datas?.map((record) => {
     const contact = record.contact;
     const profile = contact?.profile;
+    const custom = record.custom as Record<string, unknown> | undefined;
 
     // Map phones from v1 format (number field) to our format (phone field)
     const allPhones = contact?.phones?.map((p: { number: string; type?: string; status?: string }) => ({
@@ -124,6 +125,8 @@ const enrichmentJobResponseSchema = fullEnrichApiResponseSchema.transform((data)
       // Include raw arrays for user selection in review modal
       all_emails: allEmails,
       all_phones: allPhones,
+      // Pass through custom fields for matching (person_id, job_id)
+      _custom: custom,
     };
   }) ?? null;
 
@@ -173,6 +176,8 @@ export interface EnrichmentPerson {
   // Raw arrays for user selection in review modal
   all_emails?: { email: string; status?: string; type?: string }[];
   all_phones?: { phone: string; status?: string; type?: string; region?: string }[];
+  // Custom fields passed through for matching (internal use)
+  _custom?: Record<string, unknown>;
 }
 
 export type EnrichmentJobResponse = z.infer<typeof enrichmentJobResponseSchema>;
@@ -202,6 +207,9 @@ export interface EnrichPersonInput {
   last_name?: string;
   company_name?: string;
   company_domain?: string;
+  // Custom fields to pass through for result matching
+  person_id?: string;
+  job_id?: string;
 }
 
 export interface BulkEnrichInput {
@@ -285,6 +293,11 @@ export class FullEnrichClient {
         linkedin_url: p.linkedin_url,
         email: p.email, // Optional hint
         enrich_fields: ['contact.emails', 'contact.phones'],
+        // Pass person_id and job_id through custom field for reliable result matching
+        custom: {
+          person_id: p.person_id,
+          job_id: p.job_id,
+        },
       })),
     };
 

@@ -133,19 +133,47 @@ export async function GET(request: Request, context: RouteContext) {
 
               // Check if job is finished
               if (result.status === 'completed' && result.results && result.results.length > 0) {
-                // For bulk enrichment, match results to jobs using input data (linkedin_url or email)
+                // For bulk enrichment, match results to jobs
                 for (const job of jobGroup) {
                   const inputData = job.input_data as EnrichmentInput;
 
-                  // Find matching result by linkedin_url first, then email, then name
+                  // Log the custom fields for debugging
+                  console.log('Matching job:', job.id, 'person:', job.person_id);
+                  console.log('Results _custom fields:', result.results.map((r: EnrichmentPerson) => r._custom));
+
+                  // Primary matching: use _custom.job_id passed through FullEnrich
                   let enrichmentResult = result.results.find((r: EnrichmentPerson) => {
-                    if (inputData.linkedin_url && r.linkedin_url) {
-                      return r.linkedin_url.toLowerCase().includes(inputData.linkedin_url.toLowerCase()) ||
-                             inputData.linkedin_url.toLowerCase().includes(r.linkedin_url.toLowerCase());
+                    if (r._custom?.job_id && r._custom.job_id === job.id) {
+                      return true;
                     }
                     return false;
                   });
+                  if (enrichmentResult) console.log('Matched via _custom.job_id');
 
+                  // Secondary: match by _custom.person_id
+                  if (!enrichmentResult) {
+                    enrichmentResult = result.results.find((r: EnrichmentPerson) => {
+                      if (r._custom?.person_id && r._custom.person_id === job.person_id) {
+                        return true;
+                      }
+                      return false;
+                    });
+                    if (enrichmentResult) console.log('Matched via _custom.person_id');
+                  }
+
+                  // Fallback: match by linkedin_url
+                  if (!enrichmentResult) {
+                    enrichmentResult = result.results.find((r: EnrichmentPerson) => {
+                      if (inputData.linkedin_url && r.linkedin_url) {
+                        return r.linkedin_url.toLowerCase().includes(inputData.linkedin_url.toLowerCase()) ||
+                               inputData.linkedin_url.toLowerCase().includes(r.linkedin_url.toLowerCase());
+                      }
+                      return false;
+                    });
+                    if (enrichmentResult) console.log('Matched via linkedin_url');
+                  }
+
+                  // Fallback: match by input email (the email we sent, not the enriched one)
                   if (!enrichmentResult) {
                     enrichmentResult = result.results.find((r: EnrichmentPerson) => {
                       if (inputData.email && r.email) {
@@ -153,8 +181,10 @@ export async function GET(request: Request, context: RouteContext) {
                       }
                       return false;
                     });
+                    if (enrichmentResult) console.log('Matched via email');
                   }
 
+                  // Fallback: match by name
                   if (!enrichmentResult) {
                     enrichmentResult = result.results.find((r: EnrichmentPerson) => {
                       if (inputData.first_name && inputData.last_name && r.first_name && r.last_name) {
@@ -163,11 +193,13 @@ export async function GET(request: Request, context: RouteContext) {
                       }
                       return false;
                     });
+                    if (enrichmentResult) console.log('Matched via name');
                   }
 
-                  // Fallback: if only one result and one job, use it
+                  // Last resort: if only one result and one job, use it
                   if (!enrichmentResult && result.results.length === 1 && jobGroup.length === 1) {
                     enrichmentResult = result.results[0];
+                    console.log('Matched via single result fallback');
                   }
 
                   if (enrichmentResult) {
@@ -418,7 +450,11 @@ export async function POST(request: Request, context: RouteContext) {
         const client = getFullEnrichClient();
         const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/fullenrich`;
 
-        const enrichRequest = await client.enrichPerson(inputData, webhookUrl);
+        // Include job_id and person_id for reliable result matching
+        const enrichRequest = await client.enrichPerson(
+          { ...inputData, job_id: job.id, person_id: person.id },
+          webhookUrl
+        );
 
         // Update job with external job ID
         const { data: updatedJob } = await supabaseAny
@@ -502,8 +538,18 @@ export async function POST(request: Request, context: RouteContext) {
       const client = getFullEnrichClient();
       const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/fullenrich`;
 
+      // Build enrichment input with job_id and person_id for reliable result matching
+      const enrichmentPeople = (insertedJobs as EnrichmentJobRow[]).map((job) => {
+        const jobInsert = jobInserts.find((ji) => ji.person_id === job.person_id);
+        return {
+          ...jobInsert?.input_data,
+          job_id: job.id,
+          person_id: job.person_id,
+        };
+      });
+
       const bulkRequest = await client.startBulkEnrich({
-        people: jobInserts.map((j) => j.input_data),
+        people: enrichmentPeople,
         webhook_url: webhookUrl,
       });
 
