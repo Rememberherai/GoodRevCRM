@@ -12,8 +12,8 @@ const sourceSchema = z.object({
   url: z.string(),
   title: z.string(),
   domain: z.string(),
-  snippet: z.string().optional(),
-  published_date: z.string().optional(),
+  snippet: z.string().nullish(),
+  published_date: z.string().nullish(),
   section: z.string(),
 });
 
@@ -27,7 +27,7 @@ const organizationProfileSchema = z.object({
       z.object({
         name: z.string(),
         title: z.string(),
-        relevance: z.string().optional(),
+        relevance: z.string().nullish(),
       })
     )
     .nullish(),
@@ -45,8 +45,8 @@ const industryContextSchema = z.object({
 const competitorSchema = z.object({
   name: z.string(),
   likelihood: z.enum(['high', 'medium', 'low']),
-  strengths: z.array(z.string()).optional(),
-  recent_wins: z.array(z.string()).optional(),
+  strengths: z.array(z.string()).nullish(),
+  recent_wins: z.array(z.string()).nullish(),
 });
 
 const competitorAnalysisSchema = z.object({
@@ -57,23 +57,23 @@ const competitorAnalysisSchema = z.object({
 const similarContractSchema = z.object({
   title: z.string(),
   issuer: z.string(),
-  value: z.string().optional(),
-  winner: z.string().optional(),
-  date: z.string().optional(),
+  value: z.string().nullish(),
+  winner: z.string().nullish(),
+  date: z.string().nullish(),
   relevance: z.string(),
 });
 
 const keyDecisionMakerSchema = z.object({
-  name: z.string(),
+  name: z.string().nullish(),
   title: z.string(),
-  role_in_decision: z.string().optional(),
-  linkedin_url: z.string().optional(),
+  role_in_decision: z.string().nullish(),
+  linkedin_url: z.string().nullish(),
 });
 
 const newsItemSchema = z.object({
   title: z.string(),
   source: z.string(),
-  date: z.string().optional(),
+  date: z.string().nullish(),
   summary: z.string(),
   relevance: z.string(),
   url: z.string(),
