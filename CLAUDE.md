@@ -27,6 +27,26 @@ This requires the `pg` npm package (`npm install --no-save pg`). Run the dealloc
 - The `updated_at` trigger function is called `handle_updated_at()` (defined in `0001_users.sql`). Use this name in all new migrations.
 - Use `IF NOT EXISTS` / `ADD COLUMN IF NOT EXISTS` in migrations to make them idempotent where possible.
 
+### Post-migration workflow
+
+**CRITICAL**: After every Supabase migration, you MUST:
+
+1. **Regenerate TypeScript types**:
+   ```bash
+   npx supabase gen types typescript --db-url 'postgresql://postgres.oljvcakgpksulsszojgx:@Cbz.BzDh9LN@rt@aws-0-us-west-2.pooler.supabase.com:6543/postgres' > types/database.ts
+   ```
+
+2. **Run typecheck to catch breaking changes**:
+   ```bash
+   npm run typecheck
+   ```
+
+3. **Fix any type errors** that arise from schema changes (e.g., new required fields, renamed columns, type mismatches).
+
+4. **Commit both the migration and type fixes together** to keep the codebase in sync with the database schema.
+
+This ensures type safety and catches issues at compile time rather than runtime.
+
 ## Automation considerations
 
 When building new features, always consider adding automation support:
