@@ -60,11 +60,18 @@ export async function POST(request: Request) {
     }
 
     const webhookData = validationResult.data;
-    const enrichmentId = webhookData.enrichment_id ?? webhookData.id ?? '';
+    // Handle both v1 (enrichment_id/id) and simplified (job_id) webhook formats
+    const enrichmentId = 'enrichment_id' in webhookData
+      ? (webhookData.enrichment_id ?? webhookData.id ?? '')
+      : ('job_id' in webhookData ? webhookData.job_id : '');
     if (!enrichmentId || enrichmentId.length > 255) {
       return NextResponse.json({ error: 'Missing or invalid enrichment ID' }, { status: 400 });
     }
-    const { status, datas: results, cost, error } = webhookData;
+    // Extract fields based on webhook format (v1 vs simplified)
+    const status = webhookData.status;
+    const results = 'datas' in webhookData ? webhookData.datas : undefined;
+    const cost = 'cost' in webhookData ? webhookData.cost : undefined;
+    const error = webhookData.error;
     const credits_used = cost?.credits ?? 0;
 
     console.log('FullEnrich webhook received:', { enrichmentId, status, resultsCount: results?.length });
