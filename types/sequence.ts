@@ -5,7 +5,42 @@ export type SequenceStatus = 'draft' | 'active' | 'paused' | 'archived';
 export type EnrollmentStatus = 'active' | 'paused' | 'completed' | 'bounced' | 'replied' | 'unsubscribed';
 
 // Step type
-export type StepType = 'email' | 'delay' | 'condition' | 'sms';
+export type StepType = 'email' | 'delay' | 'condition' | 'sms' | 'call' | 'task' | 'linkedin';
+
+// LinkedIn action type for linkedin steps
+export type LinkedInActionType = 'view_profile' | 'send_connection' | 'send_message';
+
+// Priority type for manual action steps
+export type StepPriority = 'low' | 'medium' | 'high' | 'urgent';
+
+// Config for call steps (creates a task to call the contact)
+export interface CallStepConfig {
+  title: string;
+  description: string;
+  priority: StepPriority;
+  due_in_hours: number;
+}
+
+// Config for task steps (creates a generic task)
+export interface TaskStepConfig {
+  title: string;
+  description: string;
+  priority: StepPriority;
+  due_in_hours: number;
+}
+
+// Config for linkedin steps (creates a LinkedIn action task)
+export interface LinkedInStepConfig {
+  action: LinkedInActionType;
+  title: string;
+  description: string;
+  message_template: string;
+  priority: StepPriority;
+  due_in_hours: number;
+}
+
+// Union type for step configs
+export type StepConfig = CallStepConfig | TaskStepConfig | LinkedInStepConfig;
 
 // Delay unit
 export type DelayUnit = 'minutes' | 'hours' | 'days' | 'weeks';
@@ -55,6 +90,8 @@ export interface SequenceStep {
   condition: StepCondition | null;
   // SMS step fields
   sms_body: string | null;
+  // Manual action step config (call, task, linkedin)
+  config: StepConfig | null;
   created_at: string;
   updated_at: string;
 }
@@ -153,4 +190,62 @@ export const DELAY_UNIT_LABELS: Record<DelayUnit, string> = {
   hours: 'Hours',
   days: 'Days',
   weeks: 'Weeks',
+};
+
+// Step type labels and colors for UI
+export const STEP_TYPE_LABELS: Record<StepType, string> = {
+  email: 'Email',
+  delay: 'Wait',
+  condition: 'Condition',
+  sms: 'SMS',
+  call: 'Phone Call',
+  task: 'Task',
+  linkedin: 'LinkedIn',
+};
+
+export const STEP_TYPE_COLORS: Record<StepType, { bg: string; text: string }> = {
+  email: { bg: 'bg-blue-100', text: 'text-blue-600' },
+  delay: { bg: 'bg-gray-100', text: 'text-gray-600' },
+  condition: { bg: 'bg-amber-100', text: 'text-amber-600' },
+  sms: { bg: 'bg-purple-100', text: 'text-purple-600' },
+  call: { bg: 'bg-green-100', text: 'text-green-600' },
+  task: { bg: 'bg-orange-100', text: 'text-orange-600' },
+  linkedin: { bg: 'bg-sky-100', text: 'text-sky-600' },
+};
+
+export const LINKEDIN_ACTION_LABELS: Record<LinkedInActionType, string> = {
+  view_profile: 'View Profile',
+  send_connection: 'Send Connection Request',
+  send_message: 'Send Message',
+};
+
+export const PRIORITY_LABELS: Record<StepPriority, string> = {
+  low: 'Low',
+  medium: 'Medium',
+  high: 'High',
+  urgent: 'Urgent',
+};
+
+// Default configs for manual action steps
+export const DEFAULT_CALL_CONFIG: CallStepConfig = {
+  title: 'Call {{first_name}} {{last_name}}',
+  description: 'Phone: {{phone}}',
+  priority: 'high',
+  due_in_hours: 24,
+};
+
+export const DEFAULT_TASK_CONFIG: TaskStepConfig = {
+  title: 'Task for {{first_name}} {{last_name}}',
+  description: '',
+  priority: 'medium',
+  due_in_hours: 48,
+};
+
+export const DEFAULT_LINKEDIN_CONFIG: LinkedInStepConfig = {
+  action: 'view_profile',
+  title: 'LinkedIn: View {{first_name}} {{last_name}}',
+  description: 'Profile: {{linkedin}}',
+  message_template: '',
+  priority: 'medium',
+  due_in_hours: 24,
 };

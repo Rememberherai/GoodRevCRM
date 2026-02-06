@@ -11,7 +11,16 @@ import { StepTimeline } from './step-timeline';
 import { StepEditor } from './step-editor';
 import { EnrollPeopleDialog } from '../enrollment';
 import type { Sequence, SequenceStep, SequenceStatus } from '@/types/sequence';
-import { SEQUENCE_STATUS_LABELS, SEQUENCE_STATUS_COLORS } from '@/types/sequence';
+import {
+  SEQUENCE_STATUS_LABELS,
+  SEQUENCE_STATUS_COLORS,
+  DEFAULT_CALL_CONFIG,
+  DEFAULT_TASK_CONFIG,
+  DEFAULT_LINKEDIN_CONFIG,
+} from '@/types/sequence';
+
+// Step types that can be added via UI
+type AddableStepType = 'email' | 'delay' | 'sms' | 'call' | 'task' | 'linkedin';
 
 interface SequenceBuilderProps {
   sequence: Sequence & { steps: SequenceStep[] };
@@ -77,15 +86,37 @@ export function SequenceBuilder({
     );
   };
 
-  const handleAddStep = async (type: 'email' | 'delay', afterStepNumber: number) => {
-    const newStep = await onSaveStep({
+  const handleAddStep = async (type: AddableStepType, afterStepNumber: number) => {
+    // Build defaults based on step type
+    const stepDefaults: Partial<SequenceStep> = {
       step_type: type,
       step_number: afterStepNumber + 1,
-      subject: type === 'email' ? 'New Email' : null,
-      body_html: type === 'email' ? '<p>Email content here...</p>' : null,
-      delay_amount: type === 'delay' ? 2 : null,
-      delay_unit: type === 'delay' ? 'days' : null,
-    });
+    };
+
+    switch (type) {
+      case 'email':
+        stepDefaults.subject = 'New Email';
+        stepDefaults.body_html = '<p>Email content here...</p>';
+        break;
+      case 'delay':
+        stepDefaults.delay_amount = 2;
+        stepDefaults.delay_unit = 'days';
+        break;
+      case 'sms':
+        stepDefaults.sms_body = 'Hi {{first_name}}, ';
+        break;
+      case 'call':
+        stepDefaults.config = { ...DEFAULT_CALL_CONFIG };
+        break;
+      case 'task':
+        stepDefaults.config = { ...DEFAULT_TASK_CONFIG };
+        break;
+      case 'linkedin':
+        stepDefaults.config = { ...DEFAULT_LINKEDIN_CONFIG };
+        break;
+    }
+
+    const newStep = await onSaveStep(stepDefaults);
 
     // Renumber steps after the new one
     const updatedSteps = [...steps];

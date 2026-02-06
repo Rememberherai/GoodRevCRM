@@ -203,3 +203,25 @@ export function findUnsubstitutedVariables(template: string): string[] {
   const matches = template.match(/\{\{(\w+)\}\}/g);
   return matches ? [...new Set(matches)] : [];
 }
+
+/**
+ * Substitute variables in all string fields of a config object.
+ * Used for call/task/linkedin step configs.
+ */
+export function substituteConfigVariables(
+  config: Record<string, unknown>,
+  context: VariableContext
+): Record<string, unknown> {
+  const result: Record<string, unknown> = {};
+  for (const [key, value] of Object.entries(config)) {
+    if (typeof value === 'string') {
+      result[key] = substituteVariables(value, context);
+    } else {
+      result[key] = value;
+    }
+  }
+  return result;
+}
+
+// Re-export VariableContext type for use in processor
+export type { VariableContext };

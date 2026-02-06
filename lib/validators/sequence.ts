@@ -40,9 +40,51 @@ const stepConditionSchema = z.object({
   step_id: z.string().uuid().optional(),
 });
 
+// Priority enum for manual action steps
+const stepPrioritySchema = z.enum(['low', 'medium', 'high', 'urgent']);
+
+// Config schema for call steps
+export const callStepConfigSchema = z.object({
+  title: z.string().min(1).max(500),
+  description: z.string().max(2000).default(''),
+  priority: stepPrioritySchema.default('high'),
+  due_in_hours: z.number().int().min(1).max(720).default(24),
+});
+
+export type CallStepConfig = z.infer<typeof callStepConfigSchema>;
+
+// Config schema for task steps
+export const taskStepConfigSchema = z.object({
+  title: z.string().min(1).max(500),
+  description: z.string().max(2000).default(''),
+  priority: stepPrioritySchema.default('medium'),
+  due_in_hours: z.number().int().min(1).max(720).default(48),
+});
+
+export type TaskStepConfig = z.infer<typeof taskStepConfigSchema>;
+
+// Config schema for linkedin steps
+export const linkedinStepConfigSchema = z.object({
+  action: z.enum(['view_profile', 'send_connection', 'send_message']),
+  title: z.string().min(1).max(500),
+  description: z.string().max(2000).default(''),
+  message_template: z.string().max(2000).default(''),
+  priority: stepPrioritySchema.default('medium'),
+  due_in_hours: z.number().int().min(1).max(720).default(24),
+});
+
+export type LinkedInStepConfig = z.infer<typeof linkedinStepConfigSchema>;
+
+// Union schema for step configs
+const stepConfigSchema = z.union([
+  callStepConfigSchema,
+  taskStepConfigSchema,
+  linkedinStepConfigSchema,
+]);
+
 // Create step schema
 export const createStepSchema = z.object({
-  step_type: z.enum(['email', 'delay', 'condition', 'sms']),
+  step_type: z.enum(['email', 'delay', 'condition', 'sms', 'call', 'task', 'linkedin']),
   step_number: z.number().int().min(1).optional(),
   subject: z.string().max(998).nullable().optional(),
   body_html: z.string().max(500000).nullable().optional(),
@@ -51,6 +93,7 @@ export const createStepSchema = z.object({
   delay_amount: z.number().int().min(1).nullable().optional(),
   delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional(),
   condition: stepConditionSchema.nullable().optional(),
+  config: stepConfigSchema.nullable().optional(),
 });
 
 export type CreateStepInput = z.infer<typeof createStepSchema>;
@@ -65,6 +108,7 @@ export const updateStepSchema = z.object({
   delay_amount: z.number().int().min(1).nullable().optional(),
   delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional(),
   condition: stepConditionSchema.nullable().optional(),
+  config: stepConfigSchema.nullable().optional(),
 });
 
 export type UpdateStepInput = z.infer<typeof updateStepSchema>;

@@ -1,20 +1,22 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail, GmailServiceError } from '@/lib/gmail/service';
 import { sendOutboundSms } from '@/lib/telnyx/sms-service';
-import { fetchVariableContext, substituteEmailContent, substituteVariables } from './variables';
+import { fetchVariableContext, substituteEmailContent, substituteVariables, substituteConfigVariables } from './variables';
 import type { GmailConnection } from '@/types/gmail';
+import type { StepConfig } from '@/types/sequence';
 
 interface SequenceStep {
   id: string;
   sequence_id: string;
   step_number: number;
-  step_type: 'email' | 'delay' | 'condition' | 'sms';
+  step_type: 'email' | 'delay' | 'condition' | 'sms' | 'call' | 'task' | 'linkedin';
   subject: string | null;
   body_html: string | null;
   body_text: string | null;
   delay_amount: number | null;
   delay_unit: 'minutes' | 'hours' | 'days' | 'weeks' | null;
   sms_body: string | null;
+  config: StepConfig | null;
 }
 
 interface SequenceEnrollment {
@@ -494,6 +496,164 @@ async function processEnrollment(
         .eq('id', enrollment.id);
       return { status: 'error', message: error instanceof Error ? error.message : 'SMS send failed' };
     }
+  }
+
+  // Handle manual action steps (call, task, linkedin)
+  // These create a task for the user to complete, then advance to next step
+  if (currentStep.step_type === 'call' || currentStep.step_type === 'task' || currentStep.step_type === 'linkedin') {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabaseAny = supabase as any;
+
+    // Fetch variable context for template substitution
+    const context = await fetchVariableContext(
+      enrollment.person_id,
+      enrollment.created_by,
+      sequence.organization_id
+    );
+
+    const config = (currentStep.config || {}) as Record<string, unknown>;
+
+    // Apply variable substitution to config strings
+    const resolvedConfig = substituteConfigVariables(config, context);
+
+    // Determine task title and description based on step type
+    let taskTitle: string;
+    let taskDescription: string;
+    let taskPriority: string;
+
+    const personName = [context.person?.first_name, context.person?.last_name]
+      .filter(Boolean).join(' ') || 'Contact';
+
+    if (currentStep.step_type === 'call') {
+      taskTitle = String(resolvedConfig.title || `Call ${personName}`);
+      const phone = context.person?.mobile_phone || context.person?.phone || 'No phone on file';
+      taskDescription = String(resolvedConfig.description || `Phone: ${phone}`);
+      taskPriority = String(resolvedConfig.priority || 'high');
+    } else if (currentStep.step_type === 'linkedin') {
+      const action = String(config.action || 'view_profile');
+      const actionLabel: Record<string, string> = {
+        view_profile: 'View Profile',
+        send_connection: 'Send Connection Request',
+        send_message: 'Send Message',
+      };
+      taskTitle = String(resolvedConfig.title || `LinkedIn: ${actionLabel[action] || action} - ${personName}`);
+      const linkedinUrl = context.person?.linkedin_url || 'No LinkedIn URL on file';
+      taskDescription = String(resolvedConfig.description || `LinkedIn: ${linkedinUrl}`);
+      if (action === 'send_message' && resolvedConfig.message_template) {
+        taskDescription += `\n\nSuggested message:\n${resolvedConfig.message_template}`;
+      }
+      taskPriority = String(resolvedConfig.priority || 'medium');
+    } else {
+      // Generic task
+      taskTitle = String(resolvedConfig.title || `Task for ${personName}`);
+      taskDescription = String(resolvedConfig.description || '');
+      taskPriority = String(resolvedConfig.priority || 'medium');
+    }
+
+    // Calculate due date from due_in_hours
+    const dueInHours = Number(resolvedConfig.due_in_hours) || 24;
+    const dueDate = new Date(Date.now() + dueInHours * 60 * 60 * 1000);
+
+    // Look up person to get organization_id
+    const { data: person } = await supabaseAny
+      .from('people')
+      .select('id, organization_id')
+      .eq('id', enrollment.person_id)
+      .single();
+
+    const orgId = person?.organization_id ?? sequence.organization_id ?? null;
+
+    // Create the task
+    const { error: taskError } = await supabaseAny
+      .from('tasks')
+      .insert({
+        project_id: sequence.project_id,
+        title: taskTitle,
+        description: taskDescription,
+        status: 'pending',
+        priority: taskPriority,
+        due_date: dueDate.toISOString(),
+        person_id: enrollment.person_id,
+        organization_id: orgId,
+        assigned_to: enrollment.created_by,
+        created_by: enrollment.created_by,
+      })
+      .select('id')
+      .single();
+
+    if (taskError) {
+      console.error(`Error creating task for ${currentStep.step_type} step:`, taskError);
+      return { status: 'error', message: `Failed to create task: ${taskError.message}` };
+    }
+
+    // Log activity
+    try {
+      await supabaseAny
+        .from('activity_log')
+        .insert({
+          project_id: sequence.project_id,
+          user_id: enrollment.created_by,
+          entity_type: 'sequence',
+          entity_id: sequence.id,
+          action: currentStep.step_type,
+          activity_type: `sequence_${currentStep.step_type}`,
+          person_id: enrollment.person_id,
+          organization_id: orgId,
+          subject: taskTitle,
+          notes: `Sequence "${sequence.name}" created a ${currentStep.step_type} task.`,
+          metadata: {
+            sequence_id: sequence.id,
+            sequence_name: sequence.name,
+            enrollment_id: enrollment.id,
+            step_id: currentStep.id,
+            step_type: currentStep.step_type,
+          },
+        });
+    } catch (activityErr) {
+      console.error('Failed to log manual action step activity:', activityErr);
+    }
+
+    // Advance to next step (same logic as after sending an email)
+    const nextStep = steps.find(s => s.step_number === currentStep.step_number + 1);
+
+    if (!nextStep) {
+      await supabaseAny
+        .from('sequence_enrollments')
+        .update({
+          status: 'completed',
+          completed_at: new Date().toISOString(),
+          next_send_at: null,
+          current_step: currentStep.step_number + 1,
+        })
+        .eq('id', enrollment.id);
+
+      await logSequenceCompletion(supabase, enrollment, sequence);
+      return { status: 'completed', message: `${currentStep.step_type} task created, sequence completed` };
+    }
+
+    // If next step is a delay, calculate the wait and skip past it
+    let nextSendAt = new Date();
+    if (nextStep.step_type === 'delay' && nextStep.delay_amount && nextStep.delay_unit) {
+      nextSendAt = calculateNextSendAt(nextStep.delay_amount, nextStep.delay_unit);
+      const stepAfterDelay = steps.find(s => s.step_number === nextStep.step_number + 1);
+      await supabaseAny
+        .from('sequence_enrollments')
+        .update({
+          current_step: stepAfterDelay ? stepAfterDelay.step_number : nextStep.step_number + 1,
+          next_send_at: nextSendAt.toISOString(),
+        })
+        .eq('id', enrollment.id);
+    } else {
+      await supabaseAny
+        .from('sequence_enrollments')
+        .update({
+          current_step: nextStep.step_number,
+          next_send_at: nextSendAt.toISOString(),
+        })
+        .eq('id', enrollment.id);
+    }
+
+    return { status: 'sent', message: `${currentStep.step_type} task created` };
   }
 
   return { status: 'skipped', message: 'Unknown step type' };
