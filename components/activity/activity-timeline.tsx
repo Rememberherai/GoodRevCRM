@@ -244,7 +244,9 @@ export function ActivityTimeline({
                     {/* Subject line */}
                     <p className="text-sm">
                       <span className="font-medium">
-                        {activity.subject ?? 'Untitled'}
+                        {activity.activity_type === 'email'
+                          ? `Email: ${activity.subject ?? 'No subject'}`
+                          : activity.subject ?? 'Untitled'}
                       </span>
                     </p>
 
