@@ -115,61 +115,113 @@ export async function GET(request: Request, context: RouteContext) {
           const client = getFullEnrichClient();
           console.log('FullEnrich client created, polling jobs...');
 
+          // Group jobs by external_job_id to avoid duplicate API calls for bulk enrichments
+          const jobsByExternalId = new Map<string, EnrichmentJobRow[]>();
           for (const job of processingJobs) {
-            console.log('Polling job:', job.id, 'external_job_id:', job.external_job_id);
+            const externalId = job.external_job_id!;
+            if (!jobsByExternalId.has(externalId)) {
+              jobsByExternalId.set(externalId, []);
+            }
+            jobsByExternalId.get(externalId)!.push(job);
+          }
+
+          for (const [externalJobId, jobGroup] of jobsByExternalId) {
+            console.log('Polling external job:', externalJobId, 'for', jobGroup.length, 'internal jobs');
             try {
-              const result = await client.getJobStatus(job.external_job_id!);
+              const result = await client.getJobStatus(externalJobId);
               console.log('FullEnrich poll result:', JSON.stringify(result, null, 2));
 
               // Check if job is finished
               if (result.status === 'completed' && result.results && result.results.length > 0) {
-                const enrichmentResult = result.results[0]!;
+                // For bulk enrichment, match results to jobs using input data (linkedin_url or email)
+                for (const job of jobGroup) {
+                  const inputData = job.input_data as EnrichmentInput;
 
-                // Update job in database with enrichment results (but NOT the person record)
-                await supabaseQuery
-                  .from('enrichment_jobs')
-                  .update({
-                    status: 'completed',
-                    result: enrichmentResult,
-                    credits_used: result.credits_used ?? 1,
-                    completed_at: new Date().toISOString(),
-                  })
-                  .eq('id', job.id);
+                  // Find matching result by linkedin_url first, then email, then name
+                  let enrichmentResult = result.results.find((r: EnrichmentPerson) => {
+                    if (inputData.linkedin_url && r.linkedin_url) {
+                      return r.linkedin_url.toLowerCase().includes(inputData.linkedin_url.toLowerCase()) ||
+                             inputData.linkedin_url.toLowerCase().includes(r.linkedin_url.toLowerCase());
+                    }
+                    return false;
+                  });
 
-                // Update job in response
-                const jobIndex = jobs.findIndex((j: EnrichmentJobRow) => j.id === job.id);
-                if (jobIndex !== -1) {
-                  jobs[jobIndex] = {
-                    ...jobs[jobIndex],
-                    status: 'completed',
-                    result: enrichmentResult,
-                    completed_at: new Date().toISOString(),
-                  };
+                  if (!enrichmentResult) {
+                    enrichmentResult = result.results.find((r: EnrichmentPerson) => {
+                      if (inputData.email && r.email) {
+                        return r.email.toLowerCase() === inputData.email.toLowerCase();
+                      }
+                      return false;
+                    });
+                  }
+
+                  if (!enrichmentResult) {
+                    enrichmentResult = result.results.find((r: EnrichmentPerson) => {
+                      if (inputData.first_name && inputData.last_name && r.first_name && r.last_name) {
+                        return r.first_name.toLowerCase() === inputData.first_name.toLowerCase() &&
+                               r.last_name.toLowerCase() === inputData.last_name.toLowerCase();
+                      }
+                      return false;
+                    });
+                  }
+
+                  // Fallback: if only one result and one job, use it
+                  if (!enrichmentResult && result.results.length === 1 && jobGroup.length === 1) {
+                    enrichmentResult = result.results[0];
+                  }
+
+                  if (enrichmentResult) {
+                    // Update job in database with enrichment results (but NOT the person record)
+                    await supabaseQuery
+                      .from('enrichment_jobs')
+                      .update({
+                        status: 'completed',
+                        result: enrichmentResult,
+                        credits_used: Math.ceil((result.credits_used ?? jobGroup.length) / jobGroup.length),
+                        completed_at: new Date().toISOString(),
+                      })
+                      .eq('id', job.id);
+
+                    // Update job in response
+                    const jobIndex = jobs.findIndex((j: EnrichmentJobRow) => j.id === job.id);
+                    if (jobIndex !== -1) {
+                      jobs[jobIndex] = {
+                        ...jobs[jobIndex],
+                        status: 'completed',
+                        result: enrichmentResult,
+                        completed_at: new Date().toISOString(),
+                      };
+                    }
+                  } else {
+                    console.log('No matching result found for job:', job.id, 'input:', inputData);
+                  }
                 }
               } else if (result.status === 'failed') {
-                // Mark job as failed
-                await supabaseQuery
-                  .from('enrichment_jobs')
-                  .update({
-                    status: 'failed',
-                    error: result.error ?? 'Enrichment failed',
-                    completed_at: new Date().toISOString(),
-                  })
-                  .eq('id', job.id);
+                // Mark all jobs in this group as failed
+                for (const job of jobGroup) {
+                  await supabaseQuery
+                    .from('enrichment_jobs')
+                    .update({
+                      status: 'failed',
+                      error: result.error ?? 'Enrichment failed',
+                      completed_at: new Date().toISOString(),
+                    })
+                    .eq('id', job.id);
 
-                const jobIndex = jobs.findIndex((j: EnrichmentJobRow) => j.id === job.id);
-                if (jobIndex !== -1) {
-                  jobs[jobIndex] = {
-                    ...jobs[jobIndex],
-                    status: 'failed',
-                    error: result.error ?? 'Enrichment failed',
-                    completed_at: new Date().toISOString(),
-                  };
+                  const jobIndex = jobs.findIndex((j: EnrichmentJobRow) => j.id === job.id);
+                  if (jobIndex !== -1) {
+                    jobs[jobIndex] = {
+                      ...jobs[jobIndex],
+                      status: 'failed',
+                      error: result.error ?? 'Enrichment failed',
+                      completed_at: new Date().toISOString(),
+                    };
+                  }
                 }
               }
             } catch (pollError) {
-              console.error('Error polling FullEnrich for job:', job.id, 'Error:', pollError instanceof Error ? pollError.message : pollError);
-              // Continue with other jobs
+              console.error('Error polling FullEnrich for external job:', externalJobId, 'Error:', pollError instanceof Error ? pollError.message : pollError);
+              // Continue with other job groups
             }
           }
         } catch (clientError) {
