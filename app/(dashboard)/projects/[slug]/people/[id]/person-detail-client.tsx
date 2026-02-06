@@ -51,9 +51,11 @@ import { EntityCommentsFeed } from '@/components/comments';
 import { ClickToDialButton } from '@/components/calls/click-to-dial-button';
 import { CallLogTable } from '@/components/calls/call-log-table';
 import { SmsConversation } from '@/components/sms/sms-conversation';
-import { PhoneCall, MessageSquareText } from 'lucide-react';
+import { PhoneCall, MessageSquareText, ExternalLink, Copy, Check, UserPlus, Users } from 'lucide-react';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ActivityWithUser } from '@/types/activity';
+import { getSalesNavUrl } from '@/lib/linkedin/utils';
+import { toast } from 'sonner';
 
 interface PersonDetailClientProps {
   personId: string;
@@ -83,6 +85,9 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
   const [isApplyingEnrichment, setIsApplyingEnrichment] = useState(false);
   const [activities, setActivities] = useState<ActivityWithUser[]>([]);
   const [activitiesLoading, setActivitiesLoading] = useState(false);
+  const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
+  const [messageCopied, setMessageCopied] = useState(false);
+  const [loggingLinkedIn, setLoggingLinkedIn] = useState<string | null>(null);
 
   const { person, isLoading, error, refresh } = usePerson(personId);
   const removePerson = usePersonStore((s) => s.removePerson);
@@ -109,6 +114,96 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
       loadActivities();
     }
   }, [activeTab, loadActivities]);
+
+  // Open Sales Navigator with person profile
+  const openInSalesNav = useCallback(() => {
+    if (!person) return;
+    const orgName = person.organizations?.[0]?.organization?.name;
+    const url = getSalesNavUrl(person, orgName);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  }, [person]);
+
+  // Generate and copy LinkedIn connection message
+  const copyConnectionMessage = useCallback(async () => {
+    if (!person) return;
+    setIsGeneratingMessage(true);
+    try {
+      const orgName = person.organizations?.[0]?.organization?.name;
+      const response = await fetch(`/api/projects/${slug}/linkedin/generate-message`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          first_name: person.first_name,
+          last_name: person.last_name,
+          job_title: person.job_title,
+          company: orgName,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to generate message');
+      }
+
+      const data = await response.json();
+      await navigator.clipboard.writeText(data.message);
+      setMessageCopied(true);
+      toast.success('LinkedIn message copied to clipboard');
+      setTimeout(() => setMessageCopied(false), 3000);
+    } catch (err) {
+      console.error('Error generating message:', err);
+      toast.error('Failed to generate connection message');
+    } finally {
+      setIsGeneratingMessage(false);
+    }
+  }, [person, slug]);
+
+  // Log LinkedIn activity
+  const logLinkedInActivity = useCallback(async (
+    outcome: 'linkedin_connection_sent' | 'linkedin_connection_accepted' | 'linkedin_inmail_sent' | 'linkedin_message_sent'
+  ) => {
+    if (!person) return;
+    setLoggingLinkedIn(outcome);
+    try {
+      const outcomeLabels: Record<string, string> = {
+        linkedin_connection_sent: 'Connection request sent',
+        linkedin_connection_accepted: 'Connection accepted',
+        linkedin_inmail_sent: 'InMail sent',
+        linkedin_message_sent: 'Message sent',
+      };
+
+      const response = await fetch(`/api/projects/${slug}/activity`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entity_type: 'person',
+          entity_id: personId,
+          action: 'logged',
+          activity_type: 'linkedin',
+          person_id: personId,
+          organization_id: person.organizations?.[0]?.organization_id || null,
+          subject: `LinkedIn: ${outcomeLabels[outcome]}`,
+          outcome,
+          direction: 'outbound',
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Failed to log activity');
+      }
+
+      toast.success(outcomeLabels[outcome]);
+
+      // Refresh activities if on activity tab
+      if (activeTab === 'activity') {
+        loadActivities();
+      }
+    } catch (err) {
+      console.error('Error logging LinkedIn activity:', err);
+      toast.error('Failed to log LinkedIn activity');
+    } finally {
+      setLoggingLinkedIn(null);
+    }
+  }, [person, personId, slug, activeTab, loadActivities]);
 
   // Check for completed but unreviewed enrichments on mount (no auto-popup)
   useEffect(() => {
@@ -431,7 +526,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
 
             <Card className="col-span-1">
               <CardHeader>
-                <CardTitle>Social</CardTitle>
+                <CardTitle>LinkedIn & Social</CardTitle>
               </CardHeader>
               <CardContent className="space-y-4">
                 {person.linkedin_url && (
@@ -458,6 +553,62 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
                     No social profiles added
                   </p>
                 )}
+
+                {/* LinkedIn Quick Actions */}
+                <div className="pt-3 border-t space-y-3">
+                  <div className="flex flex-wrap gap-2">
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={openInSalesNav}
+                      className="gap-1.5"
+                    >
+                      <ExternalLink className="h-3.5 w-3.5" />
+                      Sales Navigator
+                    </Button>
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      onClick={copyConnectionMessage}
+                      disabled={isGeneratingMessage}
+                      className="gap-1.5"
+                    >
+                      {messageCopied ? (
+                        <Check className="h-3.5 w-3.5 text-green-600" />
+                      ) : (
+                        <Copy className="h-3.5 w-3.5" />
+                      )}
+                      {isGeneratingMessage ? 'Generating...' : messageCopied ? 'Copied!' : 'Copy Message'}
+                    </Button>
+                  </div>
+
+                  {/* Log LinkedIn Activity */}
+                  <div>
+                    <p className="text-xs text-muted-foreground mb-2">Log LinkedIn Activity:</p>
+                    <div className="flex flex-wrap gap-1.5">
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => logLinkedInActivity('linkedin_connection_sent')}
+                        disabled={loggingLinkedIn !== null}
+                        className="h-7 text-xs gap-1"
+                      >
+                        <UserPlus className="h-3 w-3" />
+                        {loggingLinkedIn === 'linkedin_connection_sent' ? 'Logging...' : 'Sent Request'}
+                      </Button>
+                      <Button
+                        variant="ghost"
+                        size="sm"
+                        onClick={() => logLinkedInActivity('linkedin_connection_accepted')}
+                        disabled={loggingLinkedIn !== null}
+                        className="h-7 text-xs gap-1"
+                      >
+                        <Users className="h-3 w-3" />
+                        {loggingLinkedIn === 'linkedin_connection_accepted' ? 'Logging...' : 'Connected'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
               </CardContent>
             </Card>
 

@@ -35,14 +35,17 @@ export const activityActions = [
 
 // Activity types (for CRM manual logging)
 export const activityTypeValues = [
-  'call', 'email', 'meeting', 'note', 'task', 'sequence_completed', 'system',
+  'call', 'email', 'sms', 'linkedin', 'meeting', 'note', 'task', 'sequence_completed', 'system',
 ] as const;
 
 // Activity outcomes
 export const activityOutcomeValues = [
-  'call_no_answer', 'call_left_message', 'quality_conversation', 'meeting_booked',
-  'email_sent', 'email_opened', 'email_replied', 'proposal_sent',
-  'follow_up_scheduled', 'not_interested', 'other',
+  'call_no_answer', 'call_left_message', 'call_back_later', 'wrong_number', 'do_not_call',
+  'quality_conversation', 'meeting_booked',
+  'email_sent', 'email_received', 'email_opened', 'email_replied',
+  'sms_sent', 'sms_received', 'sms_delivered', 'sms_failed',
+  'linkedin_connection_sent', 'linkedin_connection_accepted', 'linkedin_inmail_sent', 'linkedin_message_sent',
+  'proposal_sent', 'follow_up_scheduled', 'not_interested', 'other',
 ] as const;
 
 // Activity query schema
@@ -83,7 +86,7 @@ export type CreateActivityInput = z.infer<typeof createActivitySchema>;
 
 // Log activity schema (for manual CRM activity entries)
 export const logActivitySchema = z.object({
-  activity_type: z.enum(['call', 'email', 'meeting', 'note', 'task'] as const),
+  activity_type: z.enum(['call', 'email', 'sms', 'linkedin', 'meeting', 'note', 'task'] as const),
   person_id: z.string().uuid('Person is required'),
   organization_id: z.string().uuid().nullable().optional(),
   opportunity_id: z.string().uuid().nullable().optional(),

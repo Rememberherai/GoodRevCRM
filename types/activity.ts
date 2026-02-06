@@ -38,6 +38,7 @@ export type ActivityType =
   | 'meeting'
   | 'note'
   | 'task'
+  | 'linkedin'
   | 'sequence_completed'
   | 'system';
 
@@ -58,6 +59,10 @@ export type ActivityOutcome =
   | 'sms_received'
   | 'sms_delivered'
   | 'sms_failed'
+  | 'linkedin_connection_sent'
+  | 'linkedin_connection_accepted'
+  | 'linkedin_inmail_sent'
+  | 'linkedin_message_sent'
   | 'proposal_sent'
   | 'follow_up_scheduled'
   | 'not_interested'
@@ -143,7 +148,7 @@ export interface ActivitySummary {
 // Constants
 
 export const activityTypes: ActivityType[] = [
-  'call', 'email', 'sms', 'meeting', 'note', 'task', 'sequence_completed', 'system',
+  'call', 'email', 'sms', 'linkedin', 'meeting', 'note', 'task', 'sequence_completed', 'system',
 ];
 
 export const activityOutcomes: ActivityOutcome[] = [
@@ -151,6 +156,7 @@ export const activityOutcomes: ActivityOutcome[] = [
   'quality_conversation', 'meeting_booked',
   'email_sent', 'email_received', 'email_opened', 'email_replied',
   'sms_sent', 'sms_received', 'sms_delivered', 'sms_failed',
+  'linkedin_connection_sent', 'linkedin_connection_accepted', 'linkedin_inmail_sent', 'linkedin_message_sent',
   'proposal_sent', 'follow_up_scheduled', 'not_interested', 'other',
 ];
 
@@ -158,6 +164,7 @@ export const ACTIVITY_TYPE_LABELS: Record<ActivityType, string> = {
   call: 'Call',
   email: 'Email',
   sms: 'SMS',
+  linkedin: 'LinkedIn',
   meeting: 'Meeting',
   note: 'Note',
   task: 'Task',
@@ -181,6 +188,10 @@ export const OUTCOME_LABELS: Record<ActivityOutcome, string> = {
   sms_received: 'SMS Received',
   sms_delivered: 'SMS Delivered',
   sms_failed: 'SMS Failed',
+  linkedin_connection_sent: 'Connection Sent',
+  linkedin_connection_accepted: 'Connection Accepted',
+  linkedin_inmail_sent: 'InMail Sent',
+  linkedin_message_sent: 'Message Sent',
   proposal_sent: 'Proposal Sent',
   follow_up_scheduled: 'Follow-up Scheduled',
   not_interested: 'Not Interested',
@@ -191,6 +202,7 @@ export const ACTIVITY_TYPE_OUTCOMES: Record<ActivityType, ActivityOutcome[]> = {
   call: ['call_no_answer', 'call_left_message', 'call_back_later', 'wrong_number', 'do_not_call', 'quality_conversation', 'meeting_booked', 'not_interested', 'other'],
   email: ['email_sent', 'email_received', 'email_replied', 'meeting_booked', 'not_interested', 'other'],
   sms: ['sms_sent', 'sms_received', 'sms_delivered', 'sms_failed', 'other'],
+  linkedin: ['linkedin_connection_sent', 'linkedin_connection_accepted', 'linkedin_inmail_sent', 'linkedin_message_sent', 'meeting_booked', 'not_interested', 'other'],
   meeting: ['quality_conversation', 'meeting_booked', 'proposal_sent', 'follow_up_scheduled', 'not_interested', 'other'],
   note: ['other'],
   task: ['follow_up_scheduled', 'other'],

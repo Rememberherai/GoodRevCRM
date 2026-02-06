@@ -629,8 +629,8 @@ async function handleSmsReceived(payload: TelnyxSmsWebhookPayload): Promise<void
       }
 
       // If no person matched, default to the first project
-      if (!projectId) {
-        projectId = memberships[0].project_id;
+      if (!projectId && memberships.length > 0) {
+        projectId = memberships[0]!.project_id;
       }
     }
   } else if (projectId) {
