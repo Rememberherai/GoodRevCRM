@@ -51,11 +51,12 @@ import { EntityCommentsFeed } from '@/components/comments';
 import { ClickToDialButton } from '@/components/calls/click-to-dial-button';
 import { CallLogTable } from '@/components/calls/call-log-table';
 import { SmsConversation } from '@/components/sms/sms-conversation';
-import { PhoneCall, MessageSquareText, ExternalLink, Copy, Check, UserPlus, Users } from 'lucide-react';
+import { PhoneCall, MessageSquareText, ExternalLink, Copy, Check, UserPlus, Users, ClipboardList } from 'lucide-react';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ActivityWithUser } from '@/types/activity';
 import { getSalesNavUrl } from '@/lib/linkedin/utils';
 import { toast } from 'sonner';
+import { LogActivityModal } from '@/components/activity/log-activity-modal';
 
 interface PersonDetailClientProps {
   personId: string;
@@ -88,6 +89,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
   const [isGeneratingMessage, setIsGeneratingMessage] = useState(false);
   const [messageCopied, setMessageCopied] = useState(false);
   const [loggingLinkedIn, setLoggingLinkedIn] = useState<string | null>(null);
+  const [showLogActivity, setShowLogActivity] = useState(false);
 
   const { person, isLoading, error, refresh } = usePerson(personId);
   const removePerson = usePersonStore((s) => s.removePerson);
@@ -361,6 +363,10 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
           </Link>
         </Button>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowLogActivity(true)}>
+            <ClipboardList className="mr-2 h-4 w-4" />
+            Log Activity
+          </Button>
           {person.email && (
             <Button variant="outline" onClick={() => setShowSendEmail(true)}>
               <Mail className="mr-2 h-4 w-4" />
@@ -785,6 +791,20 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
         defaultTo={person.email ?? ''}
         personId={personId}
         organizationId={person.organizations?.[0]?.organization_id}
+      />
+
+      <LogActivityModal
+        open={showLogActivity}
+        onOpenChange={setShowLogActivity}
+        projectSlug={slug}
+        personId={personId}
+        personName={getFullName(person.first_name, person.last_name)}
+        organizationId={person.organizations?.[0]?.organization_id}
+        onSuccess={() => {
+          if (activeTab === 'activity') {
+            loadActivities();
+          }
+        }}
       />
 
       <EnrichmentReviewModal

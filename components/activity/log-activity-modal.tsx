@@ -11,6 +11,7 @@ import {
   Calendar,
   StickyNote,
   CheckSquare,
+  Linkedin,
 } from 'lucide-react';
 import {
   Dialog,
@@ -57,6 +58,7 @@ const MANUAL_ACTIVITY_TYPES: {
 }[] = [
   { value: 'call', label: 'Call', icon: Phone, color: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-400' },
   { value: 'email', label: 'Email', icon: Mail, color: 'bg-purple-100 text-purple-700 dark:bg-purple-900/40 dark:text-purple-400' },
+  { value: 'linkedin', label: 'LinkedIn', icon: Linkedin, color: 'bg-sky-100 text-sky-700 dark:bg-sky-900/40 dark:text-sky-400' },
   { value: 'meeting', label: 'Meeting', icon: Calendar, color: 'bg-green-100 text-green-700 dark:bg-green-900/40 dark:text-green-400' },
   { value: 'note', label: 'Note', icon: StickyNote, color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900/40 dark:text-yellow-400' },
   { value: 'task', label: 'Task', icon: CheckSquare, color: 'bg-orange-100 text-orange-700 dark:bg-orange-900/40 dark:text-orange-400' },
@@ -134,8 +136,8 @@ export function LogActivityModal({
   // Reset outcome when activity type changes (since valid outcomes differ)
   useEffect(() => {
     form.setValue('outcome', null);
-    // Reset direction when switching away from call/email
-    if (activityType !== 'call' && activityType !== 'email') {
+    // Reset direction when switching away from call/email/linkedin
+    if (activityType !== 'call' && activityType !== 'email' && activityType !== 'linkedin') {
       form.setValue('direction', null);
     }
     // Reset duration when switching away from call/meeting
@@ -145,7 +147,7 @@ export function LogActivityModal({
   }, [activityType, form]);
 
   const availableOutcomes = ACTIVITY_TYPE_OUTCOMES[activityType] ?? [];
-  const showDirection = activityType === 'call' || activityType === 'email';
+  const showDirection = activityType === 'call' || activityType === 'email' || activityType === 'linkedin';
   const showDuration = activityType === 'call' || activityType === 'meeting';
 
   const onSubmit = async (data: LogActivityFormData) => {
