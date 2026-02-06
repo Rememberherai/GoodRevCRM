@@ -54,17 +54,10 @@ export function buildCustomFieldsSchema(fields: CustomFieldDefinition[]): Record
   };
 }
 
-// Extended field definition with AI fields
-interface ExtendedCustomFieldDefinition extends CustomFieldDefinition {
-  is_ai_extractable?: boolean;
-  ai_extraction_hint?: string | null;
-  ai_confidence_threshold?: number | null;
-}
-
 // Format custom fields for research prompt (with AI extraction hints)
 export function formatCustomFieldsForPrompt(fields: CustomFieldDefinition[]): string {
   // Filter to only AI-extractable fields
-  const extractableFields = (fields as ExtendedCustomFieldDefinition[]).filter(
+  const extractableFields = fields.filter(
     f => f.is_ai_extractable !== false
   );
 
@@ -110,7 +103,7 @@ ${fieldDescriptions.join('\n')}`;
 
 // Get only AI-extractable custom fields
 export function getAIExtractableFields(fields: CustomFieldDefinition[]): CustomFieldDefinition[] {
-  return (fields as ExtendedCustomFieldDefinition[]).filter(f => f.is_ai_extractable !== false);
+  return fields.filter(f => f.is_ai_extractable !== false);
 }
 
 function getFieldTypeDescription(fieldType: string): string {
@@ -292,7 +285,7 @@ Use null for any fields you cannot determine. Respond ONLY with the JSON object,
 IMPORTANT - Custom Fields Required:
 You MUST populate the "custom_fields" object with values for these specific fields:
 ${customFields.map(f => {
-  const hint = (f as ExtendedCustomFieldDefinition).ai_extraction_hint;
+  const hint = f.ai_extraction_hint;
   return `- "${f.name}" (${f.label}): ${getFieldTypeDescription(f.field_type)}${hint ? ` - ${hint}` : ''}`;
 }).join('\n')}
 
@@ -446,7 +439,7 @@ Use null for any fields you cannot determine. Respond ONLY with the JSON object,
 IMPORTANT - Custom Fields Required:
 You MUST populate the "custom_fields" object with values for these specific fields:
 ${customFields.map(f => {
-  const hint = (f as ExtendedCustomFieldDefinition).ai_extraction_hint;
+  const hint = f.ai_extraction_hint;
   return `- "${f.name}" (${f.label}): ${getFieldTypeDescription(f.field_type)}${hint ? ` - ${hint}` : ''}`;
 }).join('\n')}
 

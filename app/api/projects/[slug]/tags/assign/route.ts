@@ -56,7 +56,8 @@ export async function POST(request: Request, context: RouteContext) {
 
     const uniqueEntityIds = [...new Set(entity_ids)];
     const softDeleteTypes = new Set(['person', 'organization', 'opportunity']);
-    let entityQuery = supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let entityQuery = (supabase as any)
       .from(tableName)
       .select('id')
       .in('id', uniqueEntityIds)
@@ -145,7 +146,8 @@ export async function DELETE(request: Request, context: RouteContext) {
 
     const uniqueEntityIds = [...new Set(entity_ids)];
     const softDeleteTypes = new Set(['person', 'organization', 'opportunity']);
-    let entityQuery = supabase
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let entityQuery = (supabase as any)
       .from(tableName)
       .select('id')
       .in('id', uniqueEntityIds)

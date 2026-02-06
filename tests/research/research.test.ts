@@ -266,6 +266,9 @@ describe('Prompt Builders', () => {
           created_by: null,
           created_at: '2024-01-01',
           updated_at: '2024-01-01',
+          is_ai_extractable: true,
+          ai_extraction_hint: null,
+          ai_confidence_threshold: null,
         },
       ];
 
@@ -537,6 +540,9 @@ function createMockField(overrides: Partial<CustomFieldDefinition>): CustomField
     created_by: null,
     created_at: '2024-01-01',
     updated_at: '2024-01-01',
+    is_ai_extractable: true,
+    ai_extraction_hint: null,
+    ai_confidence_threshold: null,
     ...overrides,
   };
 }
