@@ -2,7 +2,7 @@
 
 import { createClient, SupabaseClient } from '@supabase/supabase-js';
 import * as smsClient from './sms';
-import { getProjectConnection } from './service';
+import { getUserConnection } from './service';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 
 function createAdminClient(): SupabaseClient {
@@ -34,13 +34,13 @@ export interface SmsResult {
  * Send an outbound SMS message
  */
 export async function sendOutboundSms(input: SendSmsInput): Promise<SmsResult> {
-  const connection = await getProjectConnection(input.projectId);
+  const connection = await getUserConnection(input.userId);
   if (!connection) {
-    throw new Error('No active Telnyx connection for this project');
+    throw new Error('No active Telnyx connection for this user. Configure it in Settings → Phone.');
   }
 
   if (!connection.messaging_profile_id) {
-    throw new Error('No messaging profile configured for this Telnyx connection');
+    throw new Error('No messaging profile configured. Add it in Settings → Phone.');
   }
 
   const supabase = createAdminClient();
