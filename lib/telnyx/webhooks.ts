@@ -489,6 +489,10 @@ export async function processSmsEvent(event: TelnyxSmsWebhookEvent): Promise<voi
     case 'message.received':
       await handleSmsReceived(payload);
       break;
+    case 'message.finalized':
+      // Terminal state event - no action needed, the message status was already set
+      // by a prior sent/delivered/failed event
+      break;
     default:
       console.log(`[SMS Webhook] Unhandled event type: ${eventType}`);
   }
@@ -592,7 +596,7 @@ async function handleSmsReceived(payload: TelnyxSmsWebhookPayload): Promise<void
   // Find Telnyx connection by the receiving phone number
   const { data: connection } = await supabase
     .from('telnyx_connections')
-    .select('id, project_id')
+    .select('id, project_id, user_id')
     .eq('phone_number', toNumber)
     .eq('status', 'active')
     .single();
@@ -602,14 +606,48 @@ async function handleSmsReceived(payload: TelnyxSmsWebhookPayload): Promise<void
     return;
   }
 
-  // Try to match to a person by phone number
-  const person = await matchInboundPhoneToPerson(supabase, connection.project_id, fromNumber);
+  // For user-level connections (project_id is null), search across all the user's projects
+  // to find a matching person by phone number
+  let projectId = connection.project_id;
+  let person: { id: string; organization_id: string | null } | null = null;
+
+  if (!projectId && connection.user_id) {
+    // Get all projects this user is a member of
+    const { data: memberships } = await supabase
+      .from('project_members')
+      .select('project_id')
+      .eq('user_id', connection.user_id);
+
+    if (memberships && memberships.length > 0) {
+      // Search across all user's projects to find a matching person
+      for (const membership of memberships) {
+        person = await matchInboundPhoneToPerson(supabase, membership.project_id, fromNumber);
+        if (person) {
+          projectId = membership.project_id;
+          break;
+        }
+      }
+
+      // If no person matched, default to the first project
+      if (!projectId) {
+        projectId = memberships[0].project_id;
+      }
+    }
+  } else if (projectId) {
+    // Project-level connection - just match within that project
+    person = await matchInboundPhoneToPerson(supabase, projectId, fromNumber);
+  }
+
+  if (!projectId) {
+    console.log('[SMS Webhook] No project found for connection:', connection.id);
+    return;
+  }
 
   // Create inbound SMS record
   const { data: sms, error } = await supabase
     .from('sms_messages')
     .insert({
-      project_id: connection.project_id,
+      project_id: projectId,
       telnyx_connection_id: connection.id,
       telnyx_message_id: payload.id,
       direction: 'inbound',
@@ -636,7 +674,7 @@ async function handleSmsReceived(payload: TelnyxSmsWebhookPayload): Promise<void
 
     // Emit automation event
     emitAutomationEvent({
-      projectId: connection.project_id,
+      projectId: projectId,
       triggerType: 'sms.received',
       entityType: 'person',
       entityId: person?.id || sms.id,
