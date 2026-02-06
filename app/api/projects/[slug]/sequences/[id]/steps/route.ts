@@ -133,6 +133,25 @@ export async function POST(request: Request, context: RouteContext) {
         .single();
 
       stepNumber = (lastStep?.step_number ?? 0) + 1;
+    } else {
+      // If inserting at a specific position, shift all steps at or after this position
+      // First, get all steps that need to be shifted
+      const { data: stepsToShift } = await supabaseAny
+        .from('sequence_steps')
+        .select('id, step_number')
+        .eq('sequence_id', id)
+        .gte('step_number', stepNumber)
+        .order('step_number', { ascending: false });
+
+      // Shift them in reverse order to avoid conflicts (highest first)
+      if (stepsToShift && stepsToShift.length > 0) {
+        for (const s of stepsToShift) {
+          await supabaseAny
+            .from('sequence_steps')
+            .update({ step_number: s.step_number + 1 })
+            .eq('id', s.id);
+        }
+      }
     }
 
     const { data: step, error } = await supabaseAny

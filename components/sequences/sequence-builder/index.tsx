@@ -118,12 +118,14 @@ export function SequenceBuilder({
 
     const newStep = await onSaveStep(stepDefaults);
 
-    // Renumber steps after the new one
-    const updatedSteps = [...steps];
-    updatedSteps.forEach((s) => {
-      if (s.step_number > afterStepNumber) {
-        s.step_number += 1;
+    // The server shifts step_numbers for us when inserting in the middle.
+    // Update local state to match: increment step_number for steps >= insertion point
+    const insertionPoint = afterStepNumber + 1;
+    const updatedSteps = steps.map((s) => {
+      if (s.step_number >= insertionPoint) {
+        return { ...s, step_number: s.step_number + 1 };
       }
+      return s;
     });
     updatedSteps.push(newStep);
     updatedSteps.sort((a, b) => a.step_number - b.step_number);
