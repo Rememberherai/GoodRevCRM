@@ -1,12 +1,13 @@
 'use client';
 
-import { useState } from 'react';
-import { Plus, X, Building2, RefreshCw, ChevronDown, ChevronUp } from 'lucide-react';
+import { useState, useMemo } from 'react';
+import { Plus, X, Building2, RefreshCw, ChevronDown, ChevronUp, Search, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
-import { Switch } from '@/components/ui/switch';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
+import { ScrollArea } from '@/components/ui/scroll-area';
+import { cn } from '@/lib/utils';
 import { useNewsKeywords } from '@/hooks/use-news-keywords';
 import { NewsTokenUsage } from './news-token-usage';
 
@@ -31,9 +32,20 @@ export function KeywordManager({ projectSlug, onFetchComplete }: KeywordManagerP
   const [newKeyword, setNewKeyword] = useState('');
   const [isExpanded, setIsExpanded] = useState(true);
   const [fetchResult, setFetchResult] = useState<string | null>(null);
+  const [orgSearch, setOrgSearch] = useState('');
+  const [showAllOrgs, setShowAllOrgs] = useState(false);
 
   const manualKeywords = keywords.filter(k => k.source === 'manual');
   const orgKeywords = keywords.filter(k => k.source === 'organization');
+
+  const filteredOrgKeywords = useMemo(() => {
+    if (!orgSearch.trim()) return orgKeywords;
+    const search = orgSearch.toLowerCase();
+    return orgKeywords.filter(kw => kw.keyword.toLowerCase().includes(search));
+  }, [orgKeywords, orgSearch]);
+
+  const activeOrgCount = orgKeywords.filter(k => k.is_active).length;
+  const COLLAPSED_LIMIT = 12;
 
   const handleAdd = async () => {
     const trimmed = newKeyword.trim();
@@ -144,28 +156,80 @@ export function KeywordManager({ projectSlug, onFetchComplete }: KeywordManagerP
 
           {/* Org keywords */}
           {orgKeywords.length > 0 && (
-            <div>
-              <p className="text-xs font-medium text-muted-foreground mb-2">
-                Organization Keywords (auto-tracked)
-              </p>
-              <div className="space-y-1.5">
-                {orgKeywords.map((kw) => (
-                  <div
-                    key={kw.id}
-                    className="flex items-center justify-between py-1 px-2 rounded-md bg-muted/50"
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <p className="text-xs font-medium text-muted-foreground">
+                  Organization Keywords
+                  <span className="ml-1.5 text-muted-foreground/70">
+                    ({activeOrgCount} of {orgKeywords.length} active)
+                  </span>
+                </p>
+                {orgKeywords.length > COLLAPSED_LIMIT && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="h-6 text-xs px-2"
+                    onClick={() => setShowAllOrgs(!showAllOrgs)}
                   >
-                    <div className="flex items-center gap-2 text-sm">
-                      <Building2 className="h-3.5 w-3.5 text-muted-foreground" />
-                      {kw.keyword}
-                    </div>
-                    <Switch
-                      checked={kw.is_active}
-                      onCheckedChange={() => toggleKeyword(kw.id, kw.is_active)}
-                      className="scale-75"
-                    />
-                  </div>
-                ))}
+                    {showAllOrgs ? 'Show less' : `Show all ${orgKeywords.length}`}
+                  </Button>
+                )}
               </div>
+
+              {/* Search input for many organizations */}
+              {orgKeywords.length > COLLAPSED_LIMIT && showAllOrgs && (
+                <div className="relative">
+                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <Input
+                    placeholder="Search organizations..."
+                    value={orgSearch}
+                    onChange={(e) => setOrgSearch(e.target.value)}
+                    className="h-8 pl-8 text-sm"
+                  />
+                </div>
+              )}
+
+              {/* Organization badges grid */}
+              <ScrollArea className={cn(
+                showAllOrgs && orgKeywords.length > COLLAPSED_LIMIT ? 'h-[200px]' : ''
+              )}>
+                <div className="flex flex-wrap gap-1.5">
+                  {(showAllOrgs ? filteredOrgKeywords : orgKeywords.slice(0, COLLAPSED_LIMIT)).map((kw) => (
+                    <button
+                      key={kw.id}
+                      onClick={() => toggleKeyword(kw.id, kw.is_active)}
+                      className={cn(
+                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
+                        "border hover:bg-accent",
+                        kw.is_active
+                          ? "bg-primary/10 border-primary/30 text-primary"
+                          : "bg-muted/50 border-transparent text-muted-foreground"
+                      )}
+                    >
+                      {kw.is_active ? (
+                        <Check className="h-3 w-3" />
+                      ) : (
+                        <Building2 className="h-3 w-3" />
+                      )}
+                      {kw.keyword}
+                    </button>
+                  ))}
+                  {!showAllOrgs && orgKeywords.length > COLLAPSED_LIMIT && (
+                    <button
+                      onClick={() => setShowAllOrgs(true)}
+                      className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent border border-dashed"
+                    >
+                      +{orgKeywords.length - COLLAPSED_LIMIT} more
+                    </button>
+                  )}
+                </div>
+              </ScrollArea>
+
+              {showAllOrgs && orgSearch && filteredOrgKeywords.length === 0 && (
+                <p className="text-xs text-muted-foreground text-center py-2">
+                  No organizations match &ldquo;{orgSearch}&rdquo;
+                </p>
+              )}
             </div>
           )}
 
