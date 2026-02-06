@@ -254,7 +254,7 @@ export function BulkContactDiscoveryDialog({
           const orgResponse = await fetch(`/api/projects/${slug}/organizations/${orgId}`);
           if (orgResponse.ok) {
             const orgData = await orgResponse.json();
-            orgName = orgData.name ?? orgName;
+            orgName = orgData.organization?.name ?? orgName;
           }
         } catch {
           // Continue with default name
