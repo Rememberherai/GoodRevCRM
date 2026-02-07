@@ -30,9 +30,53 @@ export async function findMeetingDocuments(
 
     // Extract links from HTML
     // Look for common patterns in municipal meeting systems:
+    // - AllNet Meetings: iframe src with allnetmeetings.com
     // - eSCRIBE: Meeting.aspx?Id=...
     // - Direct PDF links: .pdf
     // - Agenda/Minutes pages
+
+    // Pattern 0: AllNet Meetings iframe - fetch the iframe content
+    const iframePattern = /src=["']([^"']*allnetmeetings\.com[^"']*)/gi;
+    let iframeMatch;
+    while ((iframeMatch = iframePattern.exec(html)) !== null) {
+      const iframeUrl = iframeMatch[1];
+      if (!iframeUrl) continue;
+
+      try {
+        console.log(`    📦 Found AllNet iframe, fetching: ${iframeUrl}`);
+        const iframeResponse = await fetch(iframeUrl);
+        if (iframeResponse.ok) {
+          const iframeHtml = await iframeResponse.text();
+
+          // Look for publicAgenda.aspx links in the iframe content (with or without quotes)
+          const agendaPattern = /href=["']?([^"'\s>]*publicAgenda\.aspx[^"'\s>]*)/gi;
+          let agendaMatch;
+          while ((agendaMatch = agendaPattern.exec(iframeHtml)) !== null) {
+            let agendaUrl = agendaMatch[1];
+            if (!agendaUrl) continue;
+
+            // Make absolute URL
+            if (!agendaUrl.startsWith('http')) {
+              const iframeBase = new URL(iframeUrl);
+              if (agendaUrl.startsWith('/')) {
+                agendaUrl = `${iframeBase.protocol}//${iframeBase.host}${agendaUrl}`;
+              } else {
+                agendaUrl = `${iframeBase.protocol}//${iframeBase.host}/${agendaUrl}`;
+              }
+            }
+
+            if (!meetings.some(m => m.url === agendaUrl)) {
+              meetings.push({
+                url: agendaUrl,
+                type: 'html',
+              });
+            }
+          }
+        }
+      } catch (err) {
+        console.error(`    ⚠️  Failed to fetch iframe: ${err}`);
+      }
+    }
 
     // Pattern 1: eSCRIBE Meeting links
     const escribePattern = /Meeting\.aspx\?Id=[a-f0-9-]+(?:&[^"'\s<>]*)?/gi;
