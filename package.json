@@ -16,10 +16,13 @@
     "scan-municipalities": "tsx scripts/scan-municipal-minutes.ts",
     "scan-municipalities:province": "tsx scripts/scan-municipal-minutes.ts --province",
     "scan-municipalities:test": "tsx scripts/scan-municipal-minutes.ts --limit 10 --dry-run",
+    "scan:ontario": "tsx scripts/scan-ontario.ts",
+    "scan:quebec": "tsx scripts/scan-quebec.ts",
     "compare-models": "tsx scripts/compare-ai-models.ts",
     "compare-models:extended": "tsx scripts/compare-ai-models.ts --limit 10",
     "compare-models:known": "tsx scripts/compare-models-known-rfps.ts",
-    "test-meeting-finder": "tsx scripts/test-meeting-finder.ts"
+    "test-meeting-finder": "tsx scripts/test-meeting-finder.ts",
+    "backtest-meeting-finder": "tsx scripts/backtest-universal-finder.ts"
   },
   "dependencies": {
     "@hookform/resolvers": "^5.2.2",
