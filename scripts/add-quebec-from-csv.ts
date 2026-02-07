@@ -20,7 +20,7 @@ async function main() {
   const lines = csvText.split('\n');
 
   // Parse header row (handles quoted fields)
-  const headers = lines[0].match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g)?.map(h => h.replace(/"/g, '').trim()) || [];
+  const headers = lines[0]?.match(/(".*?"|[^,]+)(?=\s*,|\s*$)/g)?.map(h => h.replace(/"/g, '').trim()) || [];
 
   // Find column indices
   const nameIdx = headers.indexOf('munnom');
