@@ -98,15 +98,15 @@ export async function GET(request: Request, context: RouteContext) {
     // Apply custom field filters using JSONB operators
     // Note: Use ->> for text extraction, -> for JSON extraction
     if (source) {
-      query = query.eq('custom_fields->>source', source);
+      query = query.filter('custom_fields->source', 'eq', `"${source}"`);
     }
 
     if (region) {
-      query = query.eq('custom_fields->>region', region);
+      query = query.filter('custom_fields->region', 'eq', `"${region}"`);
     }
 
     if (committeeName) {
-      query = query.eq('custom_fields->>committee_name', committeeName);
+      query = query.filter('custom_fields->committee_name', 'eq', `"${committeeName}"`);
     }
 
     if (minConfidence) {
