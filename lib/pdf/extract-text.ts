@@ -1,8 +1,10 @@
-import { extractText } from 'unpdf';
+import { PDFParse } from 'pdf-parse';
 
 export async function extractTextFromPdf(buffer: Buffer): Promise<string> {
-  const { text } = await extractText(new Uint8Array(buffer));
-  return Array.isArray(text) ? text.join('\n') : text;
+  const parser = new PDFParse({ data: new Uint8Array(buffer) });
+  const result = await parser.getText();
+  await parser.destroy();
+  return result.text;
 }
 
 export function extractTextFromPlainText(text: string): string {

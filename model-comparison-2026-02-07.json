@@ -1,0 +1,77 @@
+{
+  "testedAt": "2026-02-07T04:30:14.819Z",
+  "municipalitiesCount": 3,
+  "documentsCount": 7,
+  "summary": {
+    "totalSonnetRfps": 0,
+    "totalGrokRfps": 0,
+    "bothZeroCount": 7,
+    "sameCountNonZero": 0,
+    "differentCount": 0
+  },
+  "comparisons": [
+    {
+      "municipality": "Athabasca, Alberta",
+      "documentUrl": "https://www.athabasca.ca/p/utilities",
+      "documentType": "html",
+      "characterCount": 8566,
+      "sonnetRfps": [],
+      "grokRfps": [],
+      "differenceSummary": "✓ Both found 0 RFPs"
+    },
+    {
+      "municipality": "Athabasca, Alberta",
+      "documentUrl": "https://www.athabasca.ca/p/agendas-and-meeting-minutes",
+      "documentType": "html",
+      "characterCount": 6657,
+      "sonnetRfps": [],
+      "grokRfps": [],
+      "differenceSummary": "✓ Both found 0 RFPs"
+    },
+    {
+      "municipality": "Banff, Alberta",
+      "documentUrl": "https://banff.ca/147/Environment",
+      "documentType": "html",
+      "characterCount": 5259,
+      "sonnetRfps": [],
+      "grokRfps": [],
+      "differenceSummary": "✓ Both found 0 RFPs"
+    },
+    {
+      "municipality": "Banff, Alberta",
+      "documentUrl": "https://www.banffzerowastetrail.ca/",
+      "documentType": "html",
+      "characterCount": 1619,
+      "sonnetRfps": [],
+      "grokRfps": [],
+      "differenceSummary": "✓ Both found 0 RFPs"
+    },
+    {
+      "municipality": "Banff, Alberta",
+      "documentUrl": "https://banff.ca/1258/Business-Environmental-Leadership-Workin",
+      "documentType": "html",
+      "characterCount": 5441,
+      "sonnetRfps": [],
+      "grokRfps": [],
+      "differenceSummary": "✓ Both found 0 RFPs"
+    },
+    {
+      "municipality": "Banff, Alberta",
+      "documentUrl": "https://banff.ca/290/Environmental-Master-Plan",
+      "documentType": "html",
+      "characterCount": 4180,
+      "sonnetRfps": [],
+      "grokRfps": [],
+      "differenceSummary": "✓ Both found 0 RFPs"
+    },
+    {
+      "municipality": "Banff, Alberta",
+      "documentUrl": "https://banff.ca/1295/Zero-Waste-Action-Plan",
+      "documentType": "html",
+      "characterCount": 7505,
+      "sonnetRfps": [],
+      "grokRfps": [],
+      "differenceSummary": "✓ Both found 0 RFPs"
+    }
+  ]
+}

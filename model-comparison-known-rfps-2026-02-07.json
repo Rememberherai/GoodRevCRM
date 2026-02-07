@@ -1,0 +1,156 @@
+{
+  "testedAt": "2026-02-07T04:39:37.026Z",
+  "documentsCount": 9,
+  "models": [
+    {
+      "name": "Sonnet 4.5",
+      "id": "anthropic/claude-3.5-sonnet",
+      "cost": "$3/$15"
+    },
+    {
+      "name": "Grok 4.1 Fast",
+      "id": "x-ai/grok-4.1-fast",
+      "cost": "$0.20/$0.50"
+    },
+    {
+      "name": "GPT-4o Mini",
+      "id": "openai/gpt-4o-mini",
+      "cost": "$0.15/$0.60"
+    },
+    {
+      "name": "DeepSeek V3.1",
+      "id": "deepseek/deepseek-chat-v3.1",
+      "cost": "$0.27/$1.10"
+    }
+  ],
+  "modelTotals": [
+    {
+      "name": "Sonnet 4.5",
+      "id": "anthropic/claude-3.5-sonnet",
+      "cost": "$3/$15",
+      "total": 0
+    },
+    {
+      "name": "Grok 4.1 Fast",
+      "id": "x-ai/grok-4.1-fast",
+      "cost": "$0.20/$0.50",
+      "total": 0
+    },
+    {
+      "name": "GPT-4o Mini",
+      "id": "openai/gpt-4o-mini",
+      "cost": "$0.15/$0.60",
+      "total": 1
+    },
+    {
+      "name": "DeepSeek V3.1",
+      "id": "deepseek/deepseek-chat-v3.1",
+      "cost": "$0.27/$1.10",
+      "total": 0
+    }
+  ],
+  "results": [
+    {
+      "municipality": "Banff, Alberta",
+      "url": "https://banff.ca/147/Environment",
+      "characterCount": 5259,
+      "notes": "Sonnet found 1 RFP (Document [1])",
+      "anthropic/claude-3.5-sonnet": [],
+      "x-ai/grok-4.1-fast": [],
+      "openai/gpt-4o-mini": [],
+      "deepseek/deepseek-chat-v3.1": []
+    },
+    {
+      "municipality": "Banff, Alberta",
+      "url": "https://banff.ca/290/Environmental-Master-Plan",
+      "characterCount": 4180,
+      "notes": "Sonnet found 1 RFP (Document [4])",
+      "anthropic/claude-3.5-sonnet": [],
+      "x-ai/grok-4.1-fast": [],
+      "openai/gpt-4o-mini": [],
+      "deepseek/deepseek-chat-v3.1": []
+    },
+    {
+      "municipality": "Banff, Alberta",
+      "url": "https://banff.ca/1295/Zero-Waste-Action-Plan",
+      "characterCount": 7505,
+      "notes": "Sonnet found 1 RFP (Document [5])",
+      "anthropic/claude-3.5-sonnet": [],
+      "x-ai/grok-4.1-fast": [],
+      "openai/gpt-4o-mini": [],
+      "deepseek/deepseek-chat-v3.1": []
+    },
+    {
+      "municipality": "Banff, Alberta",
+      "url": "https://banff.ca/FormCenter/Operations-7/Commercial-WasteChange-to-Weekly-Pickup-150",
+      "characterCount": 23456,
+      "notes": "Grok found 2 RFPs (Document [10])",
+      "anthropic/claude-3.5-sonnet": [],
+      "x-ai/grok-4.1-fast": [],
+      "openai/gpt-4o-mini": [],
+      "deepseek/deepseek-chat-v3.1": []
+    },
+    {
+      "municipality": "Banff, Alberta",
+      "url": "https://banff.ca/409/Non-Residential-Waste-Utility-Fees",
+      "characterCount": 4479,
+      "notes": "Sonnet found 1 RFP (Document [11])",
+      "anthropic/claude-3.5-sonnet": [],
+      "x-ai/grok-4.1-fast": [],
+      "openai/gpt-4o-mini": [],
+      "deepseek/deepseek-chat-v3.1": []
+    },
+    {
+      "municipality": "Banff, Alberta",
+      "url": "https://banff.ca/FormCenter/Operations-7/Commercial-WasteAdditional-Service-149",
+      "characterCount": 24117,
+      "notes": "Grok found 1 RFP (Document [12])",
+      "anthropic/claude-3.5-sonnet": [],
+      "x-ai/grok-4.1-fast": [],
+      "openai/gpt-4o-mini": [],
+      "deepseek/deepseek-chat-v3.1": []
+    },
+    {
+      "municipality": "Banff, Alberta",
+      "url": "https://banff.ca/1173/Zero-Waste-Requirements-for-Building-Permits",
+      "characterCount": 8609,
+      "notes": "Sonnet found 1 RFP (Document [13])",
+      "anthropic/claude-3.5-sonnet": [],
+      "x-ai/grok-4.1-fast": [],
+      "openai/gpt-4o-mini": [],
+      "deepseek/deepseek-chat-v3.1": []
+    },
+    {
+      "municipality": "Banff, Alberta",
+      "url": "https://banff.ca/154/Zero-Waste-Banff",
+      "characterCount": 5118,
+      "notes": "Sonnet found 1 RFP (Document [14])",
+      "anthropic/claude-3.5-sonnet": [],
+      "x-ai/grok-4.1-fast": [],
+      "openai/gpt-4o-mini": [],
+      "deepseek/deepseek-chat-v3.1": []
+    },
+    {
+      "municipality": "Banff, Alberta",
+      "url": "https://banff.ca/992/Wastewater-Treatment-Plant-Upgrades",
+      "characterCount": 5993,
+      "notes": "Sonnet found 1 RFP (Document [16])",
+      "anthropic/claude-3.5-sonnet": [],
+      "x-ai/grok-4.1-fast": [],
+      "openai/gpt-4o-mini": [
+        {
+          "title": "Wastewater Treatment Plant Upgrades",
+          "description": "Upgrading the wastewater treatment plant to increase energy efficiency and the efficiency of the plant. This includes replacing blowers and diffusers, upgrading clarifiers, and making upgrades to the lagoon lift station.",
+          "due_date": null,
+          "estimated_value": 1189490,
+          "currency": "CAD",
+          "submission_method": null,
+          "contact_email": "operations@banff.ca",
+          "confidence": 0.8,
+          "opportunity_type": "formal_rfp"
+        }
+      ],
+      "deepseek/deepseek-chat-v3.1": []
+    }
+  ]
+}

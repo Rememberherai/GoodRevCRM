@@ -1,0 +1,83 @@
+{
+  "testedAt": "2026-02-07T05:21:13.101Z",
+  "summary": {
+    "tested": 4,
+    "passed": 4,
+    "failed": 0,
+    "totalDocs": 106,
+    "totalPdfs": 0,
+    "totalHtml": 106
+  },
+  "results": [
+    {
+      "municipality": "Calgary",
+      "province": "Alberta",
+      "minutesUrl": "https://pub-calgary.escribemeetings.com",
+      "documentsFound": 34,
+      "documentTypes": {
+        "pdf": 0,
+        "html": 34
+      },
+      "sampleUrls": [
+        "https://pub-calgary.escribemeetings.com/Meeting.aspx?Id=b5497ff2-0474-4583-80ee-7bacfed21990&lang=English",
+        "https://pub-calgary.escribemeetings.com/Meeting.aspx?Id=b5497ff2-0474-4583-80ee-7bacfed21990&Agenda=Agenda&lang=English",
+        "https://pub-calgary.escribemeetings.com/Meeting.aspx?Id=7e248041-b004-4be9-9feb-ba69f2cd9511&lang=English",
+        "https://pub-calgary.escribemeetings.com/Meeting.aspx?Id=7e248041-b004-4be9-9feb-ba69f2cd9511&Agenda=Agenda&lang=English",
+        "https://pub-calgary.escribemeetings.com/Meeting.aspx?Id=6a062e9e-f593-40fd-9fe6-02622511240e&lang=English"
+      ],
+      "issuesFound": [],
+      "passedValidation": true
+    },
+    {
+      "municipality": "Banff",
+      "province": "Alberta",
+      "minutesUrl": "https://banff.ca/AgendaCenter",
+      "documentsFound": 50,
+      "documentTypes": {
+        "pdf": 0,
+        "html": 50
+      },
+      "sampleUrls": [
+        "https://banff.ca/AgendaCenter/ViewFile/Agenda/_02102026-1502",
+        "https://banff.ca/AgendaCenter/PreviousVersions/_02102026-1502",
+        "https://banff.ca/AgendaCenter/ViewFile/Agenda/_01272026-1498",
+        "https://banff.ca/AgendaCenter/ViewFile/Minutes/_01272026-1498",
+        "https://banff.ca/AgendaCenter/PreviousVersions/_01272026-1498"
+      ],
+      "issuesFound": [],
+      "passedValidation": true
+    },
+    {
+      "municipality": "Regina",
+      "province": "Saskatchewan",
+      "minutesUrl": "https://reginask.iqm2.com/Citizens/default.aspx",
+      "documentsFound": 22,
+      "documentTypes": {
+        "pdf": 0,
+        "html": 22
+      },
+      "sampleUrls": [
+        "https://reginask.iqm2.com/Meeting.aspx?ID=6787",
+        "https://reginask.iqm2.com/Meeting.aspx?ID=6678",
+        "https://reginask.iqm2.com/Meeting.aspx?ID=6788",
+        "https://reginask.iqm2.com/Meeting.aspx?ID=6693",
+        "https://reginask.iqm2.com/Meeting.aspx?ID=6695"
+      ],
+      "issuesFound": [],
+      "passedValidation": true
+    },
+    {
+      "municipality": "Charlottetown",
+      "province": "Prince Edward Island",
+      "minutesUrl": "https://www.charlottetown.ca/mayor___council/council_meetings",
+      "documentsFound": 0,
+      "documentTypes": {
+        "pdf": 0,
+        "html": 0
+      },
+      "sampleUrls": [],
+      "issuesFound": [],
+      "passedValidation": true
+    }
+  ]
+}

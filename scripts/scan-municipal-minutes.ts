@@ -231,52 +231,112 @@ async function scanMunicipality(
       throw new Error('Failed to create/find organization');
     }
 
-    // Insert RFPs
+    // Insert RFPs with deduplication
     console.log(`  💾 Inserting ${allExtractedRfps.length} RFPs into database...\n`);
+
+    // Group RFPs by title to track mentions
+    const rfpsByTitle = new Map<string, ExtractedRfp[]>();
     for (const rfp of allExtractedRfps) {
+      const existing = rfpsByTitle.get(rfp.title) || [];
+      existing.push(rfp);
+      rfpsByTitle.set(rfp.title, existing);
+    }
+
+    for (const [title, rfpMentions] of rfpsByTitle.entries()) {
+      // Use the first mention as the primary data, but track all mentions
+      const primaryRfp = rfpMentions[0];
+      const mentionCount = rfpMentions.length;
+
       if (dryRun) {
-        logger.logRfpCreated(rfp.title, rfp.due_date, rfp.estimated_value);
+        if (mentionCount > 1) {
+          logger.logRfpCreated(primaryRfp.title, primaryRfp.due_date, primaryRfp.estimated_value);
+          console.log(`       (mentioned in ${mentionCount} meetings)`);
+        } else {
+          logger.logRfpCreated(primaryRfp.title, primaryRfp.due_date, primaryRfp.estimated_value);
+        }
         result.rfpsCreated++;
         continue;
       }
 
+      // Check if this RFP already exists in the database
+      const { data: existingRfp } = await supabase
+        .from('rfps')
+        .select('id, custom_fields')
+        .eq('project_id', SCANNER_CONFIG.projectId)
+        .eq('organization_id', orgId)
+        .eq('title', title)
+        .maybeSingle();
+
+      if (existingRfp) {
+        // RFP already exists - update mention count
+        const currentMentionCount = (existingRfp.custom_fields as any)?.mention_count || 1;
+        const newMentionCount = currentMentionCount + mentionCount;
+
+        await supabase
+          .from('rfps')
+          .update({
+            custom_fields: {
+              ...(existingRfp.custom_fields as any),
+              mention_count: newMentionCount,
+              last_mentioned_date: rfpMentions[rfpMentions.length - 1].meeting_date,
+            },
+          })
+          .eq('id', existingRfp.id);
+
+        console.log(`     ⚪ "${title}" (already exists, updated mention count: ${newMentionCount})`);
+        continue;
+      }
+
+      // New RFP - insert it
       // Determine source based on opportunity type
-      const source = rfp.opportunity_type === 'formal_rfp'
+      const source = primaryRfp.opportunity_type === 'formal_rfp'
         ? 'municipal_rfp'
         : 'municipal_minutes';
+
+      // Collect all meeting URLs where this was mentioned
+      const meetingUrls = rfpMentions.map(m => m.source_meeting_url).filter(Boolean);
+      const meetingDates = rfpMentions.map(m => m.meeting_date).filter(Boolean);
 
       const { error: rfpError } = await supabase
         .from('rfps')
         .insert({
           project_id: SCANNER_CONFIG.projectId,
           organization_id: orgId,
-          title: rfp.title,
-          description: rfp.description,
-          due_date: rfp.due_date,
-          estimated_value: rfp.estimated_value,
-          currency: rfp.currency || 'CAD',
+          title: primaryRfp.title,
+          description: primaryRfp.description,
+          due_date: primaryRfp.due_date,
+          estimated_value: primaryRfp.estimated_value,
+          currency: primaryRfp.currency || 'CAD',
           status: 'identified',
-          submission_method: rfp.submission_method,
-          submission_email: rfp.contact_email,
+          submission_method: primaryRfp.submission_method,
+          submission_email: primaryRfp.contact_email,
           custom_fields: {
             country: 'Canada',
             region: municipality.province,
             source: source,
-            opportunity_type: rfp.opportunity_type,
+            opportunity_type: primaryRfp.opportunity_type,
             calendar_url: municipality.minutes_url,
-            meeting_url: rfp.source_meeting_url,
-            meeting_date: rfp.meeting_date,
-            committee_name: rfp.committee_name,
-            agenda_item: rfp.agenda_item,
-            excerpt: rfp.excerpt,
-            ai_confidence: rfp.confidence,
+            meeting_url: primaryRfp.source_meeting_url,
+            meeting_date: primaryRfp.meeting_date,
+            committee_name: primaryRfp.committee_name,
+            agenda_item: primaryRfp.agenda_item,
+            excerpt: primaryRfp.excerpt,
+            ai_confidence: primaryRfp.confidence,
+            mention_count: mentionCount,
+            all_meeting_urls: meetingUrls,
+            all_meeting_dates: meetingDates,
           },
         });
 
       if (rfpError) {
-        logger.logError(`Failed to insert RFP "${rfp.title}": ${rfpError.message}`);
+        logger.logError(`Failed to insert RFP "${primaryRfp.title}": ${rfpError.message}`);
       } else {
-        logger.logRfpCreated(rfp.title, rfp.due_date, rfp.estimated_value);
+        if (mentionCount > 1) {
+          logger.logRfpCreated(primaryRfp.title, primaryRfp.due_date, primaryRfp.estimated_value);
+          console.log(`       (mentioned in ${mentionCount} meetings)`);
+        } else {
+          logger.logRfpCreated(primaryRfp.title, primaryRfp.due_date, primaryRfp.estimated_value);
+        }
         result.rfpsCreated++;
       }
     }

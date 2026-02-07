@@ -86,14 +86,21 @@ ${truncatedText}`;
     const response = await openrouter.chat(
       [{ role: 'user', content: prompt }],
       {
-        model: 'anthropic/claude-3.5-sonnet',
+        model: 'x-ai/grok-4.1-fast',
         temperature: 0.3,
         responseFormat: 'json_object',
         maxTokens: 4096,
       }
     );
 
-    const content = response.choices[0]?.message?.content || '{}';
+    let content = response.choices[0]?.message?.content || '{}';
+
+    // Some models may wrap JSON in markdown code blocks or add explanatory text
+    // Try to extract just the JSON part
+    const jsonMatch = content.match(/\{[\s\S]*\}/);
+    if (jsonMatch) {
+      content = jsonMatch[0];
+    }
 
     // Try to parse JSON
     let result;

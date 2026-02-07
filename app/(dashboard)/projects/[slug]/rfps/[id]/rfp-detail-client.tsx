@@ -455,6 +455,81 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
             </Card>
           )}
 
+          {/* Municipal Meeting Mentions */}
+          {rfp.custom_fields &&
+            typeof rfp.custom_fields === 'object' &&
+            'source' in rfp.custom_fields &&
+            (rfp.custom_fields.source === 'municipal_minutes' ||
+              rfp.custom_fields.source === 'municipal_rfp') &&
+            'all_meeting_urls' in rfp.custom_fields &&
+            Array.isArray(rfp.custom_fields.all_meeting_urls) &&
+            rfp.custom_fields.all_meeting_urls.length > 0 && (
+              <Card>
+                <CardHeader>
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Meeting Minutes
+                    {rfp.custom_fields.mention_count &&
+                      typeof rfp.custom_fields.mention_count === 'number' &&
+                      rfp.custom_fields.mention_count > 1 && (
+                        <Badge variant="secondary" className="ml-2">
+                          Mentioned {rfp.custom_fields.mention_count} times
+                        </Badge>
+                      )}
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="space-y-3">
+                  <p className="text-sm text-muted-foreground">
+                    This opportunity was found in municipal council meeting minutes:
+                  </p>
+                  <div className="space-y-2">
+                    {(rfp.custom_fields.all_meeting_urls as string[]).map((url: string, idx: number) => {
+                      const meetingDates = Array.isArray(rfp.custom_fields?.all_meeting_dates)
+                        ? (rfp.custom_fields.all_meeting_dates as string[])
+                        : [];
+                      const meetingDate = meetingDates[idx];
+
+                      return (
+                        <a
+                          key={idx}
+                          href={url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm hover:underline text-blue-600 dark:text-blue-400"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span>
+                            {meetingDate
+                              ? `Meeting on ${formatDate(meetingDate)}`
+                              : `Meeting ${idx + 1}`}
+                          </span>
+                        </a>
+                      );
+                    })}
+                  </div>
+                  {rfp.custom_fields.calendar_url && (
+                    <>
+                      <Separator className="my-3" />
+                      <div>
+                        <p className="text-sm text-muted-foreground mb-2">
+                          View all council meetings:
+                        </p>
+                        <a
+                          href={rfp.custom_fields.calendar_url as string}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="flex items-center gap-2 text-sm hover:underline text-blue-600 dark:text-blue-400"
+                        >
+                          <ExternalLink className="h-3.5 w-3.5 flex-shrink-0" />
+                          <span>Council Calendar</span>
+                        </a>
+                      </div>
+                    </>
+                  )}
+                </CardContent>
+              </Card>
+            )}
+
           {(rfp.outcome_reason || rfp.feedback || rfp.awarded_to) && (
             <Card>
               <CardHeader>

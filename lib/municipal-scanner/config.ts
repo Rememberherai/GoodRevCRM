@@ -2,7 +2,7 @@ import type { ScannerConfig } from './types';
 
 export const SCANNER_CONFIG: ScannerConfig = {
   // Project ID - update this to your actual project ID
-  projectId: process.env.SCANNER_PROJECT_ID || '92352069-9031-4f9c-a89b-e09dc51d2d16',
+  projectId: process.env.SCANNER_PROJECT_ID || '4daa20b1-d1d7-4e14-9718-df2f94865a62',
 
   // Scan last 12 months of meeting minutes
   dateRangeMonths: 12,

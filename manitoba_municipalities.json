@@ -1,0 +1,202 @@
+[
+  {
+    "name": "City of Winnipeg",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "City",
+    "population": 749607,
+    "official_website": "https://winnipeg.ca",
+    "minutes_url": "https://clkapps.winnipeg.ca/dmis/latestagendas.asp",
+    "scan_status": "pending"
+  },
+  {
+    "name": "City of Brandon",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "City",
+    "population": 51313,
+    "official_website": "https://www.brandon.ca",
+    "minutes_url": "https://www.brandon.ca/city-hall/agendas-and-minutes",
+    "scan_status": "pending"
+  },
+  {
+    "name": "City of Steinbach",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "City",
+    "population": 17806,
+    "official_website": "https://www.steinbach.ca",
+    "minutes_url": "https://www.steinbach.ca/city-hall/city-council",
+    "scan_status": "pending"
+  },
+  {
+    "name": "Rural Municipality of Hanover",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "Rural Municipality",
+    "population": 17216,
+    "official_website": "https://www.hanovermb.ca",
+    "minutes_url": "https://www.hanovermb.ca/p/council-meetings",
+    "scan_status": "pending"
+  },
+  {
+    "name": "Rural Municipality of Springfield",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "Rural Municipality",
+    "population": 16142,
+    "official_website": "https://www.rmofspringfield.ca",
+    "minutes_url": "https://www.rmofspringfield.ca/p/meeting-minutes",
+    "scan_status": "pending"
+  },
+  {
+    "name": "City of Winkler",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "City",
+    "population": 13745,
+    "official_website": "https://www.cityofwinkler.ca",
+    "minutes_url": "https://cityofwinkler.ca/p/council-meetings",
+    "scan_status": "pending"
+  },
+  {
+    "name": "City of Portage la Prairie",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "City",
+    "population": 13838,
+    "official_website": "https://www.city-plap.com",
+    "minutes_url": "https://www.city-plap.com/council-administration/council",
+    "scan_status": "pending"
+  },
+  {
+    "name": "Rural Municipality of Taché",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "Rural Municipality",
+    "population": 11916,
+    "official_website": "https://www.rmtache.ca",
+    "minutes_url": "https://www.rmtache.ca/p/meeting-minutes-agendas",
+    "scan_status": "pending"
+  },
+  {
+    "name": "City of Thompson",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "City",
+    "population": 13678,
+    "official_website": "https://www.thompson.ca",
+    "minutes_url": "https://www.thompson.ca/p/minutes-agendas",
+    "scan_status": "pending"
+  },
+  {
+    "name": "Rural Municipality of St. Clements",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "Rural Municipality",
+    "population": 11281,
+    "official_website": "https://rmofstclements.com",
+    "minutes_url": "https://rmofstclements.com/council-meeting-minutes-agendas-and-recordings",
+    "scan_status": "pending"
+  },
+  {
+    "name": "City of Morden",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "City",
+    "population": 10668,
+    "official_website": "https://www.mordenmb.com",
+    "minutes_url": "https://www.mordenmb.com/city-govt/agendas-minutes",
+    "scan_status": "pending"
+  },
+  {
+    "name": "Rural Municipality of St. Andrews",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "Rural Municipality",
+    "population": 13655,
+    "official_website": "https://www.rmofstandrews.com",
+    "minutes_url": "https://www.rmofstandrews.com/p/minutes-agendas",
+    "scan_status": "pending"
+  },
+  {
+    "name": "City of Selkirk",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "City",
+    "population": 10504,
+    "official_website": "https://www.myselkirk.ca",
+    "minutes_url": "https://www.myselkirk.ca/city-government/city-council/council-and-committee-minutes",
+    "scan_status": "pending"
+  },
+  {
+    "name": "Rural Municipality of Stanley",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "Rural Municipality",
+    "population": 9109,
+    "official_website": "https://www.rmofstanley.ca",
+    "minutes_url": "https://rmofstanley.ca/p/council-meeting-minutes",
+    "scan_status": "pending"
+  },
+  {
+    "name": "Rural Municipality of East St. Paul",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "Rural Municipality",
+    "population": 9538,
+    "official_website": "https://www.eaststpaul.com",
+    "minutes_url": "https://www.eaststpaul.com/p/meetings-minutes",
+    "scan_status": "pending"
+  },
+  {
+    "name": "Rural Municipality of West St. Paul",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "Rural Municipality",
+    "population": 5368,
+    "official_website": "https://www.weststpaul.com",
+    "minutes_url": "https://www.weststpaul.com/p/meeting-minutes-agendas",
+    "scan_status": "pending"
+  },
+  {
+    "name": "Rural Municipality of Macdonald",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "Rural Municipality",
+    "population": 7162,
+    "official_website": "https://www.rmofmacdonald.com",
+    "minutes_url": "https://www.rmofmacdonald.com/p/council-meetings",
+    "scan_status": "pending"
+  },
+  {
+    "name": "Rural Municipality of Rockwood",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "Rural Municipality",
+    "population": 9014,
+    "official_website": "https://www.rockwood.ca",
+    "minutes_url": "https://www.rockwood.ca/p/minutes-and-agendas",
+    "scan_status": "pending"
+  },
+  {
+    "name": "Rural Municipality of Ritchot",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "Rural Municipality",
+    "population": 7097,
+    "official_website": "https://www.ritchot.com",
+    "minutes_url": "https://www.ritchot.com/p/meeting-minutes-and-agendas",
+    "scan_status": "pending"
+  },
+  {
+    "name": "City of Dauphin",
+    "province": "Manitoba",
+    "country": "Canada",
+    "municipality_type": "City",
+    "population": 8457,
+    "official_website": "https://www.dauphin.ca",
+    "minutes_url": "https://www.dauphin.ca/p/minutes",
+    "scan_status": "pending"
+  }
+]

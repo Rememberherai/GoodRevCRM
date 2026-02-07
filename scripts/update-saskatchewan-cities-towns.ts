@@ -1,0 +1,203 @@
+#!/usr/bin/env tsx
+import { createClient } from '@supabase/supabase-js';
+import * as dotenv from 'dotenv';
+
+dotenv.config({ path: '.env.local' });
+
+const supabase = createClient(
+  process.env.NEXT_PUBLIC_SUPABASE_URL!,
+  process.env.SUPABASE_SERVICE_ROLE_KEY!
+);
+
+const saskUpdates = [
+  // Cities (16)
+  {name: "Estevan", url: "https://estevan.ca/council-meetings-and-agendas-2-2/"},
+  {name: "Flin Flon", url: "https://www.cityofflinflon.ca/p/meeting-minutes-and-agendas"},
+  {name: "Humboldt", url: "https://humboldt.ca/"},
+  {name: "Lloydminster", url: "https://www.lloydminster.ca/council-administration/agendas-and-minutes/"},
+  {name: "Martensville", url: "https://www.martensville.ca/pages/agendas_and_minutes.html"},
+  {name: "Meadow Lake", url: "https://meadowlake.ca/p/meetings"},
+  {name: "Melfort", url: "https://melfort.ca/p/minutes-agendas"},
+  {name: "Melville", url: "https://melville.ca/p/agendas-minutes"},
+  {name: "Moose Jaw", url: "https://moosejaw.ca/city-council/"},
+  {name: "North Battleford", url: "https://www.cityofnb.ca/our-city-government/city-council/"},
+  {name: "Prince Albert", url: "https://www.citypa.ca/en/city-hall/Meetings__Minutes_and_Agendas.aspx"},
+  {name: "Regina", url: "https://reginask.iqm2.com/Citizens/default.aspx"},
+  {name: "Saskatoon", url: "https://www.saskatoon.ca/city-hall/city-council-boards-committees/upcoming-and-past-council-and-committee-meetings"},
+  {name: "Swift Current", url: "https://www.swiftcurrent.ca/about-us/city-council/city-council-2025-meeting-dates-agendas-minutes"},
+  {name: "Warman", url: "https://www.warman.ca/"},
+  {name: "Weyburn", url: "https://weyburn.ca/council-agenda-minutes/"},
+  {name: "Yorkton", url: "https://calendar.yorkton.ca/"},
+
+  // Towns (147)
+  {name: "Aberdeen", url: "https://www.aberdeen.ca/p/council-agenda-meeting-minutes"},
+  {name: "Alameda", url: "https://townofalameda.ca/minutes"},
+  {name: "Allan", url: "https://www.townofallan.com/"},
+  {name: "Arborfield", url: "https://www.arborfieldsk.ca/administration.html"},
+  {name: "Arcola", url: "https://www.townofarcola.ca/"},
+  {name: "Asquith", url: "https://townofasquith.com/administration/"},
+  {name: "Assiniboia", url: "https://www.assiniboia.net/town_office/council_meeting_agendas_minutes.html"},
+  {name: "Balcarres", url: "https://www.saskatchewan.ca/government/municipal-administration/municipal-directory?s=%7B86475839-08e7-4b43-a791-8c98e7a784ec%7D"},
+  {name: "Balgonie", url: "https://townofbalgonie.ca/meeting-minutes/"},
+  {name: "Battleford", url: "https://www.battleford.ca/p/council-agenda-and-minutes"},
+  {name: "Bengough", url: "https://rm40.ca/"},
+  {name: "Bienfait", url: "https://www.bienfait.ca/residents/council"},
+  {name: "Big River", url: "https://bigriver.ca/"},
+  {name: "Biggar", url: "https://townofbiggar.com/206/Town-Council"},
+  {name: "Birch Hills", url: "https://www.birchhills.ca/?page_id=660"},
+  {name: "Blaine Lake", url: "https://blainelake.ca/admin/council-minutes/"},
+  {name: "Bredenbury", url: "https://www.townofbredenbury.ca/"},
+  {name: "Broadview", url: "http://broadview.ca/council"},
+  {name: "Bruno", url: "Not found - contact town office"},
+  {name: "Burstall", url: "https://www.abetterwayoflife.ca/town-council-2/"},
+  {name: "Cabri", url: "https://cabri.ca/"},
+  {name: "Canora", url: "https://canora.com/government/town-council-committees/"},
+  {name: "Carlyle", url: "https://www.townofcarlyle.com/p/minutes"},
+  {name: "Carnduff", url: "https://www.carnduff.ca/"},
+  {name: "Carrot River", url: "https://www.municipal.carrotriver.ca/"},
+  {name: "Central Butte", url: "https://centralbutte.ca/"},
+  {name: "Choiceland", url: "https://www.choiceland.ca/town-council.html"},
+  {name: "Churchbridge", url: "https://churchbridge.com/"},
+  {name: "Colonsay", url: "https://www.colonsay.ca/town-of-colonsay-admin"},
+  {name: "Coronach", url: "https://townofcoronach.ca/government/agendas/"},
+  {name: "Craik", url: "https://craik.ca/web/town-of-craik/craik-town-council-and-meetings/"},
+  {name: "Cudworth", url: "https://www.townofcudworth.com/"},
+  {name: "Cupar", url: "https://townofcupar.com/pages/councilminutes/home.php"},
+  {name: "Cut Knife", url: "https://townofcutknife.ca/minutes-and-agendas/"},
+  {name: "Dalmeny", url: "https://www.dalmeny.ca/p/meeting-minutes-and-agendas"},
+  {name: "Davidson", url: "https://townofdavidson.com/"},
+  {name: "Delisle", url: "https://townofdelisle.com/"},
+  {name: "Duck Lake", url: "https://www.ducklake.ca/government.html"},
+  {name: "Dundurn", url: "https://www.townofdundurn.ca/council-agenda-minutes/"},
+  {name: "Eastend", url: "https://www.townofeastend.com/p/meeting-minutes"},
+  {name: "Eatonia", url: "Not found - contact town office"},
+  {name: "Elrose", url: "https://elrose.ca/about-town-of-elrose/government-administration/council-meeting-minutes/"},
+  {name: "Esterhazy", url: "http://townofesterhazy.ca/p/council-minutes"},
+  {name: "Eston", url: "https://eston.ca/council-minutes"},
+  {name: "Fleming", url: "Not found - contact town office"},
+  {name: "Foam Lake", url: "https://foamlake.com/municipal-government/council-meeting-agendas-and-minutes"},
+  {name: "Fort Qu'Appelle", url: "https://www.fortquappelle.com/municipal-services/meeting-minutes"},
+  {name: "Francis", url: "https://rmoffrancis.ca/"},
+  {name: "Govan", url: "Not found - contact town office"},
+  {name: "Grand Coulee", url: "https://grandcoulee.ca/"},
+  {name: "Gravelbourg", url: "https://www.gravelbourg.ca/town_office/council_meetings.html"},
+  {name: "Grenfell", url: "https://townofgrenfell.com/p/council-minutes"},
+  {name: "Gull Lake", url: "https://www.gulllakesk.com/government/meetings-minutes"},
+  {name: "Hafford", url: "https://www.townofhafford.ca/"},
+  {name: "Hague", url: "https://www.townofhague.com/"},
+  {name: "Hanley", url: "https://hanley.ca/administration/council-minutes/"},
+  {name: "Hepburn", url: "https://hepburn.ca/governance/minutes.html"},
+  {name: "Herbert", url: "https://www.saskatchewan.ca/government/municipal-administration/municipal-directory?s=%7B54ad4942-f7f3-4523-b5a3-5e0ccd596ca0%7D"},
+  {name: "Hudson Bay", url: "https://townofhudsonbay.com/agenda-minutes/"},
+  {name: "Imperial", url: "https://imperial.ca/council-minutes/"},
+  {name: "Indian Head", url: "https://townofindianhead.com/"},
+  {name: "Ituna", url: "https://ituna.ca/council-minutes/"},
+  {name: "Kamsack", url: "https://kamsack.ca/meetings-minutes/"},
+  {name: "Kelvington", url: "https://www.townofkelvington.com/town-office/town-council-meeting-minutes/2022-council-meeting-minutes/"},
+  {name: "Kerrobert", url: "https://kerrobert.ca/our-town/council-admin/"},
+  {name: "Kindersley", url: "https://kindersley.civicweb.net/Portal/MeetingTypeList.aspx"},
+  {name: "Kinistino", url: "https://townofkinistino.ca/index.asp?SEC=E5A93B5D-24B4-4C19-8593-7D8E57E3CDDE"},
+  {name: "Kipling", url: "https://www.townofkipling.ca/p/council"},
+  {name: "Kyle", url: "https://kyle.ca/document-category/meeting-minutes/"},
+  {name: "Lafleche", url: "https://lafleche.ca/minutes/"},
+  {name: "Lampman", url: "https://townoflampman.ca/"},
+  {name: "Langenburg", url: "https://www.langenburg.ca/p/town-council"},
+  {name: "Langham", url: "https://langham.civicweb.net/"},
+  {name: "Lanigan", url: "https://www.lanigan.ca/your-town/town-council"},
+  {name: "Lashburn", url: "https://www.lashburn.ca/town/contact"},
+  {name: "Leader", url: "https://www.saskatchewan.ca/government/municipal-administration/tools-guides-and-resources/council-procedures"},
+  {name: "Lemberg", url: "https://townoflemberg.weebly.com/town-office.html"},
+  {name: "Leroy", url: "https://www.leroy.org/government/city-hall/city-council"},
+  {name: "Lumsden", url: "https://townoflumsden.ca/p/administration"},
+  {name: "Luseland", url: "https://www.townofluseland.com/"},
+  {name: "Macklin", url: "https://macklin.ca/government/mayor_council.html"},
+  {name: "Maidstone", url: "https://townofmaidstone.com/minutes/"},
+  {name: "Maple Creek", url: "https://maplecreek.ca/town_government/council_agendas_minutes.html"},
+  {name: "Marshall", url: "https://www.townofmarshall.ca/"},
+  {name: "Midale", url: "https://townofmidale.com/"},
+  {name: "Milestone", url: "https://milestonesk.ca/"},
+  {name: "Moosomin", url: "https://www.moosomin.com/towninformation/council-minutes.php"},
+  {name: "Morse", url: "https://www.saskatchewan.ca/government/municipal-administration/municipal-directory?s=%7B1ada15bd-e877-4e1d-83a0-0963cba515e5%7D"},
+  {name: "Mossbank", url: "https://mossbank.ca/"},
+  {name: "Naicam", url: "http://townofnaicam.ca/gov/agendas-minutes/"},
+  {name: "Nipawin", url: "http://www.nipawin.com/minutesagendas.cfm"},
+  {name: "Nokomis", url: "https://cityofnokomis.com/"},
+  {name: "Norquay", url: "https://norquay.ca/"},
+  {name: "Ogema", url: "https://www.saskatchewan.ca/government/municipal-administration/municipal-directory"},
+  {name: "Osler", url: "https://townofosler.com/"},
+  {name: "Outlook", url: "https://townofoutlook.ca/"},
+  {name: "Oxbow", url: "https://www.oxbow.ca/p/iframe-src-https-oxbow-allnetmeetings-com-pubs-agendacategories-aspx-width-100-height-1100px-frameborder-0-scrolling-yes-name-agendas-iframe-"},
+  {name: "Pense", url: "https://www.pense.ca/"},
+  {name: "Pilot Butte", url: "https://pilotbutte.ca/"},
+  {name: "Ponteix", url: "https://www.townofponteix.com/"},
+  {name: "Porcupine Plain", url: "http://porcupineplain.com/residents/town-council/council-meeting-reports-2014/"},
+  {name: "Preeceville", url: "http://www.townofpreeceville.ca/council-minutes.html"},
+  {name: "Qu'Appelle", url: "https://www.saskatchewan.ca/government/municipal-administration/municipal-directory"},
+  {name: "Radisson", url: "https://radisson.ca/"},
+  {name: "Radville", url: "https://radville.ca/town-office/minutes/"},
+  {name: "Raymore", url: "http://raymore.ca/"},
+  {name: "Redvers", url: "https://redvers.ca/council/"},
+  {name: "Regina Beach", url: "https://reginabeach.ca/council-meetings-minutes"},
+  {name: "Rocanville", url: "https://www.rocanville.ca/minutes.php"},
+  {name: "Rockglen", url: "https://www.saskatchewan.ca/government/municipal-administration/municipal-directory"},
+  {name: "Rose Valley", url: "https://www.saskatchewan.ca/government/municipal-administration/municipal-directory"},
+  {name: "Rosetown", url: "https://rosetown.ca/agendacenter"},
+  {name: "Rosthern", url: "https://www.rosthern.com/p/council-minutes"},
+  {name: "Rouleau", url: "https://www.saskatchewan.ca/government/municipal-administration/municipal-directory"},
+  {name: "Saltcoats", url: "https://www.townofsaltcoats.ca/town_office/council.html"},
+  {name: "Scott", url: "https://www.cityofscott.org/council-meeting-agendas-minutes"},
+  {name: "Shaunavon", url: "https://www.shaunavon.com/page/town-council-minutes/"},
+  {name: "Shellbrook", url: "https://townofshellbrook.ca/p/minutes"},
+  {name: "Sintaluta", url: "https://www.saskatchewan.ca/government/municipal-administration/municipal-directory"},
+  {name: "Southey", url: "https://southey.ca/2021-minutes-agenda/"},
+  {name: "Spiritwood", url: "http://townofspiritwood.ca/"},
+  {name: "Springside", url: "https://townofspringside.ca/council-meeting-minutes"},
+  {name: "St. Brieux", url: "https://townofstbrieux.com/"},
+  {name: "St. Walburg", url: "http://stwalburg.refreshlabs.ca/government/"},
+  {name: "Star City", url: "https://www.townofstarcity.net/minutes.html"},
+  {name: "Stoughton", url: "https://stoughtonsk.ca"},
+  {name: "Strasbourg", url: "https://townofstrasbourg.ca/council-minutes"},
+  {name: "Sturgis", url: "https://townofsturgis.ca/council-minutes"},
+  {name: "Tisdale", url: "https://tisdale.ca/council-meeting"},
+  {name: "Turtleford", url: "https://townofturtleford.com/town_office/minutes.html"},
+  {name: "Unity", url: "https://townofunity.com"},
+  {name: "Vonda", url: "https://thetownofvonda.com"},
+  {name: "Wadena", url: "https://townofwadena.com/AgendaCenter/Town-Council-Wadena-2/"},
+  {name: "Wakaw", url: "https://wakaw.ca"},
+  {name: "Waldheim", url: "https://waldheim.ca"},
+  {name: "Wapella", url: "Contact: 306-532-4343"},
+  {name: "Watrous", url: "https://townofwatrous.com/council-meetings/"},
+  {name: "Watson", url: "https://townofwatson.com/government/minutes-agendas/"},
+  {name: "Wawota", url: "https://wawota.com"},
+  {name: "White City", url: "https://www.whitecity.ca"},
+  {name: "Whitewood", url: "https://townofwhitewood.ca"},
+  {name: "Wilkie", url: "https://townofwilkie.com/town_hall/minutes.html"},
+  {name: "Willow Bunch", url: "https://willowbunch.ca/government/town/minutes/"},
+  {name: "Wolseley", url: "http://wolseley.ca/council/2023-agendas-minutes/"},
+  {name: "Wynyard", url: "https://www.townofwynyard.com/p/council-meeting"},
+  {name: "Yellow Grass", url: "https://yellowgrass.ca"},
+  {name: "Zealandia", url: "No website found"}
+];
+
+async function main() {
+  console.log(`\n📥 Updating ${saskUpdates.length} Saskatchewan cities and towns...\n`);
+  let updated = 0;
+  for (const item of saskUpdates) {
+    const { error } = await supabase
+      .from('municipalities')
+      .update({minutes_url: item.url, scan_status: 'pending'})
+      .eq('name', item.name)
+      .eq('province', 'Saskatchewan');
+
+    if (!error) {
+      console.log(`   ✅ ${item.name}`);
+      updated++;
+    } else {
+      console.error(`   ❌ ${item.name}: ${error.message}`);
+    }
+  }
+  console.log(`\n📊 ✅ Updated: ${updated}/${saskUpdates.length}`);
+  console.log(`\n✅ SASKATCHEWAN CITIES & TOWNS COMPLETE!`);
+}
+
+main().catch(console.error);

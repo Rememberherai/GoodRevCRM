@@ -59,6 +59,7 @@ export async function findMeetingDocuments(
     let pdfMatch;
     while ((pdfMatch = pdfPattern.exec(html)) !== null) {
       let pdfUrl = pdfMatch[1];
+      if (!pdfUrl) continue;
 
       // Make absolute URL
       if (!pdfUrl.startsWith('http')) {
@@ -92,53 +93,42 @@ export async function findMeetingDocuments(
       }
     }
 
-    // Pattern 3: Committee-specific meetings (Public Works, Water Commission, etc.)
-    const committeePattern = /href=["']([^"']*(?:public[_\s-]?works|water[_\s-]?commission|environment|waste|utilities|infrastructure)[^"']*)/gi;
-    let committeeMatch;
-    while ((committeeMatch = committeePattern.exec(html)) !== null) {
-      let committeeUrl = committeeMatch[1];
+    // Pattern 3: Meeting-specific HTML pages with dates
+    const meetingPagePattern = /href=["']([^"']*(?:meeting|agenda|minutes)[^"']*\d{4}[^"']*)/gi;
+    let meetingPageMatch;
+    while ((meetingPageMatch = meetingPagePattern.exec(html)) !== null) {
+      let meetingUrl = meetingPageMatch[1];
+      if (!meetingUrl) continue;
 
       // Skip already found PDFs
-      if (committeeUrl.includes('.pdf')) continue;
+      if (meetingUrl.includes('.pdf')) continue;
+
+      // Skip non-meeting pages (forms, policy pages, etc.)
+      const lowerUrl = meetingUrl.toLowerCase();
+      if (
+        lowerUrl.includes('formcenter') ||
+        lowerUrl.includes('master-plan') ||
+        lowerUrl.includes('action-plan') ||
+        lowerUrl.includes('requirements') ||
+        lowerUrl.includes('utility-fees') ||
+        lowerUrl.includes('/environment') ||
+        lowerUrl.match(/\/(water|waste|utilities)$/)
+      ) {
+        continue;
+      }
 
       // Make absolute URL
-      if (!committeeUrl.startsWith('http')) {
-        if (committeeUrl.startsWith('/')) {
-          committeeUrl = `${baseUrl.protocol}//${baseUrl.host}${committeeUrl}`;
+      if (!meetingUrl.startsWith('http')) {
+        if (meetingUrl.startsWith('/')) {
+          meetingUrl = `${baseUrl.protocol}//${baseUrl.host}${meetingUrl}`;
         } else {
-          committeeUrl = `${baseUrl.protocol}//${baseUrl.host}/${committeeUrl}`;
+          meetingUrl = `${baseUrl.protocol}//${baseUrl.host}/${meetingUrl}`;
         }
       }
 
-      if (!meetings.some(m => m.url === committeeUrl)) {
+      if (!meetings.some(m => m.url === meetingUrl)) {
         meetings.push({
-          url: committeeUrl,
-          type: 'html',
-        });
-      }
-    }
-
-    // Pattern 4: Generic meeting links
-    const meetingLinkPattern = /href=["']([^"']*(?:meeting|agenda|minutes)[^"']*)/gi;
-    let linkMatch;
-    while ((linkMatch = meetingLinkPattern.exec(html)) !== null) {
-      let linkUrl = linkMatch[1];
-
-      // Skip already found
-      if (linkUrl.includes('.pdf')) continue;
-
-      // Make absolute URL
-      if (!linkUrl.startsWith('http')) {
-        if (linkUrl.startsWith('/')) {
-          linkUrl = `${baseUrl.protocol}//${baseUrl.host}${linkUrl}`;
-        } else {
-          linkUrl = `${baseUrl.protocol}//${baseUrl.host}/${linkUrl}`;
-        }
-      }
-
-      if (!meetings.some(m => m.url === linkUrl)) {
-        meetings.push({
-          url: linkUrl,
+          url: meetingUrl,
           type: 'html',
         });
       }
@@ -168,16 +158,18 @@ export async function fetchMeetingContent(
     }
 
     if (meeting.type === 'pdf') {
-      // For PDFs, we'll need the unpdf library
+      // For PDFs, use pdf-parse library
       const arrayBuffer = await response.arrayBuffer();
       const buffer = Buffer.from(arrayBuffer);
 
       try {
-        const { extractText } = await import('unpdf');
-        const { text } = await extractText(buffer, { mergePages: true });
-        return text;
-      } catch (pdfError) {
-        console.error(`    ⚠️  PDF parsing failed, skipping`);
+        const { PDFParse } = await import('pdf-parse');
+        const parser = new PDFParse({ data: new Uint8Array(buffer) });
+        const result = await parser.getText();
+        await parser.destroy();
+        return result.text;
+      } catch (pdfError: any) {
+        console.error(`    ⚠️  PDF parsing failed: ${pdfError.message}`);
         return null;
       }
     } else {
