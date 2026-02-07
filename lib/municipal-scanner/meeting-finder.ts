@@ -78,7 +78,25 @@ export async function findMeetingDocuments(
       }
     }
 
-    // Pattern 1: eSCRIBE Meeting links
+    // Pattern 1: Winnipeg DMIS - ShowDoc.asp?DocId=...
+    const dmisPattern = /ShowDoc\.asp\?DocId=\d+/gi;
+    const dmisMatches = html.match(dmisPattern) || [];
+
+    for (const match of dmisMatches) {
+      let fullUrl = match;
+      if (!fullUrl.startsWith('http')) {
+        fullUrl = `${baseUrl.protocol}//${baseUrl.host}${fullUrl.startsWith('/') ? '' : '/'}${fullUrl}`;
+      }
+
+      if (!meetings.some(m => m.url === fullUrl)) {
+        meetings.push({
+          url: fullUrl,
+          type: 'html',
+        });
+      }
+    }
+
+    // Pattern 2: eSCRIBE Meeting links
     const escribePattern = /Meeting\.aspx\?Id=[a-f0-9-]+(?:&[^"'\s<>]*)?/gi;
     const escribeMatches = html.match(escribePattern) || [];
 
@@ -98,7 +116,7 @@ export async function findMeetingDocuments(
       }
     }
 
-    // Pattern 2: PDF links
+    // Pattern 3: PDF links
     const pdfPattern = /href=["']([^"']*\.pdf[^"']*)/gi;
     let pdfMatch;
     while ((pdfMatch = pdfPattern.exec(html)) !== null) {
@@ -137,7 +155,7 @@ export async function findMeetingDocuments(
       }
     }
 
-    // Pattern 3: Meeting-specific HTML pages with dates
+    // Pattern 4: Meeting-specific HTML pages with dates
     const meetingPagePattern = /href=["']([^"']*(?:meeting|agenda|minutes)[^"']*\d{4}[^"']*)/gi;
     let meetingPageMatch;
     while ((meetingPageMatch = meetingPagePattern.exec(html)) !== null) {
