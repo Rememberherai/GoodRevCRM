@@ -484,8 +484,9 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
                   </p>
                   <div className="space-y-2">
                     {(rfp.custom_fields.all_meeting_urls as string[]).map((url: string, idx: number) => {
-                      const meetingDates = Array.isArray(rfp.custom_fields?.all_meeting_dates)
-                        ? (rfp.custom_fields.all_meeting_dates as string[])
+                      const customFields = rfp.custom_fields as Record<string, unknown>;
+                      const meetingDates = Array.isArray(customFields.all_meeting_dates)
+                        ? (customFields.all_meeting_dates as string[])
                         : [];
                       const meetingDate = meetingDates[idx];
 
