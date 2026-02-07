@@ -1,10 +1,8 @@
 import type { ScanSummary } from './types';
 
 export class ScanLogger {
-  private startTime: Date;
-
   constructor() {
-    this.startTime = new Date();
+    // Logger for municipal scanner output
   }
 
   logHeader() {
