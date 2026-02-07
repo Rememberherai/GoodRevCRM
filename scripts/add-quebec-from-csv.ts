@@ -38,7 +38,7 @@ async function main() {
 
   // Process each line (skip header)
   for (let i = 1; i < lines.length; i++) {
-    const line = lines[i].trim();
+    const line = lines[i]?.trim();
     if (!line) continue;
 
     // Simple CSV parsing (handles quoted fields)
