@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { createRfpSchema } from '@/lib/validators/rfp';
 import { emitAutomationEvent } from '@/lib/automations/engine';
+import { ALL_EXCLUSION_KEYWORDS } from '@/lib/rfp-filters';
 import type { Database } from '@/types/database';
 
 type RfpInsert = Database['public']['Tables']['rfps']['Insert'];
@@ -59,6 +60,7 @@ export async function GET(request: Request, context: RouteContext) {
     const region = searchParams.get('region'); // e.g., 'Nova Scotia'
     const committeeName = searchParams.get('committee'); // e.g., 'Regional Council'
     const minConfidence = searchParams.get('minConfidence'); // e.g., '70'
+    const exclusionTier = searchParams.get('exclusionTier'); // e.g., 'capital' or 'major'
 
     const offset = (page - 1) * limit;
 
@@ -114,6 +116,20 @@ export async function GET(request: Request, context: RouteContext) {
       if (!isNaN(confidence) && confidence >= 0 && confidence <= 100) {
         // Cast JSONB number to int for comparison
         query = query.filter('custom_fields->>ai_confidence', 'gte', confidence.toString());
+      }
+    }
+
+    // Apply exclusion tier filtering
+    if (exclusionTier && (exclusionTier === 'capital' || exclusionTier === 'major')) {
+      // Apply keyword exclusions to filter out low-value RFPs
+      // Chain multiple .not() calls for each exclusion keyword
+      for (const keyword of ALL_EXCLUSION_KEYWORDS) {
+        query = query.not('title', 'ilike', `%${keyword}%`);
+      }
+
+      // For "major" tier, also add minimum value filter
+      if (exclusionTier === 'major') {
+        query = query.gte('estimated_value', 100000);
       }
     }
 

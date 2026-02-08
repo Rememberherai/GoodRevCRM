@@ -77,6 +77,7 @@ export function RfpsPageClient() {
     regionFilter,
     committeeFilter,
     minConfidenceFilter,
+    exclusionTier,
     search,
     remove,
     filterByStatus,
@@ -84,6 +85,7 @@ export function RfpsPageClient() {
     filterByRegion,
     filterByCommittee,
     filterByMinConfidence,
+    filterByExclusionTier,
     goToPage,
     refresh,
   } = useRfps();
@@ -468,6 +470,19 @@ export function RfpsPageClient() {
             <SelectItem value="80">80%+ (Good)</SelectItem>
             <SelectItem value="70">70%+ (Medium)</SelectItem>
             <SelectItem value="50">50%+ (Low)</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={exclusionTier}
+          onValueChange={(value) => filterByExclusionTier(value as 'none' | 'capital' | 'major')}
+        >
+          <SelectTrigger className="w-[200px]">
+            <SelectValue placeholder="Filter Quality" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="none">All RFPs</SelectItem>
+            <SelectItem value="capital">Capital Projects Only</SelectItem>
+            <SelectItem value="major">Major Capital ($100K+)</SelectItem>
           </SelectContent>
         </Select>
         <ColumnPicker
