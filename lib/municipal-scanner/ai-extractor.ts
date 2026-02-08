@@ -2,30 +2,95 @@ import { getOpenRouterClient } from '../openrouter/client';
 import type { ExtractedRfp } from './types';
 import { SCANNER_CONFIG } from './config';
 
-const EXTRACTION_PROMPT = `You are analyzing municipal meeting minutes to identify waste/water business opportunities related to:
-- Waste management (solid waste, recycling, composting, landfills, waste collection)
-- Water treatment (drinking water, water infrastructure, water quality, distribution systems)
-- Wastewater treatment (sewage, WWTP, collection systems, stormwater, pumping stations)
+const EXTRACTION_PROMPT = `You are analyzing municipal meeting minutes to identify waste/water business opportunities.
 
-Extract ANY of the following:
-1. **Formal RFPs/Bids**: Request for Proposal, bid opportunity, tender, procurement
-2. **Project Discussions**: Planned projects, infrastructure upgrades, capital projects being considered
-3. **Needs/Problems**: Issues mentioned that may lead to contracts (aging infrastructure, capacity problems, regulatory requirements)
-4. **Budget Approvals**: Approved funding for waste/water projects
-5. **Consultant Hiring**: Discussions about hiring engineers, consultants for waste/water studies
-6. **Service Contract Renewals**: Expiring contracts that will need rebidding
+FOCUS AREAS:
+- Wastewater treatment (WWTP, sewage, effluent, collection systems, pumping stations, stormwater)
+- Water treatment (drinking water, distribution, water quality, treatment plants)
+- Waste management (solid waste, recycling, composting, landfills, collection)
 
-For each opportunity found, extract:
-- Title/Project Name
-- Description of what's being discussed/planned/procured
-- Timeline or due date (if mentioned)
-- Estimated value or budget (if mentioned)
-- Current status (proposed/approved/RFP issued/under study)
-- Submission method and contact (if an active RFP)
-- Meeting date (if visible in the minutes)
-- Committee/Council name (e.g., "Regional Council", "Public Works Committee")
-- Agenda item number (if mentioned, e.g., "Item 15.1.3")
-- A brief excerpt/quote from the minutes showing this opportunity
+WHAT TO EXTRACT (capture ALL of these):
+1. Formal RFPs/Bids - active procurement opportunities
+2. Project Discussions - approved projects, upcoming RFPs
+3. Needs/Problems - issues that will require solutions/contracts
+4. Budget Approvals - funded waste/water projects
+5. Consultant Hiring - engineering/technical studies
+6. Service Contract Renewals - expiring contracts
+7. Operational Challenges - plant performance issues, effluent violations, permit exceedances, capacity problems, process upsets
+8. Compliance Issues - regulatory violations, Ministry/EPA orders, permit conditions
+9. Cost Reduction - high operational costs, optimization needs
+10. Contaminant Issues - nutrient removal (P, N, NH3), BOD/TSS/COD exceedances, effluent violations
+
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+EXTRACTION REQUIREMENTS - MAXIMUM DATA CAPTURE
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
+**TITLE** (be extremely specific):
+✓ Include facility name + location + project type
+✓ Examples: "North WWTP Phosphorus Removal Upgrade", "Industrial Park Water Main Extension - Phase 2", "East End Lift Station #4 Replacement"
+✗ Bad: "WWTP Upgrade", "Infrastructure Project"
+
+**DESCRIPTION** (5-10+ sentences - CRITICAL FIELD):
+Extract EVERYTHING. Include ALL of:
+
+1. PROBLEM STATEMENT (what's broken/failing/violated):
+   - What specific issue exists
+   - Current performance numbers vs. requirements
+   - Violations, failures, complaints
+
+2. TECHNICAL DATA (capture EVERY number mentioned):
+   - Flow rates: ML/day, MGD, m³/day, L/s
+   - Capacity: design vs actual, hydraulic vs organic
+   - Contaminant levels: current vs limits
+     * Phosphorus (TP), Nitrogen (TN), Ammonia (NH3-N)
+     * BOD, TSS, COD
+     * E. coli, turbidity, pH
+     * Any other parameters
+   - Population served (current and projected)
+   - Age of infrastructure
+   - Treatment processes currently in place
+
+3. REGULATORY CONTEXT:
+   - What regulation/permit/order is driving this
+   - Compliance deadline
+   - Regulatory agency (Ministry, EPA, etc.)
+   - Certificate of Approval conditions
+
+4. FACILITY DETAILS:
+   - Plant capacity and service area
+   - Existing treatment processes
+   - Proposed technology/solution
+   - Alternatives being considered
+
+5. PROJECT SCOPE & TIMELINE:
+   - Construction phases
+   - Project timeline mentioned
+   - Related work or dependencies
+
+6. BUSINESS CONTEXT:
+   - Budget/cost mentioned
+   - Urgency level
+   - Operational constraints
+   - Stakeholder concerns
+
+**OTHER CRITICAL FIELDS** (extract if present):
+- Meeting date (YYYY-MM-DD) - look in headers, footers, document title
+- Committee name (full official name)
+- Agenda item number (e.g., "15.1.3", "Report PW-2024-05")
+- Due date for RFP submissions
+- Budget/estimated value (extract ANY dollar amount)
+- Contact information (emails, phone numbers, staff names)
+- Consultant/engineering firms mentioned
+- Document references (report numbers, study names)
+- Website URLs or portal links mentioned
+
+**EXCERPT** (200-500+ words for complex items):
+- Include the COMPLETE relevant section(s)
+- Don't truncate or summarize
+- Include ALL technical data and numbers
+- Include discussion context (who spoke, motions, votes)
+- If discussion spans multiple agenda items, include all
+- Preserve exact wording for compliance/regulatory language
 
 Include opportunities that are:
 - Currently active (RFPs, tenders open now)
@@ -35,12 +100,16 @@ Include opportunities that are:
 
 CRITICAL: Return ONLY valid JSON, no explanatory text before or after.
 
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+JSON OUTPUT FORMAT
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+
 Return this exact structure:
 {
   "rfps": [
     {
-      "title": "string (required)",
-      "description": "string - detailed description of project/opportunity (required)",
+      "title": "Facility Name + Location + Project Type (specific, detailed)",
+      "description": "5-10+ sentences covering: (1) Problem statement with current vs required performance numbers, (2) ALL technical data - flows, capacities, contaminant levels, population served, infrastructure age, (3) Regulatory context - what regulation/permit/deadline, (4) Facility details - capacity, existing processes, proposed technology, (5) Project scope and timeline, (6) Business context - budget, urgency, constraints. Include EVERY number and specification mentioned.",
       "due_date": "YYYY-MM-DD or null",
       "estimated_value": number_or_null,
       "currency": "CAD or null",
@@ -48,10 +117,10 @@ Return this exact structure:
       "contact_email": "email@example.com or null",
       "confidence": number_0_to_100,
       "opportunity_type": "formal_rfp|project_discussion|planning_stage (required)",
-      "meeting_date": "YYYY-MM-DD or null",
-      "committee_name": "string or null",
-      "agenda_item": "string or null",
-      "excerpt": "string - brief relevant quote from minutes or null"
+      "meeting_date": "YYYY-MM-DD (extract from document - CRITICAL) or null",
+      "committee_name": "Full official committee name or null",
+      "agenda_item": "Item number/report number (e.g., 15.1.3, Report PW-2024-05) or null",
+      "excerpt": "COMPLETE relevant section 200-500+ words - include ALL context, technical details, discussion, motions. Do NOT truncate or summarize."
     }
   ]
 }
@@ -87,9 +156,9 @@ ${truncatedText}`;
       [{ role: 'user', content: prompt }],
       {
         model: 'x-ai/grok-4.1-fast',
-        temperature: 0.3,
+        temperature: 0.2, // Lower temperature for more consistent extraction
         responseFormat: 'json_object',
-        maxTokens: 4096,
+        maxTokens: 8192, // Increased for comprehensive descriptions and excerpts
       }
     );
 

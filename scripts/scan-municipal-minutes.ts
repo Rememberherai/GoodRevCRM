@@ -14,9 +14,7 @@ const supabase = createClient(
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
 
-const logger = new ScanLogger();
-
-// Parse command line arguments
+// Parse command line arguments first to get province for logger
 function parseArgs(): ScanOptions {
   const args = process.argv.slice(2);
   const options: ScanOptions = {};
@@ -112,7 +110,8 @@ async function scanMunicipality(
   municipality: Municipality,
   index: number,
   total: number,
-  dryRun: boolean
+  dryRun: boolean,
+  logger: ScanLogger
 ): Promise<ScanResult> {
   const startedAt = new Date();
   const result: ScanResult = {
@@ -358,7 +357,7 @@ async function scanMunicipality(
   } catch (error: any) {
     result.status = 'failed';
     result.error = error.message;
-    logger.logError(error.message);
+    logger.logErrorMessage(error.message);
 
     if (!dryRun) {
       await supabase
@@ -377,6 +376,9 @@ async function scanMunicipality(
 
 async function main() {
   const options = parseArgs();
+
+  // Initialize logger with province name for log file
+  const logger = new ScanLogger(options.province);
 
   logger.logHeader();
 
@@ -409,7 +411,8 @@ async function main() {
       municipality,
       i + 1,
       municipalities.length,
-      options.dryRun || false
+      options.dryRun || false,
+      logger
     );
 
     results.push(result);
