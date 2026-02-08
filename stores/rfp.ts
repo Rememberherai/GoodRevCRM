@@ -25,6 +25,7 @@ interface RfpState {
   committeeFilter: string | null;
   minConfidenceFilter: number | null;
   exclusionTier: 'none' | 'capital' | 'major';
+  countryFilter: string | null;
 
   // Actions
   setRfps: (rfps: Rfp[], pagination: PaginationState) => void;
@@ -43,6 +44,7 @@ interface RfpState {
   setCommitteeFilter: (committee: string | null) => void;
   setMinConfidenceFilter: (confidence: number | null) => void;
   setExclusionTier: (tier: 'none' | 'capital' | 'major') => void;
+  setCountryFilter: (country: string | null) => void;
   setPage: (page: number) => void;
   reset: () => void;
 }
@@ -68,6 +70,7 @@ const initialState = {
   committeeFilter: null,
   minConfidenceFilter: null,
   exclusionTier: 'none' as const,
+  countryFilter: null,
 };
 
 export const useRfpStore = create<RfpState>((set) => ({
@@ -141,6 +144,9 @@ export const useRfpStore = create<RfpState>((set) => ({
   setExclusionTier: (exclusionTier) =>
     set({ exclusionTier, pagination: { ...initialState.pagination } }),
 
+  setCountryFilter: (countryFilter) =>
+    set({ countryFilter, pagination: { ...initialState.pagination } }),
+
   setPage: (page) =>
     set((state) => ({ pagination: { ...state.pagination, page } })),
 
@@ -164,6 +170,7 @@ export async function fetchRfps(
     committee?: string;
     minConfidence?: number;
     exclusionTier?: string;
+    country?: string;
   } = {}
 ): Promise<{
   rfps: Rfp[];
@@ -183,6 +190,7 @@ export async function fetchRfps(
   if (options.committee) params.set('committee', options.committee);
   if (options.minConfidence !== undefined) params.set('minConfidence', options.minConfidence.toString());
   if (options.exclusionTier) params.set('exclusionTier', options.exclusionTier);
+  if (options.country) params.set('country', options.country);
 
   const response = await fetch(
     `/api/projects/${projectSlug}/rfps?${params.toString()}`

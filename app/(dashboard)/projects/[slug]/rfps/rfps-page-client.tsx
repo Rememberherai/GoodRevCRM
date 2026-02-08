@@ -78,6 +78,7 @@ export function RfpsPageClient() {
     committeeFilter,
     minConfidenceFilter,
     exclusionTier,
+    countryFilter,
     search,
     remove,
     filterByStatus,
@@ -86,6 +87,7 @@ export function RfpsPageClient() {
     filterByCommittee,
     filterByMinConfidence,
     filterByExclusionTier,
+    filterByCountry,
     goToPage,
     refresh,
   } = useRfps();
@@ -483,6 +485,19 @@ export function RfpsPageClient() {
             <SelectItem value="none">All RFPs</SelectItem>
             <SelectItem value="capital">Capital Projects Only</SelectItem>
             <SelectItem value="major">Major Capital ($100K+)</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={countryFilter ?? 'all'}
+          onValueChange={(value) => filterByCountry(value === 'all' ? null : value)}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Country" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Countries</SelectItem>
+            <SelectItem value="Canada">Canada</SelectItem>
+            <SelectItem value="USA">USA</SelectItem>
           </SelectContent>
         </Select>
         <ColumnPicker

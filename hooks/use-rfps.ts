@@ -32,6 +32,7 @@ export function useRfps() {
     committeeFilter,
     minConfidenceFilter,
     exclusionTier,
+    countryFilter,
     setRfps,
     addRfp,
     updateRfp,
@@ -47,6 +48,7 @@ export function useRfps() {
     setCommitteeFilter,
     setMinConfidenceFilter,
     setExclusionTier,
+    setCountryFilter,
     setPage,
   } = useRfpStore();
 
@@ -68,6 +70,7 @@ export function useRfps() {
         committee: committeeFilter ?? undefined,
         minConfidence: minConfidenceFilter ?? undefined,
         exclusionTier: exclusionTier !== 'none' ? exclusionTier : undefined,
+        country: countryFilter ?? undefined,
       });
       setRfps(result.rfps, result.pagination);
     } catch (err) {
@@ -87,6 +90,7 @@ export function useRfps() {
     committeeFilter,
     minConfidenceFilter,
     exclusionTier,
+    countryFilter,
     setRfps,
     setLoading,
     setError,
@@ -208,6 +212,13 @@ export function useRfps() {
     [setExclusionTier]
   );
 
+  const filterByCountry = useCallback(
+    (country: string | null) => {
+      setCountryFilter(country);
+    },
+    [setCountryFilter]
+  );
+
   const goToPage = useCallback(
     (page: number) => {
       setPage(page);
@@ -235,6 +246,7 @@ export function useRfps() {
     committeeFilter,
     minConfidenceFilter,
     exclusionTier,
+    countryFilter,
     refresh: loadRfps,
     create,
     update,
@@ -248,6 +260,7 @@ export function useRfps() {
     filterByCommittee,
     filterByMinConfidence,
     filterByExclusionTier,
+    filterByCountry,
     goToPage,
   };
 }
