@@ -53,6 +53,11 @@ export interface ScannerConfig {
   requestDelayMs: number;
   maxRetries: number;
   chunkSizeTokens: number;
+
+  // Parallel processing configuration
+  concurrentMunicipalities: number;
+  concurrentMeetingsPerMunicipality: number;
+  enableParallelProcessing: boolean;
 }
 
 export interface ScanOptions {

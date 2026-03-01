@@ -9,17 +9,27 @@ FOCUS AREAS:
 - Water treatment (drinking water, distribution, water quality, treatment plants)
 - Waste management (solid waste, recycling, composting, landfills, collection)
 
-WHAT TO EXTRACT (capture ALL of these):
-1. Formal RFPs/Bids - active procurement opportunities
-2. Project Discussions - approved projects, upcoming RFPs
-3. Needs/Problems - issues that will require solutions/contracts
-4. Budget Approvals - funded waste/water projects
-5. Consultant Hiring - engineering/technical studies
-6. Service Contract Renewals - expiring contracts
-7. Operational Challenges - plant performance issues, effluent violations, permit exceedances, capacity problems, process upsets
-8. Compliance Issues - regulatory violations, Ministry/EPA orders, permit conditions
-9. Cost Reduction - high operational costs, optimization needs
-10. Contaminant Issues - nutrient removal (P, N, NH3), BOD/TSS/COD exceedances, effluent violations
+WHAT TO EXTRACT - CAPITAL PROJECTS ONLY:
+
+✅ INCLUDE:
+1. Formal RFPs/Bids - active procurement for capital projects (construction, equipment, infrastructure)
+2. Project Discussions - approved capital projects, upcoming RFPs for construction/upgrades
+3. Budget Approvals - funded CAPITAL waste/water projects (infrastructure, plant upgrades, expansions)
+4. Consultant Hiring - engineering studies that will lead to capital projects
+5. Operational Challenges - plant performance issues requiring CAPITAL SOLUTIONS (upgrades, new equipment, expansion)
+6. Compliance Issues - regulatory violations requiring CAPITAL INVESTMENT (new treatment processes, plant expansions)
+7. Infrastructure Projects - new construction, upgrades, expansions, replacements
+8. Technology Implementations - new systems, equipment, SCADA, automation (not routine supplies)
+
+❌ EXCLUDE (DO NOT EXTRACT):
+- Routine chemical supply contracts (hypochlorite, lime, sulfate, coagulants, etc.)
+- Low-value operational supplies under $50,000 CAD
+- Maintenance contracts for existing equipment
+- Annual service agreements
+- Routine laboratory testing services
+- Utility billing or administrative services
+- Office supplies or non-technical items
+- ONLY extract if it's a CAPITAL PROJECT with construction, equipment, or infrastructure
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EXTRACTION REQUIREMENTS - MAXIMUM DATA CAPTURE
@@ -97,6 +107,12 @@ Include opportunities that are:
 - Upcoming/planned (projects approved but RFP not yet issued)
 - Under discussion (projects being studied/considered for next year)
 - DO NOT include completed historical projects
+- DO NOT include routine supply contracts or low-value operational items
+
+MINIMUM VALUE THRESHOLD:
+- Only extract opportunities with estimated value ≥ $50,000 CAD OR
+- Clear indication this is a capital/infrastructure project (even if value not specified)
+- Skip routine chemical supplies, maintenance contracts, and operational consumables
 
 CRITICAL: Return ONLY valid JSON, no explanatory text before or after.
 

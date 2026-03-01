@@ -39,7 +39,8 @@ async function getMunicipalitiesToScan(options: ScanOptions): Promise<Municipali
   let query = supabase
     .from('municipalities')
     .select('*')
-    .not('minutes_url', 'is', null);
+    .not('minutes_url', 'is', null)
+    .eq('country', 'USA'); // Only scan USA municipalities
 
   if (options.province) {
     query = query.eq('province', options.province);
@@ -90,9 +91,9 @@ async function findOrCreateOrganization(
       name: `${municipality.name} - ${municipality.province}`,
       address_city: municipality.name,
       address_state: municipality.province,
-      address_country: 'Canada',
+      address_country: municipality.country || 'USA',
       industry: 'Government',
-      description: `Municipal government - ${municipality.municipality_type || 'municipality'}`,
+      description: `Municipal government - ${municipality.municipality_type || 'city'}`,
       website: municipality.official_website,
     })
     .select('id')
@@ -155,6 +156,12 @@ async function scanMunicipality(
 
     if (meetingDocs.length === 0) {
       logger.logWarning('No meeting documents found on calendar page');
+      logger.logNoMinutesFound(
+        municipality.name,
+        municipality.province,
+        municipality.minutes_url,
+        'No meeting documents found on calendar page'
+      );
       result.status = 'no_minutes';
       result.completedAt = new Date();
       return result;
@@ -163,43 +170,70 @@ async function scanMunicipality(
     result.minutesFetched = meetingDocs.length;
     const allExtractedRfps: ExtractedRfp[] = [];
 
-    // STEP 2: Fetch and analyze each meeting document
-    for (let i = 0; i < meetingDocs.length; i++) {
-      const meeting = meetingDocs[i];
-      console.log(`  📄 [${i + 1}/${meetingDocs.length}] Fetching ${meeting.type.toUpperCase()}: ${meeting.url.substring(0, 70)}...`);
+    // STEP 2: Fetch and analyze meeting documents (in parallel batches)
+    const meetingBatchSize = SCANNER_CONFIG.enableParallelProcessing
+      ? SCANNER_CONFIG.concurrentMeetingsPerMunicipality
+      : 1;
 
-      // Fetch meeting content
-      const textContent = await fetchMeetingContent(meeting);
+    for (let i = 0; i < meetingDocs.length; i += meetingBatchSize) {
+      const batch = meetingDocs.slice(i, i + meetingBatchSize);
 
-      if (!textContent || textContent.length < 100) {
-        console.log(`    ⚠️  Skipping - too little content`);
-        continue;
+      if (meetingBatchSize > 1) {
+        console.log(`  📄 Processing meetings ${i + 1}-${Math.min(i + batch.length, meetingDocs.length)} of ${meetingDocs.length}`);
       }
 
-      console.log(`    📝 Extracted ${textContent.length.toLocaleString()} characters`);
+      // Fetch and analyze all meetings in batch concurrently
+      const batchResults = await Promise.all(
+        batch.map(async (meeting, batchIndex) => {
+          const globalIndex = i + batchIndex + 1;
 
-      // AI analysis
-      console.log(`    🤖 AI analyzing for waste/water RFPs...`);
-      const extractedRfps = await extractRfpsFromMinutes(
-        textContent,
-        municipality.name,
-        municipality.province
+          try {
+            console.log(`    [${globalIndex}/${meetingDocs.length}] Fetching ${meeting.type.toUpperCase()}: ${meeting.url.substring(0, 60)}...`);
+
+            // Fetch meeting content
+            const textContent = await fetchMeetingContent(meeting);
+
+            if (!textContent || textContent.length < 100) {
+              console.log(`      ⚠️  Skipping - too little content`);
+              return [];
+            }
+
+            console.log(`      📝 Extracted ${textContent.length.toLocaleString()} characters`);
+            console.log(`      🤖 AI analyzing...`);
+
+            // AI analysis
+            const extractedRfps = await extractRfpsFromMinutes(
+              textContent,
+              municipality.name,
+              municipality.province
+            );
+
+            if (extractedRfps.length > 0) {
+              console.log(`      ✅ Found ${extractedRfps.length} RFP(s)!`);
+              // Attach the meeting URL to each RFP
+              extractedRfps.forEach(rfp => {
+                rfp.source_meeting_url = meeting.url;
+              });
+            } else {
+              console.log(`      ⚪ No RFPs in this document`);
+            }
+
+            return extractedRfps;
+          } catch (error: any) {
+            console.error(`      ❌ Error processing meeting: ${error.message}`);
+            return [];
+          }
+        })
       );
 
-      if (extractedRfps.length > 0) {
-        console.log(`    ✅ Found ${extractedRfps.length} potential RFP(s)!`);
-        // Attach the meeting URL to each RFP
-        extractedRfps.forEach(rfp => {
-          rfp.source_meeting_url = meeting.url;
-        });
-        allExtractedRfps.push(...extractedRfps);
-      } else {
-        console.log(`    ⚪ No RFPs in this document`);
+      // Flatten batch results and add to main array
+      for (const rfps of batchResults) {
+        allExtractedRfps.push(...rfps);
       }
 
-      // Small delay between documents to be polite
-      if (i < meetingDocs.length - 1) {
-        await delay(1000);
+      // Small delay between batches
+      if (i + meetingBatchSize < meetingDocs.length) {
+        await delay(300);
       }
     }
 
@@ -305,12 +339,12 @@ async function scanMunicipality(
           description: primaryRfp.description,
           due_date: primaryRfp.due_date,
           estimated_value: primaryRfp.estimated_value,
-          currency: primaryRfp.currency || 'CAD',
+          currency: primaryRfp.currency || 'USD',
           status: 'identified',
           submission_method: primaryRfp.submission_method,
           submission_email: primaryRfp.contact_email,
           custom_fields: {
-            country: 'Canada',
+            country: municipality.country || 'USA',
             region: municipality.province,
             source: source,
             opportunity_type: primaryRfp.opportunity_type,
@@ -404,25 +438,68 @@ async function main() {
   const provinceRfpCounts = new Map<string, number>();
   let organizationsCreated = 0;
 
-  for (let i = 0; i < municipalities.length; i++) {
-    const municipality = municipalities[i];
+  // Process municipalities in batches for parallel processing
+  const batchSize = SCANNER_CONFIG.enableParallelProcessing
+    ? SCANNER_CONFIG.concurrentMunicipalities
+    : 1;
+  const totalBatches = Math.ceil(municipalities.length / batchSize);
 
-    const result = await scanMunicipality(
-      municipality,
-      i + 1,
-      municipalities.length,
-      options.dryRun || false,
-      logger
+  for (let i = 0; i < municipalities.length; i += batchSize) {
+    const batch = municipalities.slice(i, i + batchSize);
+    const batchNum = Math.floor(i / batchSize) + 1;
+
+    // Log batch start if parallel processing
+    if (SCANNER_CONFIG.enableParallelProcessing && batchSize > 1) {
+      logger.logBatchStart(batchNum, totalBatches, batch.length);
+    }
+
+    // Process batch in parallel
+    const batchResults = await Promise.all(
+      batch.map((municipality, batchIndex) =>
+        scanMunicipality(
+          municipality,
+          i + batchIndex + 1, // Global index
+          municipalities.length,
+          options.dryRun || false,
+          logger
+        ).catch(error => {
+          // Handle errors gracefully - don't crash the whole batch
+          logger.logErrorMessage(`Municipality ${municipality.name} failed: ${error.message}`);
+          return {
+            municipalityId: municipality.id,
+            municipalityName: municipality.name,
+            province: municipality.province,
+            status: 'failed' as const,
+            error: error.message,
+            minutesFetched: 0,
+            rfpsDetected: 0,
+            rfpsCreated: 0,
+            startedAt: new Date(),
+            completedAt: new Date(),
+          };
+        })
+      )
     );
 
-    results.push(result);
+    results.push(...batchResults);
 
     // Track province counts
-    const currentCount = provinceRfpCounts.get(municipality.province) || 0;
-    provinceRfpCounts.set(municipality.province, currentCount + result.rfpsCreated);
+    let batchRfpsFound = 0;
+    for (let j = 0; j < batch.length; j++) {
+      const municipality = batch[j];
+      const result = batchResults[j];
+      const currentCount = provinceRfpCounts.get(municipality.province) || 0;
+      provinceRfpCounts.set(municipality.province, currentCount + result.rfpsCreated);
+      batchRfpsFound += result.rfpsCreated;
+    }
 
-    // Be polite - delay between requests
-    if (i < municipalities.length - 1) {
+    // Log batch completion if parallel processing
+    if (SCANNER_CONFIG.enableParallelProcessing && batchSize > 1) {
+      logger.logBatchComplete(batchNum, totalBatches, batchRfpsFound);
+    }
+
+    // Small delay between batches (not between individual municipalities)
+    if (i + batchSize < municipalities.length) {
       await delay(SCANNER_CONFIG.requestDelayMs);
     }
   }

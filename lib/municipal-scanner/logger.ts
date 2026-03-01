@@ -4,6 +4,7 @@ import { join } from 'path';
 
 export class ScanLogger {
   private logFile: string | null = null;
+  private noMinutesLogFile: string | null = null;
 
   constructor(province?: string) {
     // Create logs directory if it doesn't exist
@@ -14,12 +15,15 @@ export class ScanLogger {
       const timestamp = new Date().toISOString().replace(/[:.]/g, '-').substring(0, 19);
       const provinceSlug = province ? `-${province.toLowerCase().replace(/\s+/g, '-')}` : '';
       this.logFile = join('logs', `scan${provinceSlug}-${timestamp}.log`);
+      this.noMinutesLogFile = join('logs', `no-minutes${provinceSlug}-${timestamp}.log`);
 
-      // Initialize log file
+      // Initialize log files
       writeFileSync(this.logFile, '');
+      writeFileSync(this.noMinutesLogFile, '# URLs that did not return any meeting documents\n# Format: Municipality Name | State | URL | Reason\n\n');
     } catch (error) {
       console.error('Warning: Could not create log file:', error);
       this.logFile = null;
+      this.noMinutesLogFile = null;
     }
   }
 
@@ -46,10 +50,13 @@ export class ScanLogger {
   }
 
   logHeader() {
-    this.log('\n🇨🇦 Canadian Municipal RFP Scanner');
+    this.log('\n🇺🇸 USA Municipal RFP Scanner');
     this.log('====================================\n');
     if (this.logFile) {
       this.log(`Log file: ${this.logFile}\n`);
+    }
+    if (this.noMinutesLogFile) {
+      this.log(`No minutes log: ${this.noMinutesLogFile}\n`);
     }
   }
 
@@ -107,8 +114,29 @@ export class ScanLogger {
     this.log(`  ⚠️  ${message}`);
   }
 
+  logNoMinutesFound(municipality: string, state: string, url: string, reason: string) {
+    const message = `${municipality} | ${state} | ${url} | ${reason}`;
+    if (this.noMinutesLogFile) {
+      try {
+        appendFileSync(this.noMinutesLogFile, message + '\n');
+      } catch (error) {
+        // Silently ignore file write errors
+      }
+    }
+  }
+
   logSuccess() {
     this.log(`  💾 Inserted into database\n`);
+  }
+
+  logBatchStart(batchNum: number, totalBatches: number, batchSize: number) {
+    this.log(`\n━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━`);
+    this.log(`Batch ${batchNum}/${totalBatches} (${batchSize} municipalities in parallel)`);
+    this.log(`━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━\n`);
+  }
+
+  logBatchComplete(batchNum: number, totalBatches: number, rfpsFound: number) {
+    this.log(`\n✓ Batch ${batchNum}/${totalBatches} complete - Found ${rfpsFound} RFPs`);
   }
 
   logSummary(summary: ScanSummary) {
@@ -138,6 +166,9 @@ export class ScanLogger {
 
     if (this.logFile) {
       this.log(`Full log saved to: ${this.logFile}`);
+    }
+    if (this.noMinutesLogFile) {
+      this.log(`URLs with no minutes saved to: ${this.noMinutesLogFile}`);
     }
   }
 }
