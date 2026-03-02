@@ -1,62 +1,68 @@
 import { NextResponse } from 'next/server';
+import { createClient } from '@/lib/supabase/server';
 import { processSequences } from '@/lib/sequences/processor';
 import { processTimeTriggers } from '@/lib/automations/time-triggers';
 
 /**
- * Cron endpoint for processing sequence enrollments and time-based automations
- * This should be called periodically (e.g., every minute) to send scheduled emails
- * and evaluate time-based automation triggers.
- *
- * For Vercel Cron: Add to vercel.json:
- * {
- *   "crons": [{
- *     "path": "/api/cron/process-sequences",
- *     "schedule": "* * * * *"
- *   }]
- * }
+ * Process sequence enrollments and time-based automations.
+ * Supports two auth modes:
+ *   1. CRON_SECRET bearer token (for Vercel Cron or pg_cron via edge function)
+ *   2. Supabase session cookie (for manual "Process Queue" button in UI)
  */
+async function processAll() {
+  console.log('[Process] Starting sequence processing...');
+  const result = await processSequences(100);
+  console.log(
+    `[Process] Sequence processing complete: ${result.processed} processed, ${result.sent} sent, ${result.completed} completed, ${result.errors} errors`
+  );
+
+  let automationResult = null;
+  try {
+    console.log('[Process] Starting time-based automation processing...');
+    automationResult = await processTimeTriggers(200);
+    console.log(
+      `[Process] Automation processing complete: ${automationResult.processed} processed, ${automationResult.matched} matched, ${automationResult.errors} errors`
+    );
+  } catch (automationError) {
+    console.error('[Process] Error processing automations:', automationError instanceof Error ? automationError.message : 'Unknown error');
+  }
+
+  return { sequences: result, automations: automationResult };
+}
+
 export async function GET(request: Request) {
-  // Verify cron secret for security
+  // Try CRON_SECRET auth first (for automated calls)
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
 
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+    try {
+      const result = await processAll();
+      return NextResponse.json({ success: true, ...result });
+    } catch (error) {
+      console.error('[Process] Error:', error instanceof Error ? error.message : 'Unknown error');
+      return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
+    }
+  }
+
+  // Fall back to user session auth (for manual trigger from UI)
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
+
+  if (!user) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
   try {
-    console.log('[Cron] Starting sequence processing...');
-
-    const result = await processSequences(100);
-
-    console.log(
-      `[Cron] Sequence processing complete: ${result.processed} processed, ${result.sent} sent, ${result.completed} completed, ${result.errors} errors`
-    );
-
-    // Process time-based automation triggers
-    let automationResult = null;
-    try {
-      console.log('[Cron] Starting time-based automation processing...');
-      automationResult = await processTimeTriggers(200);
-      console.log(
-        `[Cron] Automation processing complete: ${automationResult.processed} processed, ${automationResult.matched} matched, ${automationResult.errors} errors`
-      );
-    } catch (automationError) {
-      console.error('[Cron] Error processing automations:', automationError instanceof Error ? automationError.message : 'Unknown error');
-    }
-
-    return NextResponse.json({ success: true });
+    const result = await processAll();
+    return NextResponse.json({ success: true, ...result });
   } catch (error) {
-    console.error('[Cron] Error processing sequences:', error instanceof Error ? error.message : 'Unknown error');
-
-    return NextResponse.json(
-      { success: false, error: 'Internal server error' },
-      { status: 500 }
-    );
+    console.error('[Process] Error:', error instanceof Error ? error.message : 'Unknown error');
+    return NextResponse.json({ success: false, error: 'Internal server error' }, { status: 500 });
   }
 }
 
-// Also support POST for manual triggering
+// Support POST for manual triggering
 export async function POST(request: Request) {
   return GET(request);
 }

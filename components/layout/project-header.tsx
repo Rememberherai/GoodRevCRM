@@ -3,6 +3,7 @@
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UserMenu } from '@/components/layout/user-menu';
 import { NotificationBell } from '@/components/notifications/notification-bell';
+import { ProcessQueueButton } from '@/components/layout/process-queue-button';
 import { SearchTrigger } from '@/components/search';
 import { useNotifications } from '@/hooks/use-notifications';
 import type { Project } from '@/types/project';
@@ -30,6 +31,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
         <SearchTrigger projectSlug={project.slug} />
       </div>
       <div className="flex items-center gap-4">
+        <ProcessQueueButton />
         <ThemeToggle />
         <NotificationBell
           notifications={notifications}
