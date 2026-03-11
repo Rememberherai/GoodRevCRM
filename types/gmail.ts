@@ -105,6 +105,8 @@ export interface SendEmailInput {
   reply_to_message_id?: string;
   thread_id?: string;
   attachments?: EmailAttachment[];
+  sequence_enrollment_id?: string;
+  sequence_step_id?: string;
   // Entity associations
   person_id?: string;
   organization_id?: string;

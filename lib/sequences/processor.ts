@@ -299,24 +299,24 @@ async function processEnrollment(
       let threadedSubject = subject;
 
       if (sequence.settings.send_as_reply && currentStep.step_number > 1) {
-        // Find the most recent sent email for this enrollment's person in this sequence
+        // Find the most recent prior email sent in this enrollment.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const supabaseAnyThread = supabase as any;
         const prevStepIds = steps
           .filter((s: SequenceStep) => s.step_type === 'email' && s.step_number < currentStep.step_number)
           .map((s: SequenceStep) => s.id);
 
-        console.log(`[SEQUENCE_PROCESSOR] Looking for prev email: person_id=${enrollment.person_id}, prevStepIds=${JSON.stringify(prevStepIds)}`);
+        console.log(`[SEQUENCE_PROCESSOR] Looking for prev email: enrollment_id=${enrollment.id}, prevStepIds=${JSON.stringify(prevStepIds)}`);
 
         const { data: prevEmail, error: prevEmailError } = prevStepIds.length > 0
           ? await supabaseAnyThread
               .from('sent_emails')
               .select('thread_id, message_id, subject, sequence_step_id')
+              .eq('sequence_enrollment_id', enrollment.id)
               .in('sequence_step_id', prevStepIds)
-              .eq('person_id', enrollment.person_id)
-              .order('created_at', { ascending: false })
+              .order('sent_at', { ascending: false })
               .limit(1)
-              .single()
+              .maybeSingle()
           : { data: null, error: null };
 
         console.log(`[SEQUENCE_PROCESSOR] Prev email result:`, JSON.stringify(prevEmail), 'error:', prevEmailError?.message ?? 'none');
@@ -347,6 +347,8 @@ async function processEnrollment(
           subject: threadedSubject,
           body_html: bodyHtml,
           body_text: bodyText,
+          sequence_enrollment_id: enrollment.id,
+          sequence_step_id: currentStep.id,
           person_id: enrollment.person_id,
           ...(threadId ? { thread_id: threadId } : {}),
           ...(replyToMessageId ? { reply_to_message_id: replyToMessageId } : {}),
@@ -360,10 +362,13 @@ async function processEnrollment(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const supabaseAny = supabase as any;
       if (result.sent_email_id) {
-        await supabaseAny
+        const { error: sentEmailUpdateError } = await supabaseAny
           .from('sent_emails')
           .update({ sequence_step_id: currentStep.id })
           .eq('id', result.sent_email_id);
+        if (sentEmailUpdateError) {
+          console.error('[SEQUENCE_PROCESSOR] Failed to backfill sent_emails.sequence_step_id:', sentEmailUpdateError);
+        }
       }
 
       // Log activity for this sequence email send

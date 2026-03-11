@@ -368,6 +368,8 @@ export async function sendEmail(
       organization_id: input.organization_id ?? null,
       opportunity_id: input.opportunity_id ?? null,
       rfp_id: input.rfp_id ?? null,
+      sequence_enrollment_id: input.sequence_enrollment_id ?? null,
+      sequence_step_id: input.sequence_step_id ?? null,
       thread_id: result.threadId,
       message_id: rfc2822MessageId ?? result.id,
       recipient_email: recipientEmail,
