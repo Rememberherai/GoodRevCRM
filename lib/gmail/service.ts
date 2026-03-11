@@ -332,6 +332,29 @@ export async function sendEmail(
   const result = await response.json();
   console.log('[GMAIL_SERVICE] Gmail API success — message_id:', result.id, 'threadId:', result.threadId);
 
+  // Fetch the RFC 2822 Message-ID header from Gmail for threading
+  let rfc2822MessageId: string | null = null;
+  try {
+    const msgResponse = await fetch(
+      `${GMAIL_API_URL}/messages/${result.id}?format=metadata&metadataHeaders=Message-ID`,
+      {
+        headers: { Authorization: `Bearer ${accessToken}` },
+      }
+    );
+    if (msgResponse.ok) {
+      const msgData = await msgResponse.json();
+      const messageIdHeader = msgData.payload?.headers?.find(
+        (h: { name: string; value: string }) => h.name.toLowerCase() === 'message-id'
+      );
+      if (messageIdHeader?.value) {
+        rfc2822MessageId = messageIdHeader.value;
+        console.log('[GMAIL_SERVICE] RFC 2822 Message-ID:', rfc2822MessageId);
+      }
+    }
+  } catch (err) {
+    console.error('[GMAIL_SERVICE] Failed to fetch Message-ID header:', err);
+  }
+
   // Store sent email record
   const recipientEmail = Array.isArray(input.to) ? input.to[0] : input.to;
   console.log('[GMAIL_SERVICE] inserting into sent_emails table...');
@@ -346,7 +369,7 @@ export async function sendEmail(
       opportunity_id: input.opportunity_id ?? null,
       rfp_id: input.rfp_id ?? null,
       thread_id: result.threadId,
-      message_id: result.id,
+      message_id: rfc2822MessageId ?? result.id,
       recipient_email: recipientEmail,
       subject: input.subject,
       body_html: input.body_html,

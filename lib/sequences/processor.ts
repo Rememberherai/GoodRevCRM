@@ -319,9 +319,10 @@ async function processEnrollment(
 
         if (prevEmail?.thread_id) {
           threadId = prevEmail.thread_id;
-          // Gmail message IDs need angle brackets for In-Reply-To header
+          // Use RFC 2822 Message-ID for In-Reply-To header
+          // If it already has angle brackets, use as-is; otherwise wrap
           replyToMessageId = prevEmail.message_id
-            ? `<${prevEmail.message_id}>`
+            ? (prevEmail.message_id.startsWith('<') ? prevEmail.message_id : `<${prevEmail.message_id}>`)
             : undefined;
           // Add Re: prefix if not already present
           if (!threadedSubject.startsWith('Re: ')) {
