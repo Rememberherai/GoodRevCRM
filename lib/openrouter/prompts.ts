@@ -885,7 +885,9 @@ export function buildGenericEmailDiscoveryPrompt(
     .filter(Boolean)
     .join(', ');
 
-  return `You are a municipal government research specialist. Your task is to find generic department email addresses for a municipality.
+  return `You are a municipal government research specialist with web search access. Your task is to find generic department email addresses for a municipality.
+
+You have access to the web — USE IT. Search for the municipality's official website, verify their email domain, and look for contact pages that list department emails.
 
 Municipality Information:
 - Name: ${organization.name}
@@ -898,26 +900,32 @@ Target Departments:
 ${deptList}
 
 Instructions:
-1. FIRST, determine the official email domain for this municipality. Municipal domains typically follow patterns like:
+1. SEARCH THE WEB for this municipality's official website. Look for:
+   - Their official .gov or .org website
+   - Contact pages, staff directories, or department listings
+   - Any published email addresses for the target departments
+
+2. VERIFY the email domain. Municipal domains typically follow patterns like:
    - cityname.gov, cityname.org, ci.cityname.state.us, cityofname.org, townofname.gov
    - For counties: co.countyname.state.us, countyname.gov
    - For Canadian municipalities: cityname.ca, municipalityname.ca
-   If a domain or website is already provided, extract the email domain from it.
+   If a domain or website is already provided, verify it via web search.
 
-2. THEN, generate the most likely generic/department email addresses for the target departments. Common patterns include:
+3. Find or generate the most likely generic/department email addresses for the target departments. If you find actual emails on their website, use those. Otherwise, use common patterns:
    - water@, wastewater@, sewer@ (Water/Wastewater departments)
    - dpw@, publicworks@, pw@ (Public Works/DPW)
    - utilities@, utility@ (Utilities departments)
    - engineering@, engineer@ (Engineering departments)
    - info@, clerk@, cityclerk@, admin@ (General intake - gets forwarded to the right person)
 
-3. Return up to ${maxResults} email addresses total. Prioritize:
+4. Return up to ${maxResults} email addresses total. Prioritize:
+   - Emails you actually found on their website (highest confidence)
    - One department-specific email (water, dpw, utilities) related to wastewater
    - One general fallback email (info, clerk, admin) that will be forwarded internally
 
 IMPORTANT:
 - Do NOT return personal emails (firstname.lastname@). Only generic/department addresses.
-- Base confidence on whether you can verify the domain exists vs guessing. Known domains get 0.7+, guessed domains get 0.3-0.5.
+- Base confidence on verification: emails found on their website get 0.8-0.95, verified domains with common patterns get 0.6-0.8, guessed domains get 0.3-0.5.
 - If you cannot determine the municipality's email domain with any confidence, return an empty emails array.
 - Always include the discovered domain and website in your response, even if they were provided in the input.
 

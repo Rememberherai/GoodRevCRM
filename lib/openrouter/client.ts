@@ -65,6 +65,7 @@ export interface OpenRouterRequestOptions {
   stream?: boolean;
   responseFormat?: 'text' | 'json_object';
   systemPrompt?: string;
+  webSearch?: boolean;
 }
 
 // Client class
@@ -105,6 +106,10 @@ export class OpenRouterClient {
 
     if (responseFormat === 'json_object') {
       body.response_format = { type: 'json_object' };
+    }
+
+    if (options.webSearch) {
+      body.plugins = [{ id: 'web' }];
     }
 
     const response = await fetch(OPENROUTER_API_URL, {
