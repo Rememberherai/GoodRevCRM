@@ -40,19 +40,21 @@ export async function GET(request: Request, context: RouteContext) {
     // Parse query parameters
     const { searchParams } = new URL(request.url);
     const rawPage = parseInt(searchParams.get('page') ?? '1', 10);
+    const idsOnly = searchParams.get('fields') === 'id';
+    const maxLimit = idsOnly ? 10000 : 100;
     const rawLimit = parseInt(searchParams.get('limit') ?? '50', 10);
     const page = Math.max(isNaN(rawPage) ? 1 : rawPage, 1);
-    const limit = Math.min(Math.max(isNaN(rawLimit) ? 50 : rawLimit, 1), 100);
+    const limit = Math.min(Math.max(isNaN(rawLimit) ? 50 : rawLimit, 1), maxLimit);
     const search = searchParams.get('search') ?? '';
     const sortBy = searchParams.get('sortBy') ?? 'created_at';
     const sortOrder = searchParams.get('sortOrder') ?? 'desc';
 
     const offset = (page - 1) * limit;
 
-    // Build query
+    // Build query — select only ID when requested for bulk selection
     let query = supabase
       .from('organizations')
-      .select('*', { count: 'exact' })
+      .select(idsOnly ? 'id' : '*', { count: 'exact' })
       .eq('project_id', project.id)
       .is('deleted_at', null);
 

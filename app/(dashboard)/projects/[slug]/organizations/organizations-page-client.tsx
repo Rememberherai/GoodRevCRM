@@ -65,8 +65,11 @@ export function OrganizationsPageClient() {
   const [searchInput, setSearchInput] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [allPagesSelected, setAllPagesSelected] = useState(false);
+  const [isLoadingAllIds, setIsLoadingAllIds] = useState(false);
 
   const toggleSelection = (id: string) => {
+    setAllPagesSelected(false);
     setSelectedIds(prev => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -79,6 +82,7 @@ export function OrganizationsPageClient() {
   };
 
   const toggleSelectAll = () => {
+    setAllPagesSelected(false);
     if (selectedIds.size === organizations.length && organizations.length > 0) {
       setSelectedIds(new Set());
     } else {
@@ -86,7 +90,29 @@ export function OrganizationsPageClient() {
     }
   };
 
-  const clearSelection = () => setSelectedIds(new Set());
+  const selectAllAcrossPages = async () => {
+    setIsLoadingAllIds(true);
+    try {
+      const params = new URLSearchParams({ limit: '10000' });
+      if (searchInput) params.set('search', searchInput);
+      const response = await fetch(`/api/projects/${slug}/organizations?${params}&fields=id`);
+      if (response.ok) {
+        const data = await response.json();
+        const allIds = (data.organizations || []).map((o: { id: string }) => o.id);
+        setSelectedIds(new Set(allIds));
+        setAllPagesSelected(true);
+      }
+    } catch (err) {
+      console.error('Failed to fetch all org IDs:', err);
+    } finally {
+      setIsLoadingAllIds(false);
+    }
+  };
+
+  const clearSelection = () => {
+    setSelectedIds(new Set());
+    setAllPagesSelected(false);
+  };
 
   const {
     organizations,
@@ -278,6 +304,30 @@ export function OrganizationsPageClient() {
               <TableHead className="w-[70px]"></TableHead>
             </TableRow>
           </TableHeader>
+          {/* Select all across pages banner */}
+          {selectedIds.size === organizations.length && organizations.length > 0 && pagination.total > organizations.length && !allPagesSelected && (
+            <caption className="bg-muted/50 border-b px-4 py-2 text-sm text-center caption-bottom" style={{ captionSide: 'top' }}>
+              All {organizations.length} organizations on this page are selected.{' '}
+              <button
+                className="text-primary underline hover:no-underline font-medium"
+                onClick={selectAllAcrossPages}
+                disabled={isLoadingAllIds}
+              >
+                {isLoadingAllIds ? 'Loading...' : `Select all ${pagination.total} organizations`}
+              </button>
+            </caption>
+          )}
+          {allPagesSelected && (
+            <caption className="bg-primary/10 border-b px-4 py-2 text-sm text-center caption-bottom" style={{ captionSide: 'top' }}>
+              All {selectedIds.size} organizations are selected.{' '}
+              <button
+                className="text-primary underline hover:no-underline font-medium"
+                onClick={clearSelection}
+              >
+                Clear selection
+              </button>
+            </caption>
+          )}
           <TableBody>
             {(isLoading || columnsLoading) && organizations.length === 0 ? (
               <TableRow>
