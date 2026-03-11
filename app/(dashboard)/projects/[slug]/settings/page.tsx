@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
@@ -41,6 +41,7 @@ import { InviteMemberDialog } from '@/components/team/invite-member-dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { AutomationPanel } from '@/components/automations/automation-panel';
 import { ContactProvidersSettings } from '@/components/settings/contact-providers-settings';
+import { EmailSignaturesPanel } from '@/components/settings/email-signatures-panel';
 import type { ProjectRole } from '@/types/user';
 
 
@@ -250,6 +251,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             <UserSearch className="h-4 w-4" />
             Contact Discovery
           </TabsTrigger>
+          <TabsTrigger value="signatures" className="gap-2">
+            <Pen className="h-4 w-4" />
+            Signatures
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6 mt-6">
@@ -426,6 +431,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
 
         <TabsContent value="contact-discovery" className="space-y-6 mt-6">
           <ContactProvidersSettings slug={slug} />
+        </TabsContent>
+
+        <TabsContent value="signatures" className="space-y-6 mt-6">
+          <EmailSignaturesPanel slug={slug} />
         </TabsContent>
 
       </Tabs>

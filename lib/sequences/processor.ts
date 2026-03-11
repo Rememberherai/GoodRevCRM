@@ -2,6 +2,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { sendEmail, GmailServiceError } from '@/lib/gmail/service';
 import { sendOutboundSms } from '@/lib/telnyx/sms-service';
 import { fetchVariableContext, substituteEmailContent, substituteVariables, substituteConfigVariables } from './variables';
+import { getDefaultSignature, appendSignatureToHtml } from '@/lib/signatures/get-default';
 import type { GmailConnection } from '@/types/gmail';
 import type { StepConfig } from '@/types/sequence';
 
@@ -370,6 +371,13 @@ async function processEnrollment(
         } else {
           console.log(`[SEQUENCE_PROCESSOR] No previous email found for threading`);
         }
+      }
+
+      // Append default signature for the sender
+      const signature = await getDefaultSignature(supabase, enrollment.created_by, sequence.project_id);
+      if (signature) {
+        console.log(`[SEQUENCE_PROCESSOR] Appending signature: ${signature.name}`);
+        bodyHtml = appendSignatureToHtml(bodyHtml, signature.content_html);
       }
 
       // Send the email

@@ -73,6 +73,7 @@ export function SendEmailModal({
   const [connections, setConnections] = useState<GmailConnectionOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [signatureHtml, setSignatureHtml] = useState<string | null>(null);
 
   const form = useForm<SendEmailFormData>({
     resolver: zodResolver(sendEmailFormSchema),
@@ -84,7 +85,7 @@ export function SendEmailModal({
     },
   });
 
-  // Fetch Gmail connections
+  // Fetch Gmail connections and default signature
   useEffect(() => {
     const fetchConnections = async () => {
       setLoading(true);
@@ -109,11 +110,25 @@ export function SendEmailModal({
       }
     };
 
+    const fetchSignature = async () => {
+      try {
+        const res = await fetch(`/api/projects/${projectSlug}/signatures`);
+        if (res.ok) {
+          const data = await res.json();
+          const defaultSig = (data.data ?? []).find((s: { is_default: boolean }) => s.is_default);
+          setSignatureHtml(defaultSig?.content_html ?? null);
+        }
+      } catch {
+        // Signature preview is non-critical
+      }
+    };
+
     if (open) {
       fetchConnections();
+      fetchSignature();
       form.setValue('to', defaultTo);
     }
-  }, [open, defaultTo, form]);
+  }, [open, defaultTo, form, projectSlug]);
 
   const onSubmit = async (data: SendEmailFormData) => {
     setSending(true);
@@ -251,6 +266,16 @@ export function SendEmailModal({
                   </FormItem>
                 )}
               />
+
+              {signatureHtml && (
+                <div className="text-xs text-muted-foreground">
+                  <p className="mb-1 font-medium">Signature (auto-appended):</p>
+                  <div
+                    className="border rounded p-2 bg-muted/30 text-sm"
+                    dangerouslySetInnerHTML={{ __html: signatureHtml }}
+                  />
+                </div>
+              )}
 
               <div className="flex justify-end gap-2 pt-4">
                 <Button

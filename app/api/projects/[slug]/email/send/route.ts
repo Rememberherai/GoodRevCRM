@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { sendEmailSchema } from '@/lib/validators/gmail';
 import { sendEmail } from '@/lib/gmail/service';
+import { getDefaultSignature, appendSignatureToHtml } from '@/lib/signatures/get-default';
 import type { GmailConnection } from '@/types/gmail';
 
 interface RouteContext {
@@ -94,11 +95,19 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    // Append default signature if one exists
+    const signature = await getDefaultSignature(supabase, user.id, project.id);
+    const finalEmailData = { ...validationResult.data };
+    if (signature) {
+      console.log('[EMAIL_SEND] appending signature:', signature.name);
+      finalEmailData.body_html = appendSignatureToHtml(finalEmailData.body_html, signature.content_html);
+    }
+
     // Send the email
     console.log('[EMAIL_SEND] calling sendEmail()...');
     const result = await sendEmail(
       connection as GmailConnection,
-      validationResult.data,
+      finalEmailData,
       user.id,
       project.id
     );
