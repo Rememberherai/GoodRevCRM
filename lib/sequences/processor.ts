@@ -306,16 +306,20 @@ async function processEnrollment(
           .filter((s: SequenceStep) => s.step_type === 'email' && s.step_number < currentStep.step_number)
           .map((s: SequenceStep) => s.id);
 
-        const { data: prevEmail } = prevStepIds.length > 0
+        console.log(`[SEQUENCE_PROCESSOR] Looking for prev email: person_id=${enrollment.person_id}, prevStepIds=${JSON.stringify(prevStepIds)}`);
+
+        const { data: prevEmail, error: prevEmailError } = prevStepIds.length > 0
           ? await supabaseAnyThread
               .from('sent_emails')
-              .select('thread_id, message_id')
+              .select('thread_id, message_id, subject, sequence_step_id')
               .in('sequence_step_id', prevStepIds)
               .eq('person_id', enrollment.person_id)
               .order('created_at', { ascending: false })
               .limit(1)
               .single()
-          : { data: null };
+          : { data: null, error: null };
+
+        console.log(`[SEQUENCE_PROCESSOR] Prev email result:`, JSON.stringify(prevEmail), 'error:', prevEmailError?.message ?? 'none');
 
         if (prevEmail?.thread_id) {
           threadId = prevEmail.thread_id;
@@ -324,11 +328,14 @@ async function processEnrollment(
           replyToMessageId = prevEmail.message_id
             ? (prevEmail.message_id.startsWith('<') ? prevEmail.message_id : `<${prevEmail.message_id}>`)
             : undefined;
-          // Add Re: prefix if not already present
-          if (!threadedSubject.startsWith('Re: ')) {
-            threadedSubject = `Re: ${threadedSubject}`;
-          }
-          console.log(`[SEQUENCE_PROCESSOR] Threading reply to thread ${threadId}`);
+          // Use the ORIGINAL email's subject with Re: prefix for Gmail threading
+          // Gmail requires matching subjects to thread properly
+          const originalSubject = prevEmail.subject ?? subject;
+          const baseSubject = originalSubject.replace(/^Re:\s*/i, '');
+          threadedSubject = `Re: ${baseSubject}`;
+          console.log(`[SEQUENCE_PROCESSOR] Threading reply: threadId=${threadId}, replyToMessageId=${replyToMessageId}, subject="${threadedSubject}"`);
+        } else {
+          console.log(`[SEQUENCE_PROCESSOR] No previous email found for threading`);
         }
       }
 
