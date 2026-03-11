@@ -62,8 +62,10 @@ export interface ScannerConfig {
 
 export interface ScanOptions {
   province?: string;
+  country?: string;
   limit?: number;
   retryFailed?: boolean;
+  rescan?: boolean;
   dryRun?: boolean;
   municipalityIds?: string[];
 }

@@ -26,6 +26,7 @@ interface RfpState {
   minConfidenceFilter: number | null;
   exclusionTier: 'none' | 'capital' | 'major';
   countryFilter: string | null;
+  scanBatchFilter: string | null;
 
   // Actions
   setRfps: (rfps: Rfp[], pagination: PaginationState) => void;
@@ -45,6 +46,7 @@ interface RfpState {
   setMinConfidenceFilter: (confidence: number | null) => void;
   setExclusionTier: (tier: 'none' | 'capital' | 'major') => void;
   setCountryFilter: (country: string | null) => void;
+  setScanBatchFilter: (scanBatch: string | null) => void;
   setPage: (page: number) => void;
   reset: () => void;
 }
@@ -71,6 +73,7 @@ const initialState = {
   minConfidenceFilter: null,
   exclusionTier: 'none' as const,
   countryFilter: null,
+  scanBatchFilter: null,
 };
 
 export const useRfpStore = create<RfpState>((set) => ({
@@ -147,6 +150,9 @@ export const useRfpStore = create<RfpState>((set) => ({
   setCountryFilter: (countryFilter) =>
     set({ countryFilter, pagination: { ...initialState.pagination } }),
 
+  setScanBatchFilter: (scanBatchFilter) =>
+    set({ scanBatchFilter, pagination: { ...initialState.pagination } }),
+
   setPage: (page) =>
     set((state) => ({ pagination: { ...state.pagination, page } })),
 
@@ -171,6 +177,7 @@ export async function fetchRfps(
     minConfidence?: number;
     exclusionTier?: string;
     country?: string;
+    scanBatch?: string;
   } = {}
 ): Promise<{
   rfps: Rfp[];
@@ -191,6 +198,7 @@ export async function fetchRfps(
   if (options.minConfidence !== undefined) params.set('minConfidence', options.minConfidence.toString());
   if (options.exclusionTier) params.set('exclusionTier', options.exclusionTier);
   if (options.country) params.set('country', options.country);
+  if (options.scanBatch) params.set('scanBatch', options.scanBatch);
 
   const response = await fetch(
     `/api/projects/${projectSlug}/rfps?${params.toString()}`

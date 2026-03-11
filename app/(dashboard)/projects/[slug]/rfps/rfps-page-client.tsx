@@ -79,6 +79,7 @@ export function RfpsPageClient() {
     minConfidenceFilter,
     exclusionTier,
     countryFilter,
+    scanBatchFilter,
     search,
     remove,
     filterByStatus,
@@ -88,6 +89,7 @@ export function RfpsPageClient() {
     filterByMinConfidence,
     filterByExclusionTier,
     filterByCountry,
+    filterByScanBatch,
     goToPage,
     refresh,
   } = useRfps();
@@ -498,6 +500,31 @@ export function RfpsPageClient() {
             <SelectItem value="all">All Countries</SelectItem>
             <SelectItem value="Canada">Canada</SelectItem>
             <SelectItem value="USA">USA</SelectItem>
+          </SelectContent>
+        </Select>
+        <Select
+          value={scanBatchFilter ?? 'all'}
+          onValueChange={(value) => filterByScanBatch(value === 'all' ? null : value)}
+        >
+          <SelectTrigger className="w-[180px]">
+            <SelectValue placeholder="Scan Batch" />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="all">All Scan Batches</SelectItem>
+            {(() => {
+              // Generate last 12 months as options
+              const months: string[] = [];
+              const now = new Date();
+              for (let i = 0; i < 12; i++) {
+                const d = new Date(now.getFullYear(), now.getMonth() - i, 1);
+                months.push(d.toISOString().substring(0, 7));
+              }
+              return months.map((m) => (
+                <SelectItem key={m} value={m}>
+                  {new Date(m + '-01').toLocaleDateString('en-US', { year: 'numeric', month: 'long' })}
+                </SelectItem>
+              ));
+            })()}
           </SelectContent>
         </Select>
         <ColumnPicker

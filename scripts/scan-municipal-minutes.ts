@@ -5,6 +5,7 @@ import { extractRfpsFromMinutes, delay } from '../lib/municipal-scanner/ai-extra
 import { findMeetingDocuments, fetchMeetingContent } from '../lib/municipal-scanner/meeting-finder';
 import { ScanLogger } from '../lib/municipal-scanner/logger';
 import { SCANNER_CONFIG } from '../lib/municipal-scanner/config';
+import { emitAutomationEvent } from '../lib/automations/engine';
 import type { Municipality, ScanOptions, ScanResult, ScanSummary, ExtractedRfp } from '../lib/municipal-scanner/types';
 
 dotenv.config({ path: '.env.local' });
@@ -13,6 +14,9 @@ const supabase = createClient(
   process.env.NEXT_PUBLIC_SUPABASE_URL!,
   process.env.SUPABASE_SERVICE_ROLE_KEY!
 );
+
+// Current scan batch identifier (YYYY-MM)
+const SCAN_BATCH = new Date().toISOString().substring(0, 7);
 
 // Parse command line arguments first to get province for logger
 function parseArgs(): ScanOptions {
@@ -25,8 +29,12 @@ function parseArgs(): ScanOptions {
       options.province = args[++i];
     } else if (arg === '--limit' && args[i + 1]) {
       options.limit = parseInt(args[++i], 10);
+    } else if (arg === '--country' && args[i + 1]) {
+      options.country = args[++i];
     } else if (arg === '--retry-failed') {
       options.retryFailed = true;
+    } else if (arg === '--rescan') {
+      options.rescan = true;
     } else if (arg === '--dry-run') {
       options.dryRun = true;
     }
@@ -36,11 +44,13 @@ function parseArgs(): ScanOptions {
 }
 
 async function getMunicipalitiesToScan(options: ScanOptions): Promise<Municipality[]> {
+  const country = options.country || 'USA';
+
   let query = supabase
     .from('municipalities')
     .select('*')
     .not('minutes_url', 'is', null)
-    .eq('country', 'USA'); // Only scan USA municipalities
+    .eq('country', country);
 
   if (options.province) {
     query = query.eq('province', options.province);
@@ -48,6 +58,9 @@ async function getMunicipalitiesToScan(options: ScanOptions): Promise<Municipali
 
   if (options.retryFailed) {
     query = query.eq('scan_status', 'failed');
+  } else if (options.rescan) {
+    // Rescan mode: include already-scanned municipalities
+    query = query.in('scan_status', ['pending', 'failed', 'success', 'no_minutes']);
   } else {
     query = query.in('scan_status', ['pending', 'failed']);
   }
@@ -84,6 +97,7 @@ async function findOrCreateOrganization(
   }
 
   // Create new organization
+  const country = municipality.country || 'USA';
   const { data: newOrg, error } = await supabase
     .from('organizations')
     .insert({
@@ -91,7 +105,7 @@ async function findOrCreateOrganization(
       name: `${municipality.name} - ${municipality.province}`,
       address_city: municipality.name,
       address_state: municipality.province,
-      address_country: municipality.country || 'USA',
+      address_country: country,
       industry: 'Government',
       description: `Municipal government - ${municipality.municipality_type || 'city'}`,
       website: municipality.official_website,
@@ -301,13 +315,14 @@ async function scanMunicipality(
         .maybeSingle();
 
       if (existingRfp) {
-        // RFP already exists - update mention count
+        // RFP already exists - update mention count and scan_batch
         const currentMentionCount = (existingRfp.custom_fields as any)?.mention_count || 1;
         const newMentionCount = currentMentionCount + mentionCount;
 
         await supabase
           .from('rfps')
           .update({
+            scan_batch: SCAN_BATCH,
             custom_fields: {
               ...(existingRfp.custom_fields as any),
               mention_count: newMentionCount,
@@ -315,6 +330,20 @@ async function scanMunicipality(
             },
           })
           .eq('id', existingRfp.id);
+
+        // Emit automation event for updated RFP
+        emitAutomationEvent({
+          projectId: SCANNER_CONFIG.projectId,
+          triggerType: 'entity.updated',
+          entityType: 'rfp',
+          entityId: existingRfp.id,
+          data: {
+            id: existingRfp.id,
+            title,
+            mention_count: newMentionCount,
+            scan_batch: SCAN_BATCH,
+          },
+        });
 
         console.log(`     ⚪ "${title}" (already exists, updated mention count: ${newMentionCount})`);
         continue;
@@ -330,7 +359,9 @@ async function scanMunicipality(
       const meetingUrls = rfpMentions.map(m => m.source_meeting_url).filter(Boolean);
       const meetingDates = rfpMentions.map(m => m.meeting_date).filter(Boolean);
 
-      const { error: rfpError } = await supabase
+      const country = municipality.country || 'USA';
+
+      const { data: newRfp, error: rfpError } = await supabase
         .from('rfps')
         .insert({
           project_id: SCANNER_CONFIG.projectId,
@@ -339,12 +370,13 @@ async function scanMunicipality(
           description: primaryRfp.description,
           due_date: primaryRfp.due_date,
           estimated_value: primaryRfp.estimated_value,
-          currency: primaryRfp.currency || 'USD',
+          currency: primaryRfp.currency || (country === 'Canada' ? 'CAD' : 'USD'),
           status: 'identified',
           submission_method: primaryRfp.submission_method,
           submission_email: primaryRfp.contact_email,
+          scan_batch: SCAN_BATCH,
           custom_fields: {
-            country: municipality.country || 'USA',
+            country,
             region: municipality.province,
             source: source,
             opportunity_type: primaryRfp.opportunity_type,
@@ -359,11 +391,32 @@ async function scanMunicipality(
             all_meeting_urls: meetingUrls,
             all_meeting_dates: meetingDates,
           },
-        });
+        })
+        .select('id')
+        .single();
 
       if (rfpError) {
         logger.logError(`Failed to insert RFP "${primaryRfp.title}": ${rfpError.message}`);
       } else {
+        // Emit automation event for new RFP
+        if (newRfp) {
+          emitAutomationEvent({
+            projectId: SCANNER_CONFIG.projectId,
+            triggerType: 'entity.created',
+            entityType: 'rfp',
+            entityId: newRfp.id,
+            data: {
+              id: newRfp.id,
+              title: primaryRfp.title,
+              estimated_value: primaryRfp.estimated_value,
+              country,
+              region: municipality.province,
+              source,
+              scan_batch: SCAN_BATCH,
+            },
+          });
+        }
+
         if (mentionCount > 1) {
           logger.logRfpCreated(primaryRfp.title, primaryRfp.due_date, primaryRfp.estimated_value);
           console.log(`       (mentioned in ${mentionCount} meetings)`);
@@ -419,6 +472,14 @@ async function main() {
   if (options.dryRun) {
     console.log('🔍 DRY RUN MODE - No data will be written to database\n');
   }
+
+  if (options.rescan) {
+    console.log('🔄 RESCAN MODE - Re-scanning previously scanned municipalities\n');
+  }
+
+  const country = options.country || 'USA';
+  console.log(`🌍 Country: ${country}`);
+  console.log(`📅 Scan batch: ${SCAN_BATCH}\n`);
 
   // Load municipalities to scan
   const municipalities = await getMunicipalitiesToScan(options);

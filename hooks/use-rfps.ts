@@ -33,6 +33,8 @@ export function useRfps() {
     minConfidenceFilter,
     exclusionTier,
     countryFilter,
+    scanBatchFilter,
+    setScanBatchFilter,
     setRfps,
     addRfp,
     updateRfp,
@@ -71,6 +73,7 @@ export function useRfps() {
         minConfidence: minConfidenceFilter ?? undefined,
         exclusionTier: exclusionTier !== 'none' ? exclusionTier : undefined,
         country: countryFilter ?? undefined,
+        scanBatch: scanBatchFilter ?? undefined,
       });
       setRfps(result.rfps, result.pagination);
     } catch (err) {
@@ -91,6 +94,7 @@ export function useRfps() {
     minConfidenceFilter,
     exclusionTier,
     countryFilter,
+    scanBatchFilter,
     setRfps,
     setLoading,
     setError,
@@ -219,6 +223,13 @@ export function useRfps() {
     [setCountryFilter]
   );
 
+  const filterByScanBatch = useCallback(
+    (scanBatch: string | null) => {
+      setScanBatchFilter(scanBatch);
+    },
+    [setScanBatchFilter]
+  );
+
   const goToPage = useCallback(
     (page: number) => {
       setPage(page);
@@ -247,6 +258,7 @@ export function useRfps() {
     minConfidenceFilter,
     exclusionTier,
     countryFilter,
+    scanBatchFilter,
     refresh: loadRfps,
     create,
     update,
@@ -261,6 +273,7 @@ export function useRfps() {
     filterByMinConfidence,
     filterByExclusionTier,
     filterByCountry,
+    filterByScanBatch,
     goToPage,
   };
 }

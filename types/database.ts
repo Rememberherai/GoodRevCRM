@@ -3758,6 +3758,7 @@ export type Database = {
           response_document_url: string | null
           rfp_document_url: string | null
           rfp_number: string | null
+          scan_batch: string | null
           status: Database["public"]["Enums"]["rfp_status"]
           submission_email: string | null
           submission_instructions: string | null
@@ -3794,6 +3795,7 @@ export type Database = {
           response_document_url?: string | null
           rfp_document_url?: string | null
           rfp_number?: string | null
+          scan_batch?: string | null
           status?: Database["public"]["Enums"]["rfp_status"]
           submission_email?: string | null
           submission_instructions?: string | null
@@ -3830,6 +3832,7 @@ export type Database = {
           response_document_url?: string | null
           rfp_document_url?: string | null
           rfp_number?: string | null
+          scan_batch?: string | null
           status?: Database["public"]["Enums"]["rfp_status"]
           submission_email?: string | null
           submission_instructions?: string | null

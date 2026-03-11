@@ -62,6 +62,7 @@ export async function GET(request: Request, context: RouteContext) {
     const minConfidence = searchParams.get('minConfidence'); // e.g., '70'
     const exclusionTier = searchParams.get('exclusionTier'); // e.g., 'capital' or 'major'
     const country = searchParams.get('country'); // e.g., 'Canada' or 'USA'
+    const scanBatch = searchParams.get('scanBatch'); // e.g., '2026-03'
 
     const offset = (page - 1) * limit;
 
@@ -122,6 +123,10 @@ export async function GET(request: Request, context: RouteContext) {
 
     if (country) {
       query = query.filter('custom_fields->country', 'eq', `"${country}"`);
+    }
+
+    if (scanBatch) {
+      query = query.eq('scan_batch', scanBatch);
     }
 
     // Apply exclusion tier filtering
