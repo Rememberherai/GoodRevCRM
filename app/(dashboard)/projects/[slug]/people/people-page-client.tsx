@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Search, Users, MoreHorizontal, Pencil, Trash2 } from 'lucide-react';
+import { Search, Users, MoreHorizontal, Pencil, Trash2, Send } from 'lucide-react';
 import { usePeople } from '@/hooks/use-people';
 import { useColumnPreferences } from '@/hooks/use-column-preferences';
 import { Button } from '@/components/ui/button';
@@ -38,6 +38,7 @@ import { Badge } from '@/components/ui/badge';
 import { SendEmailModal } from '@/components/gmail';
 import { BulkActionsBar } from '@/components/bulk/bulk-actions-bar';
 import { BulkEnrichWithReviewModal } from '@/components/enrichment/bulk-enrich-with-review-modal';
+import { EnrollInSequenceDialog } from '@/components/sequences/enrollment/enroll-in-sequence-dialog';
 import { ColumnPicker } from '@/components/table/column-picker';
 import { renderCellValue } from '@/lib/table-columns/renderers';
 import { ClickableEmail } from '@/components/contacts/clickable-email';
@@ -51,6 +52,7 @@ export function PeoplePageClient() {
   const [sendEmailTo, setSendEmailTo] = useState<{ email: string; personId: string } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
   const [bulkEnrichOpen, setBulkEnrichOpen] = useState(false);
+  const [enrollInSequenceOpen, setEnrollInSequenceOpen] = useState(false);
 
   const {
     people,
@@ -379,7 +381,7 @@ export function PeoplePageClient() {
       />
 
       {selectedIds.size > 0 && (
-        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50">
+        <div className="fixed bottom-4 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2">
           <BulkActionsBar
             selectedCount={selectedIds.size}
             entityType="person"
@@ -388,6 +390,13 @@ export function PeoplePageClient() {
             showEnrich
             onEnrich={() => setBulkEnrichOpen(true)}
           />
+          <Button
+            size="sm"
+            onClick={() => setEnrollInSequenceOpen(true)}
+          >
+            <Send className="mr-2 h-4 w-4" />
+            Enroll in Sequence
+          </Button>
         </div>
       )}
 
@@ -399,6 +408,16 @@ export function PeoplePageClient() {
         onComplete={() => {
           clearSelection();
           refresh();
+        }}
+      />
+
+      <EnrollInSequenceDialog
+        open={enrollInSequenceOpen}
+        onOpenChange={setEnrollInSequenceOpen}
+        projectSlug={slug}
+        personIds={Array.from(selectedIds)}
+        onEnrolled={() => {
+          clearSelection();
         }}
       />
     </div>
