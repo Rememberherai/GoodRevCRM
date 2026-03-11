@@ -7,10 +7,18 @@ import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Separator } from '@/components/ui/separator';
 import { StepTimeline } from './step-timeline';
 import { StepEditor } from './step-editor';
 import { EnrollPeopleDialog } from '../enrollment';
-import type { Sequence, SequenceStep, SequenceStatus } from '@/types/sequence';
+import type { Sequence, SequenceStep, SequenceStatus, SequenceSettings } from '@/types/sequence';
 import {
   SEQUENCE_STATUS_LABELS,
   SEQUENCE_STATUS_COLORS,
@@ -45,6 +53,7 @@ export function SequenceBuilder({
   const [selectedStepId, setSelectedStepId] = useState<string | null>(
     steps.length > 0 ? steps[0]?.id ?? null : null
   );
+  const [settings, setSettings] = useState<SequenceSettings>(sequence.settings);
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
@@ -62,6 +71,11 @@ export function SequenceBuilder({
     setHasChanges(true);
   };
 
+  const handleSettingChange = (key: keyof SequenceSettings, value: boolean) => {
+    setSettings((prev) => ({ ...prev, [key]: value }));
+    setHasChanges(true);
+  };
+
   const handleSave = async () => {
     // Flush any pending step saves first
     if (saveTimerRef.current) {
@@ -74,7 +88,7 @@ export function SequenceBuilder({
 
     setIsSaving(true);
     try {
-      await onSave({ name, description: description || null });
+      await onSave({ name, description: description || null, settings });
       setHasChanges(false);
     } finally {
       setIsSaving(false);
@@ -230,10 +244,80 @@ export function SequenceBuilder({
             </Button>
           )}
 
-          <Button variant="outline" size="sm" disabled>
-            <Settings className="h-4 w-4 mr-2" />
-            Settings
-          </Button>
+          <Popover>
+            <PopoverTrigger asChild>
+              <Button variant="outline" size="sm">
+                <Settings className="h-4 w-4 mr-2" />
+                Settings
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80" align="end">
+              <div className="space-y-4">
+                <h4 className="font-medium text-sm">Sequence Settings</h4>
+                <Separator />
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="send-as-reply" className="text-sm flex-1 pr-4">
+                    Send as reply
+                    <p className="text-xs text-muted-foreground font-normal mt-0.5">
+                      Follow-up emails thread as replies to the first email
+                    </p>
+                  </Label>
+                  <Switch
+                    id="send-as-reply"
+                    checked={settings.send_as_reply}
+                    onCheckedChange={(v) => handleSettingChange('send_as_reply', v)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="stop-on-reply" className="text-sm flex-1 pr-4">
+                    Stop on reply
+                    <p className="text-xs text-muted-foreground font-normal mt-0.5">
+                      Stop sequence when recipient replies
+                    </p>
+                  </Label>
+                  <Switch
+                    id="stop-on-reply"
+                    checked={settings.stop_on_reply}
+                    onCheckedChange={(v) => handleSettingChange('stop_on_reply', v)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="stop-on-bounce" className="text-sm flex-1 pr-4">
+                    Stop on bounce
+                    <p className="text-xs text-muted-foreground font-normal mt-0.5">
+                      Stop sequence when email bounces
+                    </p>
+                  </Label>
+                  <Switch
+                    id="stop-on-bounce"
+                    checked={settings.stop_on_bounce}
+                    onCheckedChange={(v) => handleSettingChange('stop_on_bounce', v)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="track-opens" className="text-sm flex-1 pr-4">
+                    Track opens
+                  </Label>
+                  <Switch
+                    id="track-opens"
+                    checked={settings.track_opens}
+                    onCheckedChange={(v) => handleSettingChange('track_opens', v)}
+                  />
+                </div>
+                <div className="flex items-center justify-between">
+                  <Label htmlFor="track-clicks" className="text-sm flex-1 pr-4">
+                    Track clicks
+                  </Label>
+                  <Switch
+                    id="track-clicks"
+                    checked={settings.track_clicks}
+                    onCheckedChange={(v) => handleSettingChange('track_clicks', v)}
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground">Click Save to apply changes.</p>
+              </div>
+            </PopoverContent>
+          </Popover>
 
           {canActivate && (
             <Button

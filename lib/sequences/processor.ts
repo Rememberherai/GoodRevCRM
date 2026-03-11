@@ -293,15 +293,55 @@ async function processEnrollment(
         }
       }
 
+      // Look up previous email in this enrollment for threading (send_as_reply)
+      let threadId: string | undefined;
+      let replyToMessageId: string | undefined;
+      let threadedSubject = subject;
+
+      if (sequence.settings.send_as_reply && currentStep.step_number > 1) {
+        // Find the most recent sent email for this enrollment's person in this sequence
+        // eslint-disable-next-line @typescript-eslint/no-explicit-any
+        const supabaseAnyThread = supabase as any;
+        const prevStepIds = steps
+          .filter((s: SequenceStep) => s.step_type === 'email' && s.step_number < currentStep.step_number)
+          .map((s: SequenceStep) => s.id);
+
+        const { data: prevEmail } = prevStepIds.length > 0
+          ? await supabaseAnyThread
+              .from('sent_emails')
+              .select('thread_id, gmail_message_id')
+              .in('sequence_step_id', prevStepIds)
+              .eq('person_id', enrollment.person_id)
+              .order('created_at', { ascending: false })
+              .limit(1)
+              .single()
+          : { data: null };
+
+        if (prevEmail?.thread_id) {
+          threadId = prevEmail.thread_id;
+          // Gmail message IDs need angle brackets for In-Reply-To header
+          replyToMessageId = prevEmail.gmail_message_id
+            ? `<${prevEmail.gmail_message_id}>`
+            : undefined;
+          // Add Re: prefix if not already present
+          if (!threadedSubject.startsWith('Re: ')) {
+            threadedSubject = `Re: ${threadedSubject}`;
+          }
+          console.log(`[SEQUENCE_PROCESSOR] Threading reply to thread ${threadId}`);
+        }
+      }
+
       // Send the email
       const result = await sendEmail(
         gmailConnection,
         {
           to: context.person.email,
-          subject,
+          subject: threadedSubject,
           body_html: bodyHtml,
           body_text: bodyText,
           person_id: enrollment.person_id,
+          ...(threadId ? { thread_id: threadId } : {}),
+          ...(replyToMessageId ? { reply_to_message_id: replyToMessageId } : {}),
           ...(emailAttachments && emailAttachments.length > 0 ? { attachments: emailAttachments } : {}),
         },
         enrollment.created_by,
