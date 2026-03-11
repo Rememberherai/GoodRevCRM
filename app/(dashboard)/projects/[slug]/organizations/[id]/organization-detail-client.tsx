@@ -67,6 +67,7 @@ import { SendEmailModal } from '@/components/gmail';
 import { EntityCommentsFeed } from '@/components/comments';
 import { BulkActionsBar } from '@/components/bulk/bulk-actions-bar';
 import { BulkEnrichWithReviewModal } from '@/components/enrichment/bulk-enrich-with-review-modal';
+import { EnrollInSequenceDialog } from '@/components/sequences/enrollment/enroll-in-sequence-dialog';
 import { OrgNewsSection } from '@/components/news/org-news-section';
 import { OrgNewsFetchCard } from '@/components/news/org-news-fetch-card';
 import { ClickToDialButton } from '@/components/calls/click-to-dial-button';
@@ -219,6 +220,7 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [selectedPeopleIds, setSelectedPeopleIds] = useState<Set<string>>(new Set());
   const [bulkEnrichOpen, setBulkEnrichOpen] = useState(false);
+  const [enrollInSequenceOpen, setEnrollInSequenceOpen] = useState(false);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
   const [rfps, setRfps] = useState<Rfp[]>([]);
@@ -974,7 +976,7 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
 
           {/* Bulk Actions Bar */}
           {selectedPeopleIds.size > 0 && (
-            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50">
+            <div className="fixed bottom-6 left-1/2 -translate-x-1/2 z-50 flex items-center gap-2">
               <BulkActionsBar
                 selectedCount={selectedPeopleIds.size}
                 entityType="person"
@@ -983,6 +985,13 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
                 showEnrich
                 onEnrich={() => setBulkEnrichOpen(true)}
               />
+              <Button
+                size="sm"
+                onClick={() => setEnrollInSequenceOpen(true)}
+              >
+                <Send className="mr-2 h-4 w-4" />
+                Enroll in Sequence
+              </Button>
             </div>
           )}
         </TabsContent>
@@ -1325,6 +1334,16 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
         onComplete={() => {
           clearPeopleSelection();
           loadPeople();
+        }}
+      />
+
+      <EnrollInSequenceDialog
+        open={enrollInSequenceOpen}
+        onOpenChange={setEnrollInSequenceOpen}
+        projectSlug={slug}
+        personIds={Array.from(selectedPeopleIds)}
+        onEnrolled={() => {
+          clearPeopleSelection();
         }}
       />
     </div>

@@ -3,11 +3,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Mail, Loader2 } from 'lucide-react';
+import { Plus, Mail, Loader2, Send } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { NewSequenceDialog } from '@/components/sequences';
+import { EnrollInSequenceDialog } from '@/components/sequences/enrollment/enroll-in-sequence-dialog';
 import type { Sequence, SequenceStatus } from '@/types/sequence';
 import { SEQUENCE_STATUS_LABELS, SEQUENCE_STATUS_COLORS } from '@/types/sequence';
 import type { CompanyContext } from '@/lib/validators/project';
@@ -38,6 +39,7 @@ export function PersonSequencesTab({
   const [sequences, setSequences] = useState<SequenceWithCounts[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isEnrollOpen, setIsEnrollOpen] = useState(false);
 
   const loadSequences = useCallback(async () => {
     try {
@@ -89,10 +91,16 @@ export function PersonSequencesTab({
             Email sequences specific to {personName}
           </p>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Sequence
-        </Button>
+        <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setIsEnrollOpen(true)}>
+            <Send className="mr-2 h-4 w-4" />
+            Enroll in Sequence
+          </Button>
+          <Button onClick={() => setIsDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Sequence
+          </Button>
+        </div>
       </div>
 
       {sequences.length === 0 ? (
@@ -161,6 +169,14 @@ export function PersonSequencesTab({
           email: personEmail,
           jobTitle: personJobTitle,
         }}
+      />
+
+      <EnrollInSequenceDialog
+        open={isEnrollOpen}
+        onOpenChange={setIsEnrollOpen}
+        projectSlug={projectSlug}
+        personIds={[personId]}
+        onEnrolled={() => loadSequences()}
       />
     </div>
   );
