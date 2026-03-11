@@ -309,7 +309,7 @@ async function processEnrollment(
         const { data: prevEmail } = prevStepIds.length > 0
           ? await supabaseAnyThread
               .from('sent_emails')
-              .select('thread_id, gmail_message_id')
+              .select('thread_id, message_id')
               .in('sequence_step_id', prevStepIds)
               .eq('person_id', enrollment.person_id)
               .order('created_at', { ascending: false })
@@ -320,8 +320,8 @@ async function processEnrollment(
         if (prevEmail?.thread_id) {
           threadId = prevEmail.thread_id;
           // Gmail message IDs need angle brackets for In-Reply-To header
-          replyToMessageId = prevEmail.gmail_message_id
-            ? `<${prevEmail.gmail_message_id}>`
+          replyToMessageId = prevEmail.message_id
+            ? `<${prevEmail.message_id}>`
             : undefined;
           // Add Re: prefix if not already present
           if (!threadedSubject.startsWith('Re: ')) {
