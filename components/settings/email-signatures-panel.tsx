@@ -5,7 +5,6 @@ import { Loader2, Plus, Pencil, Trash2, Star } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Badge } from '@/components/ui/badge';
@@ -27,6 +26,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import { toast } from 'sonner';
+import { SignatureEditor } from './signature-editor';
 import type { EmailSignature } from '@/types/sequence';
 
 interface EmailSignaturesPanelProps {
@@ -204,7 +204,7 @@ export function EmailSignaturesPanel({ slug }: EmailSignaturesPanelProps) {
                       )}
                     </div>
                     <div
-                      className="text-sm text-muted-foreground mt-2 max-h-24 overflow-hidden border rounded p-2 bg-muted/30"
+                      className="text-sm text-foreground mt-2 max-h-24 overflow-hidden border rounded p-2 bg-white"
                       dangerouslySetInnerHTML={{ __html: sig.content_html }}
                     />
                   </div>
@@ -254,7 +254,7 @@ export function EmailSignaturesPanel({ slug }: EmailSignaturesPanelProps) {
             <DialogDescription>
               {editingSignature
                 ? 'Update your email signature.'
-                : 'Create a new email signature. You can use HTML for formatting.'}
+                : 'Create a new email signature. Use the toolbar to format text.'}
             </DialogDescription>
           </DialogHeader>
 
@@ -271,25 +271,11 @@ export function EmailSignaturesPanel({ slug }: EmailSignaturesPanelProps) {
             </div>
 
             <div>
-              <Label htmlFor="sig-content">Signature HTML</Label>
-              <Textarea
-                id="sig-content"
-                placeholder="<p>Best regards,<br>Your Name<br>Company</p>"
-                value={contentHtml}
-                onChange={(e) => setContentHtml(e.target.value)}
-                className="mt-1 min-h-[150px] font-mono text-sm"
-              />
-            </div>
-
-            {contentHtml.trim() && (
-              <div>
-                <Label>Preview</Label>
-                <div
-                  className="mt-1 border rounded p-3 bg-white text-sm"
-                  dangerouslySetInnerHTML={{ __html: contentHtml }}
-                />
+              <Label>Signature</Label>
+              <div className="mt-1">
+                <SignatureEditor value={contentHtml} onChange={setContentHtml} />
               </div>
-            )}
+            </div>
 
             <div className="flex items-center gap-2">
               <Switch
