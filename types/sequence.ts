@@ -92,8 +92,17 @@ export interface SequenceStep {
   sms_body: string | null;
   // Manual action step config (call, task, linkedin)
   config: StepConfig | null;
+  // Attachments for email steps
+  attachments: StepAttachment[] | null;
   created_at: string;
   updated_at: string;
+}
+
+export interface StepAttachment {
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  storage_path: string;
 }
 
 export interface StepCondition {

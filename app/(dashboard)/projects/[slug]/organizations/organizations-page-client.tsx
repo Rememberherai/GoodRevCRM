@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Plus, Search, Building2, MoreHorizontal, Pencil, Trash2, Upload, ClipboardPaste, Sparkles, Droplets, UserSearch } from 'lucide-react';
+import { Plus, Search, Building2, MoreHorizontal, Pencil, Trash2, Upload, ClipboardPaste, Sparkles, Droplets, UserSearch, Mail } from 'lucide-react';
 import { useOrganizations } from '@/hooks/use-organizations';
 import { useColumnPreferences } from '@/hooks/use-column-preferences';
 import { useEntityCustomFields } from '@/hooks/use-custom-fields';
@@ -41,6 +41,7 @@ import { BulkAddDialog } from '@/components/organizations/bulk-add-dialog';
 import { ImportWizard } from '@/components/import-export';
 import { BulkResearchDialog } from '@/components/research/bulk-research-dialog';
 import { BulkContactDiscoveryDialog } from '@/components/organizations/bulk-contact-discovery-dialog';
+import { BulkGenericEmailDialog } from '@/components/organizations/bulk-generic-email-dialog';
 import { EPAImportDialog } from '@/components/organizations/epa-import-dialog';
 import { ColumnPicker } from '@/components/table/column-picker';
 import { renderCellValue } from '@/lib/table-columns/renderers';
@@ -59,6 +60,7 @@ export function OrganizationsPageClient() {
   const [showBulkAddDialog, setShowBulkAddDialog] = useState(false);
   const [showBulkResearchDialog, setShowBulkResearchDialog] = useState(false);
   const [showBulkContactDiscoveryDialog, setShowBulkContactDiscoveryDialog] = useState(false);
+  const [showBulkGenericEmailDialog, setShowBulkGenericEmailDialog] = useState(false);
   const [showEPAImportDialog, setShowEPAImportDialog] = useState(false);
   const [searchInput, setSearchInput] = useState('');
   const [deleteId, setDeleteId] = useState<string | null>(null);
@@ -193,6 +195,10 @@ export function OrganizationsPageClient() {
               <Button variant="outline" onClick={() => setShowBulkContactDiscoveryDialog(true)}>
                 <UserSearch className="mr-2 h-4 w-4" />
                 Find People ({selectedIds.size})
+              </Button>
+              <Button variant="outline" onClick={() => setShowBulkGenericEmailDialog(true)}>
+                <Mail className="mr-2 h-4 w-4" />
+                Find Dept Emails ({selectedIds.size})
               </Button>
               <Button variant="outline" onClick={() => setShowBulkResearchDialog(true)}>
                 <Sparkles className="mr-2 h-4 w-4" />
@@ -388,6 +394,16 @@ export function OrganizationsPageClient() {
       <BulkContactDiscoveryDialog
         open={showBulkContactDiscoveryDialog}
         onOpenChange={setShowBulkContactDiscoveryDialog}
+        organizationIds={Array.from(selectedIds)}
+        onComplete={() => {
+          clearSelection();
+          refresh();
+        }}
+      />
+
+      <BulkGenericEmailDialog
+        open={showBulkGenericEmailDialog}
+        onOpenChange={setShowBulkGenericEmailDialog}
         organizationIds={Array.from(selectedIds)}
         onComplete={() => {
           clearSelection();

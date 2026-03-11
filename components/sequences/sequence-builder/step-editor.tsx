@@ -1,7 +1,7 @@
 'use client';
 
-import { useState } from 'react';
-import { Mail, Clock, MessageSquare, Phone, CheckSquare, Linkedin } from 'lucide-react';
+import { useState, useRef } from 'react';
+import { Mail, Clock, MessageSquare, Phone, CheckSquare, Linkedin, Paperclip, X, Upload, FileText } from 'lucide-react';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -14,8 +14,12 @@ import {
 } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { VariablePicker } from './variable-picker';
+import { Button } from '@/components/ui/button';
+import { createClient } from '@/lib/supabase/client';
+import { toast } from 'sonner';
 import type {
   SequenceStep,
+  StepAttachment,
   DelayUnit,
   StepPriority,
   LinkedInActionType,
@@ -185,6 +189,13 @@ function EmailEditor({
             </div>
           </TabsContent>
         </Tabs>
+
+        <AttachmentEditor
+          attachments={step.attachments ?? []}
+          sequenceId={step.sequence_id}
+          stepId={step.id}
+          onUpdate={(attachments) => onUpdate({ attachments })}
+        />
       </div>
     </div>
   );
@@ -712,6 +723,146 @@ function LinkedInEditor({
           Creates a LinkedIn action task when this step is reached. The task will include the contact&apos;s LinkedIn URL.
         </p>
       </div>
+    </div>
+  );
+}
+
+// Attachment Editor Component
+function AttachmentEditor({
+  attachments,
+  sequenceId,
+  stepId,
+  onUpdate,
+}: {
+  attachments: StepAttachment[];
+  sequenceId: string;
+  stepId: string;
+  onUpdate: (attachments: StepAttachment[]) => void;
+}) {
+  const [uploading, setUploading] = useState(false);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
+  const formatFileSize = (bytes: number) => {
+    if (bytes < 1024) return `${bytes} B`;
+    if (bytes < 1024 * 1024) return `${(bytes / 1024).toFixed(1)} KB`;
+    return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
+  };
+
+  const handleFileSelect = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const files = e.target.files;
+    if (!files || files.length === 0) return;
+
+    setUploading(true);
+    const supabase = createClient();
+    const newAttachments = [...attachments];
+
+    for (const file of Array.from(files)) {
+      // 10MB limit per file
+      if (file.size > 10 * 1024 * 1024) {
+        toast.error(`${file.name} is too large (max 10MB)`);
+        continue;
+      }
+
+      const storagePath = `${sequenceId}/${stepId}/${Date.now()}-${file.name}`;
+
+      const { error } = await supabase.storage
+        .from('sequence-attachments')
+        .upload(storagePath, file);
+
+      if (error) {
+        console.error('Upload error:', error);
+        toast.error(`Failed to upload ${file.name}`);
+        continue;
+      }
+
+      newAttachments.push({
+        file_name: file.name,
+        file_type: file.type || 'application/octet-stream',
+        file_size: file.size,
+        storage_path: storagePath,
+      });
+    }
+
+    onUpdate(newAttachments);
+    setUploading(false);
+
+    // Reset the input
+    if (fileInputRef.current) {
+      fileInputRef.current.value = '';
+    }
+  };
+
+  const handleRemove = async (index: number) => {
+    const att = attachments[index];
+    if (!att) return;
+    const supabase = createClient();
+
+    // Delete from storage
+    await supabase.storage
+      .from('sequence-attachments')
+      .remove([att.storage_path]);
+
+    const updated = attachments.filter((_, i) => i !== index);
+    onUpdate(updated);
+  };
+
+  return (
+    <div className="space-y-2">
+      <div className="flex items-center justify-between">
+        <Label className="flex items-center gap-1">
+          <Paperclip className="h-3.5 w-3.5" />
+          Attachments
+        </Label>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          className="h-7 text-xs"
+          disabled={uploading}
+          onClick={() => fileInputRef.current?.click()}
+        >
+          <Upload className="mr-1 h-3 w-3" />
+          {uploading ? 'Uploading...' : 'Add File'}
+        </Button>
+        <input
+          ref={fileInputRef}
+          type="file"
+          multiple
+          className="hidden"
+          onChange={handleFileSelect}
+          accept=".pdf,.doc,.docx,.xls,.xlsx,.ppt,.pptx,.txt,.csv,.png,.jpg,.jpeg,.gif"
+        />
+      </div>
+
+      {attachments.length > 0 && (
+        <div className="space-y-1">
+          {attachments.map((att, index) => (
+            <div
+              key={att.storage_path}
+              className="flex items-center gap-2 rounded-md border px-3 py-2 text-sm"
+            >
+              <FileText className="h-4 w-4 text-muted-foreground shrink-0" />
+              <span className="flex-1 truncate">{att.file_name}</span>
+              <span className="text-xs text-muted-foreground shrink-0">
+                {formatFileSize(att.file_size)}
+              </span>
+              <button
+                type="button"
+                onClick={() => handleRemove(index)}
+                className="text-muted-foreground hover:text-destructive shrink-0"
+              >
+                <X className="h-3.5 w-3.5" />
+              </button>
+            </div>
+          ))}
+        </div>
+      )}
+
+      {attachments.length === 0 && (
+        <p className="text-xs text-muted-foreground">
+          No attachments. Click &quot;Add File&quot; to attach documents to this email step.
+        </p>
+      )}
     </div>
   );
 }

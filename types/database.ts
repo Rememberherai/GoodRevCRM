@@ -1883,6 +1883,107 @@ export type Database = {
           },
         ]
       }
+      municipal_scan_logs: {
+        Row: {
+          created_at: string | null
+          error_message: string | null
+          id: string
+          metadata: Json | null
+          minutes_fetched: number | null
+          municipality_id: string | null
+          rfps_created: number | null
+          rfps_detected: number | null
+          scan_completed_at: string | null
+          scan_started_at: string | null
+          status: string
+        }
+        Insert: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          minutes_fetched?: number | null
+          municipality_id?: string | null
+          rfps_created?: number | null
+          rfps_detected?: number | null
+          scan_completed_at?: string | null
+          scan_started_at?: string | null
+          status: string
+        }
+        Update: {
+          created_at?: string | null
+          error_message?: string | null
+          id?: string
+          metadata?: Json | null
+          minutes_fetched?: number | null
+          municipality_id?: string | null
+          rfps_created?: number | null
+          rfps_detected?: number | null
+          scan_completed_at?: string | null
+          scan_started_at?: string | null
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "municipal_scan_logs_municipality_id_fkey"
+            columns: ["municipality_id"]
+            isOneToOne: false
+            referencedRelation: "municipalities"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      municipalities: {
+        Row: {
+          country: string | null
+          created_at: string | null
+          id: string
+          last_scanned_at: string | null
+          minutes_url: string | null
+          municipality_type: string | null
+          name: string
+          official_website: string | null
+          population: number | null
+          province: string
+          rfps_found_count: number | null
+          scan_error: string | null
+          scan_status: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          country?: string | null
+          created_at?: string | null
+          id?: string
+          last_scanned_at?: string | null
+          minutes_url?: string | null
+          municipality_type?: string | null
+          name: string
+          official_website?: string | null
+          population?: number | null
+          province: string
+          rfps_found_count?: number | null
+          scan_error?: string | null
+          scan_status?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          country?: string | null
+          created_at?: string | null
+          id?: string
+          last_scanned_at?: string | null
+          minutes_url?: string | null
+          municipality_type?: string | null
+          name?: string
+          official_website?: string | null
+          population?: number | null
+          province?: string
+          rfps_found_count?: number | null
+          scan_error?: string | null
+          scan_status?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
       news_article_entities: {
         Row: {
           article_id: string
@@ -4059,6 +4160,7 @@ export type Database = {
       }
       sequence_steps: {
         Row: {
+          attachments: Json | null
           body_html: string | null
           body_text: string | null
           condition: Json | null
@@ -4075,6 +4177,7 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          attachments?: Json | null
           body_html?: string | null
           body_text?: string | null
           condition?: Json | null
@@ -4091,6 +4194,7 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          attachments?: Json | null
           body_html?: string | null
           body_text?: string | null
           condition?: Json | null

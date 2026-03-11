@@ -78,7 +78,7 @@ export async function getValidAccessToken(connection: GmailConnection): Promise<
  */
 function createMimeMessage(input: SendEmailInput, fromEmail: string, trackingId: string): string {
   const to = sanitizeHeaderValue(Array.isArray(input.to) ? input.to.join(', ') : input.to);
-  const boundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
+  const altBoundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
 
   // Inject tracking pixel into HTML body
   const trackingPixelUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/track/open?tid=${trackingId}`;
@@ -86,6 +86,11 @@ function createMimeMessage(input: SendEmailInput, fromEmail: string, trackingId:
 
   // Wrap links with click tracking
   const finalHtml = wrapLinksWithTracking(trackedHtml, trackingId);
+
+  const hasAttachments = input.attachments && input.attachments.length > 0;
+  const mixedBoundary = hasAttachments
+    ? `----=_Mixed_${Date.now()}_${Math.random().toString(36).substring(2)}`
+    : null;
 
   let message = [
     'MIME-Version: 1.0',
@@ -108,23 +113,63 @@ function createMimeMessage(input: SendEmailInput, fromEmail: string, trackingId:
     message.push(`References: ${sanitizedReplyId}`);
   }
 
-  message.push(
-    `Content-Type: multipart/alternative; boundary="${boundary}"`,
-    '',
-    `--${boundary}`,
-    'Content-Type: text/plain; charset=UTF-8',
-    'Content-Transfer-Encoding: 7bit',
-    '',
-    input.body_text ?? stripHtml(input.body_html),
-    '',
-    `--${boundary}`,
-    'Content-Type: text/html; charset=UTF-8',
-    'Content-Transfer-Encoding: 7bit',
-    '',
-    finalHtml,
-    '',
-    `--${boundary}--`
-  );
+  if (hasAttachments && mixedBoundary) {
+    // multipart/mixed wraps the alternative body + attachments
+    message.push(
+      `Content-Type: multipart/mixed; boundary="${mixedBoundary}"`,
+      '',
+      `--${mixedBoundary}`,
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+      '',
+      `--${altBoundary}`,
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      input.body_text ?? stripHtml(input.body_html),
+      '',
+      `--${altBoundary}`,
+      'Content-Type: text/html; charset=UTF-8',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      finalHtml,
+      '',
+      `--${altBoundary}--`
+    );
+
+    // Append each attachment
+    for (const attachment of input.attachments!) {
+      message.push(
+        '',
+        `--${mixedBoundary}`,
+        `Content-Type: ${attachment.mimeType}; name="${attachment.filename}"`,
+        'Content-Transfer-Encoding: base64',
+        `Content-Disposition: attachment; filename="${attachment.filename}"`,
+        '',
+        attachment.content
+      );
+    }
+
+    message.push('', `--${mixedBoundary}--`);
+  } else {
+    // No attachments - simple multipart/alternative
+    message.push(
+      `Content-Type: multipart/alternative; boundary="${altBoundary}"`,
+      '',
+      `--${altBoundary}`,
+      'Content-Type: text/plain; charset=UTF-8',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      input.body_text ?? stripHtml(input.body_html),
+      '',
+      `--${altBoundary}`,
+      'Content-Type: text/html; charset=UTF-8',
+      'Content-Transfer-Encoding: 7bit',
+      '',
+      finalHtml,
+      '',
+      `--${altBoundary}--`
+    );
+  }
 
   return message.join('\r\n');
 }

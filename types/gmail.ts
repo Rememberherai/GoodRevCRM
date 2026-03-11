@@ -87,6 +87,13 @@ export interface GmailProfile {
   picture?: string;
 }
 
+// Email attachment for sending
+export interface EmailAttachment {
+  filename: string;
+  mimeType: string;
+  content: string; // base64-encoded file content
+}
+
 // Send email input
 export interface SendEmailInput {
   to: string | string[];
@@ -97,6 +104,7 @@ export interface SendEmailInput {
   body_text?: string;
   reply_to_message_id?: string;
   thread_id?: string;
+  attachments?: EmailAttachment[];
   // Entity associations
   person_id?: string;
   organization_id?: string;

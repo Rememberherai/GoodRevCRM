@@ -866,6 +866,81 @@ Your response MUST be a JSON object with this exact structure:
 Respond ONLY with the JSON object, no additional text.`;
 }
 
+// Generic email discovery prompt for municipalities
+export function buildGenericEmailDiscoveryPrompt(
+  organization: {
+    name: string;
+    domain?: string | null;
+    website?: string | null;
+    city?: string | null;
+    state?: string | null;
+    country?: string | null;
+    industry?: string | null;
+  },
+  departments: string[],
+  maxResults: number = 3
+): string {
+  const deptList = departments.map((d) => `- ${d}`).join('\n');
+  const locationParts = [organization.city, organization.state, organization.country]
+    .filter(Boolean)
+    .join(', ');
+
+  return `You are a municipal government research specialist. Your task is to find generic department email addresses for a municipality.
+
+Municipality Information:
+- Name: ${organization.name}
+${locationParts ? `- Location: ${locationParts}` : ''}
+${organization.domain ? `- Known domain: ${organization.domain}` : ''}
+${organization.website ? `- Known website: ${organization.website}` : ''}
+${organization.industry ? `- Industry: ${organization.industry}` : ''}
+
+Target Departments:
+${deptList}
+
+Instructions:
+1. FIRST, determine the official email domain for this municipality. Municipal domains typically follow patterns like:
+   - cityname.gov, cityname.org, ci.cityname.state.us, cityofname.org, townofname.gov
+   - For counties: co.countyname.state.us, countyname.gov
+   - For Canadian municipalities: cityname.ca, municipalityname.ca
+   If a domain or website is already provided, extract the email domain from it.
+
+2. THEN, generate the most likely generic/department email addresses for the target departments. Common patterns include:
+   - water@, wastewater@, sewer@ (Water/Wastewater departments)
+   - dpw@, publicworks@, pw@ (Public Works/DPW)
+   - utilities@, utility@ (Utilities departments)
+   - engineering@, engineer@ (Engineering departments)
+   - info@, clerk@, cityclerk@, admin@ (General intake - gets forwarded to the right person)
+
+3. Return up to ${maxResults} email addresses total. Prioritize:
+   - One department-specific email (water, dpw, utilities) related to wastewater
+   - One general fallback email (info, clerk, admin) that will be forwarded internally
+
+IMPORTANT:
+- Do NOT return personal emails (firstname.lastname@). Only generic/department addresses.
+- Base confidence on whether you can verify the domain exists vs guessing. Known domains get 0.7+, guessed domains get 0.3-0.5.
+- If you cannot determine the municipality's email domain with any confidence, return an empty emails array.
+- Always include the discovered domain and website in your response, even if they were provided in the input.
+
+Your response MUST be a JSON object with this exact structure:
+\`\`\`json
+{
+  "emails": [
+    {
+      "email": "water@cityname.gov",
+      "department_name": "Water Department",
+      "confidence": 0.7,
+      "source_hint": "Common municipal pattern for cityname.gov domain"
+    }
+  ],
+  "discovered_domain": "cityname.gov",
+  "discovered_website": "https://www.cityname.gov",
+  "notes": "Optional notes about the discovery process"
+}
+\`\`\`
+
+Respond ONLY with the JSON object, no additional text.`;
+}
+
 // Email generation prompt
 export function buildEmailGenerationPrompt(
   context: {

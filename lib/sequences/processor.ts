@@ -5,6 +5,13 @@ import { fetchVariableContext, substituteEmailContent, substituteVariables, subs
 import type { GmailConnection } from '@/types/gmail';
 import type { StepConfig } from '@/types/sequence';
 
+interface StepAttachmentMeta {
+  file_name: string;
+  file_type: string;
+  file_size: number;
+  storage_path: string;
+}
+
 interface SequenceStep {
   id: string;
   sequence_id: string;
@@ -17,6 +24,7 @@ interface SequenceStep {
   delay_unit: 'minutes' | 'hours' | 'days' | 'weeks' | null;
   sms_body: string | null;
   config: StepConfig | null;
+  attachments: StepAttachmentMeta[] | null;
 }
 
 interface SequenceEnrollment {
@@ -259,6 +267,32 @@ async function processEnrollment(
     );
 
     try {
+      // Fetch attachments from Supabase Storage if this step has any
+      let emailAttachments: { filename: string; mimeType: string; content: string }[] | undefined;
+      if (currentStep.attachments && currentStep.attachments.length > 0) {
+        emailAttachments = [];
+        for (const att of currentStep.attachments) {
+          try {
+            const { data, error: dlError } = await supabase.storage
+              .from('sequence-attachments')
+              .download(att.storage_path);
+            if (dlError || !data) {
+              console.error(`Failed to download attachment ${att.file_name}:`, dlError);
+              continue;
+            }
+            const arrayBuffer = await data.arrayBuffer();
+            const base64 = Buffer.from(arrayBuffer).toString('base64');
+            emailAttachments.push({
+              filename: att.file_name,
+              mimeType: att.file_type,
+              content: base64,
+            });
+          } catch (attErr) {
+            console.error(`Error processing attachment ${att.file_name}:`, attErr);
+          }
+        }
+      }
+
       // Send the email
       const result = await sendEmail(
         gmailConnection,
@@ -268,6 +302,7 @@ async function processEnrollment(
           body_html: bodyHtml,
           body_text: bodyText,
           person_id: enrollment.person_id,
+          ...(emailAttachments && emailAttachments.length > 0 ? { attachments: emailAttachments } : {}),
         },
         enrollment.created_by,
         sequence.project_id

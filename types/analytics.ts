@@ -153,7 +153,8 @@ export type AiFeature =
   | 'content_restructure'
   | 'bulk_rfp_generation'
   | 'rfp_question_extraction'
-  | 'linkedin_message_generation';
+  | 'linkedin_message_generation'
+  | 'generic_email_discovery';
 
 export const AI_FEATURE_LABELS: Record<AiFeature, string> = {
   research: 'Research',
@@ -166,4 +167,5 @@ export const AI_FEATURE_LABELS: Record<AiFeature, string> = {
   bulk_rfp_generation: 'Bulk RFP Gen',
   rfp_question_extraction: 'RFP Question Import',
   linkedin_message_generation: 'LinkedIn Messages',
+  generic_email_discovery: 'Generic Email Discovery',
 };
