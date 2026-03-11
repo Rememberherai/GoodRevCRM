@@ -369,6 +369,9 @@ export function BulkGenericEmailDialog({
           const data = await response.json();
           totalAdded += data.created_count ?? 0;
           orgsProcessed++;
+        } else {
+          const errData = await response.json().catch(() => ({}));
+          console.error(`Failed to add contacts for org ${orgId}:`, response.status, errData);
         }
       } catch (err) {
         console.error(`Failed to add contacts for org ${orgId}:`, err);
