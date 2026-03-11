@@ -159,6 +159,7 @@ export async function POST(request: Request, context: RouteContext) {
       ? bulkResult.data.gmail_connection_id
       : singleResult.data!.gmail_connection_id;
     const startAt = isBulk ? bulkResult.data.start_at : singleResult.data?.start_at;
+    const groupByOrg = isBulk ? (bulkResult.data.group_by_org ?? true) : false;
 
     // Verify Gmail connection belongs to user
     const { data: connection } = await supabaseAny
@@ -201,14 +202,81 @@ export async function POST(request: Request, context: RouteContext) {
       .in('person_id', personIds)
       .in('status', NON_ACTIVE_STATUSES);
 
-    // Create enrollments
-    const enrollments = personIds.map((personId) => ({
-      sequence_id: id,
-      person_id: personId,
-      gmail_connection_id: gmailConnectionId,
-      next_send_at: startAt ?? new Date().toISOString(),
-      created_by: user.id,
-    }));
+    // Build enrollment records, grouping by org if requested
+    let enrollments: {
+      sequence_id: string;
+      person_id: string;
+      gmail_connection_id: string;
+      next_send_at: string;
+      created_by: string;
+      co_recipient_ids?: string[];
+    }[];
+
+    if (groupByOrg && personIds.length > 1) {
+      // Look up org memberships to group people by org
+      const { data: orgLinks } = await supabaseAny
+        .from('person_organizations')
+        .select('person_id, organization_id')
+        .in('person_id', personIds)
+        .eq('is_primary', true);
+
+      // Group person IDs by org
+      const orgGroups = new Map<string, string[]>();
+      const ungrouped: string[] = [];
+      const personOrgMap = new Map<string, string>();
+
+      for (const link of (orgLinks ?? []) as { person_id: string; organization_id: string }[]) {
+        personOrgMap.set(link.person_id, link.organization_id);
+      }
+
+      for (const pid of personIds) {
+        const orgId = personOrgMap.get(pid);
+        if (orgId) {
+          const group = orgGroups.get(orgId) ?? [];
+          group.push(pid);
+          orgGroups.set(orgId, group);
+        } else {
+          ungrouped.push(pid);
+        }
+      }
+
+      enrollments = [];
+      const nextSendAt = startAt ?? new Date().toISOString();
+
+      // For each org group, first person is primary, rest are co-recipients
+      for (const [, groupPersonIds] of orgGroups) {
+        const [primary, ...coRecipients] = groupPersonIds;
+        if (!primary) continue;
+        enrollments.push({
+          sequence_id: id,
+          person_id: primary,
+          gmail_connection_id: gmailConnectionId,
+          next_send_at: nextSendAt,
+          created_by: user.id,
+          ...(coRecipients.length > 0 ? { co_recipient_ids: coRecipients } : {}),
+        });
+      }
+
+      // Ungrouped people get individual enrollments
+      for (const pid of ungrouped) {
+        enrollments.push({
+          sequence_id: id,
+          person_id: pid,
+          gmail_connection_id: gmailConnectionId,
+          next_send_at: nextSendAt,
+          created_by: user.id,
+        });
+      }
+    } else {
+      // No grouping - one enrollment per person
+      enrollments = personIds.map((personId) => ({
+        sequence_id: id,
+        person_id: personId,
+        gmail_connection_id: gmailConnectionId,
+        next_send_at: startAt ?? new Date().toISOString(),
+        created_by: user.id,
+      }));
+    }
 
     const { data: created, error } = await supabaseAny
       .from('sequence_enrollments')

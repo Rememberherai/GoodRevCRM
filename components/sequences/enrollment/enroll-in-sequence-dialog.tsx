@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2, Mail, ListChecks } from 'lucide-react';
+import { Loader2, Mail, ListChecks, Users } from 'lucide-react';
 import {
   Dialog,
   DialogContent,
@@ -13,6 +13,7 @@ import {
 import { Button } from '@/components/ui/button';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import { Checkbox } from '@/components/ui/checkbox';
 import {
   Select,
   SelectContent,
@@ -60,6 +61,7 @@ export function EnrollInSequenceDialog({
   const [selectedConnection, setSelectedConnection] = useState<string>('');
   const [isLoading, setIsLoading] = useState(false);
   const [isEnrolling, setIsEnrolling] = useState(false);
+  const [groupByOrg, setGroupByOrg] = useState(true);
   const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
@@ -127,6 +129,7 @@ export function EnrollInSequenceDialog({
           body: JSON.stringify({
             person_ids: personIds,
             gmail_connection_id: selectedConnection,
+            group_by_org: groupByOrg,
           }),
         }
       );
@@ -239,6 +242,28 @@ export function EnrollInSequenceDialog({
               </Select>
             )}
           </div>
+
+          {/* Group by org option - only show for multi-person enrollment */}
+          {personIds.length > 1 && (
+            <div className="flex items-start gap-3 rounded-md border p-3">
+              <Checkbox
+                id="group-by-org"
+                checked={groupByOrg}
+                onCheckedChange={(checked) => setGroupByOrg(checked === true)}
+              />
+              <div className="grid gap-0.5 leading-none">
+                <Label htmlFor="group-by-org" className="text-sm font-medium cursor-pointer">
+                  <div className="flex items-center gap-1.5">
+                    <Users className="h-3.5 w-3.5" />
+                    Group by organization
+                  </div>
+                </Label>
+                <p className="text-xs text-muted-foreground mt-1">
+                  Send one email to all contacts at the same organization (all in To field) instead of separate emails.
+                </p>
+              </div>
+            </div>
+          )}
 
           {error && <p className="text-sm text-destructive">{error}</p>}
         </div>

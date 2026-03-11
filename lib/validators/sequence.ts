@@ -127,6 +127,7 @@ export const bulkEnrollSchema = z.object({
   person_ids: z.array(z.string().uuid()).min(1).max(100),
   gmail_connection_id: z.string().uuid('Invalid Gmail connection ID'),
   start_at: z.string().datetime().optional(),
+  group_by_org: z.boolean().default(true),
 });
 
 export type BulkEnrollInput = z.infer<typeof bulkEnrollSchema>;

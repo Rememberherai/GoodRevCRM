@@ -4084,6 +4084,7 @@ export type Database = {
       sequence_enrollments: {
         Row: {
           bounce_detected_at: string | null
+          co_recipient_ids: string[] | null
           completed_at: string | null
           created_at: string | null
           created_by: string
@@ -4099,6 +4100,7 @@ export type Database = {
         }
         Insert: {
           bounce_detected_at?: string | null
+          co_recipient_ids?: string[] | null
           completed_at?: string | null
           created_at?: string | null
           created_by: string
@@ -4114,6 +4116,7 @@ export type Database = {
         }
         Update: {
           bounce_detected_at?: string | null
+          co_recipient_ids?: string[] | null
           completed_at?: string | null
           created_at?: string | null
           created_by?: string

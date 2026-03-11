@@ -258,6 +258,24 @@ async function processEnrollment(
       return { status: 'skipped', message: 'Person has invalid email address format' };
     }
 
+    // Build recipient list (primary + co-recipients)
+    const toAddresses: string[] = [email];
+    const coRecipientIds: string[] = (enrollment as unknown as { co_recipient_ids?: string[] | null }).co_recipient_ids ?? [];
+    if (coRecipientIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const supabaseAnyCo = supabase as any;
+      const { data: coRecipients } = await supabaseAnyCo
+        .from('people')
+        .select('email')
+        .in('id', coRecipientIds);
+      for (const co of (coRecipients ?? []) as { email: string | null }[]) {
+        if (co.email && !toAddresses.includes(co.email)) {
+          toAddresses.push(co.email);
+        }
+      }
+      console.log(`[SEQUENCE_PROCESSOR] Grouped send to ${toAddresses.length} recipients: ${toAddresses.join(', ')}`);
+    }
+
     // Substitute variables
     let { subject, bodyHtml, bodyText } = substituteEmailContent(
       currentStep.subject ?? 'No Subject',
@@ -358,7 +376,7 @@ async function processEnrollment(
       const result = await sendEmail(
         gmailConnection,
         {
-          to: context.person.email,
+          to: toAddresses.length > 1 ? toAddresses : context.person.email,
           subject: threadedSubject,
           body_html: bodyHtml,
           body_text: bodyText,

@@ -122,6 +122,7 @@ export interface SequenceEnrollment {
   completed_at: string | null;
   reply_detected_at: string | null;
   bounce_detected_at: string | null;
+  co_recipient_ids: string[] | null;
   created_by: string;
   created_at: string;
   updated_at: string;
