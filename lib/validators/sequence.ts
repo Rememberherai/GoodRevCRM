@@ -99,6 +99,13 @@ export const createStepSchema = z.object({
 export type CreateStepInput = z.infer<typeof createStepSchema>;
 
 // Update step schema
+const stepAttachmentSchema = z.object({
+  file_name: z.string(),
+  file_type: z.string(),
+  file_size: z.number(),
+  storage_path: z.string(),
+});
+
 export const updateStepSchema = z.object({
   step_number: z.number().int().min(1).optional(),
   subject: z.string().max(998).nullable().optional(),
@@ -109,6 +116,7 @@ export const updateStepSchema = z.object({
   delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional(),
   condition: stepConditionSchema.nullable().optional(),
   config: stepConfigSchema.nullable().optional(),
+  attachments: z.array(stepAttachmentSchema).nullable().optional(),
 });
 
 export type UpdateStepInput = z.infer<typeof updateStepSchema>;
