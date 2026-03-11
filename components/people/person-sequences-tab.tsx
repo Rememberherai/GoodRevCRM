@@ -9,13 +9,29 @@ import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { NewSequenceDialog } from '@/components/sequences';
 import { EnrollInSequenceDialog } from '@/components/sequences/enrollment/enroll-in-sequence-dialog';
-import type { Sequence, SequenceStatus } from '@/types/sequence';
+import { EnrollmentStatusBadge } from '@/components/sequences/enrollment/enrollment-status-badge';
+import type { Sequence, SequenceStatus, EnrollmentStatus } from '@/types/sequence';
 import { SEQUENCE_STATUS_LABELS, SEQUENCE_STATUS_COLORS } from '@/types/sequence';
 import type { CompanyContext } from '@/lib/validators/project';
 
 interface SequenceWithCounts extends Sequence {
   steps?: { count: number }[];
   enrollments?: { count: number }[];
+}
+
+interface PersonEnrollment {
+  id: string;
+  sequence_id: string;
+  status: EnrollmentStatus;
+  current_step: number;
+  next_send_at: string | null;
+  created_at: string;
+  sequence?: {
+    id: string;
+    name: string;
+    status: SequenceStatus;
+    description: string | null;
+  };
 }
 
 interface PersonSequencesTabProps {
@@ -37,18 +53,25 @@ export function PersonSequencesTab({
 }: PersonSequencesTabProps) {
   const router = useRouter();
   const [sequences, setSequences] = useState<SequenceWithCounts[]>([]);
+  const [enrollments, setEnrollments] = useState<PersonEnrollment[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isEnrollOpen, setIsEnrollOpen] = useState(false);
 
-  const loadSequences = useCallback(async () => {
+  const loadData = useCallback(async () => {
     try {
-      const response = await fetch(
-        `/api/projects/${projectSlug}/sequences?person_id=${personId}`
-      );
-      if (response.ok) {
-        const data = await response.json();
+      const [seqRes, enrollRes] = await Promise.all([
+        fetch(`/api/projects/${projectSlug}/sequences?person_id=${personId}`),
+        fetch(`/api/projects/${projectSlug}/people/${personId}/enrollments`),
+      ]);
+
+      if (seqRes.ok) {
+        const data = await seqRes.json();
         setSequences(data.sequences);
+      }
+      if (enrollRes.ok) {
+        const data = await enrollRes.json();
+        setEnrollments(data.enrollments || []);
       }
     } catch (error) {
       console.error('Error loading sequences:', error);
@@ -58,8 +81,8 @@ export function PersonSequencesTab({
   }, [projectSlug, personId]);
 
   useEffect(() => {
-    loadSequences();
-  }, [loadSequences]);
+    loadData();
+  }, [loadData]);
 
   const handleCreated = (sequence: { id: string }) => {
     router.push(`/projects/${projectSlug}/sequences/${sequence.id}`);
@@ -72,6 +95,16 @@ export function PersonSequencesTab({
         {SEQUENCE_STATUS_LABELS[status]}
       </Badge>
     );
+  };
+
+  const formatDate = (dateString: string | null) => {
+    if (!dateString) return '-';
+    return new Date(dateString).toLocaleDateString('en-US', {
+      month: 'short',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+    });
   };
 
   if (isLoading) {
@@ -88,7 +121,7 @@ export function PersonSequencesTab({
         <div>
           <h3 className="text-lg font-semibold">Sequences</h3>
           <p className="text-sm text-muted-foreground">
-            Email sequences specific to {personName}
+            Email sequences for {personName}
           </p>
         </div>
         <div className="flex items-center gap-2">
@@ -103,58 +136,101 @@ export function PersonSequencesTab({
         </div>
       </div>
 
-      {sequences.length === 0 ? (
+      {/* Active Enrollments */}
+      {enrollments.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-muted-foreground">Enrolled In</h4>
+          <div className="grid gap-2">
+            {enrollments.map((enrollment) => (
+              <Link
+                key={enrollment.id}
+                href={`/projects/${projectSlug}/sequences/${enrollment.sequence_id}`}
+                className="flex items-center gap-4 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+              >
+                <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                  <Send className="h-5 w-5 text-primary" />
+                </div>
+                <div className="flex-1 min-w-0">
+                  <div className="font-medium text-sm">
+                    {enrollment.sequence?.name || 'Unknown Sequence'}
+                  </div>
+                  <div className="text-xs text-muted-foreground">
+                    Step {enrollment.current_step} · Next: {formatDate(enrollment.next_send_at)}
+                  </div>
+                </div>
+                <div className="flex items-center gap-2">
+                  <EnrollmentStatusBadge status={enrollment.status} />
+                  {enrollment.sequence && getStatusBadge(enrollment.sequence.status)}
+                </div>
+              </Link>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* Person-specific sequences */}
+      {sequences.length > 0 && (
+        <div className="space-y-3">
+          <h4 className="text-sm font-medium text-muted-foreground">
+            Sequences Created for {personName}
+          </h4>
+          <div className="grid gap-2">
+            {sequences.map((sequence) => {
+              const stepCount = sequence.steps?.[0]?.count ?? 0;
+              const enrollmentCount = sequence.enrollments?.[0]?.count ?? 0;
+
+              return (
+                <Link
+                  key={sequence.id}
+                  href={`/projects/${projectSlug}/sequences/${sequence.id}`}
+                  className="flex items-center gap-4 p-3 rounded-lg border hover:bg-muted/50 transition-colors"
+                >
+                  <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-primary/10">
+                    <Mail className="h-5 w-5 text-primary" />
+                  </div>
+                  <div className="flex-1 min-w-0">
+                    <div className="font-medium text-sm">{sequence.name}</div>
+                    {sequence.description && (
+                      <div className="text-xs text-muted-foreground line-clamp-1">
+                        {sequence.description}
+                      </div>
+                    )}
+                  </div>
+                  <div className="hidden sm:flex items-center gap-3 text-xs text-muted-foreground">
+                    <span>{stepCount} steps</span>
+                    <span>{enrollmentCount} enrolled</span>
+                    {getStatusBadge(sequence.status)}
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
+      {/* Empty state */}
+      {sequences.length === 0 && enrollments.length === 0 && (
         <Card>
           <CardContent className="py-12">
             <div className="text-center">
               <Mail className="mx-auto h-12 w-12 text-muted-foreground mb-4" />
               <h3 className="text-lg font-semibold mb-2">No sequences yet</h3>
               <p className="text-muted-foreground mb-4">
-                Create email sequences tailored specifically for {personName}
+                Enroll {personName} in a sequence or create one specifically for them.
               </p>
-              <Button onClick={() => setIsDialogOpen(true)}>
-                <Plus className="mr-2 h-4 w-4" />
-                Create your first sequence
-              </Button>
+              <div className="flex items-center justify-center gap-2">
+                <Button variant="outline" onClick={() => setIsEnrollOpen(true)}>
+                  <Send className="mr-2 h-4 w-4" />
+                  Enroll in Sequence
+                </Button>
+                <Button onClick={() => setIsDialogOpen(true)}>
+                  <Plus className="mr-2 h-4 w-4" />
+                  New Sequence
+                </Button>
+              </div>
             </div>
           </CardContent>
         </Card>
-      ) : (
-        <div className="grid gap-3">
-          {sequences.map((sequence) => {
-            const stepCount = sequence.steps?.[0]?.count ?? 0;
-            const enrollmentCount = sequence.enrollments?.[0]?.count ?? 0;
-
-            return (
-              <Link
-                key={sequence.id}
-                href={`/projects/${projectSlug}/sequences/${sequence.id}`}
-                className="flex items-center gap-4 p-4 rounded-lg border hover:bg-muted/50 transition-colors"
-              >
-                <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-primary/10">
-                  <Mail className="h-6 w-6 text-primary" />
-                </div>
-                <div className="flex-1 min-w-0">
-                  <div className="font-medium">{sequence.name}</div>
-                  {sequence.description && (
-                    <div className="text-sm text-muted-foreground line-clamp-1">
-                      {sequence.description}
-                    </div>
-                  )}
-                </div>
-                <div className="hidden sm:flex items-center gap-4">
-                  <div className="text-sm text-muted-foreground">
-                    {stepCount} steps
-                  </div>
-                  <div className="text-sm text-muted-foreground">
-                    {enrollmentCount} enrolled
-                  </div>
-                  {getStatusBadge(sequence.status)}
-                </div>
-              </Link>
-            );
-          })}
-        </div>
       )}
 
       <NewSequenceDialog
@@ -176,7 +252,7 @@ export function PersonSequencesTab({
         onOpenChange={setIsEnrollOpen}
         projectSlug={projectSlug}
         personIds={[personId]}
-        onEnrolled={() => loadSequences()}
+        onEnrolled={() => loadData()}
       />
     </div>
   );

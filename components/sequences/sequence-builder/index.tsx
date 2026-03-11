@@ -9,6 +9,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   Popover,
   PopoverContent,
@@ -18,6 +19,7 @@ import { Separator } from '@/components/ui/separator';
 import { StepTimeline } from './step-timeline';
 import { StepEditor } from './step-editor';
 import { EnrollPeopleDialog } from '../enrollment';
+import { SequenceEnrollmentsPanel } from '../enrollment/sequence-enrollments-panel';
 import type { Sequence, SequenceStep, SequenceStatus, SequenceSettings } from '@/types/sequence';
 import {
   SEQUENCE_STATUS_LABELS,
@@ -354,44 +356,63 @@ export function SequenceBuilder({
         </div>
       </div>
 
-      {/* Description */}
-      <div className="p-4 border-b">
-        <Textarea
-          value={description}
-          onChange={(e) => handleDescriptionChange(e.target.value)}
-          placeholder="Add a description for this sequence..."
-          className="resize-none"
-          rows={2}
-        />
-      </div>
-
-      {/* Main content */}
-      <div className="flex-1 flex overflow-hidden">
-        {/* Step timeline */}
-        <div className="w-80 border-r overflow-auto">
-          <StepTimeline
-            steps={steps}
-            selectedStepId={selectedStepId}
-            onSelectStep={handleStepSelect}
-            onAddStep={handleAddStep}
-            onDeleteStep={handleDeleteStep}
-          />
+      {/* Tabs: Builder / Enrollments */}
+      <Tabs defaultValue="builder" className="flex-1 flex flex-col overflow-hidden">
+        <div className="px-4 border-b">
+          <TabsList className="h-10">
+            <TabsTrigger value="builder">Builder</TabsTrigger>
+            <TabsTrigger value="enrollments">Enrollments</TabsTrigger>
+          </TabsList>
         </div>
 
-        {/* Step editor */}
-        <div className="flex-1 overflow-auto">
-          {selectedStep ? (
-            <StepEditor
-              step={selectedStep}
-              onUpdate={handleStepUpdate}
+        <TabsContent value="builder" className="flex-1 flex flex-col overflow-hidden mt-0">
+          {/* Description */}
+          <div className="p-4 border-b">
+            <Textarea
+              value={description}
+              onChange={(e) => handleDescriptionChange(e.target.value)}
+              placeholder="Add a description for this sequence..."
+              className="resize-none"
+              rows={2}
             />
-          ) : (
-            <div className="flex items-center justify-center h-full text-muted-foreground">
-              Select a step to edit
+          </div>
+
+          {/* Main content */}
+          <div className="flex-1 flex overflow-hidden">
+            {/* Step timeline */}
+            <div className="w-80 border-r overflow-auto">
+              <StepTimeline
+                steps={steps}
+                selectedStepId={selectedStepId}
+                onSelectStep={handleStepSelect}
+                onAddStep={handleAddStep}
+                onDeleteStep={handleDeleteStep}
+              />
             </div>
-          )}
-        </div>
-      </div>
+
+            {/* Step editor */}
+            <div className="flex-1 overflow-auto">
+              {selectedStep ? (
+                <StepEditor
+                  step={selectedStep}
+                  onUpdate={handleStepUpdate}
+                />
+              ) : (
+                <div className="flex items-center justify-center h-full text-muted-foreground">
+                  Select a step to edit
+                </div>
+              )}
+            </div>
+          </div>
+        </TabsContent>
+
+        <TabsContent value="enrollments" className="flex-1 overflow-auto mt-0">
+          <SequenceEnrollmentsPanel
+            projectSlug={projectSlug}
+            sequenceId={sequence.id}
+          />
+        </TabsContent>
+      </Tabs>
 
       {/* Enroll People Dialog */}
       <EnrollPeopleDialog
