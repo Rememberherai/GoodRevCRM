@@ -204,7 +204,7 @@ export function EmailSignaturesPanel({ slug }: EmailSignaturesPanelProps) {
                       )}
                     </div>
                     <div
-                      className="text-sm text-foreground mt-2 max-h-24 overflow-hidden border rounded p-2 bg-white"
+                      className="text-sm mt-2 max-h-24 overflow-hidden border rounded p-2 bg-white [&_*]:!text-black [&]:text-black"
                       dangerouslySetInnerHTML={{ __html: sig.content_html }}
                     />
                   </div>

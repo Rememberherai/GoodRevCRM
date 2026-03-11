@@ -271,7 +271,7 @@ export function SendEmailModal({
                 <div>
                   <p className="text-xs text-muted-foreground mb-1 font-medium">Signature (auto-appended):</p>
                   <div
-                    className="border rounded p-2 bg-white text-sm text-black"
+                    className="border rounded p-2 bg-white text-sm text-black [&_*]:!text-black"
                     dangerouslySetInnerHTML={{ __html: signatureHtml }}
                   />
                 </div>
