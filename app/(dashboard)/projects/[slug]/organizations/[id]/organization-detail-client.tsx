@@ -68,6 +68,7 @@ import { EntityCommentsFeed } from '@/components/comments';
 import { BulkActionsBar } from '@/components/bulk/bulk-actions-bar';
 import { BulkEnrichWithReviewModal } from '@/components/enrichment/bulk-enrich-with-review-modal';
 import { EnrollInSequenceDialog } from '@/components/sequences/enrollment/enroll-in-sequence-dialog';
+import { BulkGenericEmailDialog } from '@/components/organizations/bulk-generic-email-dialog';
 import { OrgNewsSection } from '@/components/news/org-news-section';
 import { OrgNewsFetchCard } from '@/components/news/org-news-fetch-card';
 import { ClickToDialButton } from '@/components/calls/click-to-dial-button';
@@ -221,6 +222,7 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
   const [selectedPeopleIds, setSelectedPeopleIds] = useState<Set<string>>(new Set());
   const [bulkEnrichOpen, setBulkEnrichOpen] = useState(false);
   const [enrollInSequenceOpen, setEnrollInSequenceOpen] = useState(false);
+  const [showGenericEmailDiscovery, setShowGenericEmailDiscovery] = useState(false);
   const [opportunities, setOpportunities] = useState<Opportunity[]>([]);
   const [opportunitiesLoading, setOpportunitiesLoading] = useState(false);
   const [rfps, setRfps] = useState<Rfp[]>([]);
@@ -864,6 +866,10 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
               </p>
             </div>
             <div className="flex items-center gap-2">
+              <Button variant="outline" onClick={() => setShowGenericEmailDiscovery(true)}>
+                <Mail className="mr-2 h-4 w-4" />
+                Find Dept Emails
+              </Button>
               <Button variant="outline" onClick={() => setShowContactDiscovery(true)}>
                 <Bot className="mr-2 h-4 w-4" />
                 Find People
@@ -1344,6 +1350,15 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
         personIds={Array.from(selectedPeopleIds)}
         onEnrolled={() => {
           clearPeopleSelection();
+        }}
+      />
+
+      <BulkGenericEmailDialog
+        open={showGenericEmailDiscovery}
+        onOpenChange={setShowGenericEmailDiscovery}
+        organizationIds={[organizationId]}
+        onComplete={() => {
+          loadPeople();
         }}
       />
     </div>
