@@ -192,6 +192,15 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    // Remove any non-active enrollments for these people so re-enrollment works
+    const NON_ACTIVE_STATUSES = ['completed', 'cancelled', 'bounced', 'replied'];
+    await supabaseAny
+      .from('sequence_enrollments')
+      .delete()
+      .eq('sequence_id', id)
+      .in('person_id', personIds)
+      .in('status', NON_ACTIVE_STATUSES);
+
     // Create enrollments
     const enrollments = personIds.map((personId) => ({
       sequence_id: id,
@@ -209,7 +218,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (error) {
       if (error.code === '23505') {
         return NextResponse.json(
-          { error: 'One or more people are already enrolled in this sequence' },
+          { error: 'One or more people are already actively enrolled in this sequence. Pause or cancel their enrollment first.' },
           { status: 409 }
         );
       }
