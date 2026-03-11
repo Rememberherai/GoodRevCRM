@@ -99,7 +99,7 @@ export function EnrollPeopleDialog({
 
   const fetchGmailConnections = async () => {
     try {
-      const response = await fetch(`/api/projects/${projectSlug}/gmail`);
+      const response = await fetch('/api/gmail/connections');
       if (response.ok) {
         const data = await response.json();
         const connected = (data.connections || []).filter(
