@@ -342,7 +342,11 @@ async function processEnrollment(
                 })
               : '';
             const fromEmail = gmailConnection.email;
-            bodyHtml = `${bodyHtml}<br><br><div class="gmail_quote"><div dir="ltr" class="gmail_attr">On ${sentDate}, ${fromEmail} wrote:<br></div><blockquote class="gmail_quote" style="margin:0px 0px 0px 0.8ex;border-left:1px solid rgb(204,204,204);padding-left:1ex">${prevEmail.body_html}</blockquote></div>`;
+            // Strip tracking pixels and tracking links from quoted content to avoid spam flags
+            const cleanedQuote = prevEmail.body_html
+              .replace(/<img[^>]*track\/open[^>]*>/gi, '')
+              .replace(/<img[^>]*width="1"[^>]*height="1"[^>]*>/gi, '');
+            bodyHtml = `${bodyHtml}<br><br><div class="gmail_quote"><div dir="ltr" class="gmail_attr">On ${sentDate}, ${fromEmail} wrote:<br></div><blockquote class="gmail_quote" style="margin:0px 0px 0px 0.8ex;border-left:1px solid rgb(204,204,204);padding-left:1ex">${cleanedQuote}</blockquote></div>`;
           }
           console.log(`[SEQUENCE_PROCESSOR] Threading reply: threadId=${threadId}, replyToMessageId=${replyToMessageId}, subject="${threadedSubject}"`);
         } else {
