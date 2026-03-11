@@ -135,6 +135,8 @@ export function SequenceBuilder({
       ...updates,
     };
 
+    setHasChanges(true);
+
     // Debounce the server save
     if (saveTimerRef.current) {
       clearTimeout(saveTimerRef.current);
