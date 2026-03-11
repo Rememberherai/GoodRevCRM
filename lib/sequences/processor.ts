@@ -259,7 +259,7 @@ async function processEnrollment(
     }
 
     // Substitute variables
-    const { subject, bodyHtml, bodyText } = substituteEmailContent(
+    let { subject, bodyHtml, bodyText } = substituteEmailContent(
       currentStep.subject ?? 'No Subject',
       currentStep.body_html ?? '',
       currentStep.body_text,
@@ -311,7 +311,7 @@ async function processEnrollment(
         const { data: prevEmail, error: prevEmailError } = prevStepIds.length > 0
           ? await supabaseAnyThread
               .from('sent_emails')
-              .select('thread_id, message_id, subject, sequence_step_id')
+              .select('thread_id, message_id, subject, body_html, sent_at, sequence_step_id')
               .eq('sequence_enrollment_id', enrollment.id)
               .in('sequence_step_id', prevStepIds)
               .order('sent_at', { ascending: false })
@@ -333,6 +333,17 @@ async function processEnrollment(
           const originalSubject = prevEmail.subject ?? subject;
           const baseSubject = originalSubject.replace(/^Re:\s*/i, '');
           threadedSubject = `Re: ${baseSubject}`;
+          // Append quoted previous email to body for natural reply appearance
+          if (prevEmail.body_html) {
+            const sentDate = prevEmail.sent_at
+              ? new Date(prevEmail.sent_at).toLocaleString('en-US', {
+                  weekday: 'short', year: 'numeric', month: 'short', day: 'numeric',
+                  hour: '2-digit', minute: '2-digit',
+                })
+              : '';
+            const fromEmail = gmailConnection.email;
+            bodyHtml = `${bodyHtml}<br><br><div class="gmail_quote"><div dir="ltr" class="gmail_attr">On ${sentDate}, ${fromEmail} wrote:<br></div><blockquote class="gmail_quote" style="margin:0px 0px 0px 0.8ex;border-left:1px solid rgb(204,204,204);padding-left:1ex">${prevEmail.body_html}</blockquote></div>`;
+          }
           console.log(`[SEQUENCE_PROCESSOR] Threading reply: threadId=${threadId}, replyToMessageId=${replyToMessageId}, subject="${threadedSubject}"`);
         } else {
           console.log(`[SEQUENCE_PROCESSOR] No previous email found for threading`);
