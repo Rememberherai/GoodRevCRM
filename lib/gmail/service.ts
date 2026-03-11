@@ -85,7 +85,10 @@ function createMimeMessage(input: SendEmailInput, fromEmail: string, trackingId:
   const trackedHtml = injectTrackingPixel(input.body_html, trackingPixelUrl);
 
   // Wrap links with click tracking
-  const finalHtml = wrapLinksWithTracking(trackedHtml, trackingId);
+  const trackedLinksHtml = wrapLinksWithTracking(trackedHtml, trackingId);
+
+  // Wrap in email-safe styles to normalize paragraph spacing
+  const finalHtml = wrapEmailHtml(trackedLinksHtml);
 
   const hasAttachments = input.attachments && input.attachments.length > 0;
   const mixedBoundary = hasAttachments
@@ -208,6 +211,19 @@ function stripHtml(html: string): string {
 /**
  * Inject tracking pixel into HTML body
  */
+/**
+ * Wrap email HTML with inline styles to normalize paragraph spacing.
+ * Email clients apply large default margins to <p> tags; this resets them.
+ */
+function wrapEmailHtml(html: string): string {
+  // If it already has a <body> or full HTML structure, just inject styles
+  if (html.includes('<html') || html.includes('<body')) {
+    return html;
+  }
+
+  return `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222;">${html.replace(/<p>/g, '<p style="margin: 0 0 10px 0;">')}</div>`;
+}
+
 function injectTrackingPixel(html: string, pixelUrl: string): string {
   const pixel = `<img src="${pixelUrl}" width="1" height="1" style="display:none" alt="" />`;
 
