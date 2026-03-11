@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useCallback } from 'react';
 import { Save, Play, Pause, Users, Settings, ArrowLeft } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
@@ -63,6 +63,15 @@ export function SequenceBuilder({
   };
 
   const handleSave = async () => {
+    // Flush any pending step saves first
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+    for (const stepId of Object.keys(pendingUpdatesRef.current)) {
+      await flushStepSave(stepId);
+    }
+
     setIsSaving(true);
     try {
       await onSave({ name, description: description || null });
@@ -73,17 +82,53 @@ export function SequenceBuilder({
   };
 
   const handleStepSelect = (stepId: string) => {
+    // Flush pending save for current step before switching
+    if (selectedStepId && pendingUpdatesRef.current[selectedStepId]) {
+      if (saveTimerRef.current) {
+        clearTimeout(saveTimerRef.current);
+        saveTimerRef.current = null;
+      }
+      flushStepSave(selectedStepId);
+    }
     setSelectedStepId(stepId);
   };
 
-  const handleStepUpdate = async (updates: Partial<SequenceStep>) => {
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingUpdatesRef = useRef<Record<string, Partial<SequenceStep>>>({});
+
+  const flushStepSave = useCallback(async (stepId: string) => {
+    const updates = pendingUpdatesRef.current[stepId];
+    if (!updates) return;
+    delete pendingUpdatesRef.current[stepId];
+    try {
+      await onSaveStep({ id: stepId, ...updates });
+    } catch (err) {
+      console.error('Failed to save step:', err);
+    }
+  }, [onSaveStep]);
+
+  const handleStepUpdate = (updates: Partial<SequenceStep>) => {
     if (!selectedStepId) return;
 
-    const updatedStep = await onSaveStep({ id: selectedStepId, ...updates });
-
+    // Update local state immediately (optimistic)
     setSteps((prev) =>
-      prev.map((s) => (s.id === selectedStepId ? { ...s, ...updatedStep } : s))
+      prev.map((s) => (s.id === selectedStepId ? { ...s, ...updates } : s))
     );
+
+    // Accumulate pending updates for this step
+    pendingUpdatesRef.current[selectedStepId] = {
+      ...pendingUpdatesRef.current[selectedStepId],
+      ...updates,
+    };
+
+    // Debounce the server save
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+    }
+    const stepId = selectedStepId;
+    saveTimerRef.current = setTimeout(() => {
+      flushStepSave(stepId);
+    }, 500);
   };
 
   const handleAddStep = async (type: AddableStepType, afterStepNumber: number) => {
