@@ -71,7 +71,7 @@ export async function fetchVariableContext(
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
     const { data: personOrg } = await supabaseAny
-      .from('people_organizations')
+      .from('person_organizations')
       .select(`
         organization:organizations(id, name, domain, industry, website, linkedin_url)
       `)

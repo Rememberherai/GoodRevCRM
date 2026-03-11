@@ -2,6 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { Mail, Clock, MessageSquare, Phone, CheckSquare, Linkedin, Paperclip, X, Upload, FileText } from 'lucide-react';
+// Note: Textarea is still used for SMS/task/call editors
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
@@ -12,8 +13,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { VariablePicker } from './variable-picker';
+import { EmailBodyEditor } from './email-body-editor';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -74,8 +75,6 @@ function EmailEditor({
   step: SequenceStep;
   onUpdate: (updates: Partial<SequenceStep>) => void;
 }) {
-  const [activeTab, setActiveTab] = useState<'edit' | 'preview'>('edit');
-
   return (
     <div className="p-6 space-y-6">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
@@ -119,76 +118,13 @@ function EmailEditor({
           </p>
         </div>
 
-        <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'edit' | 'preview')}>
-          <div className="flex items-center justify-between">
-            <Label>Email Body</Label>
-            <TabsList className="h-8">
-              <TabsTrigger value="edit" className="text-xs px-2">
-                Edit
-              </TabsTrigger>
-              <TabsTrigger value="preview" className="text-xs px-2">
-                Preview
-              </TabsTrigger>
-            </TabsList>
-          </div>
-
-          <TabsContent value="edit" className="mt-2">
-            <div className="space-y-2">
-              <div className="flex justify-end">
-                <VariablePicker
-                  onInsert={(variable) => {
-                    const textarea = document.getElementById('body') as HTMLTextAreaElement;
-                    if (textarea) {
-                      const start = textarea.selectionStart || 0;
-                      const end = textarea.selectionEnd || 0;
-                      const value = step.body_html || '';
-                      const newValue =
-                        value.substring(0, start) +
-                        `{{${variable}}}` +
-                        value.substring(end);
-                      onUpdate({ body_html: newValue, body_text: stripHtml(newValue) });
-                    }
-                  }}
-                />
-              </div>
-              <Textarea
-                id="body"
-                value={step.body_html || ''}
-                onChange={(e) => onUpdate({
-                  body_html: e.target.value,
-                  body_text: stripHtml(e.target.value),
-                })}
-                placeholder="Write your email content here..."
-                rows={15}
-                className="font-mono text-sm"
-              />
-              <p className="text-xs text-muted-foreground">
-                Use HTML for formatting. Variables like {'{{first_name}}'} will be replaced with actual values.
-              </p>
-            </div>
-          </TabsContent>
-
-          <TabsContent value="preview" className="mt-2">
-            <div className="border rounded-lg p-6 min-h-[300px] bg-white text-black">
-              <div className="prose prose-sm max-w-none [&_*]:!text-black [&_a]:!text-blue-600">
-                {step.body_html ? (
-                  <div
-                    dangerouslySetInnerHTML={{
-                      __html: step.body_html
-                        .replace(/\{\{first_name\}\}/g, '<span class="bg-blue-100 px-1 rounded">John</span>')
-                        .replace(/\{\{last_name\}\}/g, '<span class="bg-blue-100 px-1 rounded">Smith</span>')
-                        .replace(/\{\{company_name\}\}/g, '<span class="bg-blue-100 px-1 rounded">Acme Corp</span>')
-                        .replace(/\{\{job_title\}\}/g, '<span class="bg-blue-100 px-1 rounded">Director of Operations</span>')
-                        .replace(/\{\{sender_name\}\}/g, '<span class="bg-green-100 px-1 rounded">You</span>'),
-                    }}
-                  />
-                ) : (
-                  <p className="text-muted-foreground">No content to preview</p>
-                )}
-              </div>
-            </div>
-          </TabsContent>
-        </Tabs>
+        <div className="space-y-2">
+          <Label>Email Body</Label>
+          <EmailBodyEditor
+            value={step.body_html || ''}
+            onChange={(html, text) => onUpdate({ body_html: html, body_text: text })}
+          />
+        </div>
 
         <AttachmentEditor
           attachments={step.attachments ?? []}
@@ -865,8 +801,4 @@ function AttachmentEditor({
       )}
     </div>
   );
-}
-
-function stripHtml(html: string): string {
-  return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
