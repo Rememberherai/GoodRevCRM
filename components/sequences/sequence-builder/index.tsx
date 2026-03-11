@@ -16,6 +16,7 @@ import {
   PopoverTrigger,
 } from '@/components/ui/popover';
 import { Separator } from '@/components/ui/separator';
+import { toast } from 'sonner';
 import { StepTimeline } from './step-timeline';
 import { StepEditor } from './step-editor';
 import { EnrollPeopleDialog } from '../enrollment';
@@ -150,6 +151,11 @@ export function SequenceBuilder({
   };
 
   const handleAddStep = async (type: AddableStepType, afterStepNumber: number) => {
+    if (sequence.status === 'active') {
+      toast.error('Pause the sequence before adding or modifying steps.');
+      return;
+    }
+
     // Build defaults based on step type
     const stepDefaults: Partial<SequenceStep> = {
       step_type: type,
@@ -198,6 +204,10 @@ export function SequenceBuilder({
   };
 
   const handleDeleteStep = async (stepId: string) => {
+    if (sequence.status === 'active') {
+      toast.error('Pause the sequence before adding or modifying steps.');
+      return;
+    }
     await onDeleteStep(stepId);
     setSteps((prev) => prev.filter((s) => s.id !== stepId));
     if (selectedStepId === stepId) {
