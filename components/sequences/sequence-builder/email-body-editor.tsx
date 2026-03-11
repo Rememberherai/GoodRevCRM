@@ -52,7 +52,7 @@ export function EmailBodyEditor({ value, onChange }: EmailBodyEditorProps) {
     content: value || '',
     editorProps: {
       attributes: {
-        class: 'prose prose-sm max-w-none focus:outline-none min-h-[250px] px-4 py-3',
+        class: 'prose prose-sm max-w-none focus:outline-none min-h-[250px] px-4 py-3 text-black',
       },
     },
     onUpdate: ({ editor }) => {
@@ -171,7 +171,7 @@ export function EmailBodyEditor({ value, onChange }: EmailBodyEditorProps) {
       </div>
 
       {/* Editor */}
-      <div className="border rounded-md bg-white [&_.ProseMirror]:min-h-[250px] [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-muted-foreground [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none">
+      <div className="border rounded-md bg-white text-black [&_.ProseMirror]:min-h-[250px] [&_.ProseMirror]:text-black [&_.ProseMirror_a]:text-blue-600 [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-gray-400 [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none">
         <EditorContent editor={editor} />
       </div>
 
