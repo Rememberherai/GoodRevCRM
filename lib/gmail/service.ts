@@ -221,7 +221,13 @@ function wrapEmailHtml(html: string): string {
     return html;
   }
 
-  return `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222;">${html.replace(/<p>/g, '<p style="margin: 0 0 10px 0;">')}</div>`;
+  let styled = html
+    // Inline margin on all <p> tags (with or without existing attributes)
+    .replace(/<p(?=[ >])/g, '<p style="margin: 0 0 10px 0;"')
+    // Collapse empty paragraphs so they don't add extra blank lines
+    .replace(/<p style="margin: 0 0 10px 0;"><\/p>/g, '');
+
+  return `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222;">${styled}</div>`;
 }
 
 function injectTrackingPixel(html: string, pixelUrl: string): string {

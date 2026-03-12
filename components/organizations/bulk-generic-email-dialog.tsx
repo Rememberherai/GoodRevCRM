@@ -109,6 +109,8 @@ export function BulkGenericEmailDialog({
   // Adding state
   const [addedCount, setAddedCount] = useState(0);
   const [addedOrgsCount, setAddedOrgsCount] = useState(0);
+  const [addingCurrent, setAddingCurrent] = useState(0);
+  const [addingTotal, setAddingTotal] = useState(0);
 
   const abortRef = useRef(false);
 
@@ -127,6 +129,8 @@ export function BulkGenericEmailDialog({
       setExpandedOrgs(new Set());
       setAddedCount(0);
       setAddedOrgsCount(0);
+      setAddingCurrent(0);
+      setAddingTotal(0);
       abortRef.current = false;
     }
   }, [open, organizationIds.length]);
@@ -263,6 +267,27 @@ export function BulkGenericEmailDialog({
 
   const handleCancel = () => {
     abortRef.current = true;
+
+    // Show partial results if any were collected
+    if (results.length > 0) {
+      const autoSelections: Record<string, Set<string>> = {};
+      const autoExpanded = new Set<string>();
+
+      for (const result of results) {
+        if (result.status === 'success' && result.contacts.length > 0) {
+          autoExpanded.add(result.organizationId);
+          autoSelections[result.organizationId] = new Set(
+            result.contacts.filter((c) => c.confidence >= 0.5).map((c) => c.id)
+          );
+        }
+      }
+
+      setSelections(autoSelections);
+      setExpandedOrgs(autoExpanded);
+      setStep('results');
+    } else {
+      setStep('input');
+    }
   };
 
   const toggleContact = (orgId: string, contactId: string) => {
@@ -338,44 +363,61 @@ export function BulkGenericEmailDialog({
 
     setError(null);
     setStep('adding');
+    setAddingTotal(orgsWithSelections.length);
+    setAddingCurrent(0);
 
     let totalAdded = 0;
     let orgsProcessed = 0;
+    const ADD_CONCURRENCY = 5;
 
-    for (const [orgId, contactIds] of orgsWithSelections) {
-      const result = results.find((r) => r.organizationId === orgId);
-      if (!result || result.status !== 'success') continue;
+    for (let i = 0; i < orgsWithSelections.length; i += ADD_CONCURRENCY) {
+      const batch = orgsWithSelections.slice(i, i + ADD_CONCURRENCY);
 
-      const selectedContacts = result.contacts.filter((c) => contactIds.has(c.id));
+      const batchResults = await Promise.all(
+        batch.map(async ([orgId, contactIds]) => {
+          const result = results.find((r) => r.organizationId === orgId);
+          if (!result || result.status !== 'success') return 0;
 
-      try {
-        const response = await fetch(
-          `/api/projects/${slug}/organizations/${orgId}/add-contacts`,
-          {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({
-              contacts: selectedContacts.map((c) => ({
-                first_name: c.first_name ?? c.name,
-                last_name: c.last_name ?? '',
-                email: c.email,
-                job_title: c.title ?? 'Department',
-              })),
-            }),
+          const selectedContacts = result.contacts.filter((c) => contactIds.has(c.id));
+
+          try {
+            const response = await fetch(
+              `/api/projects/${slug}/organizations/${orgId}/add-contacts`,
+              {
+                method: 'POST',
+                headers: { 'Content-Type': 'application/json' },
+                body: JSON.stringify({
+                  contacts: selectedContacts.map((c) => ({
+                    first_name: c.first_name ?? c.name,
+                    last_name: c.last_name ?? '',
+                    email: c.email,
+                    job_title: c.title ?? 'Department',
+                  })),
+                }),
+              }
+            );
+
+            if (response.ok) {
+              const data = await response.json();
+              return data.created_count ?? 0;
+            } else {
+              const errData = await response.json().catch(() => ({}));
+              console.error(`Failed to add contacts for org ${orgId}:`, response.status, errData);
+              return 0;
+            }
+          } catch (err) {
+            console.error(`Failed to add contacts for org ${orgId}:`, err);
+            return 0;
           }
-        );
+        })
+      );
 
-        if (response.ok) {
-          const data = await response.json();
-          totalAdded += data.created_count ?? 0;
-          orgsProcessed++;
-        } else {
-          const errData = await response.json().catch(() => ({}));
-          console.error(`Failed to add contacts for org ${orgId}:`, response.status, errData);
-        }
-      } catch (err) {
-        console.error(`Failed to add contacts for org ${orgId}:`, err);
+      for (const count of batchResults) {
+        totalAdded += count;
+        if (count > 0) orgsProcessed++;
       }
+      setAddingCurrent((prev) => prev + batch.length);
+      setAddedCount(totalAdded);
     }
 
     setAddedCount(totalAdded);
@@ -412,7 +454,7 @@ export function BulkGenericEmailDialog({
           </DialogDescription>
         </DialogHeader>
 
-        <div className="flex-1 overflow-hidden py-4">
+        <div className="flex-1 overflow-auto py-4">
           {/* Step 1: Department Selection */}
           {step === 'input' && (
             <div className="space-y-4">
@@ -705,10 +747,19 @@ export function BulkGenericEmailDialog({
 
           {/* Step 4: Adding */}
           {step === 'adding' && (
-            <div className="flex flex-col items-center justify-center py-12">
-              <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
-              <p className="mt-4 text-muted-foreground">
-                Adding department contacts...
+            <div className="space-y-4 py-8">
+              <Progress value={addingTotal > 0 ? Math.round((addingCurrent / addingTotal) * 100) : 0} className="h-2" />
+              <div className="flex items-center justify-between text-sm">
+                <div className="flex items-center gap-2 text-muted-foreground">
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Adding department contacts...
+                </div>
+                <span className="text-muted-foreground">
+                  {addingCurrent} / {addingTotal} orgs
+                </span>
+              </div>
+              <p className="text-sm text-muted-foreground text-center">
+                {addedCount} contact{addedCount !== 1 ? 's' : ''} added so far
               </p>
             </div>
           )}
