@@ -212,7 +212,7 @@ function stripHtml(html: string): string {
  * Inject tracking pixel into HTML body
  */
 function stripLeftIndentationStyles(html: string): string {
-  return html.replace(/style=(["'])(.*?)\1/gi, (match, quote, styleValue) => {
+  return html.replace(/style=(["'])(.*?)\1/gi, (fullMatch, quote, styleValue) => {
     const cleaned = styleValue
       .replace(/(?:^|;)\s*margin-left\s*:[^;]+/gi, '')
       .replace(/(?:^|;)\s*padding-left\s*:[^;]+/gi, '')
@@ -220,6 +220,10 @@ function stripLeftIndentationStyles(html: string): string {
       .replace(/^\s*;\s*|\s*;\s*$/g, '')
       .replace(/\s*;\s*;\s*/g, '; ')
       .trim();
+
+    if (cleaned === styleValue.trim()) {
+      return fullMatch;
+    }
 
     if (!cleaned) {
       return '';
