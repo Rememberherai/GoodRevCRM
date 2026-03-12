@@ -177,14 +177,20 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    // Verify all person_ids belong to this project
-    const { data: validPeople } = await supabaseAny
-      .from('people')
-      .select('id')
-      .in('id', personIds)
-      .eq('project_id', project.id);
-
-    const validPersonIds = new Set((validPeople ?? []).map((p: { id: string }) => p.id));
+    // Verify all person_ids belong to this project (batch to avoid Supabase row/URL limits)
+    const BATCH_SIZE = 300;
+    const validPersonIds = new Set<string>();
+    for (let i = 0; i < personIds.length; i += BATCH_SIZE) {
+      const batch = personIds.slice(i, i + BATCH_SIZE);
+      const { data: validPeople } = await supabaseAny
+        .from('people')
+        .select('id')
+        .in('id', batch)
+        .eq('project_id', project.id);
+      for (const p of (validPeople ?? []) as { id: string }[]) {
+        validPersonIds.add(p.id);
+      }
+    }
     const invalidIds = personIds.filter((pid) => !validPersonIds.has(pid));
     if (invalidIds.length > 0) {
       return NextResponse.json(
@@ -195,12 +201,15 @@ export async function POST(request: Request, context: RouteContext) {
 
     // Remove any non-active enrollments for these people so re-enrollment works
     const NON_ACTIVE_STATUSES = ['completed', 'cancelled', 'bounced', 'replied'];
-    await supabaseAny
-      .from('sequence_enrollments')
-      .delete()
-      .eq('sequence_id', id)
-      .in('person_id', personIds)
-      .in('status', NON_ACTIVE_STATUSES);
+    for (let i = 0; i < personIds.length; i += BATCH_SIZE) {
+      const batch = personIds.slice(i, i + BATCH_SIZE);
+      await supabaseAny
+        .from('sequence_enrollments')
+        .delete()
+        .eq('sequence_id', id)
+        .in('person_id', batch)
+        .in('status', NON_ACTIVE_STATUSES);
+    }
 
     // Build enrollment records, grouping by org if requested
     let enrollments: {
@@ -213,12 +222,17 @@ export async function POST(request: Request, context: RouteContext) {
     }[];
 
     if (groupByOrg && personIds.length > 1) {
-      // Look up org memberships to group people by org
-      const { data: orgLinks } = await supabaseAny
-        .from('person_organizations')
-        .select('person_id, organization_id')
-        .in('person_id', personIds)
-        .eq('is_primary', true);
+      // Look up org memberships to group people by org (batched)
+      const orgLinks: { person_id: string; organization_id: string }[] = [];
+      for (let i = 0; i < personIds.length; i += BATCH_SIZE) {
+        const batch = personIds.slice(i, i + BATCH_SIZE);
+        const { data } = await supabaseAny
+          .from('person_organizations')
+          .select('person_id, organization_id')
+          .in('person_id', batch)
+          .eq('is_primary', true);
+        if (data) orgLinks.push(...data);
+      }
 
       // Group person IDs by org
       const orgGroups = new Map<string, string[]>();
@@ -278,20 +292,26 @@ export async function POST(request: Request, context: RouteContext) {
       }));
     }
 
-    const { data: created, error } = await supabaseAny
-      .from('sequence_enrollments')
-      .insert(enrollments)
-      .select();
+    // Insert enrollments in batches
+    const created: typeof enrollments = [];
+    for (let i = 0; i < enrollments.length; i += BATCH_SIZE) {
+      const batch = enrollments.slice(i, i + BATCH_SIZE);
+      const { data, error } = await supabaseAny
+        .from('sequence_enrollments')
+        .insert(batch)
+        .select();
 
-    if (error) {
-      if (error.code === '23505') {
-        return NextResponse.json(
-          { error: 'One or more people are already actively enrolled in this sequence. Pause or cancel their enrollment first.' },
-          { status: 409 }
-        );
+      if (error) {
+        if (error.code === '23505') {
+          return NextResponse.json(
+            { error: 'One or more people are already actively enrolled in this sequence. Pause or cancel their enrollment first.' },
+            { status: 409 }
+          );
+        }
+        console.error('Error creating enrollments:', error);
+        return NextResponse.json({ error: 'Failed to create enrollments' }, { status: 500 });
       }
-      console.error('Error creating enrollments:', error);
-      return NextResponse.json({ error: 'Failed to create enrollments' }, { status: 500 });
+      if (data) created.push(...data);
     }
 
     return NextResponse.json(
