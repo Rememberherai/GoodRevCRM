@@ -182,7 +182,7 @@ export const enrollmentQuerySchema = z.object({
   sequence_id: z.string().uuid().optional(),
   person_id: z.string().uuid().optional(),
   status: z.enum(['active', 'paused', 'completed', 'bounced', 'replied', 'unsubscribed']).optional(),
-  limit: z.coerce.number().min(1).max(100).optional().default(50),
+  limit: z.coerce.number().min(1).max(1000).optional().default(50),
   offset: z.coerce.number().min(0).optional().default(0),
 });
 

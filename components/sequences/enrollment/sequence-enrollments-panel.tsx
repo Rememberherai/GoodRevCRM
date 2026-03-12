@@ -33,7 +33,7 @@ export function SequenceEnrollmentsPanel({
   const fetchEnrollments = useCallback(async () => {
     try {
       const response = await fetch(
-        `/api/projects/${projectSlug}/sequences/${sequenceId}/enrollments?limit=100`
+        `/api/projects/${projectSlug}/sequences/${sequenceId}/enrollments?limit=500`
       );
       if (response.ok) {
         const data = await response.json();
