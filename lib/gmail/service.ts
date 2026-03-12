@@ -251,6 +251,11 @@ function wrapEmailHtml(html: string): string {
   // standard bottom margin, and empty editor paragraphs are removed so
   // they do not stack with paragraph margins into oversized gaps.
   const styled = normalized
+    .replace(/<div(?![^>]*style=)(?=[ >])/g, '<div style="margin: 0; padding: 0;"')
+    .replace(
+      /<blockquote(?![^>]*class=["'][^"']*gmail_quote)(?![^>]*style=)(?=[ >])/g,
+      '<blockquote style="margin: 0; padding: 0; border: 0;"'
+    )
     .replace(/<p(?=[ >])/g, '<p style="margin: 0 0 12px 0; padding: 0;"')
     .replace(
       /<p style="margin: 0 0 12px 0; padding: 0;">(\s*(<br\s*\/?>|<br[^>]*>|&nbsp;)\s*)?<\/p>/g,
