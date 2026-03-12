@@ -39,7 +39,7 @@ export function appendSignatureToHtml(bodyHtml: string, signatureHtml: string): 
   const cleanedSignatureHtml = signatureHtml
     .replace(/^\s*(<p>\s*(<br\s*\/?>|&nbsp;)\s*<\/p>\s*)*/i, '')
     .replace(/^\s*<hr\b[^>]*>\s*/i, '');
-  const signatureBlock = `<div class="email-signature"><p style="margin: 0; padding: 0; min-height: 1.5em;">&nbsp;</p>${cleanedSignatureHtml}</div>`;
+  const signatureBlock = `<div class="email-signature" style="margin-top: 12px;">${cleanedSignatureHtml}</div>`;
 
   // Insert before quoted reply block if present
   const quoteIndex = cleanedBodyHtml.indexOf('<div class="gmail_quote"');

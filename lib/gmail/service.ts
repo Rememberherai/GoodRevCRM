@@ -247,13 +247,14 @@ function wrapEmailHtml(html: string): string {
   // applying our email-safe paragraph formatting.
   const normalized = stripLeftIndentationStyles(html);
 
-  // Match editor behavior: real paragraphs stay tight, and only explicit
-  // blank lines from the editor create vertical spacing.
+  // Keep email spacing simple and predictable: real paragraphs get a
+  // standard bottom margin, and empty editor paragraphs are removed so
+  // they do not stack with paragraph margins into oversized gaps.
   const styled = normalized
-    .replace(/<p(?=[ >])/g, '<p style="margin: 0; padding: 0;"')
+    .replace(/<p(?=[ >])/g, '<p style="margin: 0 0 12px 0; padding: 0;"')
     .replace(
-      /<p style="margin: 0; padding: 0;">(\s*(<br\s*\/?>|<br[^>]*>|&nbsp;)\s*)?<\/p>/g,
-      '<p style="margin: 0; padding: 0; min-height: 1.5em;">&nbsp;</p>'
+      /<p style="margin: 0 0 12px 0; padding: 0;">(\s*(<br\s*\/?>|<br[^>]*>|&nbsp;)\s*)?<\/p>/g,
+      ''
     );
 
   return `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222; margin: 0; padding: 0; text-indent: 0;">${styled}</div>`;
