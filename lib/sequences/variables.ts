@@ -128,7 +128,8 @@ function getVariableValue(variableName: string, context: VariableContext): strin
 
     // Organization variables
     case 'company_name':
-      return organization?.name ?? '';
+      // Strip " - State/Province" suffix so emails read cleanly (e.g. "Houston" not "Houston - Texas")
+      return organization?.name?.replace(/ - [^-]+$/, '') ?? '';
     case 'company_domain':
       return organization?.domain ?? '';
     case 'company_industry':
