@@ -223,11 +223,11 @@ function wrapEmailHtml(html: string): string {
 
   // Set standard paragraph spacing and collapse empty paragraphs
   let styled = html
-    .replace(/<p(?=[ >])/g, '<p style="margin: 0 0 1em 0;"')
+    .replace(/<p(?=[ >])/g, '<p style="margin: 0 0 1em 0; padding: 0;"')
     // Empty paragraphs (blank lines in editor) — keep as small spacers
-    .replace(/<p style="margin: 0 0 1em 0;">(\s*(<br\s*\/?>|<br[^>]*>)\s*)?<\/p>/g, '<p style="margin: 0 0 0.5em 0;">&nbsp;</p>');
+    .replace(/<p style="margin: 0 0 1em 0; padding: 0;">(\s*(<br\s*\/?>|<br[^>]*>)\s*)?<\/p>/g, '<p style="margin: 0 0 0.5em 0; padding: 0;">&nbsp;</p>');
 
-  return `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222;">${styled}</div>`;
+  return `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222; margin: 0; padding: 0;">${styled}</div>`;
 }
 
 function injectTrackingPixel(html: string, pixelUrl: string): string {
