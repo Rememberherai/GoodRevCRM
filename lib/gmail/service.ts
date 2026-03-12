@@ -223,10 +223,10 @@ function wrapEmailHtml(html: string): string {
 
   let styled = html
     // Inline margin on all <p> tags (with or without existing attributes)
-    .replace(/<p(?=[ >])/g, '<p style="margin: 0 0 4px 0;"')
+    .replace(/<p(?=[ >])/g, '<p style="margin: 0 0 8px 0;"')
     // Turn empty paragraphs into a single line break for intentional spacing
     // Matches <p></p>, <p><br></p>, <p><br/></p>, <p><br class="..."></p>
-    .replace(/<p style="margin: 0 0 4px 0;">(\s*(<br\s*\/?>|<br[^>]*>)\s*)?<\/p>/g, '<br>');
+    .replace(/<p style="margin: 0 0 8px 0;">(\s*(<br\s*\/?>|<br[^>]*>)\s*)?<\/p>/g, '<br>');
 
   return `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222;">${styled}</div>`;
 }
