@@ -4,7 +4,7 @@ import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Link from '@tiptap/extension-link';
 import Placeholder from '@tiptap/extension-placeholder';
-import { useEffect, useRef, useCallback } from 'react';
+import { useEffect, useRef, useCallback, useState } from 'react';
 import {
   Bold,
   Italic,
@@ -16,6 +16,8 @@ import {
   RemoveFormatting,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import { Textarea } from '@/components/ui/textarea';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { VariablePicker } from './variable-picker';
 import { cn } from '@/lib/utils';
 
@@ -30,6 +32,7 @@ function stripHtml(html: string): string {
 
 export function EmailBodyEditor({ value, onChange }: EmailBodyEditorProps) {
   const isUpdatingFromProp = useRef(false);
+  const [mode, setMode] = useState<'visual' | 'html'>('visual');
 
   const editor = useEditor({
     extensions: [
@@ -97,86 +100,106 @@ export function EmailBodyEditor({ value, onChange }: EmailBodyEditorProps) {
 
   return (
     <div className="space-y-2">
-      {/* Toolbar */}
-      <div className="flex items-center gap-1 flex-wrap border rounded-md p-1 bg-muted/30">
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleBold().run()}
-          active={editor.isActive('bold')}
-          title="Bold"
-        >
-          <Bold className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleItalic().run()}
-          active={editor.isActive('italic')}
-          title="Italic"
-        >
-          <Italic className="h-4 w-4" />
-        </ToolbarButton>
+      <Tabs
+        value={mode}
+        onValueChange={(nextValue) => setMode(nextValue as 'visual' | 'html')}
+        className="space-y-2"
+      >
+        <div className="flex items-center justify-between gap-2">
+          <TabsList className="h-9">
+            <TabsTrigger value="visual">Visual</TabsTrigger>
+            <TabsTrigger value="html">HTML</TabsTrigger>
+          </TabsList>
+          <VariablePicker onInsert={insertVariable} />
+        </div>
 
-        <div className="w-px h-5 bg-border mx-1" />
+        <TabsContent value="visual" className="mt-0 space-y-2">
+          <div className="flex items-center gap-1 flex-wrap border rounded-md p-1 bg-muted/30">
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleBold().run()}
+              active={editor.isActive('bold')}
+              title="Bold"
+            >
+              <Bold className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleItalic().run()}
+              active={editor.isActive('italic')}
+              title="Italic"
+            >
+              <Italic className="h-4 w-4" />
+            </ToolbarButton>
 
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleBulletList().run()}
-          active={editor.isActive('bulletList')}
-          title="Bullet list"
-        >
-          <List className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => editor.chain().focus().toggleOrderedList().run()}
-          active={editor.isActive('orderedList')}
-          title="Numbered list"
-        >
-          <ListOrdered className="h-4 w-4" />
-        </ToolbarButton>
+            <div className="w-px h-5 bg-border mx-1" />
 
-        <div className="w-px h-5 bg-border mx-1" />
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleBulletList().run()}
+              active={editor.isActive('bulletList')}
+              title="Bullet list"
+            >
+              <List className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().toggleOrderedList().run()}
+              active={editor.isActive('orderedList')}
+              title="Numbered list"
+            >
+              <ListOrdered className="h-4 w-4" />
+            </ToolbarButton>
 
-        <ToolbarButton
-          onClick={addLink}
-          active={editor.isActive('link')}
-          title="Add link"
-        >
-          <LinkIcon className="h-4 w-4" />
-        </ToolbarButton>
+            <div className="w-px h-5 bg-border mx-1" />
 
-        <ToolbarButton
-          onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
-          title="Clear formatting"
-        >
-          <RemoveFormatting className="h-4 w-4" />
-        </ToolbarButton>
+            <ToolbarButton
+              onClick={addLink}
+              active={editor.isActive('link')}
+              title="Add link"
+            >
+              <LinkIcon className="h-4 w-4" />
+            </ToolbarButton>
 
-        <div className="w-px h-5 bg-border mx-1" />
+            <ToolbarButton
+              onClick={() => editor.chain().focus().clearNodes().unsetAllMarks().run()}
+              title="Clear formatting"
+            >
+              <RemoveFormatting className="h-4 w-4" />
+            </ToolbarButton>
 
-        <ToolbarButton
-          onClick={() => editor.chain().focus().undo().run()}
-          disabled={!editor.can().undo()}
-          title="Undo"
-        >
-          <Undo className="h-4 w-4" />
-        </ToolbarButton>
-        <ToolbarButton
-          onClick={() => editor.chain().focus().redo().run()}
-          disabled={!editor.can().redo()}
-          title="Redo"
-        >
-          <Redo className="h-4 w-4" />
-        </ToolbarButton>
+            <div className="w-px h-5 bg-border mx-1" />
 
-        <div className="flex-1" />
+            <ToolbarButton
+              onClick={() => editor.chain().focus().undo().run()}
+              disabled={!editor.can().undo()}
+              title="Undo"
+            >
+              <Undo className="h-4 w-4" />
+            </ToolbarButton>
+            <ToolbarButton
+              onClick={() => editor.chain().focus().redo().run()}
+              disabled={!editor.can().redo()}
+              title="Redo"
+            >
+              <Redo className="h-4 w-4" />
+            </ToolbarButton>
+          </div>
 
-        <VariablePicker onInsert={insertVariable} />
-      </div>
+          <div className="border rounded-md bg-white text-black [&_.ProseMirror]:min-h-[250px] [&_.ProseMirror]:text-black [&_.ProseMirror_a]:text-blue-600 [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-gray-400 [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none">
+            <EditorContent editor={editor} />
+          </div>
+        </TabsContent>
 
-      {/* Editor */}
-      <div className="border rounded-md bg-white text-black [&_.ProseMirror]:min-h-[250px] [&_.ProseMirror]:text-black [&_.ProseMirror_a]:text-blue-600 [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-gray-400 [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none">
-        <EditorContent editor={editor} />
-      </div>
+        <TabsContent value="html" className="mt-0">
+          <Textarea
+            value={value || ''}
+            onChange={(e) => onChange(e.target.value, stripHtml(e.target.value))}
+            placeholder="<p>Write your email content here...</p>"
+            className="min-h-[320px] font-mono text-xs"
+            spellCheck={false}
+          />
+        </TabsContent>
+      </Tabs>
 
       <p className="text-xs text-muted-foreground">
-        Use the toolbar to format text. Insert variables like {'{{company_name}}'} using the variable picker.
+        Use Visual for normal editing or HTML to inspect and fix raw markup like extra wrappers, margins, or blank paragraphs.
       </p>
     </div>
   );
