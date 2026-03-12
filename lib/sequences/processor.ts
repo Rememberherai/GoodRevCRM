@@ -396,7 +396,8 @@ async function processEnrollment(
           ...(emailAttachments && emailAttachments.length > 0 ? { attachments: emailAttachments } : {}),
         },
         enrollment.created_by,
-        sequence.project_id
+        sequence.project_id,
+        signature?.sender_name
       );
 
       // Update the sent email with sequence step reference

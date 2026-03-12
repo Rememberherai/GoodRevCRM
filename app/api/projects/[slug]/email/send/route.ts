@@ -109,7 +109,8 @@ export async function POST(request: Request, context: RouteContext) {
       connection as GmailConnection,
       finalEmailData,
       user.id,
-      project.id
+      project.id,
+      signature?.sender_name
     );
     console.log('[EMAIL_SEND] sendEmail() returned:', JSON.stringify(result));
 

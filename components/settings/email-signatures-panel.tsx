@@ -44,6 +44,7 @@ export function EmailSignaturesPanel({ slug }: EmailSignaturesPanelProps) {
 
   // Form state
   const [name, setName] = useState('');
+  const [senderName, setSenderName] = useState('');
   const [contentHtml, setContentHtml] = useState('');
   const [isDefault, setIsDefault] = useState(false);
 
@@ -68,6 +69,7 @@ export function EmailSignaturesPanel({ slug }: EmailSignaturesPanelProps) {
   const openCreateDialog = () => {
     setEditingSignature(null);
     setName('');
+    setSenderName('');
     setContentHtml('');
     setIsDefault(signatures.length === 0); // Auto-default if first signature
     setEditDialogOpen(true);
@@ -76,6 +78,7 @@ export function EmailSignaturesPanel({ slug }: EmailSignaturesPanelProps) {
   const openEditDialog = (sig: EmailSignature) => {
     setEditingSignature(sig);
     setName(sig.name);
+    setSenderName(sig.sender_name ?? '');
     setContentHtml(sig.content_html);
     setIsDefault(sig.is_default);
     setEditDialogOpen(true);
@@ -89,7 +92,12 @@ export function EmailSignaturesPanel({ slug }: EmailSignaturesPanelProps) {
 
     setSaving(true);
     try {
-      const payload = { name: name.trim(), content_html: contentHtml, is_default: isDefault };
+      const payload = {
+        name: name.trim(),
+        sender_name: senderName.trim() || null,
+        content_html: contentHtml,
+        is_default: isDefault,
+      };
 
       if (editingSignature) {
         const res = await fetch(`/api/projects/${slug}/signatures/${editingSignature.id}`, {
@@ -203,6 +211,11 @@ export function EmailSignaturesPanel({ slug }: EmailSignaturesPanelProps) {
                         </Badge>
                       )}
                     </div>
+                    {sig.sender_name && (
+                      <p className="text-sm text-muted-foreground">
+                        From: {sig.sender_name}
+                      </p>
+                    )}
                     <div
                       className="text-sm mt-2 max-h-24 overflow-hidden border rounded p-2 bg-white [&_*]:!text-black [&]:text-black"
                       dangerouslySetInnerHTML={{ __html: sig.content_html }}
@@ -268,6 +281,20 @@ export function EmailSignaturesPanel({ slug }: EmailSignaturesPanelProps) {
                 onChange={(e) => setName(e.target.value)}
                 className="mt-1"
               />
+            </div>
+
+            <div>
+              <Label htmlFor="sig-sender-name">From Name</Label>
+              <Input
+                id="sig-sender-name"
+                placeholder="e.g. Evan Carr"
+                value={senderName}
+                onChange={(e) => setSenderName(e.target.value)}
+                className="mt-1"
+              />
+              <p className="text-xs text-muted-foreground mt-1">
+                Display name shown in the From field. Leave blank to send from the bare email address.
+              </p>
             </div>
 
             <div>

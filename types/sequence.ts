@@ -134,6 +134,7 @@ export interface EmailSignature {
   user_id: string;
   project_id: string;
   name: string;
+  sender_name: string | null;
   content_html: string;
   is_default: boolean;
   created_at: string;

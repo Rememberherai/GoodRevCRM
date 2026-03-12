@@ -76,7 +76,7 @@ export async function getValidAccessToken(connection: GmailConnection): Promise<
 /**
  * Create MIME message for sending
  */
-function createMimeMessage(input: SendEmailInput, fromEmail: string, trackingId: string): string {
+function createMimeMessage(input: SendEmailInput, fromEmail: string, trackingId: string, senderName?: string | null): string {
   const to = sanitizeHeaderValue(Array.isArray(input.to) ? input.to.join(', ') : input.to);
   const altBoundary = `----=_Part_${Date.now()}_${Math.random().toString(36).substring(2)}`;
 
@@ -97,7 +97,7 @@ function createMimeMessage(input: SendEmailInput, fromEmail: string, trackingId:
 
   let message = [
     'MIME-Version: 1.0',
-    `From: ${fromEmail}`,
+    `From: ${senderName ? `"${sanitizeHeaderValue(senderName)}" <${fromEmail}>` : fromEmail}`,
     `To: ${to}`,
   ];
 
@@ -268,7 +268,8 @@ export async function sendEmail(
   connection: GmailConnection,
   input: SendEmailInput,
   userId: string,
-  projectId?: string | null
+  projectId?: string | null,
+  senderName?: string | null
 ): Promise<SendEmailResult> {
   console.log('[GMAIL_SERVICE] ====== START sendEmail() ======');
   console.log('[GMAIL_SERVICE] connection.id:', connection.id, 'connection.email:', connection.email);
@@ -290,7 +291,7 @@ export async function sendEmail(
 
   // Create MIME message
   console.log('[GMAIL_SERVICE] creating MIME message...');
-  const mimeMessage = createMimeMessage(input, connection.email, trackingId);
+  const mimeMessage = createMimeMessage(input, connection.email, trackingId, senderName);
   console.log('[GMAIL_SERVICE] MIME message created, length:', mimeMessage.length);
 
   // Base64url encode the message
