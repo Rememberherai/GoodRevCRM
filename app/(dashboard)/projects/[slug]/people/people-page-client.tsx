@@ -51,6 +51,8 @@ export function PeoplePageClient() {
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [sendEmailTo, setSendEmailTo] = useState<{ email: string; personId: string } | null>(null);
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [allPagesSelected, setAllPagesSelected] = useState(false);
+  const [isLoadingAllIds, setIsLoadingAllIds] = useState(false);
   const [bulkEnrichOpen, setBulkEnrichOpen] = useState(false);
   const [enrollInSequenceOpen, setEnrollInSequenceOpen] = useState(false);
 
@@ -75,6 +77,7 @@ export function PeoplePageClient() {
   } = useColumnPreferences('person');
 
   const toggleSelection = (id: string) => {
+    setAllPagesSelected(false);
     setSelectedIds((prev) => {
       const next = new Set(prev);
       if (next.has(id)) {
@@ -87,15 +90,36 @@ export function PeoplePageClient() {
   };
 
   const toggleSelectAll = () => {
-    if (selectedIds.size === people.length) {
+    setAllPagesSelected(false);
+    if (selectedIds.size === people.length && people.length > 0) {
       setSelectedIds(new Set());
     } else {
       setSelectedIds(new Set(people.map((p) => p.id)));
     }
   };
 
+  const selectAllAcrossPages = async () => {
+    setIsLoadingAllIds(true);
+    try {
+      const params = new URLSearchParams({ limit: '10000' });
+      if (searchInput) params.set('search', searchInput);
+      const response = await fetch(`/api/projects/${slug}/people?${params}&fields=id`);
+      if (response.ok) {
+        const data = await response.json();
+        const allIds = (data.people || []).map((p: { id: string }) => p.id);
+        setSelectedIds(new Set(allIds));
+        setAllPagesSelected(true);
+      }
+    } catch (err) {
+      console.error('Failed to fetch all people IDs:', err);
+    } finally {
+      setIsLoadingAllIds(false);
+    }
+  };
+
   const clearSelection = () => {
     setSelectedIds(new Set());
+    setAllPagesSelected(false);
   };
 
   const selectedPeople = people.filter((p) => selectedIds.has(p.id));
@@ -269,6 +293,30 @@ export function PeoplePageClient() {
               <TableHead className="w-[70px]"></TableHead>
             </TableRow>
           </TableHeader>
+          {/* Select all across pages banner */}
+          {selectedIds.size === people.length && people.length > 0 && pagination.total > people.length && !allPagesSelected && (
+            <caption className="bg-muted/50 border-b px-4 py-2 text-sm text-center caption-bottom" style={{ captionSide: 'top' }}>
+              All {people.length} people on this page are selected.{' '}
+              <button
+                className="text-primary underline hover:no-underline font-medium"
+                onClick={selectAllAcrossPages}
+                disabled={isLoadingAllIds}
+              >
+                {isLoadingAllIds ? 'Loading...' : `Select all ${pagination.total} people`}
+              </button>
+            </caption>
+          )}
+          {allPagesSelected && (
+            <caption className="bg-primary/10 border-b px-4 py-2 text-sm text-center caption-bottom" style={{ captionSide: 'top' }}>
+              All {selectedIds.size} people are selected.{' '}
+              <button
+                className="text-primary underline hover:no-underline font-medium"
+                onClick={clearSelection}
+              >
+                Clear selection
+              </button>
+            </caption>
+          )}
           <TableBody>
             {(isLoading || columnsLoading) && people.length === 0 ? (
               <TableRow>
