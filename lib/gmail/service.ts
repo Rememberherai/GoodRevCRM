@@ -211,6 +211,24 @@ function stripHtml(html: string): string {
 /**
  * Inject tracking pixel into HTML body
  */
+function stripLeftIndentationStyles(html: string): string {
+  return html.replace(/style=(["'])(.*?)\1/gi, (match, quote, styleValue) => {
+    const cleaned = styleValue
+      .replace(/(?:^|;)\s*margin-left\s*:[^;]+/gi, '')
+      .replace(/(?:^|;)\s*padding-left\s*:[^;]+/gi, '')
+      .replace(/(?:^|;)\s*text-indent\s*:[^;]+/gi, '')
+      .replace(/^\s*;\s*|\s*;\s*$/g, '')
+      .replace(/\s*;\s*;\s*/g, '; ')
+      .trim();
+
+    if (!cleaned) {
+      return '';
+    }
+
+    return `style=${quote}${cleaned}${quote}`;
+  });
+}
+
 /**
  * Wrap email HTML with inline styles to normalize paragraph spacing.
  * Email clients apply large default margins to <p> tags; this resets them.
@@ -221,13 +239,17 @@ function wrapEmailHtml(html: string): string {
     return html;
   }
 
+  // Remove any left-indentation styles from editor/generated HTML before
+  // applying our email-safe paragraph formatting.
+  const normalized = stripLeftIndentationStyles(html);
+
   // Set standard paragraph spacing and collapse empty paragraphs
-  let styled = html
+  const styled = normalized
     .replace(/<p(?=[ >])/g, '<p style="margin: 0 0 1em 0; padding: 0;"')
     // Empty paragraphs (blank lines in editor) — keep as small spacers
     .replace(/<p style="margin: 0 0 1em 0; padding: 0;">(\s*(<br\s*\/?>|<br[^>]*>)\s*)?<\/p>/g, '<p style="margin: 0 0 0.5em 0; padding: 0;">&nbsp;</p>');
 
-  return `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222; margin: 0; padding: 0;">${styled}</div>`;
+  return `<div style="font-family: Arial, sans-serif; font-size: 14px; line-height: 1.5; color: #222; margin: 0; padding: 0; text-indent: 0;">${styled}</div>`;
 }
 
 function injectTrackingPixel(html: string, pixelUrl: string): string {

@@ -32,7 +32,10 @@ export async function getDefaultSignature(
  * Inserts before any quoted reply block if present.
  */
 export function appendSignatureToHtml(bodyHtml: string, signatureHtml: string): string {
-  const signatureBlock = `<div class="email-signature" style="margin-top:20px;">${signatureHtml}</div>`;
+  const cleanedSignatureHtml = signatureHtml
+    .replace(/^\s*(<p>\s*(<br\s*\/?>|&nbsp;)\s*<\/p>\s*)*/i, '')
+    .replace(/^\s*<hr\b[^>]*>\s*/i, '');
+  const signatureBlock = `<div class="email-signature" style="margin-top:20px;">${cleanedSignatureHtml}</div>`;
 
   // Insert before quoted reply block if present
   const quoteIndex = bodyHtml.indexOf('<div class="gmail_quote"');
