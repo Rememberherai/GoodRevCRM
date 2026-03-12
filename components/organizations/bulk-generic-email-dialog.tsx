@@ -65,7 +65,7 @@ interface BulkGenericEmailDialogProps {
   onComplete?: () => void;
 }
 
-type DialogStep = 'input' | 'discovering' | 'results' | 'adding' | 'success';
+type DialogStep = 'input' | 'discovering' | 'results' | 'validating' | 'adding' | 'success';
 
 const DEPARTMENT_SUGGESTIONS = [
   'Water/Wastewater',
@@ -106,6 +106,10 @@ export function BulkGenericEmailDialog({
   const [selections, setSelections] = useState<Record<string, Set<string>>>({});
   const [expandedOrgs, setExpandedOrgs] = useState<Set<string>>(new Set());
 
+  // Validation state
+  const [invalidEmails, setInvalidEmails] = useState<Record<string, string>>({}); // email -> reason
+  const [validationProgress, setValidationProgress] = useState(0);
+
   // Adding state
   const [addedCount, setAddedCount] = useState(0);
   const [addedOrgsCount, setAddedOrgsCount] = useState(0);
@@ -127,6 +131,8 @@ export function BulkGenericEmailDialog({
       setFailedCount(0);
       setSelections({});
       setExpandedOrgs(new Set());
+      setInvalidEmails({});
+      setValidationProgress(0);
       setAddedCount(0);
       setAddedOrgsCount(0);
       setAddingCurrent(0);
@@ -151,7 +157,7 @@ export function BulkGenericEmailDialog({
   );
 
   const handleClose = () => {
-    if (step === 'discovering') return;
+    if (step === 'discovering' || step === 'validating') return;
     if (step === 'success') onComplete?.();
     onOpenChange(false);
   };
@@ -351,6 +357,101 @@ export function BulkGenericEmailDialog({
     return <Badge variant="outline">Low</Badge>;
   };
 
+  const handleValidateAndAdd = async () => {
+    const orgsWithSelections = Object.entries(selections).filter(
+      ([, contactIds]) => contactIds.size > 0
+    );
+
+    if (orgsWithSelections.length === 0) {
+      setError('Please select at least one email to add');
+      return;
+    }
+
+    setError(null);
+    setStep('validating');
+    setValidationProgress(0);
+
+    // Collect all selected emails
+    const emailsToValidate: string[] = [];
+    for (const [orgId, contactIds] of orgsWithSelections) {
+      const result = results.find((r) => r.organizationId === orgId);
+      if (result?.status === 'success') {
+        for (const contact of result.contacts) {
+          if (contactIds.has(contact.id) && contact.email) {
+            emailsToValidate.push(contact.email);
+          }
+        }
+      }
+    }
+
+    if (emailsToValidate.length === 0) {
+      setStep('results');
+      setError('No valid emails to check');
+      return;
+    }
+
+    try {
+      setValidationProgress(30);
+      const response = await fetch('/api/validate-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ emails: emailsToValidate }),
+      });
+
+      setValidationProgress(80);
+
+      if (!response.ok) {
+        // If validation service fails, continue without blocking
+        console.error('Email validation failed, proceeding anyway');
+        setInvalidEmails({});
+      } else {
+        const data = await response.json();
+        const invalids: Record<string, string> = {};
+        for (const result of data.results) {
+          if (!result.valid) {
+            invalids[result.email] = result.reason ?? 'Invalid email';
+          }
+        }
+        setInvalidEmails(invalids);
+
+        // Auto-deselect invalid emails
+        if (Object.keys(invalids).length > 0) {
+          setSelections((prev) => {
+            const next = { ...prev };
+            for (const [orgId, contactIds] of Object.entries(next)) {
+              const result = results.find((r) => r.organizationId === orgId);
+              if (result?.status === 'success') {
+                const updatedSet = new Set(contactIds);
+                for (const contact of result.contacts) {
+                  if (invalids[contact.email]) {
+                    updatedSet.delete(contact.id);
+                  }
+                }
+                next[orgId] = updatedSet;
+              }
+            }
+            return next;
+          });
+
+          setValidationProgress(100);
+          toast.warning(
+            `${Object.keys(invalids).length} email${Object.keys(invalids).length !== 1 ? 's' : ''} failed validation and were deselected`
+          );
+          setStep('results');
+          return;
+        }
+      }
+    } catch (err) {
+      console.error('Email validation error:', err);
+      // Don't block on validation failures
+      setInvalidEmails({});
+    }
+
+    setValidationProgress(100);
+    // If all emails are valid, proceed to adding
+    handleAddContacts();
+  };
+
   const handleAddContacts = async () => {
     const orgsWithSelections = Object.entries(selections).filter(
       ([, contactIds]) => contactIds.size > 0
@@ -448,6 +549,7 @@ export function BulkGenericEmailDialog({
             {step === 'discovering' && 'Discovering department emails...'}
             {step === 'results' &&
               `Found ${totalContacts} department email${totalContacts !== 1 ? 's' : ''} across ${successfulResults.length} organization${successfulResults.length !== 1 ? 's' : ''}`}
+            {step === 'validating' && 'Validating email addresses...'}
             {step === 'adding' && 'Adding department contacts...'}
             {step === 'success' &&
               `Successfully added ${addedCount} department email${addedCount !== 1 ? 's' : ''}`}
@@ -720,10 +822,15 @@ export function BulkGenericEmailDialog({
                                         {getConfidenceBadge(contact.confidence)}
                                       </div>
                                       <div className="flex items-center gap-1 mt-0.5">
-                                        <Mail className="h-3 w-3 text-muted-foreground" />
-                                        <span className="text-xs text-muted-foreground">
+                                        <Mail className={`h-3 w-3 ${invalidEmails[contact.email] ? 'text-destructive' : 'text-muted-foreground'}`} />
+                                        <span className={`text-xs ${invalidEmails[contact.email] ? 'text-destructive' : 'text-muted-foreground'}`}>
                                           {contact.email}
                                         </span>
+                                        {invalidEmails[contact.email] && (
+                                          <span className="text-xs text-destructive font-medium ml-1">
+                                            ({invalidEmails[contact.email]})
+                                          </span>
+                                        )}
                                       </div>
                                       {contact.source_hint && (
                                         <p className="text-xs text-muted-foreground mt-0.5">
@@ -742,6 +849,17 @@ export function BulkGenericEmailDialog({
                   </ScrollArea>
                 </>
               )}
+            </div>
+          )}
+
+          {/* Step 3.5: Validating */}
+          {step === 'validating' && (
+            <div className="space-y-4 py-8">
+              <Progress value={validationProgress} className="h-2" />
+              <div className="flex items-center justify-center gap-2 text-sm text-muted-foreground">
+                <Loader2 className="h-4 w-4 animate-spin" />
+                Checking email validity (MX records)...
+              </div>
             </div>
           )}
 
@@ -819,11 +937,11 @@ export function BulkGenericEmailDialog({
               </Button>
               <Button
                 type="button"
-                onClick={handleAddContacts}
+                onClick={handleValidateAndAdd}
                 disabled={totalSelected === 0}
               >
                 <UserPlus className="mr-2 h-4 w-4" />
-                Add {totalSelected} Email{totalSelected !== 1 ? 's' : ''}
+                Validate & Add {totalSelected} Email{totalSelected !== 1 ? 's' : ''}
               </Button>
             </>
           )}
