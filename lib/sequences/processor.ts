@@ -889,6 +889,8 @@ export async function processSequences(limit = 100): Promise<ProcessingResult> {
 
       if (processResult.status === 'sent') {
         result.sent++;
+        // Rate limit: 3s between emails to stay under Gmail's ~20/min threshold
+        await new Promise(resolve => setTimeout(resolve, 3000));
       } else if (processResult.status === 'completed') {
         result.completed++;
       } else if (processResult.status === 'error') {

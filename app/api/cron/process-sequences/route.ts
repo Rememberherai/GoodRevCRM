@@ -3,6 +3,9 @@ import { createClient } from '@/lib/supabase/server';
 import { processSequences } from '@/lib/sequences/processor';
 import { processTimeTriggers } from '@/lib/automations/time-triggers';
 
+// Vercel Hobby max is 60s; with 3s rate limiting this processes ~20 emails per run
+export const maxDuration = 60;
+
 /**
  * Process sequence enrollments and time-based automations.
  * Supports two auth modes:
@@ -11,7 +14,7 @@ import { processTimeTriggers } from '@/lib/automations/time-triggers';
  */
 async function processAll() {
   console.log('[Process] Starting sequence processing...');
-  const result = await processSequences(100);
+  const result = await processSequences(18);
   console.log(
     `[Process] Sequence processing complete: ${result.processed} processed, ${result.sent} sent, ${result.completed} completed, ${result.errors} errors`
   );
