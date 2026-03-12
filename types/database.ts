@@ -2700,6 +2700,8 @@ export type Database = {
           deleted_at: string | null
           department: string | null
           email: string | null
+          email_verified: boolean | null
+          email_verified_at: string | null
           enriched_at: string | null
           enrichment_data: Json | null
           enrichment_status: string | null
@@ -2731,6 +2733,8 @@ export type Database = {
           deleted_at?: string | null
           department?: string | null
           email?: string | null
+          email_verified?: boolean | null
+          email_verified_at?: string | null
           enriched_at?: string | null
           enrichment_data?: Json | null
           enrichment_status?: string | null
@@ -2762,6 +2766,8 @@ export type Database = {
           deleted_at?: string | null
           department?: string | null
           email?: string | null
+          email_verified?: boolean | null
+          email_verified_at?: string | null
           enriched_at?: string | null
           enrichment_data?: Json | null
           enrichment_status?: string | null

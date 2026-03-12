@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Search, Users, MoreHorizontal, Pencil, Trash2, Send } from 'lucide-react';
+import { Search, Users, MoreHorizontal, Pencil, Trash2, Send, CheckCircle2, AlertTriangle } from 'lucide-react';
 import { usePeople } from '@/hooks/use-people';
 import { useColumnPreferences } from '@/hooks/use-column-preferences';
 import { Button } from '@/components/ui/button';
@@ -162,12 +162,24 @@ export function PeoplePageClient() {
     // Special handling for email with click-to-email
     if (columnKey === 'email') {
       return (
-        <ClickableEmail
-          email={person.email}
-          onEmailClick={() => setSendEmailTo({ email: person.email!, personId: person.id })}
-          showIcon={true}
-          variant="link"
-        />
+        <div className="flex items-center gap-1">
+          <ClickableEmail
+            email={person.email}
+            onEmailClick={() => setSendEmailTo({ email: person.email!, personId: person.id })}
+            showIcon={true}
+            variant="link"
+          />
+          {person.email_verified === true && (
+            <span title="Email verified (MX)">
+              <CheckCircle2 className="h-3.5 w-3.5 text-green-500 shrink-0" />
+            </span>
+          )}
+          {person.email_verified === false && person.email_verified_at && (
+            <span title="Email verification failed">
+              <AlertTriangle className="h-3.5 w-3.5 text-amber-500 shrink-0" />
+            </span>
+          )}
+        </div>
       );
     }
 

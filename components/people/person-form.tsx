@@ -6,6 +6,7 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useParams } from 'next/navigation';
 import { personSchema, type CreatePersonInput } from '@/lib/validators/person';
 import { createPerson, updatePersonApi } from '@/stores/person';
+import { useEmailValidation } from '@/hooks/use-email-validation';
 import type { Person } from '@/types/person';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,6 +14,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface PersonFormProps {
   person?: Person;
@@ -26,6 +28,7 @@ export function PersonForm({ person, organizationId, onSuccess, onCancel }: Pers
   const projectSlug = params.slug as string;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { validate: validateEmail, validating: emailValidating, result: emailResult } = useEmailValidation();
 
   const {
     register,
@@ -54,6 +57,12 @@ export function PersonForm({ person, organizationId, onSuccess, onCancel }: Pers
       address_country: person?.address_country ?? '',
     },
   });
+
+  const emailRegister = register('email');
+  const handleEmailBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+    emailRegister.onBlur(e);
+    validateEmail(e.target.value, person ? { personId: person.id, projectSlug } : undefined);
+  };
 
   const onSubmit = async (data: CreatePersonInput) => {
     setIsLoading(true);
@@ -175,14 +184,29 @@ export function PersonForm({ person, organizationId, onSuccess, onCancel }: Pers
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
-            <Input
-              id="email"
-              type="email"
-              {...register('email')}
-              placeholder="john@example.com"
-            />
+            <div className="relative">
+              <Input
+                id="email"
+                type="email"
+                {...emailRegister}
+                onBlur={handleEmailBlur}
+                placeholder="john@example.com"
+              />
+              {emailValidating && (
+                <Loader2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+              {!emailValidating && emailResult?.valid && (
+                <CheckCircle2 className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-green-500" />
+              )}
+              {!emailValidating && emailResult && !emailResult.valid && (
+                <AlertTriangle className="absolute right-3 top-1/2 -translate-y-1/2 h-4 w-4 text-amber-500" />
+              )}
+            </div>
             {errors.email && (
               <p className="text-sm text-destructive">{errors.email.message}</p>
+            )}
+            {!emailValidating && emailResult && !emailResult.valid && (
+              <p className="text-sm text-amber-600">{emailResult.reason}</p>
             )}
           </div>
 

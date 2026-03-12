@@ -1,3 +1,4 @@
+import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import dns from 'dns';
@@ -7,6 +8,9 @@ const resolveMx = promisify(dns.resolveMx);
 
 const requestSchema = z.object({
   emails: z.array(z.string()).min(1).max(500),
+  // Optional: persist verification status for these person IDs
+  personIds: z.array(z.string()).optional(),
+  projectSlug: z.string().optional(),
 });
 
 interface ValidationResult {
@@ -81,7 +85,7 @@ export async function POST(request: Request) {
       );
     }
 
-    const { emails } = parsed.data;
+    const { emails, personIds, projectSlug } = parsed.data;
 
     // Deduplicate domains for MX checks
     const domainMxCache = new Map<string, { hasMx: boolean; error?: string }>();
@@ -122,6 +126,57 @@ export async function POST(request: Request) {
       }
 
       results.push({ email: trimmed, valid: true });
+    }
+
+    // Persist verification status if person context is provided
+    if (personIds?.length && projectSlug) {
+      try {
+        const supabase = await createClient();
+        const { data: { user } } = await supabase.auth.getUser();
+
+        if (user) {
+          const { data: project } = await supabase
+            .from('projects')
+            .select('id')
+            .eq('slug', projectSlug)
+            .is('deleted_at', null)
+            .single();
+
+          if (project) {
+            const validEmails = new Set(results.filter((r) => r.valid).map((r) => r.email));
+            const invalidEmails = new Set(results.filter((r) => !r.valid).map((r) => r.email));
+
+            // Mark valid emails as verified
+            if (validEmails.size > 0) {
+              await supabase
+                .from('people')
+                .update({
+                  email_verified: true,
+                  email_verified_at: new Date().toISOString(),
+                })
+                .eq('project_id', project.id)
+                .in('id', personIds)
+                .in('email', Array.from(validEmails));
+            }
+
+            // Mark invalid emails as not verified
+            if (invalidEmails.size > 0) {
+              await supabase
+                .from('people')
+                .update({
+                  email_verified: false,
+                  email_verified_at: new Date().toISOString(),
+                })
+                .eq('project_id', project.id)
+                .in('id', personIds)
+                .in('email', Array.from(invalidEmails));
+            }
+          }
+        }
+      } catch (dbErr) {
+        // Don't fail the validation response if DB update fails
+        console.error('Failed to persist email verification status:', dbErr);
+      }
     }
 
     const validCount = results.filter((r) => r.valid).length;
