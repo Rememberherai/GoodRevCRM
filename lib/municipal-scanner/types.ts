@@ -24,6 +24,7 @@ export interface ExtractedRfp {
   submission_method: 'email' | 'portal' | 'physical' | 'other' | null;
   contact_email: string | null;
   confidence: number;
+  relevance: 'high' | 'low';
   opportunity_type: 'formal_rfp' | 'project_discussion' | 'planning_stage';
   // Research metadata
   source_meeting_url?: string;

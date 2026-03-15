@@ -387,6 +387,7 @@ async function scanMunicipality(
             agenda_item: primaryRfp.agenda_item,
             excerpt: primaryRfp.excerpt,
             ai_confidence: primaryRfp.confidence,
+            relevance: primaryRfp.relevance || 'high',
             mention_count: mentionCount,
             all_meeting_urls: meetingUrls,
             all_meeting_dates: meetingDates,

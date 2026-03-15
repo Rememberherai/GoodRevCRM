@@ -2,26 +2,42 @@ import { getOpenRouterClient } from '../openrouter/client';
 import type { ExtractedRfp } from './types';
 import { SCANNER_CONFIG } from './config';
 
-const EXTRACTION_PROMPT = `You are analyzing municipal meeting minutes to identify waste/water business opportunities.
+const EXTRACTION_PROMPT = `You are analyzing municipal meeting minutes to identify wastewater TREATMENT PLANT technology opportunities.
 
-FOCUS AREAS:
-- Wastewater treatment (WWTP, sewage, effluent, collection systems, pumping stations, stormwater)
-- Water treatment (drinking water, distribution, water quality, treatment plants)
-- Waste management (solid waste, recycling, composting, landfills, collection)
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
+RELEVANCE FILTER — TREATMENT PLANT TECHNOLOGY ONLY
+━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 
-WHAT TO EXTRACT - CAPITAL PROJECTS ONLY:
+Our company provides treatment process technology for wastewater treatment plants (WWTPs).
+We are ONLY interested in projects where treatment plant process equipment or technology is involved.
 
-✅ INCLUDE:
-1. Formal RFPs/Bids - active procurement for capital projects (construction, equipment, infrastructure)
-2. Project Discussions - approved capital projects, upcoming RFPs for construction/upgrades
-3. Budget Approvals - funded CAPITAL waste/water projects (infrastructure, plant upgrades, expansions)
-4. Consultant Hiring - engineering studies that will lead to capital projects
-5. Operational Challenges - plant performance issues requiring CAPITAL SOLUTIONS (upgrades, new equipment, expansion)
-6. Compliance Issues - regulatory violations requiring CAPITAL INVESTMENT (new treatment processes, plant expansions)
-7. Infrastructure Projects - new construction, upgrades, expansions, replacements
-8. Technology Implementations - new systems, equipment, SCADA, automation (not routine supplies)
+🎯 HIGH-RELEVANCE (extract these — our core fit):
+- WWTP upgrades, expansions, or new construction involving treatment processes
+- Aeration system improvements (blowers, diffusers, aeration basins)
+- Filtration systems (tertiary filters, membrane bioreactors, disc filters)
+- Disinfection upgrades (UV, ozone, chlorination systems)
+- Sludge/biosolids handling (dewatering, thickening, digestion, drying)
+- Secondary treatment upgrades (clarifiers, SBRs, oxidation ditches, activated sludge)
+- Nutrient removal (phosphorus, nitrogen, ammonia removal systems)
+- Instrumentation & controls (SCADA, PLC upgrades, process automation AT treatment plants)
+- Water reclamation/reuse treatment systems
+- Industrial wastewater pretreatment systems
 
-❌ EXCLUDE (DO NOT EXTRACT):
+⚠️ LOW-RELEVANCE (extract but tag as "low_relevance"):
+- Drinking water treatment plant upgrades
+- Pump station upgrades AT a treatment plant
+- Engineering studies/PERs for treatment plant improvements
+- Solid waste facility process equipment
+
+🚫 DO NOT EXTRACT (not our market):
+- Sanitary sewer line repair, rehabilitation, or replacement (I&I projects, CIPP lining, pipe bursting)
+- Stormwater infrastructure (retention basins, detention ponds, storm drains, culverts, swales)
+- Water main construction, replacement, or extension
+- Collection system work (sewer mains, manholes, sewer extensions)
+- Pump station construction that is NOT at a treatment plant (lift stations, booster stations)
+- Road, bridge, or general civil construction
+- Hydraulic modeling or flow monitoring studies (unless directly tied to a WWTP upgrade)
+- Landfill construction or capping (unless involving leachate treatment)
 - Routine chemical supply contracts (hypochlorite, lime, sulfate, coagulants, etc.)
 - Low-value operational supplies under $50,000 CAD
 - Maintenance contracts for existing equipment
@@ -29,7 +45,17 @@ WHAT TO EXTRACT - CAPITAL PROJECTS ONLY:
 - Routine laboratory testing services
 - Utility billing or administrative services
 - Office supplies or non-technical items
-- ONLY extract if it's a CAPITAL PROJECT with construction, equipment, or infrastructure
+
+WHAT TO EXTRACT - TREATMENT PLANT CAPITAL PROJECTS ONLY:
+
+✅ INCLUDE:
+1. Formal RFPs/Bids - active procurement for treatment plant capital projects
+2. Project Discussions - approved WWTP projects, upcoming RFPs for plant upgrades
+3. Budget Approvals - funded treatment plant projects (upgrades, expansions, new processes)
+4. Consultant Hiring - engineering studies for treatment plant improvements
+5. Operational Challenges - plant performance issues requiring process upgrades or new equipment
+6. Compliance Issues - effluent violations requiring treatment process investment
+7. Technology Implementations - new treatment systems, process equipment, SCADA at plants
 
 ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 EXTRACTION REQUIREMENTS - MAXIMUM DATA CAPTURE
@@ -132,6 +158,7 @@ Return this exact structure:
       "submission_method": "email|portal|physical|other|null",
       "contact_email": "email@example.com or null",
       "confidence": number_0_to_100,
+      "relevance": "high|low (high = WWTP process/treatment technology fit, low = related but not core treatment plant work)",
       "opportunity_type": "formal_rfp|project_discussion|planning_stage (required)",
       "meeting_date": "YYYY-MM-DD (extract from document - CRITICAL) or null",
       "committee_name": "Full official committee name or null",
@@ -203,13 +230,18 @@ ${truncatedText}`;
     }
 
     // Filter by confidence threshold and validate required fields
-    const validRfps = result.rfps.filter((rfp: ExtractedRfp) => {
-      return rfp.confidence >= SCANNER_CONFIG.confidenceThreshold &&
-             rfp.title &&
-             rfp.description &&
-             rfp.opportunity_type &&
-             ['formal_rfp', 'project_discussion', 'planning_stage'].includes(rfp.opportunity_type);
-    });
+    const validRfps = result.rfps
+      .map((rfp: ExtractedRfp) => ({
+        ...rfp,
+        relevance: rfp.relevance || 'high', // Default to high if AI omits
+      }))
+      .filter((rfp: ExtractedRfp) => {
+        return rfp.confidence >= SCANNER_CONFIG.confidenceThreshold &&
+               rfp.title &&
+               rfp.description &&
+               rfp.opportunity_type &&
+               ['formal_rfp', 'project_discussion', 'planning_stage'].includes(rfp.opportunity_type);
+      });
 
     return validRfps;
   } catch (error) {
