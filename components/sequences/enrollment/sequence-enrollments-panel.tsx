@@ -76,21 +76,34 @@ export function SequenceEnrollmentsPanel({
     }
   };
 
-  const cancelEnrollment = async (enrollment: EnrollmentWithPerson) => {
+  const cancelEnrollment = async (enrollment: EnrollmentWithPerson, disposition?: string) => {
+    const DISPOSITION_LABELS: Record<string, string> = {
+      cancelled: 'Cancelled',
+      not_interested: 'Not Interested',
+      wrong_contact: 'Wrong Contact',
+      do_not_contact: 'Do Not Contact',
+    };
+    const status = disposition || 'cancelled';
+    const label = DISPOSITION_LABELS[status] || 'Cancelled';
+
     try {
       const response = await fetch(
         `/api/projects/${projectSlug}/sequences/${sequenceId}/enrollments/${enrollment.id}`,
-        { method: 'DELETE' }
+        {
+          method: 'DELETE',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ disposition: status }),
+        }
       );
 
       if (!response.ok) {
-        throw new Error('Failed to cancel enrollment');
+        throw new Error('Failed to stop enrollment');
       }
 
-      toast.success('Enrollment cancelled');
+      toast.success(`Enrollment marked as "${label}"`);
       fetchEnrollments();
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to cancel');
+      toast.error(err instanceof Error ? err.message : 'Failed to stop enrollment');
     }
   };
 

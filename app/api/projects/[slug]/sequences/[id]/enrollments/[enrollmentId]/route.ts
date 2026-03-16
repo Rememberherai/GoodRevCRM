@@ -132,8 +132,8 @@ export async function PATCH(request: Request, context: RouteContext) {
     // Validate status transitions
     if (validationResult.data.status) {
       const VALID_TRANSITIONS: Record<string, string[]> = {
-        active: ['paused', 'completed'],
-        paused: ['active', 'completed'],
+        active: ['paused', 'completed', 'cancelled', 'not_interested', 'wrong_contact', 'do_not_contact'],
+        paused: ['active', 'completed', 'cancelled', 'not_interested', 'wrong_contact', 'do_not_contact'],
       };
       const allowed = VALID_TRANSITIONS[existingEnrollment.status] || [];
       if (!allowed.includes(validationResult.data.status)) {
@@ -182,8 +182,10 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 }
 
-// DELETE /api/projects/[slug]/sequences/[id]/enrollments/[enrollmentId] - Cancel enrollment
-export async function DELETE(_request: Request, context: RouteContext) {
+// DELETE /api/projects/[slug]/sequences/[id]/enrollments/[enrollmentId] - Disposition enrollment
+// Body (optional): { disposition?: string, reason?: string }
+// disposition: 'cancelled' | 'not_interested' | 'wrong_contact' | 'do_not_contact'
+export async function DELETE(request: Request, context: RouteContext) {
   try {
     const { slug, id, enrollmentId } = await context.params;
     const supabase = await createClient();
@@ -213,7 +215,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
     // Verify sequence exists
     const { data: sequence } = await supabaseAny
       .from('sequences')
-      .select('id')
+      .select('id, name, project_id')
       .eq('id', id)
       .eq('project_id', project.id)
       .single();
@@ -222,19 +224,86 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
     }
 
-    // Delete the enrollment
+    // Get enrollment with person info
+    const { data: enrollment } = await supabaseAny
+      .from('sequence_enrollments')
+      .select('id, person_id, status')
+      .eq('id', enrollmentId)
+      .eq('sequence_id', id)
+      .single();
+
+    if (!enrollment) {
+      return NextResponse.json({ error: 'Enrollment not found' }, { status: 404 });
+    }
+
+    // Parse optional body for disposition details
+    let disposition = 'cancelled';
+    let reason = '';
+    try {
+      const body = await request.json();
+      if (body.disposition) disposition = body.disposition;
+      if (body.reason) reason = body.reason;
+    } catch {
+      // No body or invalid JSON — default to cancelled
+    }
+
+    const validDispositions = ['cancelled', 'not_interested', 'wrong_contact', 'do_not_contact'];
+    if (!validDispositions.includes(disposition)) {
+      disposition = 'cancelled';
+    }
+
+    const DISPOSITION_LABELS: Record<string, string> = {
+      cancelled: 'Cancelled',
+      not_interested: 'Not Interested',
+      wrong_contact: 'Wrong Contact',
+      do_not_contact: 'Do Not Contact',
+    };
+
+    // Update enrollment status instead of deleting
     const { error } = await supabaseAny
       .from('sequence_enrollments')
-      .delete()
+      .update({
+        status: disposition,
+        next_send_at: null,
+        disposition_reason: reason || null,
+        dispositioned_at: new Date().toISOString(),
+        dispositioned_by: user.id,
+      })
       .eq('id', enrollmentId)
       .eq('sequence_id', id);
 
     if (error) {
-      console.error('Error deleting enrollment:', error);
-      return NextResponse.json({ error: 'Failed to delete enrollment' }, { status: 500 });
+      console.error('Error dispositioning enrollment:', error);
+      return NextResponse.json({ error: 'Failed to disposition enrollment' }, { status: 500 });
     }
 
-    return NextResponse.json({ success: true });
+    // Log activity on the person's timeline
+    try {
+      await supabaseAny.from('activity_log').insert({
+        project_id: project.id,
+        user_id: user.id,
+        entity_type: 'person',
+        entity_id: enrollment.person_id,
+        action: 'dispositioned',
+        activity_type: 'email',
+        outcome: `sequence_${disposition}`,
+        direction: 'outbound',
+        subject: `Sequence "${sequence.name}" — ${DISPOSITION_LABELS[disposition] ?? disposition}`,
+        notes: reason || `Enrollment was dispositioned as "${DISPOSITION_LABELS[disposition] ?? disposition}".`,
+        person_id: enrollment.person_id,
+        metadata: {
+          sequence_id: id,
+          sequence_name: sequence.name,
+          enrollment_id: enrollmentId,
+          disposition,
+          reason: reason || null,
+        },
+      });
+    } catch (actErr) {
+      console.error('Error logging disposition activity:', actErr);
+    }
+
+    return NextResponse.json({ success: true, disposition });
   } catch (error) {
     console.error('Error in DELETE enrollment:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

@@ -2,7 +2,7 @@
 export type SequenceStatus = 'draft' | 'active' | 'paused' | 'archived';
 
 // Enrollment status
-export type EnrollmentStatus = 'active' | 'paused' | 'completed' | 'bounced' | 'replied' | 'unsubscribed';
+export type EnrollmentStatus = 'active' | 'paused' | 'completed' | 'bounced' | 'replied' | 'unsubscribed' | 'cancelled' | 'not_interested' | 'wrong_contact' | 'do_not_contact';
 
 // Step type
 export type StepType = 'email' | 'delay' | 'condition' | 'sms' | 'call' | 'task' | 'linkedin';
@@ -123,6 +123,9 @@ export interface SequenceEnrollment {
   reply_detected_at: string | null;
   bounce_detected_at: string | null;
   co_recipient_ids: string[] | null;
+  disposition_reason: string | null;
+  dispositioned_at: string | null;
+  dispositioned_by: string | null;
   created_by: string;
   created_at: string;
   updated_at: string;
@@ -185,6 +188,10 @@ export const ENROLLMENT_STATUS_LABELS: Record<EnrollmentStatus, string> = {
   bounced: 'Bounced',
   replied: 'Replied',
   unsubscribed: 'Unsubscribed',
+  cancelled: 'Cancelled',
+  not_interested: 'Not Interested',
+  wrong_contact: 'Wrong Contact',
+  do_not_contact: 'Do Not Contact',
 };
 
 export const ENROLLMENT_STATUS_COLORS: Record<EnrollmentStatus, string> = {
@@ -194,7 +201,19 @@ export const ENROLLMENT_STATUS_COLORS: Record<EnrollmentStatus, string> = {
   bounced: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
   replied: 'bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200',
   unsubscribed: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
+  cancelled: 'bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200',
+  not_interested: 'bg-orange-100 text-orange-800 dark:bg-orange-900 dark:text-orange-200',
+  wrong_contact: 'bg-amber-100 text-amber-800 dark:bg-amber-900 dark:text-amber-200',
+  do_not_contact: 'bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200',
 };
+
+// Disposition statuses that stop the enrollment with a logged reason
+export const DISPOSITION_STATUSES: { value: EnrollmentStatus; label: string; description: string }[] = [
+  { value: 'cancelled', label: 'Cancel', description: 'Stop sending without a specific reason' },
+  { value: 'not_interested', label: 'Not Interested', description: 'Contact indicated no interest' },
+  { value: 'wrong_contact', label: 'Wrong Contact', description: 'Not the right person for this outreach' },
+  { value: 'do_not_contact', label: 'Do Not Contact', description: 'Contact requested no further emails' },
+];
 
 export const DELAY_UNIT_LABELS: Record<DelayUnit, string> = {
   minutes: 'Minutes',

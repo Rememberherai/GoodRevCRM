@@ -6,6 +6,9 @@ import {
   Play,
   X,
   User,
+  Ban,
+  UserX,
+  ThumbsDown,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
@@ -13,6 +16,9 @@ import {
   DropdownMenuContent,
   DropdownMenuItem,
   DropdownMenuSeparator,
+  DropdownMenuSub,
+  DropdownMenuSubContent,
+  DropdownMenuSubTrigger,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import {
@@ -39,7 +45,7 @@ interface EnrollmentListProps {
   enrollments: EnrollmentWithPerson[];
   onPause?: (enrollment: EnrollmentWithPerson) => void;
   onResume?: (enrollment: EnrollmentWithPerson) => void;
-  onCancel?: (enrollment: EnrollmentWithPerson) => void;
+  onCancel?: (enrollment: EnrollmentWithPerson, disposition?: string) => void;
   onViewPerson?: (personId: string) => void;
 }
 
@@ -160,13 +166,30 @@ export function EnrollmentList({
                   {canCancel(enrollment.status) && onCancel && (
                     <>
                       <DropdownMenuSeparator />
-                      <DropdownMenuItem
-                        onClick={() => onCancel(enrollment)}
-                        className="text-destructive"
-                      >
-                        <X className="mr-2 h-4 w-4" />
-                        Cancel Enrollment
-                      </DropdownMenuItem>
+                      <DropdownMenuSub>
+                        <DropdownMenuSubTrigger className="text-destructive">
+                          <X className="mr-2 h-4 w-4" />
+                          Stop Enrollment
+                        </DropdownMenuSubTrigger>
+                        <DropdownMenuSubContent>
+                          <DropdownMenuItem onClick={() => onCancel(enrollment, 'cancelled')}>
+                            <X className="mr-2 h-4 w-4" />
+                            Cancel
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onCancel(enrollment, 'not_interested')}>
+                            <ThumbsDown className="mr-2 h-4 w-4" />
+                            Not Interested
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onCancel(enrollment, 'wrong_contact')}>
+                            <UserX className="mr-2 h-4 w-4" />
+                            Wrong Contact
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => onCancel(enrollment, 'do_not_contact')} className="text-destructive">
+                            <Ban className="mr-2 h-4 w-4" />
+                            Do Not Contact
+                          </DropdownMenuItem>
+                        </DropdownMenuSubContent>
+                      </DropdownMenuSub>
                     </>
                   )}
                 </DropdownMenuContent>

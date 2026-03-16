@@ -142,7 +142,7 @@ export type BulkEnrollInput = z.infer<typeof bulkEnrollSchema>;
 
 // Update enrollment schema
 export const updateEnrollmentSchema = z.object({
-  status: z.enum(['active', 'paused', 'completed', 'bounced', 'replied', 'unsubscribed']).optional(),
+  status: z.enum(['active', 'paused', 'completed', 'bounced', 'replied', 'unsubscribed', 'cancelled', 'not_interested', 'wrong_contact', 'do_not_contact']).optional(),
   current_step: z.number().int().min(1).optional(),
   next_send_at: z.string().datetime().nullable().optional(),
 });
@@ -181,7 +181,7 @@ export type SequenceQuery = z.infer<typeof sequenceQuerySchema>;
 export const enrollmentQuerySchema = z.object({
   sequence_id: z.string().uuid().optional(),
   person_id: z.string().uuid().optional(),
-  status: z.enum(['active', 'paused', 'completed', 'bounced', 'replied', 'unsubscribed']).optional(),
+  status: z.enum(['active', 'paused', 'completed', 'bounced', 'replied', 'unsubscribed', 'cancelled', 'not_interested', 'wrong_contact', 'do_not_contact']).optional(),
   limit: z.coerce.number().min(1).max(1000).optional().default(50),
   offset: z.coerce.number().min(0).optional().default(0),
 });
