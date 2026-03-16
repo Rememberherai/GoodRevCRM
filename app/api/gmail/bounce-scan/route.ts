@@ -22,12 +22,19 @@ export async function POST(request: Request) {
   // Support both session auth and CRON_SECRET bearer token
   const authHeader = request.headers.get('authorization');
   const cronSecret = process.env.CRON_SECRET;
-  const isCronAuth = cronSecret && authHeader === `Bearer ${cronSecret}`;
+  const isCronAuth = !!(cronSecret && authHeader === `Bearer ${cronSecret}`);
+
+  let userId: string | null = null;
 
   if (!isCronAuth) {
-    const supabase = await createClient();
-    const { data: { user }, error: authError } = await supabase.auth.getUser();
-    if (authError || !user) {
+    try {
+      const supabase = await createClient();
+      const { data: { user }, error: authError } = await supabase.auth.getUser();
+      if (authError || !user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
+      userId = user.id;
+    } catch {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
   }
@@ -52,10 +59,8 @@ export async function POST(request: Request) {
     .select('*')
     .eq('id', body.connection_id);
 
-  if (!isCronAuth) {
-    const supabase = await createClient();
-    const { data: { user } } = await supabase.auth.getUser();
-    if (user) connectionQuery = connectionQuery.eq('user_id', user.id);
+  if (!isCronAuth && userId) {
+    connectionQuery = connectionQuery.eq('user_id', userId);
   }
 
   const { data: connection, error: connError } = await connectionQuery.single();
