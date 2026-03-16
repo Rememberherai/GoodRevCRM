@@ -19,11 +19,17 @@ export const maxDuration = 60;
  * and marks any active sequence enrollments for those recipients as bounced.
  */
 export async function POST(request: Request) {
-  const supabase = await createClient();
-  const { data: { user }, error: authError } = await supabase.auth.getUser();
+  // Support both session auth and CRON_SECRET bearer token
+  const authHeader = request.headers.get('authorization');
+  const cronSecret = process.env.CRON_SECRET;
+  const isCronAuth = cronSecret && authHeader === `Bearer ${cronSecret}`;
 
-  if (authError || !user) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+  if (!isCronAuth) {
+    const supabase = await createClient();
+    const { data: { user }, error: authError } = await supabase.auth.getUser();
+    if (authError || !user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   let body: { connection_id?: string; dry_run?: boolean };
@@ -40,13 +46,19 @@ export async function POST(request: Request) {
   const dryRun = body.dry_run ?? false;
   const admin = createAdminClient();
 
-  // Verify connection ownership
-  const { data: connection, error: connError } = await admin
+  // For cron auth, just verify the connection exists; for user auth, verify ownership
+  let connectionQuery = admin
     .from('gmail_connections')
     .select('*')
-    .eq('id', body.connection_id)
-    .eq('user_id', user.id)
-    .single();
+    .eq('id', body.connection_id);
+
+  if (!isCronAuth) {
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (user) connectionQuery = connectionQuery.eq('user_id', user.id);
+  }
+
+  const { data: connection, error: connError } = await connectionQuery.single();
 
   if (connError || !connection) {
     return NextResponse.json({ error: 'Connection not found' }, { status: 404 });
