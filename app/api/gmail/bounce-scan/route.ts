@@ -186,36 +186,108 @@ export async function POST(request: Request) {
         .order('created_at', { ascending: false });
 
       // Also check if this person is a co-recipient on another enrollment
-      // (grouped sends put multiple addresses in the To field)
+      // (grouped sends — just remove them from co_recipient_ids, don't bounce the whole enrollment)
       const { data: coRecipientEnrollments } = await admin
         .from('sequence_enrollments')
-        .select('id, sequence_id, status, sequences(name)')
+        .select('id, sequence_id, status, co_recipient_ids, sequences(name)')
         .contains('co_recipient_ids', [person.id])
         .in('status', ['active', 'paused'])
         .order('created_at', { ascending: false });
 
-      const allEnrollments = [
-        ...(enrollments ?? []),
-        ...(coRecipientEnrollments ?? []),
-      ];
+      // Handle co-recipient bounces: remove from group, don't kill enrollment
+      for (const coEnrollment of (coRecipientEnrollments ?? [])) {
+        const seqName = (coEnrollment as unknown as { sequences: { name: string } | null }).sequences?.name ?? 'Unknown';
+        const coIds = (coEnrollment as unknown as { co_recipient_ids: string[] }).co_recipient_ids ?? [];
 
-      if (allEnrollments.length === 0) {
+        if (!dryRun) {
+          const updatedCoRecipients = coIds.filter((id: string) => id !== person.id);
+          await admin
+            .from('sequence_enrollments')
+            .update({ co_recipient_ids: updatedCoRecipients })
+            .eq('id', coEnrollment.id);
+
+          const { data: sentEmail } = await admin
+            .from('sent_emails')
+            .select('id')
+            .eq('sequence_enrollment_id', coEnrollment.id)
+            .order('sent_at', { ascending: false })
+            .limit(1)
+            .single();
+
+          if (sentEmail) {
+            await admin.from('email_events').insert({
+              sent_email_id: sentEmail.id,
+              event_type: 'bounce',
+              occurred_at: new Date().toISOString(),
+              metadata: {
+                bounced_email: bouncedEmail,
+                gmail_message_id: bounceInfo.gmailMessageId,
+                bounce_subject: bounceInfo.subject,
+                detection_method: 'bounce_scan',
+                is_co_recipient: true,
+              },
+            });
+          }
+
+          const { data: seq } = await admin
+            .from('sequences')
+            .select('project_id, created_by')
+            .eq('id', coEnrollment.sequence_id)
+            .single();
+
+          if (seq) {
+            await admin.from('activity_log').insert({
+              project_id: seq.project_id,
+              user_id: seq.created_by,
+              entity_type: 'person',
+              entity_id: person.id,
+              action: 'bounced',
+              activity_type: 'email',
+              outcome: 'email_bounced',
+              direction: 'inbound',
+              subject: `Email bounced — removed from "${seqName}" group`,
+              notes: `Delivery to ${bouncedEmail} failed. Removed from grouped send (enrollment continues for other recipients).`,
+              person_id: person.id,
+              metadata: {
+                sequence_id: coEnrollment.sequence_id,
+                sequence_name: seqName,
+                enrollment_id: coEnrollment.id,
+                bounced_email: bouncedEmail,
+                detection_method: 'bounce_scan',
+              },
+            });
+          }
+        }
+
         results.push({
           email: bouncedEmail,
           person_id: person.id,
           person_name: `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim(),
-          enrollment_id: null,
-          sequence_name: null,
-          action: 'no_active_enrollment',
+          enrollment_id: coEnrollment.id,
+          sequence_name: seqName,
+          action: dryRun ? 'would_remove_from_group' : 'removed_from_group',
         });
+      }
+
+      if (!enrollments || enrollments.length === 0) {
+        if (!coRecipientEnrollments || coRecipientEnrollments.length === 0) {
+          results.push({
+            email: bouncedEmail,
+            person_id: person.id,
+            person_name: `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim(),
+            enrollment_id: null,
+            sequence_name: null,
+            action: 'no_active_enrollment',
+          });
+        }
         continue;
       }
 
-      for (const enrollment of allEnrollments) {
+      // Handle primary enrollments: bounce the whole enrollment
+      for (const enrollment of enrollments) {
         const seqName = (enrollment as unknown as { sequences: { name: string } | null }).sequences?.name ?? 'Unknown';
 
         if (!dryRun) {
-          // Mark enrollment as bounced
           await admin
             .from('sequence_enrollments')
             .update({
@@ -225,7 +297,6 @@ export async function POST(request: Request) {
             })
             .eq('id', enrollment.id);
 
-          // Record email_event if we have a sent_email
           const { data: sentEmail } = await admin
             .from('sent_emails')
             .select('id')
@@ -235,22 +306,19 @@ export async function POST(request: Request) {
             .single();
 
           if (sentEmail) {
-            await admin
-              .from('email_events')
-              .insert({
-                sent_email_id: sentEmail.id,
-                event_type: 'bounce',
-                occurred_at: new Date().toISOString(),
-                metadata: {
-                  bounced_email: bouncedEmail,
-                  gmail_message_id: bounceInfo.gmailMessageId,
-                  bounce_subject: bounceInfo.subject,
-                  detection_method: 'bounce_scan',
-                },
-              });
+            await admin.from('email_events').insert({
+              sent_email_id: sentEmail.id,
+              event_type: 'bounce',
+              occurred_at: new Date().toISOString(),
+              metadata: {
+                bounced_email: bouncedEmail,
+                gmail_message_id: bounceInfo.gmailMessageId,
+                bounce_subject: bounceInfo.subject,
+                detection_method: 'bounce_scan',
+              },
+            });
           }
 
-          // Log activity on the person's timeline
           const { data: seq } = await admin
             .from('sequences')
             .select('project_id, created_by')
@@ -294,6 +362,8 @@ export async function POST(request: Request) {
 
     const bouncedCount = results.filter(r => r.action === 'bounced').length;
     const wouldBounceCount = results.filter(r => r.action === 'would_bounce').length;
+    const removedFromGroupCount = results.filter(r => r.action === 'removed_from_group').length;
+    const wouldRemoveFromGroupCount = results.filter(r => r.action === 'would_remove_from_group').length;
 
     return NextResponse.json({
       ok: true,
@@ -302,6 +372,8 @@ export async function POST(request: Request) {
       unique_bounced_emails: bouncedEmails.size,
       enrollments_marked: dryRun ? 0 : bouncedCount,
       enrollments_would_mark: dryRun ? wouldBounceCount : undefined,
+      co_recipients_removed: dryRun ? 0 : removedFromGroupCount,
+      co_recipients_would_remove: dryRun ? wouldRemoveFromGroupCount : undefined,
       results,
     });
   } catch (error) {

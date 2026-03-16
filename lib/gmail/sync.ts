@@ -140,25 +140,91 @@ export async function processBounce(
 
   // Also check if this person is a co-recipient on another enrollment
   // (grouped sends put multiple addresses in the To field)
-  let coRecipientEnrollment: { id: string; sequence_id: string } | null = null;
+  // In this case we just remove them from co_recipient_ids, not bounce the whole enrollment
   if (!enrollment) {
     const { data: coEnrollments } = await supabase
       .from('sequence_enrollments')
-      .select('id, sequence_id')
+      .select('id, sequence_id, co_recipient_ids')
       .contains('co_recipient_ids', [person.id])
       .eq('status', 'active')
       .order('created_at', { ascending: false })
       .limit(1);
+
     if (coEnrollments && coEnrollments.length > 0) {
-      coRecipientEnrollment = coEnrollments[0] as { id: string; sequence_id: string };
-      console.log(`[BounceDetect] Found co-recipient enrollment ${coRecipientEnrollment.id} for bounced ${bouncedEmail}`);
+      const coEnrollment = coEnrollments[0] as { id: string; sequence_id: string; co_recipient_ids: string[] };
+      const updatedCoRecipients = (coEnrollment.co_recipient_ids ?? []).filter(
+        (id: string) => id !== person.id
+      );
+
+      await supabase
+        .from('sequence_enrollments')
+        .update({ co_recipient_ids: updatedCoRecipients })
+        .eq('id', coEnrollment.id);
+
+      console.log(`[BounceDetect] Removed bounced co-recipient ${bouncedEmail} (${person.id}) from enrollment ${coEnrollment.id}`);
+
+      // Record bounce event and activity log
+      const { data: sentEmail } = await supabase
+        .from('sent_emails')
+        .select('id')
+        .eq('sequence_enrollment_id', coEnrollment.id)
+        .order('sent_at', { ascending: false })
+        .limit(1)
+        .single();
+
+      if (sentEmail) {
+        await supabase.from('email_events').insert({
+          sent_email_id: sentEmail.id,
+          event_type: 'bounce',
+          occurred_at: new Date().toISOString(),
+          metadata: {
+            bounced_email: bouncedEmail,
+            gmail_message_id: gmailMessageId,
+            detection_method: 'inbound_ndr',
+            is_co_recipient: true,
+          },
+        });
+      }
+
+      try {
+        const { data: seq } = await supabase
+          .from('sequences')
+          .select('project_id, name, created_by')
+          .eq('id', coEnrollment.sequence_id)
+          .single();
+
+        if (seq) {
+          await supabase.from('activity_log').insert({
+            project_id: seq.project_id,
+            user_id: seq.created_by,
+            entity_type: 'person',
+            entity_id: person.id,
+            action: 'bounced',
+            activity_type: 'email',
+            outcome: 'email_bounced',
+            direction: 'inbound',
+            subject: `Email bounced — removed from "${seq.name}" group`,
+            notes: `Delivery to ${bouncedEmail} failed. Removed from grouped send (enrollment continues for other recipients).`,
+            person_id: person.id,
+            metadata: {
+              sequence_id: coEnrollment.sequence_id,
+              sequence_name: seq.name,
+              enrollment_id: coEnrollment.id,
+              bounced_email: bouncedEmail,
+              gmail_message_id: gmailMessageId,
+            },
+          });
+        }
+      } catch (actErr) {
+        console.error('[BounceDetect] Failed to log co-recipient activity:', actErr);
+      }
+
+      return { enrollmentId: coEnrollment.id, personId: person.id };
     }
   }
 
-  const targetEnrollment = enrollment ?? coRecipientEnrollment;
-
-  if (targetEnrollment) {
-    // Mark enrollment as bounced
+  if (enrollment) {
+    // Primary person bounced — mark the whole enrollment as bounced
     await supabase
       .from('sequence_enrollments')
       .update({
@@ -166,15 +232,15 @@ export async function processBounce(
         bounce_detected_at: new Date().toISOString(),
         next_send_at: null,
       })
-      .eq('id', targetEnrollment.id);
+      .eq('id', enrollment.id);
 
-    console.log(`[BounceDetect] Marked enrollment ${targetEnrollment.id} as bounced for ${bouncedEmail}${coRecipientEnrollment ? ' (co-recipient)' : ''}`);
+    console.log(`[BounceDetect] Marked enrollment ${enrollment.id} as bounced for ${bouncedEmail}`);
 
     // Find the most recent sent_email for this enrollment to record the event
     const { data: sentEmail } = await supabase
       .from('sent_emails')
       .select('id')
-      .eq('sequence_enrollment_id', targetEnrollment.id)
+      .eq('sequence_enrollment_id', enrollment.id)
       .order('sent_at', { ascending: false })
       .limit(1)
       .single();
@@ -190,7 +256,6 @@ export async function processBounce(
             bounced_email: bouncedEmail,
             gmail_message_id: gmailMessageId,
             detection_method: 'inbound_ndr',
-            is_co_recipient: !!coRecipientEnrollment,
           },
         });
     }
@@ -200,7 +265,7 @@ export async function processBounce(
       const { data: seq } = await supabase
         .from('sequences')
         .select('project_id, name, created_by')
-        .eq('id', targetEnrollment.sequence_id)
+        .eq('id', enrollment.sequence_id)
         .single();
 
       if (seq) {
@@ -217,9 +282,9 @@ export async function processBounce(
           notes: `Delivery to ${bouncedEmail} failed. Enrollment was automatically stopped.`,
           person_id: person.id,
           metadata: {
-            sequence_id: targetEnrollment.sequence_id,
+            sequence_id: enrollment.sequence_id,
             sequence_name: seq.name,
-            enrollment_id: targetEnrollment.id,
+            enrollment_id: enrollment.id,
             bounced_email: bouncedEmail,
             gmail_message_id: gmailMessageId,
           },
@@ -229,7 +294,7 @@ export async function processBounce(
       console.error('[BounceDetect] Failed to log activity:', actErr);
     }
 
-    return { enrollmentId: targetEnrollment.id, personId: person.id };
+    return { enrollmentId: enrollment.id, personId: person.id };
   }
 
   console.log(`[BounceDetect] No active enrollment for bounced person ${person.id} (${bouncedEmail})`);
