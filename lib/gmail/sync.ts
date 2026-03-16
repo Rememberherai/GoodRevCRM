@@ -536,6 +536,15 @@ async function performInitialSync(
 
   // Insert emails
   for (const email of parsed) {
+    // Check for bounce notifications BEFORE contact matching filter,
+    // since bounces come from mailer-daemon and won't match any contact
+    if (email.direction === 'inbound' && isBounceNotification(email)) {
+      const bouncedRecipients = extractBouncedRecipients(email);
+      for (const bouncedAddr of bouncedRecipients) {
+        await processBounce(supabase, bouncedAddr, connection.id, email.gmail_message_id);
+      }
+    }
+
     const contactEmail = email.direction === 'inbound' ? email.from_email : (email.to_emails[0] ?? null);
     const match = contactEmail ? matches.get(contactEmail.toLowerCase()) : undefined;
 
@@ -580,14 +589,6 @@ async function performInitialSync(
         if (email.direction === 'inbound' && match.project_id && match.person_id) {
           await logEmailActivity(supabase, connection, email, match);
         }
-      }
-    }
-
-    // Check if this is a bounce notification and process it
-    if (email.direction === 'inbound' && isBounceNotification(email)) {
-      const bouncedRecipients = extractBouncedRecipients(email);
-      for (const bouncedAddr of bouncedRecipients) {
-        await processBounce(supabase, bouncedAddr, connection.id, email.gmail_message_id);
       }
     }
   }
@@ -690,6 +691,16 @@ async function performIncrementalSync(
   // Parse and match
   for (const msg of messages) {
     const parsed = parseGmailMessage(msg, connection.email);
+
+    // Check for bounce notifications BEFORE contact matching filter,
+    // since bounces come from mailer-daemon and won't match any contact
+    if (parsed.direction === 'inbound' && isBounceNotification(parsed)) {
+      const bouncedRecipients = extractBouncedRecipients(parsed);
+      for (const bouncedAddr of bouncedRecipients) {
+        await processBounce(supabase, bouncedAddr, connection.id, parsed.gmail_message_id);
+      }
+    }
+
     const contactEmail = parsed.direction === 'inbound' ? parsed.from_email : (parsed.to_emails[0] ?? null);
 
     if (!contactEmail) continue;
@@ -746,14 +757,6 @@ async function performIncrementalSync(
       // (domain-only org matches would create noise from system emails)
       if (parsed.direction === 'inbound' && match.project_id && match.person_id) {
         await logEmailActivity(supabase, connection, parsed, match);
-      }
-    }
-
-    // Check if this is a bounce notification and process it
-    if (parsed.direction === 'inbound' && isBounceNotification(parsed)) {
-      const bouncedRecipients = extractBouncedRecipients(parsed);
-      for (const bouncedAddr of bouncedRecipients) {
-        await processBounce(supabase, bouncedAddr, connection.id, parsed.gmail_message_id);
       }
     }
   }
