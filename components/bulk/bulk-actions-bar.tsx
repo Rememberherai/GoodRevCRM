@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { X, Trash2, UserPlus, Tag, CheckCircle, RefreshCw, Sparkles } from 'lucide-react';
+import { X, Trash2, UserPlus, Tag, CheckCircle, RefreshCw, Sparkles, ShieldCheck } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -33,6 +33,8 @@ interface BulkActionsBarProps {
   onEnrich?: () => void;
   showResearch?: boolean;
   onResearch?: () => void;
+  showValidateEmails?: boolean;
+  onValidateEmails?: () => void;
 }
 
 export function BulkActionsBar({
@@ -47,6 +49,8 @@ export function BulkActionsBar({
   onEnrich,
   showResearch = false,
   onResearch,
+  showValidateEmails = false,
+  onValidateEmails,
 }: BulkActionsBarProps) {
   const [deleteDialogOpen, setDeleteDialogOpen] = useState(false);
   const [actionInProgress, setActionInProgress] = useState(false);
@@ -100,6 +104,18 @@ export function BulkActionsBar({
             >
               <Sparkles className="h-4 w-4 mr-1" />
               AI Research
+            </Button>
+          )}
+
+          {showValidateEmails && onValidateEmails && (
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={onValidateEmails}
+              disabled={loading || actionInProgress}
+            >
+              <ShieldCheck className="h-4 w-4 mr-1" />
+              Validate Emails
             </Button>
           )}
 

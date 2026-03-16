@@ -37,6 +37,7 @@ import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
 import { SendEmailModal } from '@/components/gmail';
 import { BulkActionsBar } from '@/components/bulk/bulk-actions-bar';
+import { BulkValidateEmailsModal } from '@/components/bulk/bulk-validate-emails-modal';
 import { BulkEnrichWithReviewModal } from '@/components/enrichment/bulk-enrich-with-review-modal';
 import { EnrollInSequenceDialog } from '@/components/sequences/enrollment/enroll-in-sequence-dialog';
 import { ColumnPicker } from '@/components/table/column-picker';
@@ -54,6 +55,7 @@ export function PeoplePageClient() {
   const [allPagesSelected, setAllPagesSelected] = useState(false);
   const [isLoadingAllIds, setIsLoadingAllIds] = useState(false);
   const [bulkEnrichOpen, setBulkEnrichOpen] = useState(false);
+  const [bulkValidateOpen, setBulkValidateOpen] = useState(false);
   const [enrollInSequenceOpen, setEnrollInSequenceOpen] = useState(false);
 
   const {
@@ -449,6 +451,8 @@ export function PeoplePageClient() {
             onBulkAction={async () => {}}
             showEnrich
             onEnrich={() => setBulkEnrichOpen(true)}
+            showValidateEmails
+            onValidateEmails={() => setBulkValidateOpen(true)}
           />
           <Button
             size="sm"
@@ -463,6 +467,17 @@ export function PeoplePageClient() {
       <BulkEnrichWithReviewModal
         open={bulkEnrichOpen}
         onClose={() => setBulkEnrichOpen(false)}
+        selectedPeople={selectedPeople}
+        projectSlug={slug}
+        onComplete={() => {
+          clearSelection();
+          refresh();
+        }}
+      />
+
+      <BulkValidateEmailsModal
+        open={bulkValidateOpen}
+        onClose={() => setBulkValidateOpen(false)}
         selectedPeople={selectedPeople}
         projectSlug={slug}
         onComplete={() => {

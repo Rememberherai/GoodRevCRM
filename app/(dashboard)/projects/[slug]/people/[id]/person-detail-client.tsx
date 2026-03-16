@@ -51,7 +51,7 @@ import { ClickableEmail } from '@/components/contacts/clickable-email';
 import { ClickablePhone } from '@/components/contacts/clickable-phone';
 import { CallLogTable } from '@/components/calls/call-log-table';
 import { SmsConversation } from '@/components/sms/sms-conversation';
-import { PhoneCall, MessageSquareText, ExternalLink, Copy, Check, UserPlus, Users, ClipboardList } from 'lucide-react';
+import { PhoneCall, MessageSquareText, ExternalLink, Copy, Check, UserPlus, Users, ClipboardList, ShieldCheck, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ActivityWithUser } from '@/types/activity';
 import { getSalesNavUrl } from '@/lib/linkedin/utils';
@@ -90,9 +90,40 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
   const [messageCopied, setMessageCopied] = useState(false);
   const [loggingLinkedIn, setLoggingLinkedIn] = useState<string | null>(null);
   const [showLogActivity, setShowLogActivity] = useState(false);
+  const [emailValidating, setEmailValidating] = useState(false);
 
   const { person, isLoading, error, refresh } = usePerson(personId);
   const removePerson = usePersonStore((s) => s.removePerson);
+
+  const handleValidateEmail = async () => {
+    if (!person?.email) return;
+    setEmailValidating(true);
+    try {
+      const response = await fetch('/api/validate-email', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          emails: [person.email],
+          personIds: [personId],
+          projectSlug: slug,
+        }),
+      });
+      if (response.ok) {
+        const data = await response.json();
+        const result = data.results?.[0];
+        if (result?.valid) {
+          toast.success('Email verified successfully');
+        } else {
+          toast.warning(`Email validation failed: ${result?.reason ?? 'Unknown'}`);
+        }
+        refresh();
+      }
+    } catch {
+      toast.error('Failed to validate email');
+    } finally {
+      setEmailValidating(false);
+    }
+  };
 
   const loadActivities = useCallback(async () => {
     setActivitiesLoading(true);
@@ -490,6 +521,30 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
                       showIcon={true}
                       variant="link"
                     />
+                    {person.email_verified === true && (
+                      <span title={`Verified${person.email_verified_at ? ` on ${new Date(person.email_verified_at).toLocaleDateString()}` : ''}`}>
+                        <CheckCircle2 className="h-4 w-4 text-green-500 shrink-0" />
+                      </span>
+                    )}
+                    {person.email_verified === false && person.email_verified_at && (
+                      <span title="Email verification failed">
+                        <AlertTriangle className="h-4 w-4 text-amber-500 shrink-0" />
+                      </span>
+                    )}
+                    <Button
+                      variant="ghost"
+                      size="sm"
+                      className="h-7 px-2"
+                      onClick={handleValidateEmail}
+                      disabled={emailValidating}
+                      title="Validate email (MX check)"
+                    >
+                      {emailValidating ? (
+                        <Loader2 className="h-3.5 w-3.5 animate-spin" />
+                      ) : (
+                        <ShieldCheck className="h-3.5 w-3.5" />
+                      )}
+                    </Button>
                   </div>
                 )}
                 {person.phone && (
