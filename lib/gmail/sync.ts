@@ -41,26 +41,47 @@ export function isBounceNotification(email: ReturnType<typeof parseGmailMessage>
 }
 
 /**
- * Extract the failed recipient email address(es) from a bounce notification body
+ * Extract the failed recipient email address(es) from a bounce notification body.
+ *
+ * Gmail bounce format (from mailer-daemon@googlemail.com):
+ *   "Your message wasn't delivered to <email>"
+ *   "There was a problem delivering your message to <email>"
+ *   "550 The mail server could not deliver mail to <email>"
  */
 export function extractBouncedRecipients(email: ReturnType<typeof parseGmailMessage>): string[] {
   const recipients: Set<string> = new Set();
   const body = email.body_text ?? email.body_html?.replace(/<[^>]*>/g, ' ') ?? '';
 
+  const EMAIL_RE = '([a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,})';
+
   // Look for X-Failed-Recipients style header in body
   const failedRecipMatch = body.match(/(?:failed|original)[\s-]*recipient[s]?[:\s]+([^\s<,]+@[^\s>,]+)/gi);
   if (failedRecipMatch) {
     for (const match of failedRecipMatch) {
-      const emailMatch = match.match(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/);
+      const emailMatch = match.match(new RegExp(EMAIL_RE));
       if (emailMatch) recipients.add(emailMatch[1]!.toLowerCase());
     }
   }
 
-  // Look for common bounce patterns: "delivery to <email> has failed"
+  // Gmail-specific patterns (most common):
+  // "Your message wasn't delivered to info@example.com"
+  // "There was a problem delivering your message to info@example.com"
+  // "550 The mail server could not deliver mail to info@example.com"
   const deliveryPatterns = [
-    /(?:delivery to|could not.*deliver.*to|rejected.*for|bounced.*address)[:\s]*<?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})>?/gi,
-    /<?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})>?\s*(?:was not delivered|could not be delivered|is not valid|does not exist|user unknown|no such user|mailbox unavailable)/gi,
-    /(?:550|553|554|521|511)[\s\-]+<?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})>?/gi,
+    // Gmail: "wasn't delivered to" / "was not delivered to" / "not delivered to"
+    new RegExp(`(?:wasn't|was not|not)\\s+delivered\\s+to\\s+<?${EMAIL_RE}>?`, 'gi'),
+    // Gmail: "problem delivering your message to"
+    new RegExp(`delivering\\s+(?:your\\s+)?(?:message\\s+)?to\\s+<?${EMAIL_RE}>?`, 'gi'),
+    // Gmail: "could not deliver mail to"
+    new RegExp(`could\\s+not\\s+deliver\\s+(?:mail\\s+)?to\\s+<?${EMAIL_RE}>?`, 'gi'),
+    // SMTP error codes followed by email
+    new RegExp(`(?:550|553|554|521|511|452)\\s+.*?<?${EMAIL_RE}>?`, 'gi'),
+    // Generic: "delivery to <email>" / "rejected for <email>"
+    new RegExp(`(?:delivery\\s+to|rejected\\s+for|bounced.*?address)[:\\s]*<?${EMAIL_RE}>?`, 'gi'),
+    // Generic: "<email> was not delivered / does not exist / user unknown"
+    new RegExp(`<?${EMAIL_RE}>?\\s+(?:was\\s+not\\s+delivered|could\\s+not\\s+be\\s+delivered|is\\s+not\\s+valid|does\\s+not\\s+exist|user\\s+unknown|no\\s+such\\s+user|mailbox\\s+unavailable|address\\s+rejected)`, 'gi'),
+    // Google DSN: "The email account that you tried to reach does not exist"
+    new RegExp(`email\\s+account.*?reach.*?<?${EMAIL_RE}>?`, 'gi'),
   ];
 
   for (const pattern of deliveryPatterns) {
@@ -70,14 +91,19 @@ export function extractBouncedRecipients(email: ReturnType<typeof parseGmailMess
     }
   }
 
-  // If the To: field of the bounce contains the original recipient (some providers do this)
-  // and we haven't found anything yet, use the To addresses as candidates
-  if (recipients.size === 0 && email.to_emails.length > 0) {
-    // Don't add the connection's own email — only add addresses that look like external recipients
-    // This is a fallback; bounce parsing above should handle most cases
-  }
+  // Filter out the sender's own email (it appears in bounce bodies as the "from" in quoted headers)
+  const senderEmail = email.from_email.toLowerCase();
+  // Also filter common Google internal addresses
+  const filtered = [...recipients].filter(addr => {
+    if (addr === senderEmail) return false;
+    if (addr.endsWith('@mail.gmail.com')) return false;
+    if (addr.endsWith('@googlemail.com')) return false;
+    if (addr.startsWith('mailer-daemon@')) return false;
+    if (addr.startsWith('postmaster@')) return false;
+    return true;
+  });
 
-  return [...recipients];
+  return filtered;
 }
 
 /**

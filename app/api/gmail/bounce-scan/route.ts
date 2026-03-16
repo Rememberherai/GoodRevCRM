@@ -135,7 +135,7 @@ export async function POST(request: Request) {
         )?.value ?? '';
         const date = new Date(parseInt(msg.internalDate)).toISOString();
 
-        const recipients = extractBouncedRecipientsFromText(bodyText);
+        const recipients = extractBouncedRecipientsFromText(bodyText, (connection as GmailConnection).email);
         for (const email of recipients) {
           if (!bouncedEmails.has(email)) {
             bouncedEmails.set(email, { gmailMessageId: msg.id, subject, date });
@@ -332,24 +332,36 @@ function extractTextFromMessage(msg: GmailMessage): string {
   return text;
 }
 
-function extractBouncedRecipientsFromText(body: string): string[] {
+function extractBouncedRecipientsFromText(body: string, senderEmail?: string): string[] {
   const recipients: Set<string> = new Set();
+
+  const EMAIL_RE = '([a-zA-Z0-9._%+\\-]+@[a-zA-Z0-9.\\-]+\\.[a-zA-Z]{2,})';
 
   // X-Failed-Recipients pattern
   const failedRecipMatch = body.match(/(?:failed|original)[\s-]*recipient[s]?[:\s]+([^\s<,]+@[^\s>,]+)/gi);
   if (failedRecipMatch) {
     for (const match of failedRecipMatch) {
-      const emailMatch = match.match(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/);
+      const emailMatch = match.match(new RegExp(EMAIL_RE));
       if (emailMatch) recipients.add(emailMatch[1]!.toLowerCase());
     }
   }
 
-  // Common bounce patterns
+  // Gmail-specific patterns (most common):
   const patterns = [
-    /(?:delivery to|could not.*deliver.*to|rejected.*for|bounced.*address)[:\s]*<?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})>?/gi,
-    /<?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})>?\s*(?:was not delivered|could not be delivered|is not valid|does not exist|user unknown|no such user|mailbox unavailable|address rejected)/gi,
-    /(?:550|553|554|521|511)[\s\-#]+.*?<?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})>?/gi,
-    /The email account that you tried to reach does not exist[^<]*<?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})>?/gi,
+    // Gmail: "wasn't delivered to" / "was not delivered to" / "not delivered to"
+    new RegExp(`(?:wasn't|was not|not)\\s+delivered\\s+to\\s+<?${EMAIL_RE}>?`, 'gi'),
+    // Gmail: "problem delivering your message to"
+    new RegExp(`delivering\\s+(?:your\\s+)?(?:message\\s+)?to\\s+<?${EMAIL_RE}>?`, 'gi'),
+    // Gmail: "could not deliver mail to"
+    new RegExp(`could\\s+not\\s+deliver\\s+(?:mail\\s+)?to\\s+<?${EMAIL_RE}>?`, 'gi'),
+    // SMTP error codes followed by email
+    new RegExp(`(?:550|553|554|521|511|452)\\s+.*?<?${EMAIL_RE}>?`, 'gi'),
+    // Generic: "delivery to <email>" / "rejected for <email>"
+    new RegExp(`(?:delivery\\s+to|rejected\\s+for|bounced.*?address)[:\\s]*<?${EMAIL_RE}>?`, 'gi'),
+    // Generic: "<email> was not delivered / does not exist / user unknown"
+    new RegExp(`<?${EMAIL_RE}>?\\s+(?:was\\s+not\\s+delivered|could\\s+not\\s+be\\s+delivered|is\\s+not\\s+valid|does\\s+not\\s+exist|user\\s+unknown|no\\s+such\\s+user|mailbox\\s+unavailable|address\\s+rejected)`, 'gi'),
+    // Google DSN: "The email account that you tried to reach does not exist"
+    new RegExp(`email\\s+account.*?reach.*?<?${EMAIL_RE}>?`, 'gi'),
   ];
 
   for (const pattern of patterns) {
@@ -359,5 +371,14 @@ function extractBouncedRecipientsFromText(body: string): string[] {
     }
   }
 
-  return [...recipients];
+  // Filter out sender email and Google internal addresses
+  const sender = senderEmail?.toLowerCase();
+  return [...recipients].filter(addr => {
+    if (sender && addr === sender) return false;
+    if (addr.endsWith('@mail.gmail.com')) return false;
+    if (addr.endsWith('@googlemail.com')) return false;
+    if (addr.startsWith('mailer-daemon@')) return false;
+    if (addr.startsWith('postmaster@')) return false;
+    return true;
+  });
 }
