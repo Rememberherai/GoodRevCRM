@@ -12,7 +12,7 @@ const scanSchema = z.object({
   max_results: z.number().min(1).max(500).optional().default(100),
 });
 
-// POST /api/projects/[slug]/duplicates/scan - Bulk scan existing records
+// POST /api/projects/[slug]/duplicates/scan - Bulk scan existing records (streaming progress)
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { slug } = await context.params;
@@ -53,7 +53,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const minThreshold = settings?.min_match_threshold ? Number(settings.min_match_threshold) : undefined;
 
-    // Fetch records to scan (ordered by creation date, newest first)
+    // Fetch records to scan
     const { data: records } = await supabase
       .from(table)
       .select('*')
@@ -63,10 +63,10 @@ export async function POST(request: Request, context: RouteContext) {
       .limit(500);
 
     if (!records || records.length === 0) {
-      return NextResponse.json({ found: 0, candidates_created: 0 });
+      return NextResponse.json({ found: 0, candidates_created: 0, records_scanned: 0 });
     }
 
-    // Track already-known pairs to avoid duplicates
+    // Track existing pairs
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: existingCandidates } = await (supabase as any)
       .from('duplicate_candidates')
@@ -75,60 +75,82 @@ export async function POST(request: Request, context: RouteContext) {
       .eq('entity_type', entity_type);
 
     const existingPairs = new Set(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       (existingCandidates ?? []).map((c: any) => `${c.source_id}:${c.target_id}`)
     );
 
-    let candidatesCreated = 0;
-    const scannedIds = new Set<string>();
+    const totalRecords = records.length;
+    const encoder = new TextEncoder();
 
-    for (const record of records) {
-      if (candidatesCreated >= max_results) break;
-      scannedIds.add(record.id);
+    const stream = new ReadableStream({
+      async start(controller) {
+        let candidatesCreated = 0;
+        const scannedIds = new Set<string>();
 
-      const detectFn = entity_type === 'person' ? detectPersonDuplicates : detectOrganizationDuplicates;
-      const matches = await detectFn(
-        record as Record<string, string | null>,
-        {
-          entityType: entity_type,
-          projectId: project.id,
-          excludeIds: [record.id, ...Array.from(scannedIds)],
-          minThreshold,
-        },
-        supabase
-      );
+        for (let i = 0; i < records.length; i++) {
+          const record = records[i]!;
+          if (candidatesCreated >= max_results) break;
+          scannedIds.add(record.id);
 
-      for (const match of matches) {
-        if (candidatesCreated >= max_results) break;
+          // Send progress update every record
+          controller.enqueue(encoder.encode(
+            `data: ${JSON.stringify({ type: 'progress', scanned: i + 1, total: totalRecords, found: candidatesCreated })}\n\n`
+          ));
 
-        const pairKey = `${record.id}:${match.target_id}`;
-        const reversePairKey = `${match.target_id}:${record.id}`;
-        if (existingPairs.has(pairKey) || existingPairs.has(reversePairKey)) continue;
+          const detectFn = entity_type === 'person' ? detectPersonDuplicates : detectOrganizationDuplicates;
+          const matches = await detectFn(
+            record as Record<string, string | null>,
+            {
+              entityType: entity_type,
+              projectId: project.id,
+              excludeIds: [record.id, ...Array.from(scannedIds)],
+              minThreshold,
+            },
+            supabase
+          );
 
-        // eslint-disable-next-line @typescript-eslint/no-explicit-any
-        const { error: insertError } = await (supabase as any)
-          .from('duplicate_candidates')
-          .insert({
-            project_id: project.id,
-            entity_type,
-            source_id: record.id,
-            target_id: match.target_id,
-            match_score: match.score,
-            match_reasons: match.reasons,
-            detection_source: 'bulk_scan',
-            status: 'pending',
-          });
+          for (const match of matches) {
+            if (candidatesCreated >= max_results) break;
 
-        if (!insertError) {
-          candidatesCreated++;
-          existingPairs.add(pairKey);
+            const pairKey = `${record.id}:${match.target_id}`;
+            const reversePairKey = `${match.target_id}:${record.id}`;
+            if (existingPairs.has(pairKey) || existingPairs.has(reversePairKey)) continue;
+
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            const { error: insertError } = await (supabase as any)
+              .from('duplicate_candidates')
+              .insert({
+                project_id: project.id,
+                entity_type,
+                source_id: record.id,
+                target_id: match.target_id,
+                match_score: match.score,
+                match_reasons: match.reasons,
+                detection_source: 'bulk_scan',
+                status: 'pending',
+              });
+
+            if (!insertError) {
+              candidatesCreated++;
+              existingPairs.add(pairKey);
+            }
+          }
         }
-      }
-    }
 
-    return NextResponse.json({
-      found: candidatesCreated,
-      candidates_created: candidatesCreated,
-      records_scanned: records.length,
+        // Send final result
+        controller.enqueue(encoder.encode(
+          `data: ${JSON.stringify({ type: 'complete', candidates_created: candidatesCreated, records_scanned: totalRecords })}\n\n`
+        ));
+        controller.close();
+      },
+    });
+
+    return new Response(stream, {
+      headers: {
+        'Content-Type': 'text/event-stream',
+        'Cache-Control': 'no-cache',
+        Connection: 'keep-alive',
+      },
     });
   } catch (error) {
     console.error('Error in POST /api/projects/[slug]/duplicates/scan:', error);

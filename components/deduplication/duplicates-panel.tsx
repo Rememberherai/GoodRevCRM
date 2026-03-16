@@ -23,10 +23,17 @@ interface DuplicatesPanelProps {
   slug: string;
 }
 
+interface ScanProgress {
+  scanned: number;
+  total: number;
+  found: number;
+}
+
 export function DuplicatesPanel({ slug }: DuplicatesPanelProps) {
   const [candidates, setCandidates] = useState<DuplicateCandidateWithRecords[]>([]);
   const [loading, setLoading] = useState(true);
   const [scanning, setScanning] = useState(false);
+  const [scanProgress, setScanProgress] = useState<ScanProgress | null>(null);
   const [savingSettings, setSavingSettings] = useState(false);
   const [entityFilter, setEntityFilter] = useState<string>('all');
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
@@ -81,6 +88,7 @@ export function DuplicatesPanel({ slug }: DuplicatesPanelProps) {
 
   const handleScan = async (entityType: DeduplicationEntityType) => {
     setScanning(true);
+    setScanProgress(null);
     try {
       const res = await fetch(`/api/projects/${slug}/duplicates/scan`, {
         method: 'POST',
@@ -88,13 +96,43 @@ export function DuplicatesPanel({ slug }: DuplicatesPanelProps) {
         body: JSON.stringify({ entity_type: entityType, max_results: 100 }),
       });
       if (!res.ok) throw new Error('Scan failed');
-      const data = await res.json();
-      toast.success(`Scan complete: ${data.candidates_created} duplicates found across ${data.records_scanned} records`);
+
+      const reader = res.body?.getReader();
+      if (!reader) throw new Error('No response body');
+
+      const decoder = new TextDecoder();
+      let buffer = '';
+
+      while (true) {
+        const { done, value } = await reader.read();
+        if (done) break;
+
+        buffer += decoder.decode(value, { stream: true });
+        const lines = buffer.split('\n\n');
+        buffer = lines.pop() ?? '';
+
+        for (const line of lines) {
+          const dataMatch = line.match(/^data: (.+)$/m);
+          if (!dataMatch?.[1]) continue;
+          try {
+            const event = JSON.parse(dataMatch[1]);
+            if (event.type === 'progress') {
+              setScanProgress({ scanned: event.scanned, total: event.total, found: event.found });
+            } else if (event.type === 'complete') {
+              toast.success(`Scan complete: ${event.candidates_created} duplicates found across ${event.records_scanned} records`);
+            }
+          } catch {
+            // skip malformed events
+          }
+        }
+      }
+
       fetchCandidates();
     } catch {
       toast.error('Failed to scan for duplicates');
     } finally {
       setScanning(false);
+      setScanProgress(null);
     }
   };
 
@@ -182,6 +220,30 @@ export function DuplicatesPanel({ slug }: DuplicatesPanelProps) {
               </Button>
             </div>
           </div>
+
+          {/* Scan Progress */}
+          {scanning && scanProgress && (
+            <div className="mt-4 space-y-2">
+              <div className="flex items-center justify-between text-sm text-muted-foreground">
+                <span>
+                  Scanning record {scanProgress.scanned} of {scanProgress.total}...
+                </span>
+                <span>
+                  {scanProgress.found} duplicate{scanProgress.found !== 1 ? 's' : ''} found
+                </span>
+              </div>
+              <Progress
+                value={(scanProgress.scanned / scanProgress.total) * 100}
+                className="h-2"
+              />
+            </div>
+          )}
+          {scanning && !scanProgress && (
+            <div className="mt-4 flex items-center gap-2 text-sm text-muted-foreground">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Preparing scan...
+            </div>
+          )}
         </CardHeader>
 
         {/* Settings Panel (collapsible) */}
