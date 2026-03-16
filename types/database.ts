@@ -7,10 +7,30 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.1"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -668,6 +688,123 @@ export type Database = {
           },
           {
             foreignKeyName: "dashboard_widgets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      dedup_settings: {
+        Row: {
+          auto_merge_threshold: number
+          created_at: string
+          id: string
+          min_match_threshold: number
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          auto_merge_threshold?: number
+          created_at?: string
+          id?: string
+          min_match_threshold?: number
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          auto_merge_threshold?: number
+          created_at?: string
+          id?: string
+          min_match_threshold?: number
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dedup_settings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "dedup_settings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      duplicate_candidates: {
+        Row: {
+          created_at: string
+          detection_source: string
+          entity_type: string
+          id: string
+          match_reasons: Json
+          match_score: number
+          merge_audit: Json | null
+          merged_at: string | null
+          merged_by: string | null
+          project_id: string
+          source_id: string
+          status: string
+          status_changed_at: string | null
+          status_changed_by: string | null
+          survivor_id: string | null
+          target_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          detection_source: string
+          entity_type: string
+          id?: string
+          match_reasons?: Json
+          match_score: number
+          merge_audit?: Json | null
+          merged_at?: string | null
+          merged_by?: string | null
+          project_id: string
+          source_id: string
+          status?: string
+          status_changed_at?: string | null
+          status_changed_by?: string | null
+          survivor_id?: string | null
+          target_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          detection_source?: string
+          entity_type?: string
+          id?: string
+          match_reasons?: Json
+          match_score?: number
+          merge_audit?: Json | null
+          merged_at?: string | null
+          merged_by?: string | null
+          project_id?: string
+          source_id?: string
+          status?: string
+          status_changed_at?: string | null
+          status_changed_by?: string | null
+          survivor_id?: string | null
+          target_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "duplicate_candidates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "duplicate_candidates_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -1882,6 +2019,60 @@ export type Database = {
             columns: ["rfp_id"]
             isOneToOne: false
             referencedRelation: "rfps"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      merge_history: {
+        Row: {
+          entity_type: string
+          field_selections: Json | null
+          id: string
+          merged_at: string
+          merged_by: string | null
+          merged_ids: string[]
+          merged_records_snapshot: Json | null
+          project_id: string
+          related_records_moved: Json | null
+          survivor_id: string
+        }
+        Insert: {
+          entity_type: string
+          field_selections?: Json | null
+          id?: string
+          merged_at?: string
+          merged_by?: string | null
+          merged_ids: string[]
+          merged_records_snapshot?: Json | null
+          project_id: string
+          related_records_moved?: Json | null
+          survivor_id: string
+        }
+        Update: {
+          entity_type?: string
+          field_selections?: Json | null
+          id?: string
+          merged_at?: string
+          merged_by?: string | null
+          merged_ids?: string[]
+          merged_records_snapshot?: Json | null
+          project_id?: string
+          related_records_moved?: Json | null
+          survivor_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "merge_history_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "merge_history_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -5580,6 +5771,17 @@ export type Database = {
         Args: { p_notification_ids: string[] }
         Returns: number
       }
+      perform_merge: {
+        Args: {
+          p_entity_type: string
+          p_field_selections: Json
+          p_merged_ids: string[]
+          p_project_id: string
+          p_survivor_id: string
+          p_user_id: string
+        }
+        Returns: Json
+      }
       queue_webhook_delivery: {
         Args: { p_event_type: string; p_payload: Json; p_webhook_id: string }
         Returns: string
@@ -5795,6 +5997,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       entity_type: ["organization", "person", "opportunity", "rfp"],
@@ -5843,3 +6048,4 @@ export const Constants = {
     },
   },
 } as const
+

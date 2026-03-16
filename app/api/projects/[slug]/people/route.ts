@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { createPersonSchema } from '@/lib/validators/person';
 import { emitAutomationEvent } from '@/lib/automations/engine';
+import { detectDuplicates } from '@/lib/deduplication';
 import type { Database } from '@/types/database';
 
 type PersonInsert = Database['public']['Tables']['people']['Insert'];
@@ -158,6 +159,43 @@ export async function POST(request: Request, context: RouteContext) {
         { error: 'Validation failed', details: validationResult.error.flatten() },
         { status: 400 }
       );
+    }
+
+    // Check for duplicates unless force_create is set
+    const forceCreate = body.force_create === true;
+    if (!forceCreate) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: settings } = await (supabase as any)
+        .from('dedup_settings')
+        .select('min_match_threshold')
+        .eq('project_id', project.id)
+        .single();
+
+      const minThreshold = settings?.min_match_threshold ? Number(settings.min_match_threshold) : undefined;
+
+      const dupResult = await detectDuplicates(
+        {
+          email: validationResult.data.email,
+          first_name: validationResult.data.first_name,
+          last_name: validationResult.data.last_name,
+          phone: validationResult.data.phone,
+          mobile_phone: validationResult.data.mobile_phone,
+          linkedin_url: validationResult.data.linkedin_url,
+        },
+        { entityType: 'person', projectId: project.id, minThreshold },
+        supabase
+      );
+
+      if (dupResult.has_duplicates) {
+        return NextResponse.json(
+          {
+            duplicates_detected: true,
+            matches: dupResult.matches,
+            pending_record: validationResult.data,
+          },
+          { status: 409 }
+        );
+      }
     }
 
     const personData: PersonInsert = {

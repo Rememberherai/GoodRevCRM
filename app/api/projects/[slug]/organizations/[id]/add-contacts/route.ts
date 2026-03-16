@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { addDiscoveredContactsSchema } from '@/lib/validators/contact-discovery';
+import { detectPersonDuplicates } from '@/lib/deduplication';
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
@@ -64,6 +65,37 @@ export async function POST(request: Request, context: RouteContext) {
 
     for (const contact of contacts) {
       try {
+        // Check for existing duplicates
+        const dupes = await detectPersonDuplicates(
+          {
+            email: contact.email || null,
+            first_name: contact.first_name,
+            last_name: contact.last_name,
+            linkedin_url: contact.linkedin_url || null,
+          },
+          { entityType: 'person', projectId: project.id },
+          supabase
+        );
+
+        // If high-confidence match, link existing person to org instead
+        if (dupes.length > 0 && dupes[0]!.score >= 0.9) {
+          const existingPersonId = dupes[0]!.target_id;
+          // Link existing person to this org if not already linked
+          await supabase.from('person_organizations').upsert(
+            {
+              person_id: existingPersonId,
+              organization_id: organizationId,
+              project_id: project.id,
+              job_title: contact.job_title || null,
+              is_primary: false,
+              is_current: true,
+            },
+            { onConflict: 'person_id,organization_id,project_id' }
+          );
+          createdPeople.push({ id: existingPersonId, first_name: contact.first_name, last_name: contact.last_name });
+          continue;
+        }
+
         // Create person
         const { data: person, error: personError } = await supabase
           .from('people')

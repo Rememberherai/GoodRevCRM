@@ -5,6 +5,7 @@ export type TriggerType =
   | 'entity.created'
   | 'entity.updated'
   | 'entity.deleted'
+  | 'entity.merged'
   | 'field.changed'
   // Stage/status changes
   | 'opportunity.stage_changed'
@@ -170,6 +171,7 @@ export const triggerTypeGroups = {
       { type: 'entity.created' as TriggerType, label: 'Entity Created', description: 'When a new record is created' },
       { type: 'entity.updated' as TriggerType, label: 'Entity Updated', description: 'When a record is updated' },
       { type: 'entity.deleted' as TriggerType, label: 'Entity Deleted', description: 'When a record is deleted' },
+      { type: 'entity.merged' as TriggerType, label: 'Entity Merged', description: 'When duplicate records are merged' },
       { type: 'field.changed' as TriggerType, label: 'Field Changed', description: 'When a specific field changes value' },
     ],
   },

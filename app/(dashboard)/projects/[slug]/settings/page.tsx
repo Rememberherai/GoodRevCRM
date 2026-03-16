@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
@@ -42,6 +42,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { AutomationPanel } from '@/components/automations/automation-panel';
 import { ContactProvidersSettings } from '@/components/settings/contact-providers-settings';
 import { EmailSignaturesPanel } from '@/components/settings/email-signatures-panel';
+import { DuplicatesPanel } from '@/components/deduplication/duplicates-panel';
+import { DuplicatesBadge } from '@/components/deduplication/duplicates-badge';
 import type { ProjectRole } from '@/types/user';
 
 
@@ -255,6 +257,11 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             <Pen className="h-4 w-4" />
             Signatures
           </TabsTrigger>
+          <TabsTrigger value="duplicates" className="gap-2">
+            <Copy className="h-4 w-4" />
+            Duplicates
+            <DuplicatesBadge projectSlug={slug} className="ml-1" />
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6 mt-6">
@@ -435,6 +442,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
 
         <TabsContent value="signatures" className="space-y-6 mt-6">
           <EmailSignaturesPanel slug={slug} />
+        </TabsContent>
+
+        <TabsContent value="duplicates" className="space-y-6 mt-6">
+          <DuplicatesPanel slug={slug} />
         </TabsContent>
 
       </Tabs>
