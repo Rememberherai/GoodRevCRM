@@ -177,7 +177,7 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // Find active enrollments (could be multiple across sequences)
+      // Find active enrollments as primary person (could be multiple across sequences)
       const { data: enrollments } = await admin
         .from('sequence_enrollments')
         .select('id, sequence_id, status, sequences(name)')
@@ -185,7 +185,21 @@ export async function POST(request: Request) {
         .in('status', ['active', 'paused'])
         .order('created_at', { ascending: false });
 
-      if (!enrollments || enrollments.length === 0) {
+      // Also check if this person is a co-recipient on another enrollment
+      // (grouped sends put multiple addresses in the To field)
+      const { data: coRecipientEnrollments } = await admin
+        .from('sequence_enrollments')
+        .select('id, sequence_id, status, sequences(name)')
+        .contains('co_recipient_ids', [person.id])
+        .in('status', ['active', 'paused'])
+        .order('created_at', { ascending: false });
+
+      const allEnrollments = [
+        ...(enrollments ?? []),
+        ...(coRecipientEnrollments ?? []),
+      ];
+
+      if (allEnrollments.length === 0) {
         results.push({
           email: bouncedEmail,
           person_id: person.id,
@@ -197,7 +211,7 @@ export async function POST(request: Request) {
         continue;
       }
 
-      for (const enrollment of enrollments) {
+      for (const enrollment of allEnrollments) {
         const seqName = (enrollment as unknown as { sequences: { name: string } | null }).sequences?.name ?? 'Unknown';
 
         if (!dryRun) {
