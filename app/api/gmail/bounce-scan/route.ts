@@ -146,7 +146,75 @@ export async function POST(request: Request) {
 
     console.log(`[BounceScan] Extracted ${bouncedEmails.size} unique bounced email addresses`);
 
-    // Now look up people and their active enrollments
+    // Batch lookup: find all people by email in one query
+    const bouncedEmailList = [...bouncedEmails.keys()];
+    const personMap = new Map<string, { id: string; first_name: string | null; last_name: string | null }>();
+
+    for (let i = 0; i < bouncedEmailList.length; i += 50) {
+      const batch = bouncedEmailList.slice(i, i + 50);
+      const { data: people } = await admin
+        .from('people')
+        .select('id, first_name, last_name, email')
+        .in('email', batch);
+      for (const p of (people ?? []) as { id: string; first_name: string | null; last_name: string | null; email: string }[]) {
+        personMap.set(p.email.toLowerCase(), p);
+      }
+    }
+
+    // Batch lookup: get all active/paused enrollments with co_recipient_ids in one query
+    const personIds = [...new Set([...personMap.values()].map(p => p.id))];
+
+    // Primary enrollments (person_id matches)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let allPrimaryEnrollments: Array<{ id: string; sequence_id: string; person_id: string; sequences: { name: string } | null }> = [];
+    for (let i = 0; i < personIds.length; i += 50) {
+      const batch = personIds.slice(i, i + 50);
+      const { data } = await admin
+        .from('sequence_enrollments')
+        .select('id, sequence_id, person_id, sequences(name)')
+        .in('person_id', batch)
+        .in('status', ['active', 'paused']);
+      if (data) {
+        for (const d of data) {
+          allPrimaryEnrollments.push({
+            id: d.id,
+            sequence_id: d.sequence_id,
+            person_id: d.person_id,
+            // eslint-disable-next-line @typescript-eslint/no-explicit-any
+            sequences: (d as any).sequences?.[0] ?? (d as any).sequences ?? null,
+          });
+        }
+      }
+    }
+
+    // Co-recipient enrollments (person appears in co_recipient_ids array)
+    // Query all active enrollments that have any co_recipient_ids set
+    const { data: rawCoEnrollments } = await admin
+      .from('sequence_enrollments')
+      .select('id, sequence_id, person_id, co_recipient_ids, sequences(name)')
+      .in('status', ['active', 'paused'])
+      .not('co_recipient_ids', 'eq', '{}');
+
+    type CoEnrollment = { id: string; sequence_id: string; co_recipient_ids: string[]; sequences: { name: string } | null };
+
+    // Build lookup: person_id -> co-recipient enrollments
+    const coRecipientMap = new Map<string, CoEnrollment[]>();
+    for (const enrollment of (rawCoEnrollments ?? [])) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const e = enrollment as any;
+      const coIds: string[] = e.co_recipient_ids ?? [];
+      const parsed: CoEnrollment = {
+        id: e.id,
+        sequence_id: e.sequence_id,
+        co_recipient_ids: coIds,
+        sequences: Array.isArray(e.sequences) ? e.sequences[0] : e.sequences ?? null,
+      };
+      for (const coId of coIds) {
+        if (!coRecipientMap.has(coId)) coRecipientMap.set(coId, []);
+        coRecipientMap.get(coId)!.push(parsed);
+      }
+    }
+
     const results: Array<{
       email: string;
       person_id: string | null;
@@ -157,13 +225,7 @@ export async function POST(request: Request) {
     }> = [];
 
     for (const [bouncedEmail, bounceInfo] of bouncedEmails) {
-      // Find person
-      const { data: person } = await admin
-        .from('people')
-        .select('id, first_name, last_name')
-        .ilike('email', bouncedEmail)
-        .limit(1)
-        .single();
+      const person = personMap.get(bouncedEmail.toLowerCase());
 
       if (!person) {
         results.push({
@@ -177,25 +239,16 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // Find active enrollments as primary person (could be multiple across sequences)
-      const { data: enrollments } = await admin
-        .from('sequence_enrollments')
-        .select('id, sequence_id, status, sequences(name)')
-        .eq('person_id', person.id)
-        .in('status', ['active', 'paused'])
-        .order('created_at', { ascending: false });
+      const personName = `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim();
 
-      // Also check if this person is a co-recipient on another enrollment
-      // (grouped sends — just remove them from co_recipient_ids, don't bounce the whole enrollment)
-      const { data: coRecipientEnrollments } = await admin
-        .from('sequence_enrollments')
-        .select('id, sequence_id, status, co_recipient_ids, sequences(name)')
-        .contains('co_recipient_ids', [person.id])
-        .in('status', ['active', 'paused'])
-        .order('created_at', { ascending: false });
+      // Primary enrollments for this person
+      const enrollments = allPrimaryEnrollments.filter(e => e.person_id === person.id);
+
+      // Co-recipient enrollments for this person
+      const coEnrollments = coRecipientMap.get(person.id) ?? [];
 
       // Handle co-recipient bounces: remove from group, don't kill enrollment
-      for (const coEnrollment of (coRecipientEnrollments ?? [])) {
+      for (const coEnrollment of coEnrollments) {
         const seqName = (coEnrollment as unknown as { sequences: { name: string } | null }).sequences?.name ?? 'Unknown';
         const coIds = (coEnrollment as unknown as { co_recipient_ids: string[] }).co_recipient_ids ?? [];
 
@@ -262,19 +315,19 @@ export async function POST(request: Request) {
         results.push({
           email: bouncedEmail,
           person_id: person.id,
-          person_name: `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim(),
+          person_name: personName,
           enrollment_id: coEnrollment.id,
           sequence_name: seqName,
           action: dryRun ? 'would_remove_from_group' : 'removed_from_group',
         });
       }
 
-      if (!enrollments || enrollments.length === 0) {
-        if (!coRecipientEnrollments || coRecipientEnrollments.length === 0) {
+      if (enrollments.length === 0) {
+        if (coEnrollments.length === 0) {
           results.push({
             email: bouncedEmail,
             person_id: person.id,
-            person_name: `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim(),
+            person_name: personName,
             enrollment_id: null,
             sequence_name: null,
             action: 'no_active_enrollment',
@@ -285,7 +338,7 @@ export async function POST(request: Request) {
 
       // Handle primary enrollments: bounce the whole enrollment
       for (const enrollment of enrollments) {
-        const seqName = (enrollment as unknown as { sequences: { name: string } | null }).sequences?.name ?? 'Unknown';
+        const seqName = enrollment.sequences?.name ?? 'Unknown';
 
         if (!dryRun) {
           await admin
@@ -352,7 +405,7 @@ export async function POST(request: Request) {
         results.push({
           email: bouncedEmail,
           person_id: person.id,
-          person_name: `${person.first_name ?? ''} ${person.last_name ?? ''}`.trim(),
+          person_name: personName,
           enrollment_id: enrollment.id,
           sequence_name: seqName,
           action: dryRun ? 'would_bounce' : 'bounced',
