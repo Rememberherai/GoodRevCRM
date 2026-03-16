@@ -7,6 +7,189 @@ const BATCH_SIZE = 10;
 const INITIAL_SYNC_DAYS = 30;
 const MAX_INITIAL_MESSAGES = 500;
 
+// ─── Bounce Detection ────────────────────────────────────────────────
+
+const BOUNCE_SENDERS = [
+  'mailer-daemon@',
+  'postmaster@',
+  'mail-daemon@',
+  'noreply-dmarc@google.com',
+];
+
+const BOUNCE_SUBJECT_PATTERNS = [
+  /delivery.*(?:fail|status|notif)/i,
+  /undeliver/i,
+  /mail.*(?:not|could not).*delivered/i,
+  /returned mail/i,
+  /failure notice/i,
+  /auto.*reply.*bounce/i,
+];
+
+/**
+ * Check if a synced email is a bounce notification (NDR/DSN)
+ */
+export function isBounceNotification(email: ReturnType<typeof parseGmailMessage>): boolean {
+  const from = email.from_email.toLowerCase();
+  if (BOUNCE_SENDERS.some(sender => from.startsWith(sender) || from.includes(sender))) {
+    return true;
+  }
+  const subject = (email.subject ?? '').toLowerCase();
+  if (BOUNCE_SUBJECT_PATTERNS.some(p => p.test(subject))) {
+    return true;
+  }
+  return false;
+}
+
+/**
+ * Extract the failed recipient email address(es) from a bounce notification body
+ */
+export function extractBouncedRecipients(email: ReturnType<typeof parseGmailMessage>): string[] {
+  const recipients: Set<string> = new Set();
+  const body = email.body_text ?? email.body_html?.replace(/<[^>]*>/g, ' ') ?? '';
+
+  // Look for X-Failed-Recipients style header in body
+  const failedRecipMatch = body.match(/(?:failed|original)[\s-]*recipient[s]?[:\s]+([^\s<,]+@[^\s>,]+)/gi);
+  if (failedRecipMatch) {
+    for (const match of failedRecipMatch) {
+      const emailMatch = match.match(/([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})/);
+      if (emailMatch) recipients.add(emailMatch[1]!.toLowerCase());
+    }
+  }
+
+  // Look for common bounce patterns: "delivery to <email> has failed"
+  const deliveryPatterns = [
+    /(?:delivery to|could not.*deliver.*to|rejected.*for|bounced.*address)[:\s]*<?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})>?/gi,
+    /<?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})>?\s*(?:was not delivered|could not be delivered|is not valid|does not exist|user unknown|no such user|mailbox unavailable)/gi,
+    /(?:550|553|554|521|511)[\s\-]+<?([a-zA-Z0-9._%+\-]+@[a-zA-Z0-9.\-]+\.[a-zA-Z]{2,})>?/gi,
+  ];
+
+  for (const pattern of deliveryPatterns) {
+    let match;
+    while ((match = pattern.exec(body)) !== null) {
+      if (match[1]) recipients.add(match[1].toLowerCase());
+    }
+  }
+
+  // If the To: field of the bounce contains the original recipient (some providers do this)
+  // and we haven't found anything yet, use the To addresses as candidates
+  if (recipients.size === 0 && email.to_emails.length > 0) {
+    // Don't add the connection's own email — only add addresses that look like external recipients
+    // This is a fallback; bounce parsing above should handle most cases
+  }
+
+  return [...recipients];
+}
+
+/**
+ * Process a detected bounce: mark enrollment as bounced, record email_event
+ */
+export async function processBounce(
+  supabase: ReturnType<typeof createAdminClient>,
+  bouncedEmail: string,
+  _connectionId: string,
+  gmailMessageId: string,
+): Promise<{ enrollmentId: string | null; personId: string | null }> {
+  // Find the person by email
+  const { data: person } = await supabase
+    .from('people')
+    .select('id')
+    .ilike('email', bouncedEmail)
+    .limit(1)
+    .single();
+
+  if (!person) {
+    console.log(`[BounceDetect] No person found for bounced email: ${bouncedEmail}`);
+    return { enrollmentId: null, personId: null };
+  }
+
+  // Find active enrollment for this person
+  const { data: enrollment } = await supabase
+    .from('sequence_enrollments')
+    .select('id, sequence_id')
+    .eq('person_id', person.id)
+    .eq('status', 'active')
+    .order('created_at', { ascending: false })
+    .limit(1)
+    .single();
+
+  if (enrollment) {
+    // Mark enrollment as bounced
+    await supabase
+      .from('sequence_enrollments')
+      .update({
+        status: 'bounced',
+        bounce_detected_at: new Date().toISOString(),
+        next_send_at: null,
+      })
+      .eq('id', enrollment.id);
+
+    console.log(`[BounceDetect] Marked enrollment ${enrollment.id} as bounced for ${bouncedEmail}`);
+
+    // Find the most recent sent_email for this enrollment to record the event
+    const { data: sentEmail } = await supabase
+      .from('sent_emails')
+      .select('id')
+      .eq('sequence_enrollment_id', enrollment.id)
+      .order('sent_at', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (sentEmail) {
+      await supabase
+        .from('email_events')
+        .insert({
+          sent_email_id: sentEmail.id,
+          event_type: 'bounce',
+          occurred_at: new Date().toISOString(),
+          metadata: {
+            bounced_email: bouncedEmail,
+            gmail_message_id: gmailMessageId,
+            detection_method: 'inbound_ndr',
+          },
+        });
+    }
+
+    // Log activity on the person's timeline
+    try {
+      const { data: seq } = await supabase
+        .from('sequences')
+        .select('project_id, name, created_by')
+        .eq('id', enrollment.sequence_id)
+        .single();
+
+      if (seq) {
+        await supabase.from('activity_log').insert({
+          project_id: seq.project_id,
+          user_id: seq.created_by,
+          entity_type: 'person',
+          entity_id: person.id,
+          action: 'bounced',
+          activity_type: 'email',
+          outcome: 'email_bounced',
+          direction: 'inbound',
+          subject: `Email bounced — removed from "${seq.name}"`,
+          notes: `Delivery to ${bouncedEmail} failed. Enrollment was automatically stopped.`,
+          person_id: person.id,
+          metadata: {
+            sequence_id: enrollment.sequence_id,
+            sequence_name: seq.name,
+            enrollment_id: enrollment.id,
+            bounced_email: bouncedEmail,
+            gmail_message_id: gmailMessageId,
+          },
+        });
+      }
+    } catch (actErr) {
+      console.error('[BounceDetect] Failed to log activity:', actErr);
+    }
+
+    return { enrollmentId: enrollment.id, personId: person.id };
+  }
+
+  console.log(`[BounceDetect] No active enrollment for bounced person ${person.id} (${bouncedEmail})`);
+  return { enrollmentId: null, personId: person.id };
+}
+
 interface SyncResult {
   messages_fetched: number;
   messages_stored: number;
@@ -373,6 +556,14 @@ async function performInitialSync(
         }
       }
     }
+
+    // Check if this is a bounce notification and process it
+    if (email.direction === 'inbound' && isBounceNotification(email)) {
+      const bouncedRecipients = extractBouncedRecipients(email);
+      for (const bouncedAddr of bouncedRecipients) {
+        await processBounce(supabase, bouncedAddr, connection.id, email.gmail_message_id);
+      }
+    }
   }
 
   // Get the latest historyId from the profile
@@ -529,6 +720,14 @@ async function performIncrementalSync(
       // (domain-only org matches would create noise from system emails)
       if (parsed.direction === 'inbound' && match.project_id && match.person_id) {
         await logEmailActivity(supabase, connection, parsed, match);
+      }
+    }
+
+    // Check if this is a bounce notification and process it
+    if (parsed.direction === 'inbound' && isBounceNotification(parsed)) {
+      const bouncedRecipients = extractBouncedRecipients(parsed);
+      for (const bouncedAddr of bouncedRecipients) {
+        await processBounce(supabase, bouncedAddr, connection.id, parsed.gmail_message_id);
       }
     }
   }
