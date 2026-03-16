@@ -1,9 +1,14 @@
 'use client';
 
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useParams } from 'next/navigation';
 import { useOrganizations } from '@/hooks/use-organizations';
+import { DuplicateDetectedError } from '@/stores/organization';
+import { DuplicateInterceptModal } from '@/components/deduplication/duplicate-intercept-modal';
 import { createOrganizationSchema, type CreateOrganizationInput } from '@/lib/validators/organization';
+import type { DetectionMatch } from '@/types/deduplication';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -37,7 +42,11 @@ function extractDomain(url: string): string {
 }
 
 export function NewOrganizationDialog({ open, onOpenChange }: NewOrganizationDialogProps) {
+  const params = useParams();
+  const projectSlug = params.slug as string;
   const { create, isLoading } = useOrganizations();
+  const [duplicateMatches, setDuplicateMatches] = useState<DetectionMatch[] | null>(null);
+  const [pendingFormData, setPendingFormData] = useState<(CreateOrganizationInput & { domain?: string }) | null>(null);
 
   const {
     register,
@@ -53,16 +62,27 @@ export function NewOrganizationDialog({ open, onOpenChange }: NewOrganizationDia
     },
   });
 
-  const onSubmit = async (data: CreateOrganizationInput) => {
+  const submitWithOptions = async (data: CreateOrganizationInput, forceCreate = false) => {
     try {
       // Auto-extract domain from website
       const domain = data.website ? extractDomain(data.website) : undefined;
-      await create({ ...data, domain });
+      await create({ ...data, domain, force_create: forceCreate });
       reset();
+      setDuplicateMatches(null);
+      setPendingFormData(null);
       onOpenChange(false);
-    } catch {
-      // Error is handled by the hook
+    } catch (err) {
+      if (err instanceof DuplicateDetectedError) {
+        const domain = data.website ? extractDomain(data.website) : undefined;
+        setDuplicateMatches(err.matches);
+        setPendingFormData({ ...data, domain });
+      }
+      // Other errors handled by the hook
     }
+  };
+
+  const onSubmit = async (data: CreateOrganizationInput) => {
+    await submitWithOptions(data);
   };
 
   const handleClose = () => {
@@ -132,6 +152,31 @@ export function NewOrganizationDialog({ open, onOpenChange }: NewOrganizationDia
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {duplicateMatches && pendingFormData && (
+        <DuplicateInterceptModal
+          open={true}
+          onClose={() => {
+            setDuplicateMatches(null);
+            setPendingFormData(null);
+          }}
+          entityType="organization"
+          matches={duplicateMatches}
+          pendingRecord={pendingFormData as unknown as Record<string, unknown>}
+          projectSlug={projectSlug}
+          onCreateAnyway={() => {
+            setDuplicateMatches(null);
+            submitWithOptions(pendingFormData, true);
+          }}
+          onMerged={() => {
+            setDuplicateMatches(null);
+            setPendingFormData(null);
+            reset();
+            onOpenChange(false);
+          }}
+          isCreating={isLoading}
+        />
+      )}
     </Dialog>
   );
 }

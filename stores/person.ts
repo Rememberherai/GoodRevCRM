@@ -1,6 +1,18 @@
 import { create } from 'zustand';
 import type { Person, PersonWithRelations } from '@/types/person';
 import type { CreatePersonInput, UpdatePersonInput } from '@/lib/validators/person';
+import type { DetectionMatch } from '@/types/deduplication';
+
+export class DuplicateDetectedError extends Error {
+  matches: DetectionMatch[];
+  pendingRecord: Record<string, unknown>;
+  constructor(matches: DetectionMatch[], pendingRecord: Record<string, unknown>) {
+    super('Potential duplicates detected');
+    this.name = 'DuplicateDetectedError';
+    this.matches = matches;
+    this.pendingRecord = pendingRecord;
+  }
+}
 
 interface PaginationState {
   page: number;
@@ -165,13 +177,18 @@ export async function fetchPerson(
 
 export async function createPerson(
   projectSlug: string,
-  data: CreatePersonInput & { organization_id?: string }
+  data: CreatePersonInput & { organization_id?: string; force_create?: boolean }
 ): Promise<Person> {
   const response = await fetch(`/api/projects/${projectSlug}/people`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
     body: JSON.stringify(data),
   });
+
+  if (response.status === 409) {
+    const body = await response.json();
+    throw new DuplicateDetectedError(body.matches ?? [], data as Record<string, unknown>);
+  }
 
   if (!response.ok) {
     const error = await response.json();

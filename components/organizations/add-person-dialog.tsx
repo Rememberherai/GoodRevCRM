@@ -4,7 +4,7 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useParams } from 'next/navigation';
 import { createPersonSchema, type CreatePersonInput } from '@/lib/validators/person';
-import { createPerson } from '@/stores/person';
+import { createPerson, DuplicateDetectedError } from '@/stores/person';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -19,6 +19,8 @@ import {
 import { useState } from 'react';
 import { useEmailValidation } from '@/hooks/use-email-validation';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { DuplicateInterceptModal } from '@/components/deduplication/duplicate-intercept-modal';
+import type { DetectionMatch } from '@/types/deduplication';
 
 interface AddPersonDialogProps {
   open: boolean;
@@ -40,6 +42,8 @@ export function AddPersonDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const { validate: validateEmail, validating: emailValidating, result: emailResult, clear: clearEmailValidation } = useEmailValidation();
+  const [duplicateMatches, setDuplicateMatches] = useState<DetectionMatch[] | null>(null);
+  const [pendingFormData, setPendingFormData] = useState<CreatePersonInput | null>(null);
 
   const {
     register,
@@ -57,19 +61,27 @@ export function AddPersonDialog({
     },
   });
 
-  const onSubmit = async (data: CreatePersonInput) => {
+  const onSubmit = async (data: CreatePersonInput, forceCreate = false) => {
     setIsLoading(true);
     setError(null);
     try {
       await createPerson(projectSlug, {
         ...data,
         organization_id: organizationId,
+        ...(forceCreate ? { force_create: true } : {}),
       });
       reset();
+      setDuplicateMatches(null);
+      setPendingFormData(null);
       onOpenChange(false);
       onPersonAdded();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to create person');
+      if (err instanceof DuplicateDetectedError) {
+        setDuplicateMatches(err.matches);
+        setPendingFormData(data);
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to create person');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -78,6 +90,8 @@ export function AddPersonDialog({
   const handleClose = () => {
     reset();
     setError(null);
+    setDuplicateMatches(null);
+    setPendingFormData(null);
     clearEmailValidation();
     onOpenChange(false);
   };
@@ -88,6 +102,34 @@ export function AddPersonDialog({
     validateEmail(e.target.value);
   };
 
+  if (duplicateMatches && pendingFormData) {
+    return (
+      <DuplicateInterceptModal
+        open={true}
+        onClose={() => {
+          setDuplicateMatches(null);
+          setPendingFormData(null);
+        }}
+        entityType="person"
+        matches={duplicateMatches}
+        pendingRecord={pendingFormData as unknown as Record<string, unknown>}
+        projectSlug={projectSlug}
+        onCreateAnyway={() => {
+          setDuplicateMatches(null);
+          onSubmit(pendingFormData, true);
+        }}
+        onMerged={() => {
+          setDuplicateMatches(null);
+          setPendingFormData(null);
+          reset();
+          onOpenChange(false);
+          onPersonAdded();
+        }}
+        isCreating={isLoading}
+      />
+    );
+  }
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[500px]">
@@ -97,7 +139,7 @@ export function AddPersonDialog({
             Create a new contact for this organization.
           </DialogDescription>
         </DialogHeader>
-        <form onSubmit={handleSubmit(onSubmit)}>
+        <form onSubmit={handleSubmit((data) => onSubmit(data))}>
           <div className="grid gap-4 py-4">
             {error && (
               <div className="rounded-md bg-destructive/15 p-3 text-sm text-destructive">

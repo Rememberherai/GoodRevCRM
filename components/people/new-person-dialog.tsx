@@ -1,10 +1,15 @@
 'use client';
 
+import { useState } from 'react';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { useParams } from 'next/navigation';
 import { usePeople } from '@/hooks/use-people';
 import { useEmailValidation } from '@/hooks/use-email-validation';
+import { DuplicateDetectedError } from '@/stores/person';
+import { DuplicateInterceptModal } from '@/components/deduplication/duplicate-intercept-modal';
 import { createPersonSchema, type CreatePersonInput } from '@/lib/validators/person';
+import type { DetectionMatch } from '@/types/deduplication';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -24,7 +29,11 @@ interface NewPersonDialogProps {
 }
 
 export function NewPersonDialog({ open, onOpenChange }: NewPersonDialogProps) {
+  const params = useParams();
+  const projectSlug = params.slug as string;
   const { create, isLoading } = usePeople();
+  const [duplicateMatches, setDuplicateMatches] = useState<DetectionMatch[] | null>(null);
+  const [pendingFormData, setPendingFormData] = useState<CreatePersonInput | null>(null);
   const { validate: validateEmail, validating: emailValidating, result: emailResult, clear: clearEmailValidation } = useEmailValidation();
 
   const {
@@ -43,14 +52,24 @@ export function NewPersonDialog({ open, onOpenChange }: NewPersonDialogProps) {
     },
   });
 
-  const onSubmit = async (data: CreatePersonInput) => {
+  const submitWithOptions = async (data: CreatePersonInput, forceCreate = false) => {
     try {
-      await create(data);
+      await create({ ...data, force_create: forceCreate });
       reset();
+      setDuplicateMatches(null);
+      setPendingFormData(null);
       onOpenChange(false);
-    } catch {
-      // Error is handled by the hook
+    } catch (err) {
+      if (err instanceof DuplicateDetectedError) {
+        setDuplicateMatches(err.matches);
+        setPendingFormData(data);
+      }
+      // Other errors handled by the hook
     }
+  };
+
+  const onSubmit = async (data: CreatePersonInput) => {
+    await submitWithOptions(data);
   };
 
   const handleClose = () => {
@@ -172,6 +191,31 @@ export function NewPersonDialog({ open, onOpenChange }: NewPersonDialogProps) {
           </DialogFooter>
         </form>
       </DialogContent>
+
+      {duplicateMatches && pendingFormData && (
+        <DuplicateInterceptModal
+          open={true}
+          onClose={() => {
+            setDuplicateMatches(null);
+            setPendingFormData(null);
+          }}
+          entityType="person"
+          matches={duplicateMatches}
+          pendingRecord={pendingFormData as unknown as Record<string, unknown>}
+          projectSlug={projectSlug}
+          onCreateAnyway={() => {
+            setDuplicateMatches(null);
+            submitWithOptions(pendingFormData, true);
+          }}
+          onMerged={() => {
+            setDuplicateMatches(null);
+            setPendingFormData(null);
+            reset();
+            onOpenChange(false);
+          }}
+          isCreating={isLoading}
+        />
+      )}
     </Dialog>
   );
 }

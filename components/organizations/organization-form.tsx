@@ -10,9 +10,12 @@ import {
   createOrganization,
   updateOrganizationApi,
   useOrganizationStore,
+  DuplicateDetectedError,
 } from '@/stores/organization';
 import { useEntityCustomFields } from '@/hooks/use-custom-fields';
+import { DuplicateInterceptModal } from '@/components/deduplication/duplicate-intercept-modal';
 import type { Organization } from '@/types/organization';
+import type { DetectionMatch } from '@/types/deduplication';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -34,6 +37,8 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
   const projectSlug = params.slug as string;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateMatches, setDuplicateMatches] = useState<DetectionMatch[] | null>(null);
+  const [pendingFormData, setPendingFormData] = useState<(CreateOrganizationInput & { custom_fields?: Record<string, unknown> }) | null>(null);
   const [customFieldValues, setCustomFieldValues] = useState<Record<string, unknown>>(
     (organization?.custom_fields as Record<string, unknown>) ?? {}
   );
@@ -73,7 +78,7 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
     setCustomFieldValues((prev) => ({ ...prev, [name]: value }));
   };
 
-  const onSubmit = async (data: CreateOrganizationInput) => {
+  const submitWithOptions = async (data: CreateOrganizationInput, forceCreate = false) => {
     setIsLoading(true);
     setError(null);
     try {
@@ -85,15 +90,26 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
         const updated = await updateOrganizationApi(projectSlug, organization.id, submitData);
         updateOrganizationInStore(organization.id, updated);
       } else {
-        const created = await createOrganization(projectSlug, submitData);
+        const created = await createOrganization(projectSlug, { ...submitData, force_create: forceCreate });
         addOrganization(created);
       }
+      setDuplicateMatches(null);
+      setPendingFormData(null);
       onSuccess?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to save organization');
+      if (err instanceof DuplicateDetectedError) {
+        setDuplicateMatches(err.matches);
+        setPendingFormData({ ...data, custom_fields: customFieldValues });
+      } else {
+        setError(err instanceof Error ? err.message : 'Failed to save organization');
+      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const onSubmit = async (data: CreateOrganizationInput) => {
+    await submitWithOptions(data);
   };
 
   return (
@@ -375,6 +391,30 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
           {isLoading ? 'Saving...' : organization ? 'Save Changes' : 'Create Organization'}
         </Button>
       </div>
+
+      {duplicateMatches && pendingFormData && (
+        <DuplicateInterceptModal
+          open={true}
+          onClose={() => {
+            setDuplicateMatches(null);
+            setPendingFormData(null);
+          }}
+          entityType="organization"
+          matches={duplicateMatches}
+          pendingRecord={pendingFormData as unknown as Record<string, unknown>}
+          projectSlug={projectSlug}
+          onCreateAnyway={() => {
+            setDuplicateMatches(null);
+            submitWithOptions(pendingFormData, true);
+          }}
+          onMerged={() => {
+            setDuplicateMatches(null);
+            setPendingFormData(null);
+            onSuccess?.();
+          }}
+          isCreating={isLoading}
+        />
+      )}
     </form>
   );
 }

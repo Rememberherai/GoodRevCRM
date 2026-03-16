@@ -78,7 +78,7 @@ export function useOrganizations() {
   ]);
 
   const create = useCallback(
-    async (data: CreateOrganizationInput) => {
+    async (data: CreateOrganizationInput & { force_create?: boolean }) => {
       log.log('create called', { projectSlug, data });
       if (!projectSlug) throw new Error('No project selected');
 

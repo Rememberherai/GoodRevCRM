@@ -5,9 +5,11 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { useParams } from 'next/navigation';
 import { personSchema, type CreatePersonInput } from '@/lib/validators/person';
-import { createPerson, updatePersonApi } from '@/stores/person';
+import { createPerson, updatePersonApi, DuplicateDetectedError } from '@/stores/person';
 import { useEmailValidation } from '@/hooks/use-email-validation';
+import { DuplicateInterceptModal } from '@/components/deduplication/duplicate-intercept-modal';
 import type { Person } from '@/types/person';
+import type { DetectionMatch } from '@/types/deduplication';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
@@ -28,6 +30,8 @@ export function PersonForm({ person, organizationId, onSuccess, onCancel }: Pers
   const projectSlug = params.slug as string;
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [duplicateMatches, setDuplicateMatches] = useState<DetectionMatch[] | null>(null);
+  const [pendingFormData, setPendingFormData] = useState<CreatePersonInput | null>(null);
   const { validate: validateEmail, validating: emailValidating, result: emailResult } = useEmailValidation();
 
   const {
@@ -64,21 +68,32 @@ export function PersonForm({ person, organizationId, onSuccess, onCancel }: Pers
     validateEmail(e.target.value, person ? { personId: person.id, projectSlug } : undefined);
   };
 
-  const onSubmit = async (data: CreatePersonInput) => {
+  const submitWithOptions = async (data: CreatePersonInput, forceCreate = false) => {
     setIsLoading(true);
     setError(null);
     try {
       if (person) {
         await updatePersonApi(projectSlug, person.id, data);
       } else {
-        await createPerson(projectSlug, { ...data, organization_id: organizationId });
+        await createPerson(projectSlug, { ...data, organization_id: organizationId, force_create: forceCreate });
       }
+      setDuplicateMatches(null);
+      setPendingFormData(null);
       onSuccess?.();
     } catch (err) {
-      setError(err instanceof Error ? err.message : 'An error occurred');
+      if (err instanceof DuplicateDetectedError) {
+        setDuplicateMatches(err.matches);
+        setPendingFormData(data);
+      } else {
+        setError(err instanceof Error ? err.message : 'An error occurred');
+      }
     } finally {
       setIsLoading(false);
     }
+  };
+
+  const onSubmit = async (data: CreatePersonInput) => {
+    await submitWithOptions(data);
   };
 
   return (
@@ -372,6 +387,30 @@ export function PersonForm({ person, organizationId, onSuccess, onCancel }: Pers
           {isLoading ? 'Saving...' : person ? 'Save Changes' : 'Create Person'}
         </Button>
       </div>
+
+      {duplicateMatches && pendingFormData && (
+        <DuplicateInterceptModal
+          open={true}
+          onClose={() => {
+            setDuplicateMatches(null);
+            setPendingFormData(null);
+          }}
+          entityType="person"
+          matches={duplicateMatches}
+          pendingRecord={pendingFormData as unknown as Record<string, unknown>}
+          projectSlug={projectSlug}
+          onCreateAnyway={() => {
+            setDuplicateMatches(null);
+            submitWithOptions(pendingFormData, true);
+          }}
+          onMerged={() => {
+            setDuplicateMatches(null);
+            setPendingFormData(null);
+            onSuccess?.();
+          }}
+          isCreating={isLoading}
+        />
+      )}
     </form>
   );
 }
