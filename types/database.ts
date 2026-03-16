@@ -823,6 +823,7 @@ export type Database = {
           is_default: boolean
           name: string
           project_id: string
+          sender_name: string | null
           updated_at: string | null
           user_id: string
         }
@@ -833,6 +834,7 @@ export type Database = {
           is_default?: boolean
           name: string
           project_id: string
+          sender_name?: string | null
           updated_at?: string | null
           user_id: string
         }
@@ -843,6 +845,7 @@ export type Database = {
           is_default?: boolean
           name?: string
           project_id?: string
+          sender_name?: string | null
           updated_at?: string | null
           user_id?: string
         }
@@ -4098,6 +4101,9 @@ export type Database = {
           created_at: string | null
           created_by: string
           current_step: number
+          disposition_reason: string | null
+          dispositioned_at: string | null
+          dispositioned_by: string | null
           gmail_connection_id: string
           id: string
           next_send_at: string | null
@@ -4114,6 +4120,9 @@ export type Database = {
           created_at?: string | null
           created_by: string
           current_step?: number
+          disposition_reason?: string | null
+          dispositioned_at?: string | null
+          dispositioned_by?: string | null
           gmail_connection_id: string
           id?: string
           next_send_at?: string | null
@@ -4130,6 +4139,9 @@ export type Database = {
           created_at?: string | null
           created_by?: string
           current_step?: number
+          disposition_reason?: string | null
+          dispositioned_at?: string | null
+          dispositioned_by?: string | null
           gmail_connection_id?: string
           id?: string
           next_send_at?: string | null
@@ -4143,6 +4155,13 @@ export type Database = {
           {
             foreignKeyName: "sequence_enrollments_created_by_fkey"
             columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sequence_enrollments_dispositioned_by_fkey"
+            columns: ["dispositioned_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
