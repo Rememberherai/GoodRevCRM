@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import dns from 'dns';
+import net from 'net';
 import { promisify } from 'util';
 
 const resolveMx = promisify(dns.resolveMx);
@@ -57,10 +58,15 @@ function validateFormat(email: string): string | null {
   return null;
 }
 
-async function checkMx(domain: string): Promise<{ hasMx: boolean; error?: string }> {
+async function checkMx(domain: string): Promise<{ hasMx: boolean; mxHost?: string; error?: string }> {
   try {
     const records = await resolveMx(domain);
-    return { hasMx: records && records.length > 0 };
+    if (records && records.length > 0) {
+      // Sort by priority (lowest = highest priority) and return the best MX host
+      records.sort((a, b) => a.priority - b.priority);
+      return { hasMx: true, mxHost: records[0]!.exchange };
+    }
+    return { hasMx: false };
   } catch (err: unknown) {
     const error = err as NodeJS.ErrnoException;
     if (error.code === 'ENOTFOUND' || error.code === 'ENODATA') {
@@ -71,6 +77,114 @@ async function checkMx(domain: string): Promise<{ hasMx: boolean; error?: string
     }
     return { hasMx: false, error: 'DNS lookup failed' };
   }
+}
+
+// SMTP RCPT TO verification — checks if the mailbox actually exists
+const SMTP_TIMEOUT = 7000; // 7 seconds per connection
+
+async function smtpVerify(
+  email: string,
+  mxHost: string
+): Promise<{ exists: boolean; catchAll?: boolean; reason?: string }> {
+  return new Promise((resolve) => {
+    const socket = new net.Socket();
+    let step = 0;
+    let resolved = false;
+    let responseBuffer = '';
+
+    const done = (result: { exists: boolean; catchAll?: boolean; reason?: string }) => {
+      if (resolved) return;
+      resolved = true;
+      socket.destroy();
+      resolve(result);
+    };
+
+    const timeout = setTimeout(() => {
+      done({ exists: true, reason: 'SMTP timeout — assuming valid' });
+    }, SMTP_TIMEOUT);
+
+    socket.on('error', () => {
+      clearTimeout(timeout);
+      // Can't connect to SMTP — don't penalize, assume valid (MX exists)
+      done({ exists: true, reason: 'SMTP connection failed — assuming valid' });
+    });
+
+    socket.on('close', () => {
+      clearTimeout(timeout);
+      if (!resolved) {
+        done({ exists: true, reason: 'SMTP connection closed early — assuming valid' });
+      }
+    });
+
+    socket.on('data', (data) => {
+      responseBuffer += data.toString();
+
+      // Process complete lines
+      const lines = responseBuffer.split('\r\n');
+      responseBuffer = lines.pop() || ''; // keep incomplete line in buffer
+
+      for (const line of lines) {
+        if (!line) continue;
+        const code = parseInt(line.substring(0, 3), 10);
+        if (isNaN(code)) continue;
+
+        // Multi-line responses (e.g., 250-PIPELINING) — wait for final line (250 without dash)
+        if (line[3] === '-') continue;
+
+        if (step === 0) {
+          // Server greeting — expect 220
+          if (code === 220) {
+            step = 1;
+            socket.write('EHLO verify.goodrev.com\r\n');
+          } else {
+            done({ exists: true, reason: 'SMTP server rejected connection — assuming valid' });
+          }
+        } else if (step === 1) {
+          // EHLO response — expect 250
+          if (code === 250) {
+            step = 2;
+            socket.write('MAIL FROM:<verify@goodrev.com>\r\n');
+          } else {
+            done({ exists: true, reason: 'EHLO rejected — assuming valid' });
+          }
+        } else if (step === 2) {
+          // MAIL FROM response
+          if (code === 250) {
+            step = 3;
+            socket.write(`RCPT TO:<${email}>\r\n`);
+          } else {
+            done({ exists: true, reason: 'MAIL FROM rejected — assuming valid' });
+          }
+        } else if (step === 3) {
+          // RCPT TO response — this is the key check
+          socket.write('QUIT\r\n');
+          clearTimeout(timeout);
+
+          if (code === 250) {
+            done({ exists: true });
+          } else if (code === 550 || code === 551 || code === 552 || code === 553) {
+            // 550 = mailbox unavailable, 551 = user not local, 552 = exceeded storage, 553 = mailbox name not allowed
+            done({ exists: false, reason: 'Mailbox does not exist' });
+          } else if (code === 450 || code === 451 || code === 452) {
+            // Temporary failure — don't penalize
+            done({ exists: true, reason: 'SMTP temporary error — assuming valid' });
+          } else {
+            // Unknown response — be conservative
+            done({ exists: true, reason: `SMTP returned ${code} — assuming valid` });
+          }
+        }
+      }
+    });
+
+    socket.connect(25, mxHost);
+  });
+}
+
+// Catch-all detection: test a random nonexistent address
+async function isCatchAll(mxHost: string, domain: string): Promise<boolean> {
+  const fakeEmail = `nonexistent-test-${Date.now()}@${domain}`;
+  const result = await smtpVerify(fakeEmail, mxHost);
+  return result.exists && !result.reason;
 }
 
 export async function POST(request: Request) {
@@ -87,8 +201,9 @@ export async function POST(request: Request) {
 
     const { emails, personIds, projectSlug } = parsed.data;
 
-    // Deduplicate domains for MX checks
-    const domainMxCache = new Map<string, { hasMx: boolean; error?: string }>();
+    // Deduplicate domains for MX checks and catch-all detection
+    const domainMxCache = new Map<string, { hasMx: boolean; mxHost?: string; error?: string }>();
+    const catchAllCache = new Map<string, boolean>();
 
     const results: ValidationResult[] = [];
 
@@ -123,6 +238,31 @@ export async function POST(request: Request) {
           reason: mxResult.error || 'Domain has no mail server (no MX records)',
         });
         continue;
+      }
+
+      // 4. SMTP RCPT TO verification
+      if (mxResult.mxHost) {
+        // Check if domain is catch-all (cached per domain)
+        if (!catchAllCache.has(domain)) {
+          catchAllCache.set(domain, await isCatchAll(mxResult.mxHost, domain));
+        }
+
+        if (catchAllCache.get(domain)) {
+          // Catch-all server accepts everything — MX is valid, can't verify individual mailbox
+          results.push({ email: trimmed, valid: true });
+          continue;
+        }
+
+        // Verify the actual mailbox
+        const smtpResult = await smtpVerify(trimmed, mxResult.mxHost);
+        if (!smtpResult.exists) {
+          results.push({
+            email: trimmed,
+            valid: false,
+            reason: smtpResult.reason || 'Mailbox does not exist',
+          });
+          continue;
+        }
       }
 
       results.push({ email: trimmed, valid: true });
