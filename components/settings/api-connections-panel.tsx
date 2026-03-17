@@ -132,7 +132,7 @@ export function ApiConnectionsPanel({ slug }: ApiConnectionsPanelProps) {
         toast.success('Connection test passed');
         fetchConnections();
       } else {
-        toast.error(`Connection test failed: ${data.error || 'Unknown error'}`);
+        toast.error(`Connection test failed: ${data.message || 'Unknown error'}`);
       }
     } catch {
       toast.error('Failed to test connection');

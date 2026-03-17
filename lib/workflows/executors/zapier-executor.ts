@@ -78,7 +78,7 @@ export async function executeZapierAction(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
 
-  let data: { error?: { message?: string }; result?: unknown };
+  let data: { error?: { message?: string }; result?: unknown } = {};
   try {
     const response = await fetch(serverUrl, {
       method: 'POST',

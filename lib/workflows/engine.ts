@@ -464,10 +464,11 @@ async function updateStepStatusWithSchedule(
   status: StepExecutionStatus,
   scheduledFor: string
 ): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from('workflow_step_executions')
     .update({ status, scheduled_for: scheduledFor })
     .eq('id', stepId);
+  if (error) console.error(`Failed to update step ${stepId} scheduled_for:`, error.message);
 }
 
 async function updateExecutionStatus(
@@ -492,8 +493,9 @@ async function updateContextData(
   executionId: string,
   contextData: Record<string, unknown>
 ): Promise<void> {
-  await supabase
+  const { error } = await supabase
     .from('workflow_executions')
     .update({ context_data: contextData })
     .eq('id', executionId);
+  if (error) console.error(`Failed to update context data for execution ${executionId}:`, error.message);
 }

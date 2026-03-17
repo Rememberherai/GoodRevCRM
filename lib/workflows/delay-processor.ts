@@ -252,14 +252,15 @@ function matchesCron(expr: string, date: Date): boolean {
   return parts.every((part, i) => matchesCronField(part!, values[i]!, oneBasedFields[i]!));
 }
 
-function matchesCronField(field: string, value: number, oneBased = false): boolean {
+function matchesCronField(field: string, value: number, _oneBased = false): boolean {
   if (field === '*') return true;
 
-  // Handle step: */N — for 1-based fields use (value - 1) % step === 0
+  // Handle step: */N — standard cron: value % step === 0 (for 0-based) or matches every Nth from min (for 1-based)
   if (field.startsWith('*/')) {
     const step = parseInt(field.slice(2), 10);
     if (isNaN(step) || step <= 0) return false;
-    return oneBased ? (value - 1) % step === 0 : value % step === 0;
+    // Standard cron: */2 on day-of-month means 2,4,6,8... not 1,3,5,7...
+    return value % step === 0;
   }
 
   // Handle comma-separated values

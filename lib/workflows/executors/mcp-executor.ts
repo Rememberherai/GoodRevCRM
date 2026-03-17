@@ -179,9 +179,17 @@ Respond with JSON: { "tool_name": "...", "params": { ... } }`,
     throw new Error(`AI failed to select a tool: ${aiResponse}`);
   }
 
+  if (!selection.tool_name || typeof selection.tool_name !== 'string') {
+    throw new Error(`AI response missing valid tool_name: ${aiResponse}`);
+  }
+
   // Check if AI selected an external tool (format: "serverName/toolName")
   if (selection.tool_name.includes('/')) {
-    const [serverName, toolName] = selection.tool_name.split('/', 2);
+    const parts = selection.tool_name.split('/');
+    if (parts.length < 2 || !parts[0] || !parts[1]) {
+      throw new Error(`Invalid external tool format: ${selection.tool_name}`);
+    }
+    const [serverName, toolName] = parts;
     const server = (mcpServers || []).find((s) => s.name === serverName);
     if (server) {
       // Look up the server URL from mcp_external_servers
@@ -192,7 +200,7 @@ Respond with JSON: { "tool_name": "...", "params": { ... } }`,
         .eq('project_id', projectId)
         .single();
       if (serverDetail?.url) {
-        return executeExternalTool(serverDetail.url, toolName!, selection.params, projectId);
+        return executeExternalTool(serverDetail.url, toolName, selection.params, projectId);
       }
     }
   }
@@ -276,7 +284,7 @@ async function executeExternalTool(
   const controller = new AbortController();
   const timeout = setTimeout(() => controller.abort(), 30000);
 
-  let data: { error?: { message?: string }; result?: unknown };
+  let data: { error?: { message?: string }; result?: unknown } = {};
   try {
     const response = await fetch(serverUrl, {
       method: 'POST',

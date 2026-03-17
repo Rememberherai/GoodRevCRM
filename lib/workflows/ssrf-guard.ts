@@ -37,6 +37,7 @@ export function isBlockedUrl(url: string): boolean {
     // Block non-http(s) schemes
     if (!['http:', 'https:'].includes(parsed.protocol)) return true;
     const host = parsed.hostname;
+    if (!host) return true; // Block URLs with no hostname
     if (BLOCKED_HOST_PATTERNS.some((pattern) => pattern.test(host))) return true;
     // Block numeric/octal IP encodings (e.g., 2130706433 = 127.0.0.1)
     if (/^\d+$/.test(host)) return true;
