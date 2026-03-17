@@ -107,14 +107,6 @@ export async function DELETE(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Can only remove recipients from draft contracts' }, { status: 400 });
   }
 
-  // Delete associated fields first
-  await supabase
-    .from('contract_fields')
-    .delete()
-    .eq('recipient_id', rid)
-    .eq('document_id', id)
-    .eq('project_id', project.id);
-
   const { data: deletedRecipient, error } = await supabase
     .from('contract_recipients')
     .delete()

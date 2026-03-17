@@ -109,15 +109,24 @@ export async function POST(request: Request, context: RouteContext) {
 
   // === PHASE A: DB updates ===
 
-  for (const field of fields ?? []) {
+  const fieldUpdates = await Promise.all((fields ?? []).map(async (field) => {
     const submittedValue = fieldMap.get(field.id);
-    if (submittedValue !== undefined) {
-      await supabase
-        .from('contract_fields')
-        .update({ value: submittedValue, filled_at: new Date().toISOString() })
-        .eq('id', field.id)
-        .eq('recipient_id', recipient.id);
-    }
+    if (submittedValue === undefined) return null;
+
+    const { error } = await supabase
+      .from('contract_fields')
+      .update({ value: submittedValue, filled_at: new Date().toISOString() })
+      .eq('id', field.id)
+      .eq('recipient_id', recipient.id);
+
+    return error ? { fieldId: field.id, error } : null;
+  }));
+
+  const failedFieldUpdate = fieldUpdates.find((result) => result !== null);
+  if (failedFieldUpdate) {
+    return NextResponse.json({
+      error: 'Failed to save submitted field values',
+    }, { status: 500 });
   }
 
   // Update recipient to signed (CAS: only if still sent/viewed)

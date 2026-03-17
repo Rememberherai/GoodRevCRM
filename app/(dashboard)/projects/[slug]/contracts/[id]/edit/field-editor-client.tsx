@@ -148,6 +148,42 @@ export function FieldEditorClient() {
     };
   }, []);
 
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (!selectedField) return;
+
+      const target = e.target as HTMLElement | null;
+      const tagName = target?.tagName?.toLowerCase();
+      const isEditable = tagName === 'input' || tagName === 'textarea' || target?.getAttribute('role') === 'combobox';
+      if (isEditable) return;
+
+      if (e.key === 'Delete' || e.key === 'Backspace') {
+        e.preventDefault();
+        removeField(selectedField);
+      } else if (e.key === 'Escape') {
+        setSelectedField(null);
+      }
+    };
+
+    window.addEventListener('keydown', handleKeyDown);
+    return () => window.removeEventListener('keydown', handleKeyDown);
+  }, [selectedField]);
+
+  const clampFieldBounds = useCallback((field: Field, updates: Partial<Field>): Partial<Field> => {
+    const nextWidth = Math.max(1, Math.min(100, updates.width ?? field.width));
+    const nextHeight = Math.max(1, Math.min(100, updates.height ?? field.height));
+    const nextX = updates.x ?? field.x;
+    const nextY = updates.y ?? field.y;
+
+    return {
+      ...updates,
+      width: nextWidth,
+      height: nextHeight,
+      x: Math.max(0, Math.min(100 - nextWidth, nextX)),
+      y: Math.max(0, Math.min(100 - nextHeight, nextY)),
+    };
+  }, []);
+
   const addField = (type: ContractFieldType) => {
     if (recipients.length === 0) {
       setError('Add recipients before placing fields');
@@ -189,7 +225,7 @@ export function FieldEditorClient() {
 
   const updateField = (tempId: string, updates: Partial<Field>) => {
     setFields((prev) =>
-      prev.map((f) => (f.tempId === tempId ? { ...f, ...updates } : f))
+      prev.map((f) => (f.tempId === tempId ? { ...f, ...clampFieldBounds(f, updates) } : f))
     );
   };
 

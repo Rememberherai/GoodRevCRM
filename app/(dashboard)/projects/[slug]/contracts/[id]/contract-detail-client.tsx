@@ -275,14 +275,27 @@ export function ContractDetailClient() {
   };
 
   const handleRemoveRecipient = async (rid: string) => {
+    setActionLoading(`remove-recipient:${rid}`);
     try {
-      await fetch(`/api/projects/${slug}/contracts/${id}/recipients/${rid}`, {
+      const res = await fetch(`/api/projects/${slug}/contracts/${id}/recipients/${rid}`, {
         method: 'DELETE',
       });
-      loadContract();
-    } catch {
-      // Ignore
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? 'Failed to remove recipient');
+      }
+      await loadContract();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to remove recipient');
+    } finally {
+      setActionLoading(null);
     }
+  };
+
+  const openAddRecipientDialog = () => {
+    const nextOrder = Math.max(0, ...contract?.recipients.map((r) => r.signing_order) ?? []) + 1;
+    setNewRecipientOrder(nextOrder);
+    setShowAddRecipient(true);
   };
 
   const formatDate = (date: string | null) => {
@@ -427,7 +440,7 @@ export function ContractDetailClient() {
                     </p>
                   </div>
                   {!hasRecipients && (
-                    <Button size="sm" variant="outline" onClick={() => setShowAddRecipient(true)}>
+                    <Button size="sm" variant="outline" onClick={openAddRecipientDialog}>
                       <Plus className="mr-2 h-4 w-4" /> Add Recipient
                     </Button>
                   )}
@@ -615,7 +628,7 @@ export function ContractDetailClient() {
                 <CardDescription>Manage who needs to sign or receive this document</CardDescription>
               </div>
               {isDraft && (
-                <Button size="sm" onClick={() => setShowAddRecipient(true)}>
+                <Button size="sm" onClick={openAddRecipientDialog}>
                   <Plus className="mr-2 h-4 w-4" /> Add Recipient
                 </Button>
               )}
@@ -625,7 +638,7 @@ export function ContractDetailClient() {
                 <div className="text-center text-muted-foreground py-8 space-y-3">
                   <p>No recipients added yet. Add at least one signer to place fields and send this contract.</p>
                   {isDraft && (
-                    <Button size="sm" onClick={() => setShowAddRecipient(true)}>
+                    <Button size="sm" onClick={openAddRecipientDialog}>
                       <Plus className="mr-2 h-4 w-4" /> Add Recipient
                     </Button>
                   )}
@@ -653,9 +666,14 @@ export function ContractDetailClient() {
                             variant="ghost"
                             size="icon"
                             className="h-8 w-8 text-destructive"
+                            disabled={actionLoading === `remove-recipient:${r.id}`}
                             onClick={() => handleRemoveRecipient(r.id)}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            {actionLoading === `remove-recipient:${r.id}` ? (
+                              <Loader2 className="h-4 w-4 animate-spin" />
+                            ) : (
+                              <Trash2 className="h-4 w-4" />
+                            )}
                           </Button>
                         )}
                       </div>
