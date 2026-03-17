@@ -102,6 +102,14 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
     return undefined;
   }, [nodes.length, fitView]);
 
+  // DEBUG: Log nodes to help diagnose rendering issues
+  useEffect(() => {
+    console.log('[WorkflowEditor] nodes count:', nodes.length);
+    if (nodes.length > 0) {
+      console.log('[WorkflowEditor] nodes:', JSON.stringify(nodes.map(n => ({ id: n.id, type: n.type, position: n.position })), null, 2));
+    }
+  }, [nodes]);
+
   // Convert our nodes/edges to ReactFlow format
   const rfNodes: Node[] = nodes.map((n) => ({
     id: n.id,
@@ -110,6 +118,9 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
     data: n.data,
     selected: n.id === selectedNodeId,
   }));
+
+  // DEBUG: Log what we're passing to ReactFlow
+  console.log('[WorkflowEditor] rfNodes count:', rfNodes.length, 'rfEdges count:', edges.length);
 
   const rfEdges: Edge[] = edges.map((e) => ({
     id: e.id,
@@ -213,7 +224,11 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
 
   const addNodeFromContextMenu = useCallback(
     (type: WorkflowNodeType) => {
-      if (!contextMenu) return;
+      console.log('[ContextMenu] addNode called, type:', type, 'contextMenu:', contextMenu);
+      if (!contextMenu) {
+        console.warn('[ContextMenu] contextMenu is null, skipping add');
+        return;
+      }
       const newNode: WorkflowNode = {
         id: `${type}-${Date.now()}`,
         type,
@@ -223,6 +238,7 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
           config: {},
         },
       };
+      console.log('[ContextMenu] adding node:', JSON.stringify(newNode));
       addNode(newNode);
       setSelectedNodeId(newNode.id);
       setContextMenu(null);
@@ -267,15 +283,21 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
     setTimeout(() => fitView({ padding: 0.2 }), 50);
   }, [fitView]);
 
-  // Close context menu on scroll or click outside
+  // Close context menu on scroll or click outside (but not on menu items)
+  const contextMenuRef = useRef<HTMLDivElement>(null);
   useEffect(() => {
     if (!contextMenu) return;
-    const close = () => setContextMenu(null);
-    window.addEventListener('scroll', close, true);
-    window.addEventListener('mousedown', close);
+    const closeOnScroll = () => setContextMenu(null);
+    const closeOnClick = (e: MouseEvent) => {
+      // Don't close if clicking inside the context menu itself
+      if (contextMenuRef.current?.contains(e.target as HTMLElement)) return;
+      setContextMenu(null);
+    };
+    window.addEventListener('scroll', closeOnScroll, true);
+    window.addEventListener('mousedown', closeOnClick);
     return () => {
-      window.removeEventListener('scroll', close, true);
-      window.removeEventListener('mousedown', close);
+      window.removeEventListener('scroll', closeOnScroll, true);
+      window.removeEventListener('mousedown', closeOnClick);
     };
   }, [contextMenu]);
 
@@ -406,6 +428,7 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
           {/* Right-click context menu */}
           {contextMenu && (
             <div
+              ref={contextMenuRef}
               className="fixed z-50 min-w-[180px] bg-popover border rounded-lg shadow-lg py-1 text-sm"
               style={{ left: contextMenu.x, top: contextMenu.y }}
             >

@@ -20,8 +20,10 @@ export default function WorkflowEditorPage() {
       try {
         const res = await fetch(`/api/projects/${slug}/workflows/${id}`);
         const data = await res.json();
+        console.log('[WorkflowPage] API response:', { hasWorkflow: !!data.workflow, nodeCount: data.workflow?.definition?.nodes?.length, definition: data.workflow?.definition });
         if (!cancelled && data.workflow) {
           useWorkflowStore.getState().loadWorkflow(data.workflow);
+          console.log('[WorkflowPage] After loadWorkflow, store nodes:', useWorkflowStore.getState().nodes.length);
         }
       } catch (error) {
         console.error('Failed to fetch workflow:', error);
