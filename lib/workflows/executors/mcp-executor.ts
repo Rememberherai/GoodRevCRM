@@ -179,6 +179,24 @@ Respond with JSON: { "tool_name": "...", "params": { ... } }`,
     throw new Error(`AI failed to select a tool: ${aiResponse}`);
   }
 
+  // Check if AI selected an external tool (format: "serverName/toolName")
+  if (selection.tool_name.includes('/')) {
+    const [serverName, toolName] = selection.tool_name.split('/', 2);
+    const server = (mcpServers || []).find((s) => s.name === serverName);
+    if (server) {
+      // Look up the server URL from mcp_external_servers
+      const { data: serverDetail } = await supabase
+        .from('mcp_external_servers')
+        .select('url')
+        .eq('name', serverName)
+        .eq('project_id', projectId)
+        .single();
+      if (serverDetail?.url) {
+        return executeExternalTool(serverDetail.url, toolName!, selection.params, projectId);
+      }
+    }
+  }
+
   return executeInternalTool(selection.tool_name, selection.params, projectId);
 }
 

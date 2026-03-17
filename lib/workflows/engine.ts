@@ -31,7 +31,7 @@ interface ExecutionContext {
   projectId: string;
   contextData: Record<string, unknown>;
   depth: number;
-  stepCount: number;
+  stepCount: { value: number };
   insideLoop: boolean;
   hasPendingDelay: boolean;
 }
@@ -46,7 +46,7 @@ export async function executeWorkflow(
   definition: WorkflowDefinition,
   initialContext: Record<string, unknown> = {},
   depth = 0,
-  parentStepCount = 0
+  parentStepCount: number | { value: number } = 0
 ): Promise<void> {
   const supabase = createAdminClient();
 
@@ -61,7 +61,7 @@ export async function executeWorkflow(
     projectId,
     contextData: { ...initialContext },
     depth,
-    stepCount: parentStepCount,
+    stepCount: typeof parentStepCount === 'object' ? parentStepCount : { value: parentStepCount },
     insideLoop: false,
     hasPendingDelay: false,
   };
@@ -120,8 +120,8 @@ async function traverseNode(
   edges: WorkflowEdge[],
   ctx: ExecutionContext
 ): Promise<void> {
-  ctx.stepCount++;
-  if (ctx.stepCount > WORKFLOW_CONSTRAINTS.MAX_EXECUTION_STEPS) {
+  ctx.stepCount.value++;
+  if (ctx.stepCount.value > WORKFLOW_CONSTRAINTS.MAX_EXECUTION_STEPS) {
     throw new Error('Max execution steps exceeded');
   }
 

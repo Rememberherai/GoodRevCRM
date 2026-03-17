@@ -323,6 +323,10 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
       toast.error('Client ID and Client Secret are required');
       return;
     }
+    if (serviceType === 'api_key' && !apiKey.trim()) {
+      toast.error('API Key is required');
+      return;
+    }
 
     setSaving(true);
     try {

@@ -10,9 +10,11 @@ export function SwitchNode(props: NodeProps) {
   const cases = (data.config?.cases as Array<{ value: unknown; label: string }>) || [];
   const defaultLabel = (data.config?.default_label as string) || 'default';
 
+  const caseLabels = new Set(cases.map((c) => c.label));
   const outputs = [
     ...cases.map((c) => ({ id: c.label, label: c.label })),
-    { id: defaultLabel, label: defaultLabel },
+    // Only add default handle if no case already uses the same label
+    ...(caseLabels.has(defaultLabel) ? [] : [{ id: defaultLabel, label: defaultLabel }]),
   ];
 
   return (

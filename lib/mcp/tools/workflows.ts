@@ -320,9 +320,12 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
 
       // Fire workflow engine asynchronously
       import('@/lib/workflows/engine').then(({ executeWorkflow }) => {
-        executeWorkflow(workflow.id, executionId, ctx.projectId, workflow.definition as unknown as Parameters<typeof executeWorkflow>[3], params.context_data ?? {}).catch((err) =>
-          console.error('MCP workflow execution error:', err)
-        );
+        executeWorkflow(workflow.id, executionId, ctx.projectId, workflow.definition as unknown as Parameters<typeof executeWorkflow>[3], params.context_data ?? {}).catch(async (err) => {
+          console.error('MCP workflow execution error:', err);
+          await ctx.supabase.from('workflow_executions')
+            .update({ status: 'failed', error_message: err instanceof Error ? err.message : String(err), completed_at: new Date().toISOString() })
+            .eq('id', executionId);
+        });
       });
 
       // Fetch execution for response

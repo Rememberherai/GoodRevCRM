@@ -66,6 +66,7 @@ export default function WorkflowExecutionsPage() {
   async function loadExecDetail(exec: WorkflowExecution) {
     setSelectedExec(exec);
     setSelectedStepNodeId(null);
+    setSteps([]); // Clear stale steps from previous selection
     try {
       const res = await fetch(`/api/projects/${slug}/workflows/${id}/executions/${exec.id}`);
       if (!res.ok) { console.error('Failed to fetch execution detail:', res.status); return; }

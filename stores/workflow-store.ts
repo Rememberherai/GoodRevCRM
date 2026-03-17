@@ -7,6 +7,13 @@ import type {
 } from '@/types/workflow';
 import { WORKFLOW_SCHEMA_VERSION } from '@/types/workflow';
 
+// ── Debounced history push (prevents undo flooding on text input) ────────
+let historyTimer: ReturnType<typeof setTimeout> | null = null;
+function debouncedPushHistory(pushFn: () => void, delay = 500) {
+  if (historyTimer) clearTimeout(historyTimer);
+  historyTimer = setTimeout(pushFn, delay);
+}
+
 // ── History snapshot for undo/redo ──────────────────────────────────────
 interface HistorySnapshot {
   nodes: WorkflowNode[];
@@ -308,7 +315,8 @@ export const useWorkflowStore = create<WorkflowStoreState & WorkflowStoreActions
     }));
   },
   updateNodeData: (id, data) => {
-    get().pushHistory();
+    // Debounce history push to avoid flooding undo stack on every keystroke
+    debouncedPushHistory(() => get().pushHistory());
     set((s) => ({
       nodes: s.nodes.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, ...data } } : n

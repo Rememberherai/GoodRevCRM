@@ -107,6 +107,7 @@ export function ChatSettings({ onBack }: ChatSettingsProps) {
             <ToolGroup name="Sequence Steps" tools={['list', 'get', 'create', 'update', 'delete']} />
             <ToolGroup name="Call Metrics" tools={['metrics']} />
             <ToolGroup name="RFP Stats" tools={['stats']} />
+            <ToolGroup name="Workflows" tools={['list', 'get', 'create', 'update', 'delete', 'activate', 'execute', 'executions', 'validate']} />
           </div>
           <p className="text-xs text-muted-foreground">
             The AI can use these tools to read and modify your CRM data across all entity types.

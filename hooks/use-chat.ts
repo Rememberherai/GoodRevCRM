@@ -39,6 +39,7 @@ const MUTATING_TOOLS = new Set([
   'bulk_execute',
   'sequence_steps_create', 'sequence_steps_update', 'sequence_steps_delete',
   'secrets_set', 'secrets_delete',
+  'workflows_create', 'workflows_update', 'workflows_delete', 'workflows_activate', 'workflows_execute',
 ]);
 
 export interface PageContext {

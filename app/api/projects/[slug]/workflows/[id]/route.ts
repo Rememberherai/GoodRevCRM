@@ -88,7 +88,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     // RBAC: only admin/owner can toggle is_active (matches /activate endpoint)
     if (workflowUpdates.is_active !== undefined && !['owner', 'admin'].includes(membership.role)) {
-      delete workflowUpdates.is_active;
+      return NextResponse.json({ error: 'Admin role required to change active status' }, { status: 403 });
     }
 
     // Validate graph if definition changed
