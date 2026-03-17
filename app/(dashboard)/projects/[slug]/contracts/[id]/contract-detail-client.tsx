@@ -9,8 +9,9 @@ import Placeholder from '@tiptap/extension-placeholder';
 import {
   ArrowLeft, Download, Send, Ban, Bell, FileText, Clock,
   CheckCircle2, XCircle, Eye, Shield, Loader2, Plus, Trash2, PenTool,
-  Bold, Italic, List, ListOrdered,
+  Bold, Italic, List, ListOrdered, UserSearch,
 } from 'lucide-react';
+import { PersonCombobox } from '@/components/ui/person-combobox';
 import { DOCUMENT_STATUS_LABELS, RECIPIENT_STATUS_LABELS, type ContractDocumentStatus, type ContractRecipientStatus } from '@/types/contract';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -152,6 +153,7 @@ export function ContractDetailClient() {
   const [newRecipientEmail, setNewRecipientEmail] = useState('');
   const [newRecipientRole, setNewRecipientRole] = useState<'signer'>('signer');
   const [newRecipientOrder, setNewRecipientOrder] = useState(1);
+  const [recipientSearchMode, setRecipientSearchMode] = useState(true);
 
   const loadContract = useCallback(async () => {
     try {
@@ -218,6 +220,8 @@ export function ContractDetailClient() {
         throw new Error(err.error);
       }
       setShowSendDialog(false);
+      setSendMessage('');
+      sendMessageEditor?.commands.setContent('');
       loadContract();
       loadAuditTrail();
     } catch (err) {
@@ -564,6 +568,8 @@ export function ContractDetailClient() {
               </CardContent>
             </Card>
 
+            {/* Sidebar (right column) */}
+            <div className="space-y-6 pb-20">
             {/* Linked Entities */}
             <Card>
               <CardHeader>
@@ -605,7 +611,6 @@ export function ContractDetailClient() {
                 )}
               </CardContent>
             </Card>
-          </div>
 
           {/* Completion Email Settings */}
           <Card>
@@ -702,6 +707,7 @@ export function ContractDetailClient() {
               </CardContent>
             </Card>
           )}
+          </div>{/* end sidebar */}
         </TabsContent>
 
         <TabsContent value="recipients" className="mt-4">
@@ -912,20 +918,68 @@ export function ContractDetailClient() {
       </Dialog>
 
       {/* Add Recipient Dialog */}
-      <Dialog open={showAddRecipient} onOpenChange={setShowAddRecipient}>
+      <Dialog open={showAddRecipient} onOpenChange={(open) => {
+        setShowAddRecipient(open);
+        if (!open) setRecipientSearchMode(true);
+      }}>
         <DialogContent>
           <DialogHeader>
             <DialogTitle>Add Recipient</DialogTitle>
           </DialogHeader>
           <div className="space-y-4 py-2">
-            <div>
-              <Label>Name</Label>
-              <Input value={newRecipientName} onChange={(e) => setNewRecipientName(e.target.value)} placeholder="John Doe" className="mt-1" />
+            {/* Toggle between search and manual */}
+            <div className="flex gap-2">
+              <Button
+                variant={recipientSearchMode ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setRecipientSearchMode(true)}
+              >
+                <UserSearch className="mr-2 h-4 w-4" /> Search CRM
+              </Button>
+              <Button
+                variant={!recipientSearchMode ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setRecipientSearchMode(false)}
+              >
+                Enter Manually
+              </Button>
             </div>
-            <div>
-              <Label>Email</Label>
-              <Input value={newRecipientEmail} onChange={(e) => setNewRecipientEmail(e.target.value)} placeholder="john@example.com" className="mt-1" type="email" />
-            </div>
+
+            {recipientSearchMode ? (
+              <div>
+                <Label>Find Person</Label>
+                <div className="mt-1">
+                  <PersonCombobox
+                    value={null}
+                    onValueChange={() => {}}
+                    onPersonSelect={(person) => {
+                      if (person) {
+                        const name = [person.first_name, person.last_name].filter(Boolean).join(' ');
+                        setNewRecipientName(name || '');
+                        setNewRecipientEmail(person.email || '');
+                        setRecipientSearchMode(false);
+                      }
+                    }}
+                    placeholder="Search by name or email..."
+                  />
+                </div>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Select a person to auto-fill their name and email, or enter manually.
+                </p>
+              </div>
+            ) : (
+              <>
+                <div>
+                  <Label>Name</Label>
+                  <Input value={newRecipientName} onChange={(e) => setNewRecipientName(e.target.value)} placeholder="John Doe" className="mt-1" />
+                </div>
+                <div>
+                  <Label>Email</Label>
+                  <Input value={newRecipientEmail} onChange={(e) => setNewRecipientEmail(e.target.value)} placeholder="john@example.com" className="mt-1" type="email" />
+                </div>
+              </>
+            )}
+
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Role</Label>

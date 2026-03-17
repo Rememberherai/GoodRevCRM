@@ -26,7 +26,7 @@ import {
 interface NewContractDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
+  onCreated: (contractId?: string) => void;
   opportunityId?: string;
 }
 
@@ -106,13 +106,15 @@ export function NewContractDialog({ open, onOpenChange, onCreated, opportunityId
         throw new Error(err.error ?? 'Failed to create contract');
       }
 
+      const created = await createRes.json();
+
       // Reset and close
       setTitle('');
       setDescription('');
       setFile(null);
       setSigningOrder('sequential');
       onOpenChange(false);
-      onCreated();
+      onCreated(created.contract?.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {

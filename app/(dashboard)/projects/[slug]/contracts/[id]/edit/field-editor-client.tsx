@@ -204,6 +204,13 @@ export function FieldEditorClient() {
     };
 
     const size = defaultSizes[type] ?? { w: 20, h: 3 };
+    // Place new fields in the center of the page, stacking down for subsequent ones
+    const existingOnPage = fields.filter((f) => f.page_number === currentPage).length;
+    const centerX = Math.max(5, (100 - size.w) / 2);
+    const startY = 40; // Start near vertical center
+    const offsetY = existingOnPage * 8;
+    const y = (startY + offsetY) % 85; // Wrap around to avoid going off-page
+
     const newField: Field = {
       tempId: crypto.randomUUID(),
       recipient_id: recipients[0]!.id,
@@ -212,8 +219,8 @@ export function FieldEditorClient() {
       placeholder: null,
       is_required: true,
       page_number: currentPage,
-      x: 10,
-      y: 10 + fields.filter((f) => f.page_number === currentPage).length * 8,
+      x: centerX,
+      y,
       width: size.w,
       height: size.h,
       options: type === 'dropdown' ? ['Option 1', 'Option 2'] : null,

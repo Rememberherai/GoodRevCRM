@@ -622,15 +622,16 @@ export default function SigningPage() {
                   </div>
                 )}
               </div>
-              <div className="relative" style={{ height: '700px' }}>
+              <div className="relative overflow-hidden" style={{ height: '700px' }}>
                 {pdfUrl ? (
                   <>
                     <iframe
                       src={`${pdfUrl}#page=${currentPage}`}
-                      className="w-full h-full rounded border pointer-events-none select-none"
+                      className="absolute inset-0 w-full h-full rounded border pointer-events-none select-none"
+                      style={{ zIndex: 1 }}
                       title="Document Preview"
                     />
-                    {/* Field position overlays */}
+                    {/* Field position overlays — z-index above iframe */}
                     {(data?.fields ?? [])
                       .filter((f) => f.page_number === currentPage)
                       .map((field) => {
@@ -641,14 +642,15 @@ export default function SigningPage() {
                             key={field.id}
                             className={`absolute rounded flex items-center justify-center text-xs font-medium pointer-events-none ${
                               isFilled
-                                ? 'bg-green-100 border-2 border-green-400 text-green-700'
-                                : 'bg-blue-100 border-2 border-blue-400 text-blue-700 animate-pulse'
+                                ? 'bg-green-100/80 border-2 border-green-400 text-green-700'
+                                : 'bg-blue-100/80 border-2 border-blue-400 text-blue-700 animate-pulse'
                             }`}
                             style={{
                               left: `${field.x}%`,
                               top: `${field.y}%`,
                               width: `${field.width}%`,
                               height: `${field.height}%`,
+                              zIndex: 10,
                             }}
                           >
                             {isSig ? (

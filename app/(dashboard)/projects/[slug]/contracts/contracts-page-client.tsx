@@ -281,7 +281,13 @@ export function ContractsPageClient() {
       <NewContractDialog
         open={showNewDialog}
         onOpenChange={setShowNewDialog}
-        onCreated={reload}
+        onCreated={(contractId) => {
+          if (contractId) {
+            router.push(`/projects/${slug}/contracts/${contractId}`);
+          } else {
+            reload();
+          }
+        }}
       />
 
       <AlertDialog open={!!deleteId} onOpenChange={(open) => !open && setDeleteId(null)}>

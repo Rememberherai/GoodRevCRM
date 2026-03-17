@@ -1,6 +1,6 @@
 # Community Project Type — Product Requirements Document
 
-**Version:** 1.0
+**Version:** 2.0
 **Date:** 2026-03-17
 **Status:** Draft
 
@@ -8,9 +8,21 @@
 
 ## 1. Executive Summary
 
-GoodRevCRM today serves B2B sales teams. This PRD defines a new **"Community Project"** type that transforms the platform into a one-stop-shop for **community center directors, neighborhood organizers, and nonprofit leaders** who need to manage households, track multi-capital contributions, run programs, map community assets, coordinate volunteers, and report outcomes to funders — all from a single tool.
+GoodRevCRM today serves B2B sales teams. This PRD defines a new **"Community Project"** type that transforms the platform into a one-stop-shop for **community center directors, neighborhood organizers, and nonprofit leaders** who need to manage households, track multi-capital contributions, run programs, raise funds, manage donors, map community assets, coordinate volunteers, and report outcomes to funders — all from a single tool.
 
 The design is grounded in the **Community Capitals Framework (CCF)**, a widely-adopted model from rural sociology that identifies **seven forms of community wealth**: Natural, Cultural, Human, Social, Political, Financial, and Built capital. Rather than tracking just money (like a sales CRM), a Community Project tracks the full spectrum of value flowing through a community.
+
+### What's New in v2.0
+
+- **Full Fundraising Suite** — campaigns, donor pipeline, pledges/recurring giving, fund accounting (restricted/unrestricted), tax receipts, fundraising events with tickets and sponsorships
+- **Batch Attendance** — enrollment ≠ attendance; funders want dosage-based reporting
+- **Mode-Specific Contribution Entry** — Donations, Time Log, and Grants as distinct UI entry modes
+- **Smart Capital Defaults** — contributions auto-inherit capital type from linked Program
+- **Household Fluidity** — start_date/end_date on household members for temporal accuracy
+- **Broadcast Messaging** — simplified mass comms replacing Sequences for community projects
+- **Waivers** — reuse existing e-signature/contracts module for program liability waivers
+- **Geocoding Background Queue** — async geocoding with status tracking, rate-limited
+- **Unduplicated Counts** — native support for distinct-person reporting required by funders
 
 ### Research Sources
 
@@ -26,9 +38,16 @@ The design is grounded in the **Community Capitals Framework (CCF)**, a widely-a
 - [Volunteer Hour Value — Independent Sector / Civic Champs](https://www.civicchamps.com/post/how-to-calculate-volunteer-hours-value)
 - [Closed-Loop Referrals — Unite Us](https://uniteus.com/products/closed-loop-referral-system/)
 - [Community Asset Mapping — KU Community Tool Box](https://ctb.ku.edu/en/table-of-contents/assessment/assessing-community-needs-and-resources/geographic-information-systems/main)
-- [Participatory Asset Mapping Toolkit — Community Science](https://communityscience.com/wp-content/uploads/2021/04/AssetMappingToolkit.pdf)
 - [Grant Management for Nonprofits — NetSuite](https://www.netsuite.com/portal/resource/articles/crm/grant-management.shtml)
+- [Donor Cultivation Cycle — Neon One](https://neonone.com/resources/blog/donor-cultivation-cycle/)
+- [Donor Pipeline Management — Keela](https://www.keela.co/blog/donor-pipeline)
+- [Donor Stewardship Guide — Alyster Ling](https://alysterling.com/donor-stewardship/)
+- [Nonprofit Fundraising CRM Features — Bloomerang](https://bloomerang.com/)
+- [Nonprofit Fund Accounting Basics — Araize](https://araize.com/nonprofit-fund-accounting-basics/)
+- [IRS Charitable Contribution Acknowledgments](https://www.irs.gov/charities-non-profits/charitable-organizations/charitable-contributions-written-acknowledgments)
+- [Donation Receipt Compliance — Donorbox](https://donorbox.org/nonprofit-blog/create-a-501c3-tax-compliant-donation-receipt)
 - [CDFI Fund — US Treasury](https://www.cdfifund.gov/)
+- [Fundraising Event Management — GiveSmart](https://www.givesmart.com/)
 
 ---
 
@@ -59,10 +78,11 @@ The CCF posits that community well-being emerges from the interplay of seven cap
 1. **Asset creation**: Staff registers a community garden plot as a Community Asset (type: land, capital: natural, condition: good, lat/lng pinned on map)
 2. **Program creation**: "Spring Growing Season 2026" program created targeting Natural + Social capital
 3. **Enrollment**: Households enroll for garden plots → program enrollment records created
-4. **Contribution tracking**: Volunteer hours logged weekly by plot stewards (type: volunteer_hours, capital: natural)
-5. **In-kind tracking**: Seed donations, tool lending tracked as in-kind contributions
-6. **Assessment**: Quarterly condition update on the garden asset
-7. **Reporting**: Capital dashboard shows natural capital trending up based on increased hours + asset condition improvements
+4. **Attendance**: Weekly batch attendance taken — who showed up to tend plots
+5. **Contribution tracking**: Volunteer hours auto-tagged as "natural" capital (inherited from program)
+6. **In-kind tracking**: Seed donations, tool lending tracked as in-kind contributions
+7. **Assessment**: Quarterly condition update on the garden asset
+8. **Reporting**: Capital dashboard shows natural capital trending up based on increased hours + asset condition improvements
 
 ---
 
@@ -80,22 +100,24 @@ The CCF posits that community well-being emerges from the interplay of seven cap
 
 **Indicators:**
 - # of cultural events hosted per quarter
-- Attendance at cultural programs
+- Attendance at cultural programs (unduplicated count)
 - # of languages represented in programs
 - Cultural assets preserved (murals, historic sites, archives)
 - $ invested in cultural programming
 - # of cultural mentorship relationships
 
 **Workflow — Heritage Festival:**
-1. **Program creation**: "Annual Harvest Festival" program targeting Cultural + Social capital, status: planning
-2. **Asset link**: Community Hall asset marked as venue (capital: built, but serving cultural purpose)
-3. **Enrollment**: Volunteer performers, vendors, organizers enrolled in program
-4. **Contribution tracking**:
-   - Monetary: Sponsorship donations (type: monetary, capital: cultural)
-   - In-kind: Food donations, décor, sound equipment (type: in_kind, capital: cultural)
-   - Volunteer: Setup/teardown hours, cooking, performance time (type: volunteer_hours, capital: cultural)
-5. **Relationship mapping**: New cross-cultural relationships formed → logged as social capital relationships
-6. **Outcome**: Attendance count, new household registrations, cultural assets documented
+1. **Campaign creation**: "Heritage Festival 2026" fundraising campaign targeting Cultural capital, goal: $5,000
+2. **Fundraising event**: Create the festival event, link to campaign, set up sponsorship tiers (Gold $1k, Silver $500, Bronze $250)
+3. **Program creation**: "Annual Harvest Festival" program targeting Cultural + Social capital
+4. **Sponsorship outreach**: Add local businesses to donor pipeline → move through cultivation → solicitation
+5. **Contribution tracking**:
+   - Sponsorships: Corporate sponsors recorded as monetary contributions linked to campaign + fund
+   - In-kind: Food donations, decor, sound equipment
+   - Volunteer: Setup/teardown hours auto-tagged as cultural capital
+6. **Tax receipts**: Auto-generated for monetary sponsors over $250
+7. **Attendance**: Batch attendance on festival day
+8. **Outcome**: Campaign thermometer updates, attendance count, new household registrations, cultural assets documented
 
 ---
 
@@ -112,7 +134,7 @@ The CCF posits that community well-being emerges from the interplay of seven cap
 - Mentorship pairings
 
 **Indicators:**
-- # of people completing training programs
+- # of people completing training programs (unduplicated)
 - Skills inventory depth (unique skills catalogued)
 - # of active mentorship relationships
 - Program completion rates
@@ -121,15 +143,14 @@ The CCF posits that community well-being emerges from the interplay of seven cap
 - Leadership positions filled by community members
 
 **Workflow — Job Skills Training:**
-1. **Program creation**: "Digital Literacy for Seniors" — target capitals: Human, Financial (improves employability)
-2. **Enrollment**: Individual people enroll (with household linkage for family context)
-3. **Contribution tracking**:
-   - Grant: Foundation grant received (type: grant, capital: human, value: $15,000)
-   - Volunteer: Instructor hours (type: volunteer_hours, capital: human)
-   - In-kind: Donated laptops (type: in_kind, capital: human + built)
-4. **Progress**: Custom fields on enrollment track completion milestones
-5. **Outcome**: Graduates tracked; employment outcomes noted in person records
-6. **Reporting**: Human capital index rises; grant report auto-populates enrollment + completion data
+1. **Grant secured**: Foundation grant logged (type: grant, capital: human, $15,000) → allocated to "Youth Programs" restricted fund
+2. **Campaign**: "Digital Literacy Initiative" campaign, goal: $20,000, targeting Human + Financial capital
+3. **Program creation**: "Digital Literacy for Seniors" — target capitals: Human, Financial
+4. **Waiver required**: Program marked `requires_waiver = true` → liability waiver template assigned
+5. **Enrollment**: Individuals enroll → waiver signed via e-signature → status becomes "active"
+6. **Attendance**: Weekly batch attendance tracks dosage for funder reporting
+7. **Contributions**: Instructor volunteer hours auto-tagged as "human" capital; donated laptops as in-kind
+8. **Reporting**: Grant compliance report shows unduplicated participants, attendance hours, in-kind value, all pulled from "Youth Programs" fund
 
 ---
 
@@ -147,20 +168,20 @@ The CCF posits that community well-being emerges from the interplay of seven cap
 
 **Indicators:**
 - # of registered relationships in the system
-- Relationship type diversity (are connections only within groups, or bridging across?)
+- Relationship type diversity (bridging vs. bonding)
 - Mutual aid exchanges per month
 - Event attendance and repeat attendance
 - # of new relationships formed per quarter
-- Volunteer retention rate (a proxy for trust and belonging)
+- Volunteer retention rate
 - Household-to-household connection density
 
 **Workflow — Neighbor-to-Neighbor Mutual Aid:**
-1. **Intake**: New household registered during community welcome visit → household members added, primary contact designated
+1. **Intake**: New household registered during community welcome visit → members added with start_date, primary contact designated
 2. **Relationship mapping**: Staff logs neighbor relationships between adjacent households
-3. **Contribution tracking**: When Household A provides childcare for Household B, logged as service contribution (type: service, capital: social, hours: 4)
-4. **Reciprocity tracking**: Household B later helps Household A with yard work → another service contribution logged
-5. **Program context**: Both exchanges linked to "Good Neighbors" program
-6. **Network visualization**: Community Map shows relationship density by neighborhood — areas with few connections flagged for outreach
+3. **Contribution tracking**: When Household A provides childcare for Household B, logged as service contribution (type: service, capital: social, hours: 4) — capital auto-inherited from "Good Neighbors" program
+4. **Reciprocity tracking**: Household B helps Household A with yard work → another service contribution logged
+5. **Broadcast**: "Snow day — Community Center closed" SMS sent to all "Good Neighbors" enrollees
+6. **Network visualization**: Community Map shows relationship density by neighborhood — sparse areas flagged for outreach
 7. **Reporting**: Social capital score reflects relationship count, diversity, and reciprocity balance
 
 ---
@@ -189,13 +210,11 @@ The CCF posits that community well-being emerges from the interplay of seven cap
 **Workflow — Civic Engagement Campaign:**
 1. **Program creation**: "Know Your Rights Workshop Series" — target capitals: Political, Human
 2. **Enrollment**: Community members register; household data provides demographic context
-3. **Contribution tracking**:
-   - Volunteer: Facilitator hours, outreach volunteers (type: volunteer_hours, capital: political)
-   - Grant: Civic engagement grant (type: grant, capital: political)
-4. **Activity logging**: Notes on each session — topics covered, questions raised, follow-up actions
-5. **Relationship building**: Connections made between residents and local officials → logged as relationships
-6. **Outcome**: Track which participants subsequently attend council meetings, join boards, or register to vote (noted in person custom fields)
-7. **Reporting**: Political capital trends show increased civic participation correlated with program enrollment
+3. **Batch attendance**: Track who actually attends each session (not just enrolled)
+4. **Contribution tracking**: Facilitator hours + civic engagement grant auto-tagged as "political" capital
+5. **Relationship building**: Connections between residents and local officials → logged as relationships
+6. **Outcome**: Track which participants subsequently attend council meetings, join boards, or register to vote
+7. **Reporting**: Political capital trends show increased civic participation correlated with program attendance
 
 ---
 
@@ -204,35 +223,40 @@ The CCF posits that community well-being emerges from the interplay of seven cap
 **Definition:** Money, savings, credit, investment, charitable giving, grants, earned income, and the economic resources available to a community — including in-kind value converted to monetary equivalents.
 
 **What to track:**
-- Monetary donations and pledges
+- Monetary donations and pledges (one-time and recurring)
+- Fundraising campaigns with goals and progress
 - Grant applications, awards, and compliance
-- In-kind donation monetary equivalents (using Independent Sector rate: $33.49/hr for 2025)
-- Microloans and revolving fund activity
-- Fundraising campaigns
-- Budget allocations by program and capital type
-- Funder reporting data
+- Fund balances (restricted, unrestricted, designated)
+- In-kind donation monetary equivalents
+- Donor pipeline and cultivation stages
+- Sponsorship revenue
+- Fundraising event revenue (tickets, auctions, sponsors)
+- Tax receipt generation and compliance
 
 **Indicators:**
 - Total monetary contributions received (by period)
-- Total in-kind value (hours × rate + goods fair market value)
+- Total in-kind value (hours x rate + goods fair market value)
 - Grant dollars awarded vs. applied
 - Pledge fulfillment rate (pledged → received conversion)
 - Contribution diversity (# of unique donors)
-- Cost per program participant
+- Donor retention rate (LYBUNT/SYBUNT tracking)
+- Recurring giving growth rate
+- Cost per dollar raised
 - Revenue by source type (individual, corporate, government, foundation)
+- Restricted vs. unrestricted fund balance ratio
 
-**Workflow — Annual Fundraising + Grant Reporting:**
-1. **Contributions tracked all year**: Every monetary, in-kind, and volunteer contribution tagged with capital_type and linked to donor (person, org, or household)
-2. **Grant lifecycle**:
-   - Grant opportunity logged as contribution (type: grant, status: pledged, value: $50,000)
-   - Upon award → status: received, date updated
-   - Program enrollments and contribution data feed directly into grant reporting
-3. **Funder report generation**:
-   - Filter contributions by grant source + date range
-   - Export: total participants served, volunteer hours, in-kind value, program outcomes
-   - Capital distribution chart shows how grant funds flowed across all 7 capitals
-4. **Dashboard metrics**: Financial capital card shows YTD giving, pledge pipeline, grant compliance status
-5. **Donor stewardship**: Contribution history on person/org/household detail pages enables personalized thank-yous and renewal asks
+**Workflow — Annual Fundraising Cycle:**
+1. **Campaign creation**: "2026 Annual Fund" campaign, goal: $50,000, targeting all capitals
+2. **Donor pipeline**: Major donor prospects identified, assigned to staff for cultivation
+3. **Pledge management**: Key donors make pledges ($1,000/month for 12 months) → recurring pledge created
+4. **Fundraising event**: "Spring Gala" with ticket tiers (General $50, VIP $150, Sponsor Table $1,000) + sponsorship levels
+5. **Contributions tracked all year**: Every donation tagged with campaign, fund, and capital type
+6. **Fund accounting**: Restricted grant funds tracked separately from unrestricted annual fund
+7. **Tax receipts**: Auto-generated for all monetary + in-kind contributions, IRS-compliant
+8. **Stewardship**: Thank-you letters sent; stewardship touches logged (calls, visits, recognition)
+9. **Donor directory**: LYBUNT/SYBUNT flags identify lapsed donors for re-engagement
+10. **Funder report**: Filter by grant/fund + date range → export unduplicated participants, hours, in-kind value, capital distribution
+11. **Dashboard**: Financial capital card shows YTD giving, pledge pipeline, fund balances, campaign progress
 
 ---
 
@@ -258,14 +282,14 @@ The CCF posits that community well-being emerges from the interplay of seven cap
 - # of facility bookings per month
 - Infrastructure improvement projects completed
 
-**Workflow — Facility Management + Condition Tracking:**
-1. **Asset registration**: Community Center building logged as Community Asset (category: facility, capital: built, condition: good, address + lat/lng)
-2. **Sub-assets**: Individual rooms, equipment, technology logged as related assets
-3. **Condition monitoring**: Quarterly condition assessments update the asset record; history tracked via notes + updated_at
-4. **Improvement projects**: Major renovation tracked as contribution (type: service or in_kind, capital: built, value: estimated labor + materials)
-5. **Utilization**: Programs linked to facility assets; enrollment counts serve as utilization proxy
-6. **Map visualization**: All built assets visible on Community Map with condition-based color coding (green = excellent, yellow = fair, red = poor)
-7. **Reporting**: Built capital index reflects asset count, average condition score, and investment trend
+**Workflow — Facility Management + Capital Campaign:**
+1. **Asset registration**: Community Center building logged as Community Asset (category: facility, capital: built, condition: fair)
+2. **Campaign**: "Building Renovation Fund" capital campaign, goal: $100,000, targeting Built capital
+3. **Fund**: "Building Renovation" restricted fund created → donations allocated here
+4. **Contributions**: Major donor gifts, corporate sponsors, foundation grants all flow into restricted fund
+5. **Condition monitoring**: Quarterly assessments update asset condition; renovation improves fair → good → excellent
+6. **Map visualization**: All built assets visible with condition-based color coding
+7. **Reporting**: Built capital index reflects asset count, average condition score, fund balance, and investment trend
 
 ---
 
@@ -273,14 +297,18 @@ The CCF posits that community well-being emerges from the interplay of seven cap
 
 ### 3.1 Project Type Selection
 
-When creating a new project, users choose between:
+When creating a new project, users select the type **first**, then enter name/slug/description.
+
+**Step 1 — Type Selection (two large cards):**
 
 | Type | Description | Modules Available |
 |------|-------------|-------------------|
 | **Standard CRM** | B2B sales pipeline, outreach sequences, RFPs, contracts | Organizations, People, Opportunities, RFPs, Sequences, Content Library, Contracts, Workflows, News |
-| **Community Center** | Household-based community development with 7-capital tracking | Households, People, Organizations, Contributions, Programs, Community Assets, Community Map, Relationships, Reporting |
+| **Community Center** | Household-based community development with 7-capital tracking, full fundraising suite | Households, People, Organizations, Campaigns, Donations, Donors, Funds, Fundraising Events, Programs, Community Assets, Community Map, Broadcasts, Relationships, Reporting |
 
-The type is set at creation and stored on the project record. The sidebar, dashboard, and available features adapt accordingly.
+**Step 2 — Project Details:** Name, slug (auto-generated), description.
+
+The type is stored on the project record. The sidebar, dashboard, and available features adapt accordingly.
 
 ---
 
@@ -291,7 +319,8 @@ The fundamental unit of a community project. Households group people into family
 **Fields:**
 - Name (e.g., "The Martinez Family")
 - Address (street, city, state, postal code, country)
-- Geo coordinates (latitude, longitude) — for map placement
+- Geo coordinates (latitude, longitude) — auto-geocoded or manually placed on map
+- Geocoded status (pending, success, failed, manual)
 - Household size
 - Primary contact (linked person)
 - Notes
@@ -300,111 +329,282 @@ The fundamental unit of a community project. Households group people into family
 **Household Members:**
 - Person linked with relationship type: head of household, spouse/partner, child, dependent, extended family, other
 - One member marked as primary contact
+- **start_date / end_date** — enables temporal tracking when people join or leave households (supports custody changes, divorces, moves)
 - A person can belong to multiple households (e.g., split custody)
 
 **Key views:**
 - Household list with search, filter by neighborhood/address
-- Household detail page: members, contribution history, program enrollments, relationships, notes, timeline
+- Household detail page: members (with date ranges), contribution history, program enrollments, relationships, notes, timeline, **giving tab** (if they're donors)
 - Quick-add: register a new household + members in a single flow (intake form)
 
 **Intake workflow:**
 1. Walk-in or referral arrives at community center
 2. Staff opens "New Household" dialog
 3. Enters household name, address, size
-4. Adds members (new people or links existing)
+4. Adds members (new people or links existing) — each with start_date
 5. Marks primary contact
 6. Optional: immediate program enrollment
 7. Optional: needs assessment notes captured
-8. Household appears on map automatically if address geocoded
+8. Address queued for background geocoding → household appears on map when resolved
 
 ---
 
-### 3.3 Contributions
+### 3.3 Contributions (Donations / Time / Grants)
 
-Replaces "Opportunities" for community projects. Tracks every type of value exchange — monetary and non-monetary.
+Tracks every type of value exchange — monetary and non-monetary. The **data model is unified**, but the **UI presents distinct entry modes** to reduce friction.
 
 **Contribution Types:**
 
-| Type | Description | Key Fields |
-|------|-------------|------------|
-| `monetary` | Cash, check, online donation, recurring gift | value, currency |
-| `in_kind` | Goods, materials, food, supplies, equipment | value (fair market estimate), description of goods |
-| `volunteer_hours` | Time donated by community members | hours, value (auto-calculated at configurable hourly rate) |
-| `grant` | Foundation, government, or corporate grants | value, grant name, funder org, compliance dates |
-| `service` | Professional services rendered (legal, medical, tutoring, childcare, etc.) | hours, value, service description |
+| Type | UI Entry Mode | Key Fields |
+|------|--------------|------------|
+| `monetary` | **Donations** tab | value, currency, fund, campaign, receipt # |
+| `in_kind` | **Donations** tab | value (fair market estimate), description of goods |
+| `volunteer_hours` | **Time Log** tab | person, hours, program (capital auto-inherited) |
+| `grant` | **Grants** tab | funder org, value, status, compliance dates, fund |
+| `service` | **Time Log** tab | hours, value, service description, program |
 
 **Every contribution is tagged with:**
-- **Capital type** — which of the 7 capitals this contributes to
+- **Capital type** — auto-inherited from linked Program's `target_capitals[0]`, overridable
 - **Donor** — person, organization, or household
-- **Recipient** — person, organization, household, or program (nullable — for general fund contributions)
+- **Recipient** — person, organization, household, or program (nullable)
+- **Campaign** — which fundraising campaign this supports (nullable)
+- **Fund** — which fund this flows into (nullable)
+- **Pledge** — if this is a pledge fulfillment payment (nullable)
 - **Status** — pledged → received → completed (or cancelled)
 - **Date** — when the contribution occurred or is expected
+- **Receipt #** — auto-generated for monetary/in-kind; receipt_sent_at tracks acknowledgment
 
 **Key views:**
-- Contribution list with filters: type, capital, status, date range, donor, recipient
+- Contribution list with filters: type, capital, status, date range, donor, campaign, fund
 - Capital breakdown view: contributions grouped by capital type with totals
 - Donor leaderboard: top contributors by value + hours
-- Contribution detail: full info with linked entities
+- Contribution detail: full info with linked entities + receipt download button
 
 **Volunteer hour valuation:**
 - Default rate: $33.49/hr ([Independent Sector 2025 rate](https://www.civicchamps.com/post/how-to-calculate-volunteer-hours-value))
-- Configurable per-project in settings (some funders require state-specific rates)
+- Configurable per-project in settings
 - Auto-calculates monetary equivalent for reporting
 - Specialized skills can override rate (e.g., pro bono legal at $200/hr)
 
 ---
 
-### 3.4 Programs
+### 3.4 Fundraising Campaigns
+
+Goal-based fundraising efforts that aggregate contributions and track progress.
+
+**Fields:**
+- Name, description
+- Type: annual_fund, capital_campaign, event, emergency, program_specific, other
+- Goal amount, currency
+- Raised amount (denormalized, updated via trigger)
+- Donor count (denormalized)
+- Status: planning, active, completed, cancelled
+- Start date, end date
+- Target capitals (which capitals this campaign supports)
+
+**Key views:**
+- Campaign list as cards with progress bar (raised/goal), donor count, status badge, date range
+- Campaign detail:
+  - **Thermometer/progress visualization**
+  - Contribution list filtered to this campaign
+  - Unique donor list
+  - Capital distribution chart (how campaign funds map across the 7 capitals)
+  - Linked pledges
+  - Linked fundraising events
+
+**Workflow:**
+1. Director creates campaign: "2026 Annual Fund", goal $50,000
+2. All monetary contributions throughout the year tagged to this campaign
+3. Thermometer updates in real-time as donations come in
+4. Board members can see campaign progress on dashboard
+
+---
+
+### 3.5 Donor Management & Pipeline
+
+A full donor lifecycle management system based on the [5-stage cultivation cycle](https://neonone.com/resources/blog/donor-cultivation-cycle/): Identification → Qualification → Cultivation → Solicitation → Stewardship.
+
+**Donor Pipeline (Kanban Board):**
+- Columns for each stage
+- Drag-and-drop cards between stages
+- Each card: donor name, estimated capacity, ask amount, next action, assigned staff member
+- Fields: person/org/household, stage, estimated_capacity, ask_amount, assigned_to, campaign, next_action, next_action_date
+
+**Donor Directory (Table View):**
+- All people/orgs/households who have given, with:
+  - Lifetime giving total
+  - Last gift date
+  - **LYBUNT flag** (Last Year But Unfortunately Not This year)
+  - **SYBUNT flag** (Some Year But Unfortunately Not This year)
+  - Donor tier (auto-calculated: Major $10k+, Mid $1k-$10k, Grassroots <$1k — thresholds configurable)
+  - Recurring giving status
+  - Campaign involvement
+
+**Donor "Giving" Tab** (on Person/Org/Household detail pages):
+- Giving history timeline (all contributions)
+- Pledge status (active/completed/lapsed)
+- Stewardship touches log
+- Campaign involvement
+- Fund allocations
+- Tax receipt history
+
+**Stewardship Tools:**
+- "Send Thank You" button → generates IRS-compliant acknowledgment letter (reuses email template system)
+- Stewardship touch log: record calls, visits, recognition events, site tours
+- **Lapsed donor alerts**: configurable — no gift in X months → notification to assigned staff
+
+---
+
+### 3.6 Fund Accounting
+
+Track restricted, unrestricted, and designated funds to ensure donor-intent compliance and clear financial reporting.
+
+**Fund Types:**
+- **Unrestricted** — available for general use
+- **Temporarily Restricted** — donor-restricted for specific purpose or time period
+- **Permanently Restricted** — endowment-style, principal cannot be spent
+- **Designated** — board-designated for specific purposes (internally restricted)
+
+**Fields:**
+- Name, description, type, purpose
+- Balance (denormalized, updated via trigger on contributions)
+- Target amount (optional goal)
+- Is active
+
+**Key views:**
+- Fund list: name, type, balance, target, status
+- Fund detail: balance over time chart, transaction list (contributions in), purpose/restriction description, linked campaigns
+- **Fund summary dashboard**: total restricted vs. unrestricted balances, fund health overview
+
+**Workflow:**
+1. Director creates "Youth Programs" fund (type: temporarily_restricted)
+2. Foundation grant of $15,000 received → contribution tagged to this fund
+3. Fund balance updates to $15,000
+4. As programs spend against this fund (tracked via program-linked contributions), balance decreases
+5. Board can see restricted vs. unrestricted balances at a glance
+
+---
+
+### 3.7 Pledges & Recurring Giving
+
+Track multi-payment commitments and recurring donations.
+
+**Fields:**
+- Donor (person/org/household)
+- Total amount, currency
+- Paid amount (denormalized), remaining amount
+- Frequency: one-time, monthly, quarterly, annually
+- Start date, end date, next payment date
+- Campaign, fund (optional links)
+- Status: active, completed, lapsed, cancelled
+
+**Workflow:**
+1. Major donor pledges $12,000 over 12 months
+2. Pledge record created: total $12,000, frequency monthly, next_payment_date: April 1
+3. Each month, staff records a $1,000 contribution linked to this pledge
+4. paid_amount increments, remaining_amount decrements
+5. When paid_amount = total_amount → status auto-updates to "completed"
+6. If payment missed (next_payment_date passes), status → "lapsed", alert sent
+
+---
+
+### 3.8 Tax Receipts
+
+IRS-compliant donation acknowledgment letters, auto-generated for qualifying contributions.
+
+**Requirements** ([per IRS](https://www.irs.gov/charities-non-profits/charitable-organizations/charitable-contributions-written-acknowledgments)):
+- Organization name and EIN
+- Amount of cash contribution
+- Description (not value) of non-cash contribution
+- Statement of whether goods/services were provided in return
+- Good faith estimate of value of goods/services if provided
+- Date of contribution
+
+**Implementation:**
+- Auto-generated receipt_number on monetary and in-kind contributions
+- PDF generation via existing PDF infrastructure
+- "Download Receipt" button on contribution detail page
+- "Send Receipt" button → emails receipt to donor (tracks receipt_sent_at)
+- Year-end summary receipt: all contributions for a donor in a given tax year
+
+---
+
+### 3.9 Fundraising Events
+
+Galas, auctions, walkathons, golf tournaments, dinners, and concerts with ticket sales and sponsorships.
+
+**Event Fields:**
+- Name, description, event type
+- Date, start/end time
+- Venue (linked community asset or external venue name)
+- Campaign (optional — fundraising event contributes to a campaign)
+- Goal amount, raised amount
+- Ticket price, capacity
+- Status: planning, open, sold_out, completed, cancelled
+
+**Ticket Tiers:**
+- Tier name (General, VIP, Sponsor Table)
+- Quantity, unit price, total price
+- Status: reserved, confirmed, cancelled, checked_in
+- Table number (for seated events)
+
+**Sponsorship Levels:**
+- Name (Gold, Silver, Bronze)
+- Amount, benefits description
+- Max sponsors, current count
+- Can be linked to event or campaign
+
+**Key views:**
+- Event list with date, type, progress, ticket sales
+- Event detail: info, ticket tiers with sales counts, sponsorship levels, attendee list, revenue summary (tickets + sponsors + donations), **check-in grid** (mark attendees as checked_in on event day)
+
+---
+
+### 3.10 Programs
 
 Structured activities, services, classes, and initiatives run by the community center.
 
 **Fields:**
 - Name, description
-- Target capitals (multi-select from the 7 — most programs build multiple capitals)
+- Target capitals (multi-select — most programs build multiple capitals; **used as default for contribution capital tagging**)
 - Status: planning, active, completed, suspended
 - Capacity (max participants)
 - Schedule (recurring: weekly Tuesday 6-8pm, or date range)
 - Location (text + lat/lng for map)
 - Start/end dates
+- **Requires waiver** (boolean — if true, enrollment requires signed waiver before going "active")
 
 **Program Enrollments:**
 - Link a person or household to a program
 - Status: active, completed, withdrawn, waitlisted
+- **Waiver status**: not_required, pending, signed
 - Enrolled date, completion date
-- Notes (attendance, progress, outcomes)
+- Notes (progress, outcomes)
+
+**Batch Attendance (NEW):**
+- Select program → select date → see grid of enrolled members
+- Click Present / Absent / Excused for each person → bulk save
+- Auto-generates attendance records (person, date, status, hours)
+- **Attendance heatmap**: color-coded grid showing attendance history (green/red/gray by date)
+- Attendance hours feed directly into funder reporting (dosage tracking)
 
 **Key views:**
-- Program list as cards with status badges, capital type color dots, enrollment count / capacity
-- Program detail: description, schedule, enrollment list, contribution history, outcomes summary
+- Program list as cards with status badges, capital type color dots, enrollment/capacity progress bar
+- Program detail: description, schedule, enrollment list (with waiver status), **attendance grid**, contribution history, outcomes summary
 - Calendar view: programs plotted on a weekly/monthly calendar
-
-**Workflow — Running a Program:**
-1. Staff creates program with name, description, target capitals, schedule, capacity
-2. Community members enroll (individually or as households)
-3. Session-by-session: attendance tracked via enrollment notes or custom fields
-4. Contributions linked to program: volunteer facilitator hours, grant funding, in-kind supplies
-5. At completion: enrollment status updated to "completed", outcomes captured
-6. Reporting: program shows up in capital dashboards for each capital it targets
 
 ---
 
-### 3.5 Community Assets
+### 3.11 Community Assets
 
 Physical and non-physical resources owned, shared, or stewarded by the community.
 
-**Categories:**
-- Facility (buildings, rooms, halls)
-- Land (gardens, parks, lots)
-- Equipment (tools, AV, kitchen, sports)
-- Vehicle (van, bus)
-- Technology (computers, Wi-Fi hotspots, servers)
-- Other
+**Categories:** Facility, Land, Equipment, Vehicle, Technology, Other
 
 **Fields:**
-- Name, description
-- Category
+- Name, description, category
 - Capital type (primary capital this asset serves)
-- Location (address + lat/lng)
+- Location (address + lat/lng), geocoded_status
 - Condition: excellent, good, fair, poor
 - Value estimate (replacement/market value)
 - Steward: person or organization responsible for maintenance
@@ -412,12 +612,12 @@ Physical and non-physical resources owned, shared, or stewarded by the community
 
 **Key views:**
 - Asset list with filters: category, capital, condition
-- Asset detail: info, mini-map, steward contact, condition history (via notes timeline), linked programs
+- Asset detail: info, mini-map, steward contact, condition history, linked programs, events calendar
 - Condition dashboard: assets grouped by condition with trend arrows
 
 ---
 
-### 3.6 Community Map
+### 3.12 Community Map
 
 An interactive, full-page map built on **OpenStreetMap** via Leaflet/react-leaflet.
 
@@ -429,198 +629,166 @@ An interactive, full-page map built on **OpenStreetMap** via Leaflet/react-leafl
 | Community Assets | Category-specific icons, condition-colored | community_assets with lat/lng |
 | Programs | Calendar icon, status-colored | programs with lat/lng |
 | Organizations | Building icon, purple | organizations with lat/lng |
-| People | Person icon, gray | people with lat/lng (opt-in only) |
 
 **Features:**
 - Click any marker → popup with entity name, key details, link to detail page
 - Filter sidebar: filter by capital type, asset category, program status, condition
 - Cluster markers at zoom-out levels to avoid visual overload
-- Neighborhood/area boundaries (drawn or imported as GeoJSON)
-- Heat map overlay option: contribution density, relationship density, or program coverage
 - Search: find an entity by name and zoom to its location
-- Drawing tools: staff can mark areas of interest, service gaps, or planned projects
 
 **Geocoding:**
-- When addresses are entered on households, assets, or orgs, auto-geocode to lat/lng via a free geocoding API (Nominatim/OpenStreetMap)
-- Manual pin placement as fallback (click on map to set coordinates)
+- Background queue processes addresses asynchronously (1 req/sec via Nominatim)
+- `geocoded_status` field tracks: pending → success/failed
+- Manual pin placement as fallback (click on map to set coordinates → status: manual)
 
 ---
 
-### 3.7 Relationships
+### 3.13 Relationships
 
 Person-to-person connections that map the social fabric of the community.
 
-**Relationship Types:**
-- Neighbor
-- Family (parent, sibling, grandparent, etc.)
-- Mentor / Mentee
-- Friend
-- Caregiver / Care recipient
-- Colleague
-- Service provider / Client
-- Other (with custom label)
+**Relationship Types:** Neighbor, Family, Mentor/Mentee, Friend, Caregiver, Colleague, Service Provider/Client, Other
 
-**Fields:**
-- Person A, Person B
-- Type
-- Notes (how they know each other, context)
-- Bidirectional by default (if A is neighbor of B, B is neighbor of A)
+**Fields:** Person A, Person B, Type, Notes. Bidirectional by default.
 
 **Views:**
-- On person detail page: "Relationships" tab listing all connections
-- Network visualization (future): graph view showing relationship clusters
+- On person detail page: "Relationships" tab (community projects only)
 - Relationship list at project level with filters by type
 
 ---
 
-### 3.8 Community Dashboard
+### 3.14 Community Dashboard
 
-The landing page for community projects — a holistic health check across all 7 capitals.
+The landing page for community projects — a holistic health check across all 7 capitals plus fundraising.
 
 **Components:**
 
-1. **Capital Health Radar Chart** — 7-axis spider/radar chart showing relative strength of each capital, scored by:
-   - Contribution count and value per capital
-   - Number of assets tagged to each capital
-   - Program activity targeting each capital
-   - Weighted composite score (configurable)
+1. **Capital Health Radar Chart** — 7-axis spider chart scored by contributions, assets, and program activity per capital
 
 2. **Key Metrics Cards:**
-   - Total Households registered
+   - Total Households
    - Active Programs
    - Total Volunteer Hours (this period)
-   - Total Contributions Value (monetary + in-kind equivalent)
+   - Total Contributions Value
    - Active Community Assets
    - New Relationships Formed
 
-3. **Recent Activity Feed:**
-   - Latest contributions, enrollments, new households, asset updates
-   - Chronological with entity type icons
+3. **Fundraising Summary:**
+   - Active campaigns with progress bars
+   - Fund balances (restricted vs. unrestricted)
+   - Pledge pipeline (outstanding pledges)
+   - YTD giving total
 
-4. **Program Status Overview:**
-   - Active programs with enrollment progress bars (enrolled / capacity)
+4. **Recent Activity Feed:** Latest contributions, enrollments, new households, asset updates
 
-5. **Capital Trend Chart:**
-   - Line chart showing each capital's investment trend over time (monthly)
+5. **Program Status Overview:** Active programs with enrollment progress bars
 
-6. **Geographic Coverage:**
-   - Mini-map showing household distribution, highlighting underserved areas
+6. **Capital Trend Chart:** Line chart showing each capital's investment trend (monthly)
+
+7. **Geographic Coverage:** Mini-map showing household distribution
 
 ---
 
-### 3.9 Case Management & Intake
+### 3.15 Broadcast Messaging
 
-For community centers that provide direct services (food bank, housing assistance, legal aid referrals).
+Simplified mass communication replacing Sequences for community projects. For weather alerts, schedule changes, event reminders, and outreach.
+
+**Fields:**
+- Subject, body
+- Channel: email, SMS, both
+- Filter criteria (JSONB): by program enrollment, household attributes, custom filters
+- Recipient count, sent_at, sent_by, status
+
+**Workflow:**
+1. Staff composes broadcast: "Snow day — Center closed tomorrow"
+2. Selects channel: SMS
+3. Filters recipients: all active program enrollees
+4. Previews recipient list (count + sample names)
+5. Sends → reuses existing Telnyx SMS + Gmail email infrastructure
+
+---
+
+### 3.16 Waivers
+
+Reuses the existing e-signature/contracts module for liability waivers, photo releases, and code of conduct.
+
+- Programs can set `requires_waiver = true`
+- Waiver template uploaded as a contract template
+- On enrollment, system prompts for waiver signature (reuses existing signing flow)
+- Enrollment `waiver_status` tracks: not_required, pending, signed
+- Status "active" blocked until waiver is signed
+- Waiver status visible in enrollment list and batch attendance grid
+
+---
+
+### 3.17 Case Management & Intake
+
+For community centers providing direct services (food bank, housing assistance, legal aid referrals).
 
 **Intake Flow:**
 1. Person/household arrives at center
 2. Staff creates or finds household record
-3. **Needs assessment**: structured form (configurable via custom fields) capturing:
-   - Housing stability
-   - Food security
-   - Employment status
-   - Health needs
-   - Transportation access
-   - Education goals
-   - Childcare needs
-4. Staff creates notes on the household record documenting the assessment
-5. **Service referrals**: staff logs referrals as contributions (type: service, capital: varies)
-6. **Follow-up tasks**: tasks created (using existing task system) for check-ins
+3. **Needs assessment**: structured form (configurable via custom fields)
+4. Staff creates notes on household record documenting assessment
+5. **Service referrals**: logged as contributions (type: service, status: pledged)
+6. **Follow-up tasks**: created using existing task system
 
-**Referral Tracking (Closed-Loop):**
-- When a household is referred to an external org, a contribution record is created (type: service, status: pledged)
-- When the service is confirmed delivered, status updates to completed
-- If no follow-up received within configurable days, task auto-created for staff follow-up
-- This creates a [closed-loop referral](https://uniteus.com/products/closed-loop-referral-system/) pattern
+**Closed-Loop Referral Tracking:**
+- Referral created → contribution status: pledged
+- Service confirmed → status: completed
+- No follow-up in X days → auto-task for staff follow-up
 
 ---
 
-### 3.10 Facility Booking & Events
-
-Community centers need to manage room and space bookings.
+### 3.18 Facility Booking & Events
 
 **Event/Booking fields:**
 - Name, description
 - Facility (linked community asset)
 - Date, start time, end time
 - Recurring (JSONB schedule pattern)
-- Organizer (person or organization)
-- Status: tentative, confirmed, cancelled
-- Capacity, expected attendance
-- Related program (optional)
-- Notes
+- Organizer, status, capacity, related program
 
 **Views:**
-- Calendar view (day/week/month) with color-coded bookings by facility
-- Booking list with filters
+- Calendar view (day/week/month) with color-coded bookings
 - Facility schedule: select an asset → see its calendar
-- Conflict detection: prevent double-booking of the same space
+- Conflict detection: prevent double-booking
 
 ---
 
-### 3.11 Volunteer Management
-
-Dedicated workflows for the volunteer lifecycle.
-
-**Volunteer Record (extension of Person):**
-- Skills inventory (custom fields or tags)
-- Availability schedule
-- Background check status (if required)
-- Total lifetime hours
-- Programs served
+### 3.19 Volunteer Management
 
 **Workflows:**
-1. **Onboarding**: New volunteer registers → person record created with volunteer flag → assigned to program(s) → orientation tracked as enrollment
-2. **Scheduling**: Volunteers linked to program schedules; shift reminders via existing notification system
-3. **Hour Logging**: Each shift logged as a contribution (type: volunteer_hours, capital: per-program target)
-4. **Recognition**: Leaderboard on dashboard; milestone badges at configurable hour thresholds (50, 100, 250, 500)
-5. **Reporting**: Total volunteer hours, FTE equivalent, dollar value for grant reporting
+1. **Onboarding**: New volunteer registers → person record created → assigned to program(s)
+2. **Scheduling**: Linked to program schedules; shift reminders via notifications
+3. **Hour Logging**: Each shift logged via Time Log entry mode → capital auto-inherited from program
+4. **Recognition**: Leaderboard on dashboard; milestone badges at configurable thresholds
+5. **Reporting**: Total hours, FTE equivalent, dollar value for grant reporting
 
 ---
 
-### 3.12 Grant Management & Funder Reporting
-
-Community centers live and die by grants. The system must make reporting painless.
-
-**Grant Lifecycle:**
-1. **Opportunity identified**: Grant created as contribution (type: grant, status: pledged, donor_organization = funder)
-2. **Application submitted**: Notes document application details, deadline dates in custom fields
-3. **Award received**: Status → received, value confirmed
-4. **Implementation**: Programs and contributions tagged to this grant (via notes or a grant_id custom field)
-5. **Reporting period**: Filter all contributions + enrollments by date range → auto-generate:
-   - Participants served (unique people enrolled in grant-funded programs)
-   - Demographic breakdown (from person records)
-   - Volunteer hours contributed
-   - In-kind value leveraged
-   - Capital distribution (which capitals the grant invested in)
-   - Outcome metrics (program completion rates, etc.)
-6. **Closeout**: Grant contribution status → completed
-
-**Export formats:**
-- CSV export of filtered contribution/enrollment data
-- PDF summary report (future enhancement)
-- Capital distribution chart exportable as image
-
----
-
-### 3.13 Reporting & Analytics
+### 3.20 Reporting & Analytics
 
 **Standard Reports:**
 
 | Report | Description | Filters |
 |--------|-------------|---------|
 | Capital Health Summary | Radar chart + table of all 7 capitals with scores | Date range |
-| Contribution Summary | Totals by type, capital, donor, status | Date range, type, capital |
-| Program Performance | Enrollment, completion, capacity utilization per program | Status, capital, date |
+| Contribution Summary | Totals by type, capital, donor, status | Date range, type, capital, campaign, fund |
+| Program Performance | Enrollment, **attendance dosage**, completion, utilization | Status, capital, date |
 | Household Demographics | Count, size distribution, geographic spread | Neighborhood, enrollment |
 | Volunteer Impact | Hours, FTE equivalent, dollar value, top volunteers | Date range, program |
 | Asset Condition | All assets with current condition, trend, steward | Category, condition |
 | Relationship Network | Connection counts, type distribution, density metrics | Type, neighborhood |
-| Grant Compliance | Per-grant: spend, participants, hours, outcomes | Grant/funder |
+| Grant Compliance | Per-grant: spend, **unduplicated** participants, hours, outcomes | Grant/funder |
+| Campaign Performance | Raised vs. goal, donor count, average gift, capital distribution | Campaign, date |
+| Fund Balances | Restricted vs. unrestricted, transactions, burn rate | Fund type, date |
+| Donor Retention | LYBUNT/SYBUNT counts, retention rate, tier distribution | Year, tier |
+| Pledge Fulfillment | Active pledges, paid vs. remaining, lapsed count | Status, date |
 
-**Custom Reports:**
-- Leverage existing custom report engine (`0084_custom_report_engine.sql`)
-- Add community tables (households, contributions, programs, assets) as available data sources
+**Unduplicated Counts:** All funder-facing reports use `COUNT(DISTINCT person_id)` to report unique individuals served, not total touchpoints.
+
+**Custom Reports:** Leverage existing custom report engine with community tables as data sources.
 
 ---
 
@@ -628,16 +796,27 @@ Community centers live and die by grants. The system must make reporting painles
 
 ### New Tables
 
-| Table | Primary Purpose | Key Relationships |
-|-------|----------------|-------------------|
-| `households` | Family/living unit grouping | → project, → custom_fields |
-| `household_members` | Person ↔ Household junction | → household, → person |
-| `contributions` | All value exchanges (money, time, goods, grants, services) | → project, → person, → org, → household |
-| `community_assets` | Physical and non-physical community resources | → project, → person (steward), → org (steward) |
-| `programs` | Structured community activities and services | → project |
-| `program_enrollments` | Person/Household ↔ Program participation | → program, → person, → household |
-| `relationships` | Person-to-person social connections | → project, → person (×2) |
-| `events` | Facility bookings and community events | → project, → community_asset, → program |
+| Table | Primary Purpose |
+|-------|----------------|
+| `households` | Family/living unit grouping with geo |
+| `household_members` | Person ↔ Household junction with temporal bounds |
+| `contributions` | All value exchanges (money, time, goods, grants, services) |
+| `fundraising_campaigns` | Goal-based fundraising efforts |
+| `funds` | Restricted/unrestricted/designated fund accounting |
+| `pledges` | Multi-payment donor commitments |
+| `donor_pipeline` | Major donor cultivation stages |
+| `donor_stewardship_touches` | Thank-yous, calls, visits, recognition |
+| `fundraising_events` | Galas, auctions, walkathons |
+| `fundraising_event_tickets` | Ticket sales with tiers and check-in |
+| `sponsorship_levels` | Sponsor tier definitions |
+| `sponsorships` | Sponsor ↔ Level ↔ Contribution |
+| `community_assets` | Physical/non-physical community resources |
+| `programs` | Structured community activities |
+| `program_enrollments` | Person/Household ↔ Program with waiver status |
+| `program_attendance` | Batch attendance records (date, status, hours) |
+| `relationships` | Person-to-person social connections |
+| `events` | Facility bookings |
+| `broadcasts` | Mass messaging |
 
 ### Modified Tables
 
@@ -651,8 +830,6 @@ Community centers live and die by grants. The system must make reporting painles
 
 ## 5. The Seven Capitals — Color & Icon System
 
-Every capital-tagged entity in the UI uses a consistent visual language:
-
 | Capital | Color | Tailwind Class | Icon | Hex |
 |---------|-------|---------------|------|-----|
 | Natural | Green | `bg-green-500` | Leaf | #22c55e |
@@ -663,8 +840,6 @@ Every capital-tagged entity in the UI uses a consistent visual language:
 | Financial | Emerald | `bg-emerald-500` | DollarSign | #10b981 |
 | Built | Slate | `bg-slate-500` | Hammer | #64748b |
 
-Capital badges appear on: contribution rows, program cards, asset cards, dashboard charts, map marker popups, and report headers.
-
 ---
 
 ## 6. User Personas & Workflows
@@ -672,42 +847,48 @@ Capital badges appear on: contribution rows, program cards, asset cards, dashboa
 ### Persona 1: Maria — Community Center Director
 
 **Daily workflow:**
-- Opens Community Dashboard → checks capital health radar, reviews overnight contributions
-- Scans Recent Activity feed for new household registrations from yesterday's walk-in hours
-- Opens Programs → checks enrollment for today's ESL class, notes one household withdrew
-- Opens Community Map → sees new household in underserved northwest area → assigns outreach volunteer
-- Opens Contributions → logs a $500 corporate donation received via mail (type: monetary, capital: financial)
-- Opens Reports → pulls Q1 funder report for the United Way grant, exports CSV
+- Opens Community Dashboard → checks capital health radar + fundraising summary
+- Reviews active campaign progress (Annual Fund at 62% of goal)
+- Scans Recent Activity feed for new household registrations
+- Opens Programs → batch attendance for morning ESL class
+- Opens Donations → logs $500 corporate check in Donations tab → auto-tagged to Annual Fund campaign + General fund
+- Opens Reports → pulls Q1 funder report: unduplicated participants, attendance hours, in-kind value
 
 ### Persona 2: James — Volunteer Coordinator
 
 **Weekly workflow:**
-- Opens People (filtered to volunteers) → reviews this week's scheduled volunteers
-- Logs volunteer hours for Saturday food bank shift: 8 volunteers × 4 hours = 32 hours (type: volunteer_hours, capital: social)
-- Opens Programs → "Weekend Food Bank" → checks enrollment, notes new volunteer onboarded
-- Opens Dashboard → checks volunteer impact metrics, sees they've hit 500 total hours this quarter
-- Creates a note celebrating the milestone on the program record
+- Opens Programs → "Weekend Food Bank" → batch attendance for Saturday shift
+- Logs volunteer hours via Time Log tab: 8 volunteers x 4 hours = 32 hours (capital auto: social)
+- Dashboard shows 500 total volunteer hours this quarter — milestone alert fires
+- Opens Broadcasts → sends "Schedule change" SMS to all food bank volunteers
 
 ### Persona 3: Aisha — Case Worker / Intake Specialist
 
 **Intake workflow:**
-- New family walks in requesting help
-- Creates Household: "Johnson Family", 4 members
-- Adds household members: parent (head), parent (spouse), 2 children
-- Completes needs assessment via custom fields: food insecurity flagged, housing stable, employment needed
-- Creates referral: contribution (type: service, capital: human, status: pledged, description: "Referred to Workforce Development Center")
-- Creates follow-up task: "Check on Johnson Family workforce referral" due in 2 weeks
-- When follow-up confirms placement → contribution status → completed
+- New family walks in → creates Household: "Johnson Family", 4 members (with start_dates)
+- Needs assessment captured in custom fields
+- Referral logged as service contribution (status: pledged)
+- Follow-up task created for 2 weeks out
+- Family enrolled in "Emergency Food Assistance" program → waiver signed → status: active
 
 ### Persona 4: David — Board Member / Funder Liaison
 
 **Monthly workflow:**
-- Opens Dashboard → reviews capital health trends
-- Opens Reports → Grant Compliance report for CDBG funding
-- Reviews: 47 households served, 230 program enrollments, 1,200 volunteer hours, $18,500 in-kind value
+- Opens Dashboard → capital health trends + fund balances (restricted vs. unrestricted)
+- Reviews campaign performance: Annual Fund, Building Renovation Fund
+- Opens Donor Pipeline → checks major donor cultivation progress
+- Opens Reports → Grant Compliance for CDBG funding: 47 households (unduplicated), 1,200 volunteer hours
 - Exports data for board presentation
-- Checks Community Map → notes geographic coverage gaps in eastern neighborhoods
-- Recommends targeted outreach in next board meeting notes
+
+### Persona 5: Sarah — Development Director (NEW)
+
+**Weekly workflow:**
+- Opens Donor Pipeline → moves "Johnson Foundation" from Cultivation to Solicitation stage
+- Records stewardship touch: site visit with corporate sponsor
+- Opens Pledges → sees 3 pledges lapsed this month → sends follow-up emails
+- Opens Campaigns → "Spring Gala" campaign at 75% → reviews ticket sales and sponsorship commitments
+- Generates year-end tax receipts for all 2025 donors → bulk email send
+- Reviews Donor Directory → LYBUNT report shows 12 donors who gave last year but not yet this year → creates outreach tasks
 
 ---
 
@@ -717,20 +898,27 @@ Capital badges appear on: contribution rows, program cards, asset cards, dashboa
 
 ```
 Dashboard
-─────────
-Households          🏠
-People              👥
-Organizations       🏢
-─────────
-Contributions       ❤️
-Programs            📅
-Community Assets    🏛️
-─────────
-Community Map       📍
-Reporting           📊
-─────────
-Chat (AI)           💬
-Settings            ⚙️
+──────────────────
+Households
+People
+Organizations
+──────────────────
+FUNDRAISING
+  Campaigns
+  Donations
+  Donors
+  Funds
+  Events
+──────────────────
+Programs
+Community Assets
+Community Map
+──────────────────
+Broadcasts
+Reporting
+──────────────────
+Chat (AI)
+Settings
 ```
 
 Items hidden for community projects: Opportunities, RFPs, Sequences, Content Library, Contracts, Workflows, News
@@ -744,47 +932,58 @@ On the project settings General tab, community projects show additional configur
 - **Volunteer Hour Rate**: Default dollar value per volunteer hour (for reporting)
 - **Default Map Center**: Lat/lng + zoom level for the community map
 - **Intake Form Fields**: Configure which custom fields appear on household intake
-- **Capital Scoring Weights**: Adjust how each capital is scored on the radar chart (advanced)
-- **Active Capitals**: Option to disable capitals not relevant to this community (e.g., a rural center may not track Political capital actively)
+- **Capital Scoring Weights**: Adjust how each capital is scored on the radar chart
+- **Active Capitals**: Option to disable capitals not relevant to this community
+- **Donor Tier Thresholds**: Configure major/mid/grassroots donor tier cutoffs
+- **Lapsed Donor Alert Period**: Days without a gift before alert fires (default: 365)
+- **Organization EIN**: Required for tax receipt generation
+- **Receipt Template**: Customize tax receipt letter content
 
 ---
 
 ## 9. Technical Implementation Phases
 
 ### Phase 1: Foundation (Database + Types)
-- Migration adding project_type, all new tables, geo columns
+- Migration adding project_type, all new tables (19), geo columns
 - Regenerate TypeScript types
 - Zod validators for all community entities
 - Capital color/icon system utility
 
 ### Phase 2: Project Creation + Navigation
-- Type selector in project creation dialog
+- Type-first selector in project creation dialog
 - Conditional sidebar navigation
 - Community dashboard (basic metrics)
 
 ### Phase 3: Core Entities
 - Households CRUD (API + UI + intake flow)
-- Contributions CRUD (API + UI + all 5 types)
-- Programs CRUD (API + UI + enrollments)
+- Contributions CRUD (API + UI + mode-specific entry)
+- Programs CRUD (API + UI + enrollments + batch attendance)
 - Community Assets CRUD (API + UI)
 - Relationships CRUD (API + person detail tab)
 
-### Phase 4: Map + Visualization
+### Phase 4: Fundraising Suite
+- Campaigns CRUD + thermometer
+- Funds CRUD + balance tracking + summary dashboard
+- Pledges CRUD + recurring payment tracking
+- Donor Pipeline (Kanban board + directory table)
+- Donor Stewardship (giving tab, touch log, LYBUNT/SYBUNT)
+- Fundraising Events (tickets, sponsorships, check-in)
+- Tax Receipt Generation (PDF)
+
+### Phase 5: Map + Visualization
 - Install Leaflet/react-leaflet
 - Community Map page with all layers
-- Geocoding integration
+- Geocoding background queue
 - Capital health radar chart on dashboard
 - Capital trend charts
 
-### Phase 5: Advanced Features
-- Events/facility booking
-- Grant lifecycle management
-- Funder report generation
+### Phase 6: Supporting Features
+- Broadcasts (SMS/email mass messaging)
+- Waivers (reuse contracts module)
+- Facility booking / events calendar
 - Volunteer management workflows
-- Intake/case management flow
-- Custom report engine integration
 
-### Phase 6: Integrations
+### Phase 7: Integrations
 - MCP tools for all community entities
 - Chat agent tools
 - Automation events
@@ -796,28 +995,38 @@ On the project settings General tab, community projects show additional configur
 
 | Metric | Target |
 |--------|--------|
-| A community center director can complete household intake in < 2 minutes | < 2 min |
-| Grant report data export takes < 30 seconds (not days of manual compilation) | < 30 sec |
-| All 7 capitals visible on dashboard within 1 click from any page | 1 click |
-| Map loads with all layers in < 3 seconds | < 3 sec |
-| Volunteer can self-log hours in < 1 minute (future: self-service portal) | < 1 min |
-| Capital health radar chart updates in real-time as contributions are logged | Real-time |
+| Household intake completion | < 2 min |
+| Grant report data export | < 30 sec |
+| All 7 capitals visible on dashboard | 1 click from any page |
+| Map load with all layers | < 3 sec |
+| Donation entry (monetary) | < 30 sec |
+| Batch attendance for 20-person class | < 1 min |
+| Campaign thermometer updates | Real-time |
+| Tax receipt generation | < 5 sec per receipt |
+| Donor pipeline stage change | Single drag-and-drop |
+| Fund balance accuracy | Real-time (trigger-updated) |
 
 ---
 
 ## 11. Future Enhancements (Post-MVP)
 
-- **Self-service portal**: Community members can self-register, log hours, view programs, enroll online
-- **Mobile app**: Field workers can do intake, log contributions, and update assets from mobile
-- **Network graph visualization**: Interactive social network graph showing all relationships
-- **Participatory budgeting**: Community members vote on how to allocate funds across capitals
-- **Time banking**: Formal time-credit system where 1 hour = 1 credit regardless of service type
+- **Self-service portal**: Community members self-register, log hours, enroll online
+- **Kiosk mode / pre-registration link**: Reduce lobby bottleneck at intake
+- **Mobile app**: Field workers do intake, log contributions, update assets from mobile
+- **Network graph visualization**: Interactive social network graph
+- **Participatory budgeting**: Community members vote on fund allocation
+- **Time banking**: Formal time-credit system (1 hour = 1 credit)
 - **SDOH screening integration**: Standardized social determinants screening (PRAPARE, AHC-HRSN)
-- **External resource directory**: Searchable directory of partner organizations and services
+- **External resource directory**: Searchable directory of partner organizations
 - **Multi-language support**: Interface and forms in community's primary languages
-- **SMS notifications**: Program reminders, follow-up prompts via Telnyx integration (already in platform)
-- **Impact stories**: Rich-text + photo stories linked to programs and capitals for marketing/fundraising
-- **AI-powered insights**: Chat agent can analyze capital health trends and recommend interventions
+- **SMS notifications**: Program reminders via Telnyx (already in platform)
+- **Impact stories**: Rich-text + photo stories for marketing/fundraising
+- **AI-powered insights**: Chat agent analyzes capital health trends
+- **Online giving page**: Public donation page for campaigns (Stripe integration)
+- **Auction management**: Live/silent auction with mobile bidding
+- **Incident reporting**: Safety/legal incident logging linked to people and locations
+- **Inventory / lending library**: Check-in/check-out for lendable assets
+- **Payment processing / program fees**: Sliding-scale fees for paid programs
 
 ---
 
@@ -825,12 +1034,16 @@ On the project settings General tab, community projects show additional configur
 
 | Risk | Mitigation |
 |------|-----------|
-| Scope creep — community needs are vast | MVP focuses on 7-capital tracking + map; advanced features phased |
-| Data privacy — household/needs data is sensitive | RLS enforced per-project; intake data in custom_fields not in plain columns; role-based access |
-| Geocoding costs at scale | Use free Nominatim API with rate limiting; cache results; manual pin as fallback |
-| Volunteer adoption — logging hours is friction | Keep contribution creation to < 3 fields; future self-service portal reduces staff burden |
-| Grant reporting complexity varies by funder | Flexible custom fields + CSV export covers 80% of cases; PDF templates are a future enhancement |
-| Map performance with many markers | Marker clustering at low zoom levels; lazy-load layers; paginate API responses |
+| Scope creep — community + fundraising is vast | Phased delivery: core entities first, fundraising second, advanced features third |
+| Data privacy — household/needs data is sensitive | RLS per-project; intake data in custom_fields; role-based access |
+| Geocoding costs at scale | Free Nominatim API with background queue (1 req/sec); geocoded_status tracking; manual pin fallback |
+| Volunteer adoption — logging hours is friction | Time Log mode optimized for 3 fields; smart capital defaults eliminate dropdown fatigue |
+| Grant reporting complexity varies by funder | Unduplicated counts built-in; flexible custom fields + CSV export covers 80% of cases |
+| Map performance with many markers | Marker clustering; lazy-load layers; paginate API responses |
+| Fund balance accuracy | Denormalized balances updated via database triggers; no manual calculation |
+| Tax receipt compliance | IRS requirements built into template; org EIN required in settings |
+| Donor pipeline adoption | Kanban drag-and-drop is intuitive; lapsed donor alerts are proactive |
+| Attendance vs. enrollment confusion | Separate data model (program_attendance table); batch UI clearly distinct from enrollment list |
 
 ---
 
