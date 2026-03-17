@@ -43,6 +43,7 @@ interface ChatState {
   close: () => void;
   setConversations: (convos: ChatConversation[]) => void;
   setCurrentConversation: (id: string | null) => void;
+  setCurrentConversationId: (id: string | null) => void;
   setMessages: (msgs: ChatMessage[]) => void;
   addMessage: (msg: ChatMessage) => void;
   appendStreamingContent: (delta: string) => void;
@@ -89,6 +90,7 @@ export const useChatStore = create<ChatState>((set) => ({
   close: () => set({ isOpen: false }),
   setConversations: (conversations) => set({ conversations }),
   setCurrentConversation: (id) => set({ currentConversationId: id, messages: [], streamingContent: '', pendingToolCalls: [], completedToolCalls: [], error: null, isStreaming: false }),
+  setCurrentConversationId: (id) => set({ currentConversationId: id }),
   setMessages: (messages) => set({ messages }),
   addMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
   appendStreamingContent: (delta) => set((s) => ({ streamingContent: s.streamingContent + delta })),

@@ -156,7 +156,7 @@ export function useChat(projectSlug: string) {
             switch (event.type) {
               case 'conversation':
                 if (!store.currentConversationId && event.conversationId) {
-                  store.setCurrentConversation(event.conversationId);
+                  store.setCurrentConversationId(event.conversationId);
                 }
                 break;
 
