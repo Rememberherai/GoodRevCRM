@@ -1,6 +1,22 @@
 import { useCallback, useRef } from 'react';
 import { usePathname } from 'next/navigation';
+import { useRouter } from 'next/navigation';
 import { useChatStore, type ChatMessage } from '@/stores/chat';
+
+// Tool names that mutate data — trigger a page refresh after these complete
+const MUTATING_TOOLS = new Set([
+  'organizations_create', 'organizations_update', 'organizations_delete',
+  'people_create', 'people_update', 'people_delete', 'people_link_organization',
+  'opportunities_create', 'opportunities_update', 'opportunities_delete',
+  'tasks_create', 'tasks_update', 'tasks_delete',
+  'notes_create', 'notes_update', 'notes_delete',
+  'tags_assign', 'tags_create',
+  'sequences_create', 'sequences_update', 'sequences_delete',
+  'sequences_enroll', 'sequences_unenroll',
+  'rfps_create', 'rfps_update', 'rfps_delete',
+  'meetings_create', 'meetings_update', 'meetings_delete',
+  'email_send',
+]);
 
 export interface PageContext {
   entityType: 'organization' | 'person';
@@ -23,6 +39,8 @@ export function useChat(projectSlug: string) {
   const store = useChatStore();
   const abortRef = useRef<AbortController | null>(null);
   const pathname = usePathname();
+  const router = useRouter();
+  const hadMutationRef = useRef(false);
 
   const loadConversations = useCallback(async () => {
     try {
@@ -54,6 +72,7 @@ export function useChat(projectSlug: string) {
     store.setStreaming(true);
     store.resetStreamingContent();
     store.clearToolCalls();
+    hadMutationRef.current = false;
 
     // Add user message optimistically
     const userMsg: ChatMessage = {
@@ -127,6 +146,9 @@ export function useChat(projectSlug: string) {
                   arguments: event.arguments,
                   status: 'pending',
                 });
+                if (MUTATING_TOOLS.has(event.name)) {
+                  hadMutationRef.current = true;
+                }
                 break;
 
               case 'tool_result':
@@ -156,8 +178,14 @@ export function useChat(projectSlug: string) {
                     store.resetStreamingContent();
                   }
                 }
+                // Move pending tool calls to completed (persistent display)
+                store.finalizeToolCalls();
                 // Refresh conversations list for title updates
                 loadConversations();
+                // Hot-refresh the page if any mutating tools were used
+                if (hadMutationRef.current) {
+                  router.refresh();
+                }
                 break;
 
               case 'error':

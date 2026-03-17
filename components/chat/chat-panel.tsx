@@ -27,6 +27,7 @@ export function ChatPanel({ projectSlug }: ChatPanelProps) {
     messages,
     streamingContent,
     pendingToolCalls,
+    completedToolCalls,
     isStreaming,
     conversations,
     error,
@@ -239,6 +240,7 @@ export function ChatPanel({ projectSlug }: ChatPanelProps) {
           messages={messages}
           streamingContent={streamingContent}
           pendingToolCalls={pendingToolCalls}
+          completedToolCalls={completedToolCalls}
           isStreaming={isStreaming}
         />
 

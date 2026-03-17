@@ -2,24 +2,61 @@
 
 import { useEffect, useRef, useState } from 'react';
 import { ScrollArea } from '@/components/ui/scroll-area';
-import { ChevronDown, ChevronRight, Wrench, Bot, User } from 'lucide-react';
+import { ChevronDown, ChevronRight, Wrench, Bot, User, CheckCircle2, XCircle, Loader2 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import type { ChatMessage } from '@/stores/chat';
 import type { ToolCallEvent } from '@/stores/chat';
+
+// Color map for different tool categories
+const TOOL_COLORS: Record<string, { bg: string; border: string; icon: string; badge: string }> = {
+  organizations: { bg: 'bg-blue-50 dark:bg-blue-950/30', border: 'border-blue-200 dark:border-blue-800', icon: 'text-blue-600 dark:text-blue-400', badge: 'bg-blue-100 dark:bg-blue-900/50 text-blue-700 dark:text-blue-300' },
+  people: { bg: 'bg-violet-50 dark:bg-violet-950/30', border: 'border-violet-200 dark:border-violet-800', icon: 'text-violet-600 dark:text-violet-400', badge: 'bg-violet-100 dark:bg-violet-900/50 text-violet-700 dark:text-violet-300' },
+  search: { bg: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-800', icon: 'text-amber-600 dark:text-amber-400', badge: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' },
+  opportunities: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-800', icon: 'text-emerald-600 dark:text-emerald-400', badge: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-700 dark:text-emerald-300' },
+  tasks: { bg: 'bg-orange-50 dark:bg-orange-950/30', border: 'border-orange-200 dark:border-orange-800', icon: 'text-orange-600 dark:text-orange-400', badge: 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300' },
+  notes: { bg: 'bg-teal-50 dark:bg-teal-950/30', border: 'border-teal-200 dark:border-teal-800', icon: 'text-teal-600 dark:text-teal-400', badge: 'bg-teal-100 dark:bg-teal-900/50 text-teal-700 dark:text-teal-300' },
+  email: { bg: 'bg-rose-50 dark:bg-rose-950/30', border: 'border-rose-200 dark:border-rose-800', icon: 'text-rose-600 dark:text-rose-400', badge: 'bg-rose-100 dark:bg-rose-900/50 text-rose-700 dark:text-rose-300' },
+  tags: { bg: 'bg-pink-50 dark:bg-pink-950/30', border: 'border-pink-200 dark:border-pink-800', icon: 'text-pink-600 dark:text-pink-400', badge: 'bg-pink-100 dark:bg-pink-900/50 text-pink-700 dark:text-pink-300' },
+  sequences: { bg: 'bg-cyan-50 dark:bg-cyan-950/30', border: 'border-cyan-200 dark:border-cyan-800', icon: 'text-cyan-600 dark:text-cyan-400', badge: 'bg-cyan-100 dark:bg-cyan-900/50 text-cyan-700 dark:text-cyan-300' },
+  rfps: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', border: 'border-indigo-200 dark:border-indigo-800', icon: 'text-indigo-600 dark:text-indigo-400', badge: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-700 dark:text-indigo-300' },
+  meetings: { bg: 'bg-fuchsia-50 dark:bg-fuchsia-950/30', border: 'border-fuchsia-200 dark:border-fuchsia-800', icon: 'text-fuchsia-600 dark:text-fuchsia-400', badge: 'bg-fuchsia-100 dark:bg-fuchsia-900/50 text-fuchsia-700 dark:text-fuchsia-300' },
+  calls: { bg: 'bg-lime-50 dark:bg-lime-950/30', border: 'border-lime-200 dark:border-lime-800', icon: 'text-lime-600 dark:text-lime-400', badge: 'bg-lime-100 dark:bg-lime-900/50 text-lime-700 dark:text-lime-300' },
+  dashboard: { bg: 'bg-sky-50 dark:bg-sky-950/30', border: 'border-sky-200 dark:border-sky-800', icon: 'text-sky-600 dark:text-sky-400', badge: 'bg-sky-100 dark:bg-sky-900/50 text-sky-700 dark:text-sky-300' },
+};
+
+const DEFAULT_COLORS = { bg: 'bg-gray-50 dark:bg-gray-950/30', border: 'border-gray-200 dark:border-gray-800', icon: 'text-gray-600 dark:text-gray-400', badge: 'bg-gray-100 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300' };
+
+function getToolColors(toolName: string) {
+  const category = toolName.split('_')[0] ?? '';
+  return TOOL_COLORS[category] ?? DEFAULT_COLORS;
+}
+
+function formatToolName(name: string): string {
+  // organizations_list → Organizations > List
+  const parts = name.split('_');
+  if (parts.length >= 2) {
+    const first = parts[0] ?? '';
+    const category = first.charAt(0).toUpperCase() + first.slice(1);
+    const action = parts.slice(1).join(' ').replace(/\b\w/g, (c) => c.toUpperCase());
+    return `${category} > ${action}`;
+  }
+  return name;
+}
 
 interface ChatMessageListProps {
   messages: ChatMessage[];
   streamingContent: string;
   pendingToolCalls: ToolCallEvent[];
+  completedToolCalls: ToolCallEvent[];
   isStreaming: boolean;
 }
 
-export function ChatMessageList({ messages, streamingContent, pendingToolCalls, isStreaming }: ChatMessageListProps) {
+export function ChatMessageList({ messages, streamingContent, pendingToolCalls, completedToolCalls, isStreaming }: ChatMessageListProps) {
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: 'smooth' });
-  }, [messages, streamingContent, pendingToolCalls]);
+  }, [messages, streamingContent, pendingToolCalls, completedToolCalls]);
 
   return (
     <ScrollArea className="flex-1 px-4">
@@ -40,7 +77,12 @@ export function ChatMessageList({ messages, streamingContent, pendingToolCalls, 
           <MessageBubble key={msg.id} message={msg} />
         ))}
 
-        {/* Show pending tool calls */}
+        {/* Show completed tool calls (persisted after streaming ends) */}
+        {completedToolCalls.map((tc) => (
+          <ToolCallCard key={`done-${tc.id}`} toolCall={tc} />
+        ))}
+
+        {/* Show pending tool calls (active during streaming) */}
         {pendingToolCalls.map((tc) => (
           <ToolCallCard key={tc.id} toolCall={tc} />
         ))}
@@ -98,9 +140,8 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   }
 
   if (message.role === 'assistant') {
-    // If this is a tool_calls-only message (no text content), show tool calls inline
     if (message.tool_calls && message.tool_calls.length > 0 && !message.content) {
-      return null; // Tool calls are shown via ToolCallCard already
+      return null;
     }
 
     return (
@@ -116,7 +157,7 @@ function MessageBubble({ message }: { message: ChatMessage }) {
   }
 
   if (message.role === 'tool') {
-    return null; // Tool results are shown via ToolCallCard
+    return null;
   }
 
   return null;
@@ -124,43 +165,48 @@ function MessageBubble({ message }: { message: ChatMessage }) {
 
 function ToolCallCard({ toolCall }: { toolCall: ToolCallEvent }) {
   const [expanded, setExpanded] = useState(false);
+  const colors = getToolColors(toolCall.name);
 
   return (
-    <div className="flex gap-2">
-      <div className="shrink-0 mt-1">
-        <div className="h-6 w-6 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
-          <Wrench className="h-3.5 w-3.5 text-orange-600 dark:text-orange-400" />
+    <div className={cn('rounded-lg border p-2.5 transition-all', colors.bg, colors.border)}>
+      <button
+        onClick={() => setExpanded(!expanded)}
+        className="flex items-center gap-2 w-full text-left"
+      >
+        <div className={cn('h-5 w-5 rounded flex items-center justify-center shrink-0', colors.badge)}>
+          <Wrench className={cn('h-3 w-3', colors.icon)} />
         </div>
-      </div>
-      <div className="flex-1">
-        <button
-          onClick={() => setExpanded(!expanded)}
-          className="flex items-center gap-1 text-xs text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {expanded ? <ChevronDown className="h-3 w-3" /> : <ChevronRight className="h-3 w-3" />}
-          <span className="font-mono">{toolCall.name}</span>
+        <span className={cn('text-xs font-medium flex-1', colors.icon)}>
+          {formatToolName(toolCall.name)}
+        </span>
+        <div className="flex items-center gap-1.5">
           {toolCall.status === 'pending' && (
-            <span className="ml-1 h-1.5 w-1.5 rounded-full bg-orange-500 animate-pulse" />
+            <Loader2 className="h-3.5 w-3.5 text-amber-500 animate-spin" />
           )}
           {toolCall.status === 'complete' && (
-            <span className="text-green-600 dark:text-green-400 ml-1">done</span>
+            <CheckCircle2 className="h-3.5 w-3.5 text-emerald-500" />
           )}
           {toolCall.status === 'error' && (
-            <span className="text-red-600 dark:text-red-400 ml-1">error</span>
+            <XCircle className="h-3.5 w-3.5 text-red-500" />
           )}
-        </button>
-        {expanded && (
-          <div className="mt-1 space-y-1">
-            <pre className={cn(
-              "text-xs bg-muted rounded p-2 overflow-x-auto max-h-32",
-              "whitespace-pre-wrap break-words"
-            )}>
-              {JSON.stringify(toolCall.arguments, null, 2)}
-            </pre>
-            {toolCall.result && (
+          {expanded ? <ChevronDown className="h-3 w-3 text-muted-foreground" /> : <ChevronRight className="h-3 w-3 text-muted-foreground" />}
+        </div>
+      </button>
+      {expanded && (
+        <div className="mt-2 space-y-1.5">
+          <div className="text-[10px] uppercase font-medium text-muted-foreground tracking-wider">Arguments</div>
+          <pre className={cn(
+            "text-xs rounded p-2 overflow-x-auto max-h-32 bg-background/50 border",
+            "whitespace-pre-wrap break-words", colors.border
+          )}>
+            {JSON.stringify(toolCall.arguments, null, 2)}
+          </pre>
+          {toolCall.result && (
+            <>
+              <div className="text-[10px] uppercase font-medium text-muted-foreground tracking-wider">Result</div>
               <pre className={cn(
-                "text-xs bg-muted rounded p-2 overflow-x-auto max-h-48",
-                "whitespace-pre-wrap break-words"
+                "text-xs rounded p-2 overflow-x-auto max-h-48 bg-background/50 border",
+                "whitespace-pre-wrap break-words", colors.border
               )}>
                 {(() => {
                   try {
@@ -170,10 +216,10 @@ function ToolCallCard({ toolCall }: { toolCall: ToolCallEvent }) {
                   }
                 })()}
               </pre>
-            )}
-          </div>
-        )}
-      </div>
+            </>
+          )}
+        </div>
+      )}
     </div>
   );
 }

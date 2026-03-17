@@ -34,6 +34,7 @@ interface ChatState {
   isStreaming: boolean;
   streamingContent: string;
   pendingToolCalls: ToolCallEvent[];
+  completedToolCalls: ToolCallEvent[];
   error: string | null;
   panelWidth: number;
 
@@ -49,6 +50,7 @@ interface ChatState {
   addToolCall: (tc: ToolCallEvent) => void;
   updateToolCallResult: (id: string, result: string, status: 'complete' | 'error') => void;
   clearToolCalls: () => void;
+  finalizeToolCalls: () => void;
   setStreaming: (val: boolean) => void;
   setError: (err: string | null) => void;
   setPanelWidth: (width: number) => void;
@@ -72,6 +74,7 @@ export const useChatStore = create<ChatState>((set) => ({
   isStreaming: false,
   streamingContent: '',
   pendingToolCalls: [],
+  completedToolCalls: [],
   error: null,
   panelWidth: DEFAULT_WIDTH,
 
@@ -85,7 +88,7 @@ export const useChatStore = create<ChatState>((set) => ({
   open: () => set({ isOpen: true, panelWidth: getStoredWidth() }),
   close: () => set({ isOpen: false }),
   setConversations: (conversations) => set({ conversations }),
-  setCurrentConversation: (id) => set({ currentConversationId: id, messages: [], streamingContent: '', pendingToolCalls: [], error: null, isStreaming: false }),
+  setCurrentConversation: (id) => set({ currentConversationId: id, messages: [], streamingContent: '', pendingToolCalls: [], completedToolCalls: [], error: null, isStreaming: false }),
   setMessages: (messages) => set({ messages }),
   addMessage: (msg) => set((s) => ({ messages: [...s.messages, msg] })),
   appendStreamingContent: (delta) => set((s) => ({ streamingContent: s.streamingContent + delta })),
@@ -98,6 +101,11 @@ export const useChatStore = create<ChatState>((set) => ({
       ),
     })),
   clearToolCalls: () => set({ pendingToolCalls: [] }),
+  // Move completed tool calls into completedToolCalls for persistent display
+  finalizeToolCalls: () => set((s) => ({
+    completedToolCalls: [...s.completedToolCalls, ...s.pendingToolCalls],
+    pendingToolCalls: [],
+  })),
   setStreaming: (isStreaming) => set({ isStreaming }),
   setError: (error) => set({ error }),
   setPanelWidth: (width) => {
@@ -110,6 +118,7 @@ export const useChatStore = create<ChatState>((set) => ({
     messages: [],
     streamingContent: '',
     pendingToolCalls: [],
+    completedToolCalls: [],
     error: null,
     isStreaming: false,
   }),
