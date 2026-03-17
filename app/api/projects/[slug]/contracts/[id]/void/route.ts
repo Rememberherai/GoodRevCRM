@@ -50,7 +50,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   const adminClient = createServiceClient();
 
-  const { error } = await adminClient
+  const { data: voidedDocument, error } = await adminClient
     .from('contract_documents')
     .update({
       status: 'voided',
@@ -58,11 +58,13 @@ export async function POST(request: Request, context: RouteContext) {
     })
     .eq('id', id)
     .eq('project_id', project.id)
-    .in('status', ['sent', 'viewed', 'partially_signed', 'expired', 'declined']);
+    .in('status', ['sent', 'viewed', 'partially_signed', 'expired', 'declined'])
+    .select('id')
+    .single();
 
-  if (error) {
+  if (error || !voidedDocument) {
     console.error('[CONTRACT_VOID] Failed:', error);
-    return NextResponse.json({ error: 'Failed to void contract' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to void contract' }, { status: 409 });
   }
 
   insertAuditTrail({

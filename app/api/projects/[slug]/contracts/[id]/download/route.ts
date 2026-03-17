@@ -41,6 +41,13 @@ export async function GET(request: Request, context: RouteContext) {
   const { searchParams } = new URL(request.url);
   const version = searchParams.get('version') ?? 'latest';
 
+  if (version !== 'original' && document.status === 'completed' && !document.signed_file_path) {
+    return NextResponse.json(
+      { error: 'Signed document is still being finalized' },
+      { status: 409 }
+    );
+  }
+
   // Use signed version if available and requested, otherwise original
   const filePath = version === 'original' || !document.signed_file_path
     ? document.original_file_path

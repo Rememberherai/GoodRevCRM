@@ -27,15 +27,17 @@ export async function handleCompletion(documentId: string, projectId: string): P
       const { pdfBytes, hash } = await flattenPdf({ documentId, projectId });
       const signedPath = `${projectId}/documents/${documentId}/signed_${document.original_file_name}`;
 
-      await supabase.storage.from('contracts').upload(signedPath, pdfBytes, {
+      const { error: uploadError } = await supabase.storage.from('contracts').upload(signedPath, pdfBytes, {
         contentType: 'application/pdf',
         upsert: true,
       });
+      if (uploadError) throw uploadError;
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('contract_documents')
         .update({ signed_file_path: signedPath, signed_file_hash: hash })
         .eq('id', documentId);
+      if (updateError) throw updateError;
 
       console.log(`[COMPLETION] Flattened PDF for ${documentId}`);
     } catch (err) {
@@ -50,15 +52,17 @@ export async function handleCompletion(documentId: string, projectId: string): P
       const certBytes = await generateCertificate({ documentId, projectId });
       const certPath = `${projectId}/documents/${documentId}/certificate.pdf`;
 
-      await supabase.storage.from('contracts').upload(certPath, certBytes, {
+      const { error: uploadError } = await supabase.storage.from('contracts').upload(certPath, certBytes, {
         contentType: 'application/pdf',
         upsert: true,
       });
+      if (uploadError) throw uploadError;
 
-      await supabase
+      const { error: updateError } = await supabase
         .from('contract_documents')
         .update({ certificate_file_path: certPath })
         .eq('id', documentId);
+      if (updateError) throw updateError;
 
       console.log(`[COMPLETION] Certificate generated for ${documentId}`);
     } catch (err) {

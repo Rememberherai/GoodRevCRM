@@ -41,6 +41,26 @@ export async function POST(request: Request, context: RouteContext) {
   const { recipient, document } = result;
   const supabase = createServiceClient();
 
+  const { data: liveDocument } = await supabase
+    .from('contract_documents')
+    .select('status, deleted_at')
+    .eq('id', document.id)
+    .single();
+
+  if (!liveDocument || liveDocument.deleted_at || ['voided', 'expired', 'completed', 'declined'].includes(liveDocument.status)) {
+    return NextResponse.json({ error: 'Document is no longer available for signing' }, { status: 409 });
+  }
+
+  const { data: liveRecipient } = await supabase
+    .from('contract_recipients')
+    .select('status')
+    .eq('id', recipient.id)
+    .single();
+
+  if (!liveRecipient || !['sent', 'viewed'].includes(liveRecipient.status)) {
+    return NextResponse.json({ error: 'Recipient status has changed' }, { status: 409 });
+  }
+
   // Prevent delegation to self
   if (validation.data.email.toLowerCase() === recipient.email.toLowerCase()) {
     return NextResponse.json({ error: 'Cannot delegate to yourself' }, { status: 400 });
@@ -85,26 +105,6 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Failed to delegate' }, { status: 500 });
   }
 
-  // Re-assign fields to successor and clear values
-  const { data: originalFields } = await supabase
-    .from('contract_fields')
-    .select('id')
-    .eq('document_id', recipient.document_id)
-    .eq('recipient_id', recipient.id);
-
-  const clearedFieldIds: string[] = [];
-  for (const field of originalFields ?? []) {
-    await supabase
-      .from('contract_fields')
-      .update({
-        recipient_id: successor.id,
-        value: null,
-        filled_at: null,
-      })
-      .eq('id', field.id);
-    clearedFieldIds.push(field.id);
-  }
-
   // Mark original as delegated (CAS: only from active states)
   const { data: delegateUpdate } = await supabase
     .from('contract_recipients')
@@ -122,6 +122,27 @@ export async function POST(request: Request, context: RouteContext) {
     // Recipient status changed since validation — clean up successor
     await supabase.from('contract_recipients').delete().eq('id', successor.id);
     return NextResponse.json({ error: 'Recipient status has changed' }, { status: 409 });
+  }
+
+  // Re-assign fields to successor and clear values only after delegation CAS succeeds.
+  const { data: originalFields } = await supabase
+    .from('contract_fields')
+    .select('id')
+    .eq('document_id', recipient.document_id)
+    .eq('recipient_id', recipient.id);
+
+  const clearedFieldIds: string[] = [];
+  for (const field of originalFields ?? []) {
+    await supabase
+      .from('contract_fields')
+      .update({
+        recipient_id: successor.id,
+        value: null,
+        filled_at: null,
+      })
+      .eq('id', field.id)
+      .eq('recipient_id', recipient.id);
+    clearedFieldIds.push(field.id);
   }
 
   insertAuditTrail({
@@ -152,10 +173,25 @@ export async function POST(request: Request, context: RouteContext) {
 
       if (connection && connection.status === 'connected') {
         // Update successor to sent
-        await supabase
+        const { data: sentSuccessor } = await supabase
           .from('contract_recipients')
           .update({ status: 'sent', sent_at: new Date().toISOString() })
-          .eq('id', successor.id);
+          .eq('id', successor.id)
+          .eq('status', 'pending')
+          .select('id')
+          .single();
+
+        if (!sentSuccessor) {
+          insertAuditTrail({
+            project_id: recipient.project_id,
+            document_id: document.id,
+            recipient_id: successor.id,
+            action: 'send_failed',
+            actor_type: 'system',
+            details: { error: 'Successor status changed before send', email: validation.data.email },
+          });
+          return NextResponse.json({ success: true, successor_id: successor.id, warning: 'Delegate created but email was not sent' });
+        }
 
         const { sendEmail } = await import('@/lib/gmail/service');
         const signingUrl = `${process.env.NEXT_PUBLIC_APP_URL}/sign/${successor.signing_token}`;
@@ -180,9 +216,26 @@ export async function POST(request: Request, context: RouteContext) {
           connection.user_id,
           document.project_id
         );
+      } else {
+        insertAuditTrail({
+          project_id: recipient.project_id,
+          document_id: document.id,
+          recipient_id: successor.id,
+          action: 'send_failed',
+          actor_type: 'system',
+          details: { reason: 'gmail_connection_expired', email: validation.data.email },
+        });
       }
     } catch (err) {
       console.error('[SIGN_DELEGATE] Failed to send email:', err);
+      insertAuditTrail({
+        project_id: recipient.project_id,
+        document_id: document.id,
+        recipient_id: successor.id,
+        action: 'send_failed',
+        actor_type: 'system',
+        details: { error: err instanceof Error ? err.message : 'Unknown error', email: validation.data.email },
+      });
     }
   }
 

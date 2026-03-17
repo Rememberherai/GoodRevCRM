@@ -113,7 +113,7 @@ export const contractFieldSchema = z.object({
 });
 
 export const bulkFieldsSchema = z.object({
-  fields: z.array(contractFieldSchema).min(1).max(500),
+  fields: z.array(contractFieldSchema).max(500),
 });
 
 export type ContractFieldInput = z.infer<typeof contractFieldSchema>;

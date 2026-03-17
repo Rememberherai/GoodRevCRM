@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import crypto from 'crypto';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { insertAuditTrail } from '@/lib/contracts/audit';
 import type { Database } from '@/types/database';
 
@@ -12,6 +13,7 @@ interface RouteContext {
 export async function POST(request: Request, context: RouteContext) {
   const { slug, tid } = await context.params;
   const supabase = await createClient();
+  const adminClient = createServiceClient();
   const { data: { user } } = await supabase.auth.getUser();
 
   if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
@@ -37,12 +39,40 @@ export async function POST(request: Request, context: RouteContext) {
 
   const body = await request.json();
   const { title, opportunity_id, organization_id, person_id } = body;
+  const documentId = crypto.randomUUID();
+
+  const { data: templateFile, error: downloadError } = await adminClient.storage
+    .from('contracts')
+    .download(template.file_path);
+
+  if (downloadError || !templateFile) {
+    console.error('[CONTRACT_FROM_TEMPLATE] Failed to download template file:', downloadError);
+    return NextResponse.json({ error: 'Failed to read template file' }, { status: 500 });
+  }
+
+  const fileBytes = new Uint8Array(await templateFile.arrayBuffer());
+  const fileHash = crypto.createHash('sha256').update(fileBytes).digest('hex');
+  const documentFilePath = `${project.id}/documents/${documentId}/${template.file_name}`;
+
+  const { error: uploadError } = await adminClient.storage
+    .from('contracts')
+    .upload(documentFilePath, fileBytes, {
+      contentType: 'application/pdf',
+      upsert: false,
+    });
+
+  if (uploadError) {
+    console.error('[CONTRACT_FROM_TEMPLATE] Failed to copy template file:', uploadError);
+    return NextResponse.json({ error: 'Failed to create document file from template' }, { status: 500 });
+  }
 
   const docData: DocInsert = {
+    id: documentId,
     project_id: project.id,
     title: title ?? template.name,
-    original_file_path: template.file_path,
+    original_file_path: documentFilePath,
     original_file_name: template.file_name,
+    original_file_hash: fileHash,
     page_count: template.page_count,
     template_id: tid,
     opportunity_id: opportunity_id ?? null,
@@ -60,6 +90,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (error) {
     console.error('[CONTRACT_FROM_TEMPLATE] Create error:', error);
+    await adminClient.storage.from('contracts').remove([documentFilePath]).catch(() => undefined);
     return NextResponse.json({ error: 'Failed to create document' }, { status: 500 });
   }
 

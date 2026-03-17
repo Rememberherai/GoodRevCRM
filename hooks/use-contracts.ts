@@ -67,6 +67,10 @@ export function useContracts() {
     loadContracts();
   }, [loadContracts]);
 
+  useEffect(() => {
+    setPagination((prev) => (prev.page === 1 ? prev : { ...prev, page: 1 }));
+  }, [search, statusFilter]);
+
   const remove = useCallback(async (id: string) => {
     const res = await fetch(`/api/projects/${slug}/contracts/${id}`, { method: 'DELETE' });
     if (!res.ok) throw new Error('Failed to delete');

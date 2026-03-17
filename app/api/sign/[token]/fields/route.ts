@@ -40,15 +40,59 @@ export async function PATCH(request: Request, context: RouteContext) {
 
   const supabase = createServiceClient();
 
+  const { data: liveDocument } = await supabase
+    .from('contract_documents')
+    .select('status, deleted_at')
+    .eq('id', result.recipient.document_id)
+    .single();
+
+  if (!liveDocument || liveDocument.deleted_at || ['voided', 'expired', 'completed', 'declined'].includes(liveDocument.status)) {
+    return NextResponse.json({ error: 'Document is no longer available for signing' }, { status: 409 });
+  }
+
+  const { data: liveRecipient } = await supabase
+    .from('contract_recipients')
+    .select('status')
+    .eq('id', result.recipient.id)
+    .single();
+
+  if (!liveRecipient || !['sent', 'viewed'].includes(liveRecipient.status)) {
+    return NextResponse.json({ error: 'Recipient status has changed' }, { status: 409 });
+  }
+
+  const submittedFieldIds = [...new Set(validation.data.fields.map((field) => field.field_id))];
+  const { data: existingFields } = await supabase
+    .from('contract_fields')
+    .select('id')
+    .eq('document_id', result.recipient.document_id)
+    .eq('recipient_id', result.recipient.id)
+    .in('id', submittedFieldIds);
+
+  const validFieldIds = new Set((existingFields ?? []).map((field) => field.id));
+  const invalidFieldIds = submittedFieldIds.filter((fieldId) => !validFieldIds.has(fieldId));
+
+  if (invalidFieldIds.length > 0) {
+    return NextResponse.json(
+      { error: `Invalid field IDs: ${invalidFieldIds.join(', ')}` },
+      { status: 400 }
+    );
+  }
+
   for (const field of validation.data.fields) {
-    await supabase
+    const { data: updatedField } = await supabase
       .from('contract_fields')
       .update({
         value: field.value,
         filled_at: new Date().toISOString(),
       })
       .eq('id', field.field_id)
-      .eq('recipient_id', result.recipient.id);
+      .eq('recipient_id', result.recipient.id)
+      .select('id')
+      .single();
+
+    if (!updatedField) {
+      continue;
+    }
 
     insertAuditTrail({
       project_id: result.recipient.project_id,

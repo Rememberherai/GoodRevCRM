@@ -33,10 +33,6 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: result.error }, { status: result.status ?? 400 });
   }
 
-  if (!result.recipient.consent_timestamp) {
-    return NextResponse.json({ error: 'Must give consent before signing' }, { status: 400 });
-  }
-
   const body = await request.json();
   const validation = submitSigningSchema.safeParse(body);
   if (!validation.success) {
@@ -49,12 +45,54 @@ export async function POST(request: Request, context: RouteContext) {
   const { recipient, document } = result;
   const supabase = createServiceClient();
 
-  // Validate all required fields are filled before persisting any field changes.
+  const { data: liveDocument } = await supabase
+    .from('contract_documents')
+    .select('status, deleted_at')
+    .eq('id', document.id)
+    .single();
+
+  if (!liveDocument || liveDocument.deleted_at || ['voided', 'expired', 'completed', 'declined'].includes(liveDocument.status)) {
+    return NextResponse.json({ error: 'Document is no longer available for signing' }, { status: 409 });
+  }
+
+  const { data: liveRecipient } = await supabase
+    .from('contract_recipients')
+    .select('status, consent_timestamp')
+    .eq('id', recipient.id)
+    .single();
+
+  if (!liveRecipient) {
+    return NextResponse.json({ error: 'Recipient not found' }, { status: 404 });
+  }
+
+  if (!['sent', 'viewed'].includes(liveRecipient.status)) {
+    if (liveRecipient.status === 'signed') {
+      return NextResponse.json({ already_signed: true }, { status: 200 });
+    }
+    return NextResponse.json({ error: 'Recipient status changed, please refresh' }, { status: 409 });
+  }
+
+  if (!liveRecipient.consent_timestamp) {
+    return NextResponse.json({ error: 'Must give consent before signing' }, { status: 400 });
+  }
+
+  // Validate submitted field ids belong to this recipient and all required fields are filled
+  // before persisting any field changes.
   const { data: fields } = await supabase
     .from('contract_fields')
     .select('id, field_type, is_required, value')
     .eq('document_id', recipient.document_id)
     .eq('recipient_id', recipient.id);
+
+  const recipientFieldIds = new Set((fields ?? []).map((field) => field.id));
+  const submittedFieldIds = [...new Set(validation.data.fields.map((field) => field.field_id))];
+  const invalidFieldIds = submittedFieldIds.filter((fieldId) => !recipientFieldIds.has(fieldId));
+
+  if (invalidFieldIds.length > 0) {
+    return NextResponse.json({
+      error: `Invalid field IDs: ${invalidFieldIds.join(', ')}`,
+    }, { status: 400 });
+  }
 
   const fieldMap = new Map(validation.data.fields.map((f) => [f.field_id, f.value]));
   const missingRequired = (fields ?? []).filter((field) => {
@@ -130,6 +168,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   // === CAS: Group advancement (sequential) ===
   let groupAdvanced = false;
+  let nextGroupOrder: number | null = null;
   if (document.signing_order_type === 'sequential') {
     const { data: groupSigners } = await supabase
       .from('contract_recipients')
@@ -140,9 +179,22 @@ export async function POST(request: Request, context: RouteContext) {
 
     const allGroupSigned = (groupSigners ?? []).every((s) => s.status === 'signed');
     if (allGroupSigned) {
+      const { data: nextGroupRecipient } = await supabase
+        .from('contract_recipients')
+        .select('signing_order')
+        .eq('document_id', document.id)
+        .eq('role', 'signer')
+        .gt('signing_order', recipient.signing_order)
+        .order('signing_order', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+
+      nextGroupOrder = nextGroupRecipient?.signing_order ?? null;
+
+      if (nextGroupOrder !== null) {
       const { data: advanced } = await supabase
         .from('contract_documents')
-        .update({ current_signing_group: recipient.signing_order + 1 })
+        .update({ current_signing_group: nextGroupOrder })
         .eq('id', document.id)
         .eq('signing_order_type', 'sequential')
         .eq('current_signing_group', recipient.signing_order)
@@ -150,6 +202,7 @@ export async function POST(request: Request, context: RouteContext) {
         .single();
 
       groupAdvanced = !!advanced;
+      }
     }
   }
 
@@ -232,7 +285,7 @@ export async function POST(request: Request, context: RouteContext) {
 
   if (groupAdvanced) {
     // Send emails to next group (Phase B, fire-and-forget)
-    sendNextGroupEmails(supabase, document, recipient.signing_order + 1).catch((err) => {
+    sendNextGroupEmails(supabase, document, nextGroupOrder ?? recipient.signing_order + 1).catch((err) => {
       console.error('[SIGN_SUBMIT] Failed to send next group emails:', err);
     });
   }
@@ -293,10 +346,25 @@ async function sendNextGroupEmails(
 
   for (const recipient of nextRecipients) {
     // Update to sent
-    await supabase
+    const { data: sentRecipient } = await supabase
       .from('contract_recipients')
       .update({ status: 'sent', sent_at: new Date().toISOString() })
-      .eq('id', recipient.id);
+      .eq('id', recipient.id)
+      .eq('status', 'pending')
+      .select('id')
+      .single();
+
+    if (!sentRecipient) {
+      insertAuditTrail({
+        project_id: document.project_id,
+        document_id: document.id,
+        recipient_id: recipient.id,
+        action: 'send_failed',
+        actor_type: 'system',
+        details: { error: 'Recipient status changed before send', email: recipient.email },
+      });
+      continue;
+    }
 
     try {
       const signingUrl = `${process.env.NEXT_PUBLIC_APP_URL}/sign/${recipient.signing_token}`;

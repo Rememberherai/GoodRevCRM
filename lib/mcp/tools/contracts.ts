@@ -150,12 +150,12 @@ export function registerContractTools(server: McpServer, getContext: () => McpCo
   // contracts.add_recipient
   server.tool(
     'contracts.add_recipient',
-    'Add a recipient (signer, CC, or witness) to a draft contract',
+    'Add a signer recipient to a draft contract',
     {
       document_id: z.string().uuid().describe('Contract document ID'),
       name: z.string().min(1).describe('Recipient name'),
       email: z.string().email().describe('Recipient email'),
-      role: z.enum(['signer', 'cc', 'witness']).default('signer'),
+      role: z.literal('signer').default('signer'),
       signing_order: z.number().int().min(1).default(1),
       person_id: z.string().uuid().optional().describe('Link to CRM person'),
     },
@@ -200,7 +200,7 @@ export function registerContractTools(server: McpServer, getContext: () => McpCo
       document_id: z.string().uuid().describe('Contract document ID'),
       recipient_id: z.string().uuid().describe('Recipient this field is assigned to'),
       field_type: z.enum([
-        'signature', 'initials', 'date_signed', 'text_input',
+        'signature', 'date_signed', 'text_input',
         'checkbox', 'dropdown', 'name', 'email', 'company', 'title',
       ]).describe('Type of field'),
       page_number: z.number().int().min(1).default(1),
@@ -224,6 +224,17 @@ export function registerContractTools(server: McpServer, getContext: () => McpCo
         .single();
       if (!doc) throw new Error('Document not found in this project');
       if (doc.status !== 'draft') throw new Error('Can only add fields to draft documents');
+
+      const { data: recipient } = await ctx.supabase
+        .from('contract_recipients')
+        .select('id, role')
+        .eq('id', params.recipient_id)
+        .eq('document_id', params.document_id)
+        .eq('project_id', ctx.projectId)
+        .single();
+
+      if (!recipient) throw new Error('Recipient not found on this document');
+      if (recipient.role !== 'signer') throw new Error('Only signer recipients are currently supported');
 
       const { data, error } = await ctx.supabase
         .from('contract_fields')

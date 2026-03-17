@@ -32,6 +32,26 @@ export async function POST(request: Request, context: RouteContext) {
 
   const supabase = createServiceClient();
 
+  const { data: liveDocument } = await supabase
+    .from('contract_documents')
+    .select('status, deleted_at')
+    .eq('id', result.recipient.document_id)
+    .single();
+
+  if (!liveDocument || liveDocument.deleted_at || ['voided', 'expired', 'completed', 'declined'].includes(liveDocument.status)) {
+    return NextResponse.json({ error: 'Document is no longer available for signing' }, { status: 409 });
+  }
+
+  const { data: liveRecipient } = await supabase
+    .from('contract_recipients')
+    .select('status')
+    .eq('id', result.recipient.id)
+    .single();
+
+  if (!liveRecipient || !['sent', 'viewed'].includes(liveRecipient.status)) {
+    return NextResponse.json({ error: 'Recipient status has changed' }, { status: 409 });
+  }
+
   // Only record consent if not already given (immutable forensic record)
   const { data: updatedRecipient } = await supabase
     .from('contract_recipients')

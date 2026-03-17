@@ -92,14 +92,19 @@ export async function PUT(request: Request, context: RouteContext) {
 
   // Validate all recipient_ids belong to this document
   const recipientIds = [...new Set(result.data.fields.map((f) => f.recipient_id))];
-  const { data: validRecipients } = await supabase
-    .from('contract_recipients')
-    .select('id')
-    .eq('document_id', id)
-    .eq('project_id', project.id)
-    .in('id', recipientIds);
+  let validRecipients: Array<{ id: string }> = [];
+  if (recipientIds.length > 0) {
+    const { data } = await supabase
+      .from('contract_recipients')
+      .select('id')
+      .eq('document_id', id)
+      .eq('project_id', project.id)
+      .in('id', recipientIds);
 
-  const validIds = new Set((validRecipients ?? []).map((r) => r.id));
+    validRecipients = data ?? [];
+  }
+
+  const validIds = new Set(validRecipients.map((r) => r.id));
   const invalidIds = recipientIds.filter((rid) => !validIds.has(rid));
 
   if (invalidIds.length > 0) {
@@ -115,6 +120,10 @@ export async function PUT(request: Request, context: RouteContext) {
     .delete()
     .eq('document_id', id)
     .eq('project_id', project.id);
+
+  if (result.data.fields.length === 0) {
+    return NextResponse.json({ fields: [] });
+  }
 
   const fieldInserts: FieldInsert[] = result.data.fields.map((f) => ({
     ...f,

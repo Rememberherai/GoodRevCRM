@@ -31,6 +31,16 @@ export async function POST(request: Request, context: RouteContext) {
   const { recipient, document } = result;
   const supabase = createServiceClient();
 
+  const { data: liveDocument } = await supabase
+    .from('contract_documents')
+    .select('status, deleted_at')
+    .eq('id', document.id)
+    .single();
+
+  if (!liveDocument || liveDocument.deleted_at || ['voided', 'expired', 'completed', 'declined'].includes(liveDocument.status)) {
+    return NextResponse.json({ error: 'Document is no longer available for signing' }, { status: 409 });
+  }
+
   // Update recipient (CAS: only from active states)
   const { data: recipientUpdate } = await supabase
     .from('contract_recipients')
@@ -49,14 +59,20 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   // Update document status (CAS: only transition from active states)
-  await supabase
+  const { data: documentUpdate } = await supabase
     .from('contract_documents')
     .update({
       status: 'declined',
       declined_at: new Date().toISOString(),
     })
     .eq('id', document.id)
-    .in('status', ['sent', 'viewed', 'partially_signed']);
+    .in('status', ['sent', 'viewed', 'partially_signed'])
+    .select('id')
+    .single();
+
+  if (!documentUpdate) {
+    return NextResponse.json({ error: 'Document status has changed' }, { status: 409 });
+  }
 
   insertAuditTrail({
     project_id: recipient.project_id,
