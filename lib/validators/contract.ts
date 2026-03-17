@@ -66,6 +66,8 @@ export const createContractDocumentSchema = z.object({
       message: `Custom fields cannot exceed ${MAX_CUSTOM_FIELD_KEYS} keys`,
     })
     .optional(),
+  send_completed_copy_to_sender: z.boolean().optional(),
+  send_completed_copy_to_recipients: z.boolean().optional(),
 });
 
 export const updateContractDocumentSchema = createContractDocumentSchema

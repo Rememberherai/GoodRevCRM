@@ -100,10 +100,6 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
   }
 
-  if (existing.status !== 'draft') {
-    return NextResponse.json({ error: 'Can only edit draft contracts' }, { status: 400 });
-  }
-
   const body = await request.json();
   const result = updateContractDocumentSchema.safeParse(body);
 
@@ -114,19 +110,32 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
+  // Settings that can be changed at any status
+  const ALWAYS_EDITABLE = ['send_completed_copy_to_sender', 'send_completed_copy_to_recipients', 'reminder_enabled', 'reminder_interval_days'];
+  const editableKeys = Object.keys(result.data);
+  const hasNonSettingsChanges = editableKeys.some((k) => !ALWAYS_EDITABLE.includes(k));
+
+  if (hasNonSettingsChanges && existing.status !== 'draft') {
+    return NextResponse.json({ error: 'Can only edit draft contracts' }, { status: 400 });
+  }
+
   const updateData: Record<string, unknown> = { ...result.data };
   if (result.data.custom_fields) {
     updateData.custom_fields = result.data.custom_fields;
   }
 
-  const { data: document, error } = await supabase
+  const query = supabase
     .from('contract_documents')
     .update(updateData)
     .eq('id', id)
-    .eq('project_id', project.id)
-    .eq('status', 'draft')
-    .select()
-    .single();
+    .eq('project_id', project.id);
+
+  // Only restrict to draft status when making non-settings changes
+  if (hasNonSettingsChanges) {
+    query.eq('status', 'draft');
+  }
+
+  const { data: document, error } = await query.select().single();
 
   if (error || !document) {
     console.error('[CONTRACTS] Update error:', error);

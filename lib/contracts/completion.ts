@@ -72,7 +72,18 @@ export async function handleCompletion(documentId: string, projectId: string): P
   }
 
   // 3. Send receipt emails (CAS-reserve receipt_sent_at first)
-  if (!document.receipt_sent_at) {
+  const shouldSendReceipts = document.send_completed_copy_to_sender !== false || document.send_completed_copy_to_recipients !== false;
+  if (!document.receipt_sent_at && !shouldSendReceipts) {
+    // No receipts needed — mark as sent to prevent cron retry
+    await supabase
+      .from('contract_documents')
+      .update({ receipt_sent_at: new Date().toISOString() })
+      .eq('id', documentId)
+      .is('receipt_sent_at', null);
+    console.log(`[COMPLETION] Receipts disabled for ${documentId}, marking as sent`);
+    return;
+  }
+  if (!document.receipt_sent_at && shouldSendReceipts) {
     // CAS: reserve
     const { data: reserved } = await supabase
       .from('contract_documents')
@@ -88,7 +99,10 @@ export async function handleCompletion(documentId: string, projectId: string): P
     }
 
     try {
-      await sendReceiptEmails(documentId, projectId, supabase);
+      await sendReceiptEmails(documentId, projectId, supabase, {
+        toSender: document.send_completed_copy_to_sender !== false,
+        toRecipients: document.send_completed_copy_to_recipients !== false,
+      });
       console.log(`[COMPLETION] Receipts sent for ${documentId}`);
     } catch (err) {
       console.error(`[COMPLETION] Receipt emails failed for ${documentId}:`, err);
@@ -113,7 +127,8 @@ function escHtml(str: string): string {
 async function sendReceiptEmails(
   documentId: string,
   projectId: string,
-  supabase: ReturnType<typeof createServiceClient>
+  supabase: ReturnType<typeof createServiceClient>,
+  options: { toSender: boolean; toRecipients: boolean } = { toSender: true, toRecipients: true }
 ) {
   if (!process.env.NEXT_PUBLIC_APP_URL) {
     console.error('[COMPLETION] NEXT_PUBLIC_APP_URL is not set, skipping receipt emails');
@@ -122,7 +137,7 @@ async function sendReceiptEmails(
 
   const { data: document } = await supabase
     .from('contract_documents')
-    .select('title, gmail_connection_id, sender_email')
+    .select('title, gmail_connection_id, sender_email, owner_id')
     .eq('id', documentId)
     .single();
 
@@ -145,32 +160,60 @@ async function sendReceiptEmails(
     return;
   }
 
-  const { data: recipients } = await supabase
-    .from('contract_recipients')
-    .select('id, name, email, role, signing_token')
-    .eq('document_id', documentId);
+  // Send to recipients if enabled
+  if (options.toRecipients) {
+    const { data: recipients } = await supabase
+      .from('contract_recipients')
+      .select('id, name, email, role, signing_token')
+      .eq('document_id', documentId);
 
-  for (const recipient of recipients ?? []) {
+    for (const recipient of recipients ?? []) {
+      try {
+        const downloadUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/sign/${recipient.signing_token}/download`;
+        await sendEmail(
+          connection as GmailConnection,
+          {
+            to: recipient.email,
+            subject: `Completed: ${document.title}`,
+            body_html: `
+              <div style="font-family: sans-serif; max-width: 600px;">
+                <h2>Document Completed</h2>
+                <p>Hi ${escHtml(recipient.name)},</p>
+                <p>All parties have signed <strong>${escHtml(document.title)}</strong>. The document is now complete.</p>
+                <p style="margin: 24px 0;">
+                  <a href="${downloadUrl}" style="background-color: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
+                    Download Signed Document
+                  </a>
+                </p>
+                <p style="color: #6b7280; font-size: 14px;">
+                  You can download your copy at any time using the link above.
+                </p>
+              </div>
+            `,
+          },
+          (connection as GmailConnection).user_id,
+          projectId
+        );
+      } catch (err) {
+        console.error(`[COMPLETION] Receipt email to ${recipient.email} failed:`, err);
+        throw err; // Propagate to trigger retry
+      }
+    }
+  }
+
+  // Send to sender/owner if enabled
+  if (options.toSender && document.sender_email) {
     try {
-      const downloadUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/sign/${recipient.signing_token}/download`;
       await sendEmail(
         connection as GmailConnection,
         {
-          to: recipient.email,
+          to: document.sender_email,
           subject: `Completed: ${document.title}`,
           body_html: `
             <div style="font-family: sans-serif; max-width: 600px;">
               <h2>Document Completed</h2>
-              <p>Hi ${escHtml(recipient.name)},</p>
               <p>All parties have signed <strong>${escHtml(document.title)}</strong>. The document is now complete.</p>
-              <p style="margin: 24px 0;">
-                <a href="${downloadUrl}" style="background-color: #16a34a; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
-                  Download Signed Document
-                </a>
-              </p>
-              <p style="color: #6b7280; font-size: 14px;">
-                You can download your copy at any time using the link above.
-              </p>
+              <p>You can view and download the signed document from your CRM dashboard.</p>
             </div>
           `,
         },
@@ -178,8 +221,8 @@ async function sendReceiptEmails(
         projectId
       );
     } catch (err) {
-      console.error(`[COMPLETION] Receipt email to ${recipient.email} failed:`, err);
-      throw err; // Propagate to trigger retry
+      console.error(`[COMPLETION] Receipt email to sender ${document.sender_email} failed:`, err);
+      throw err;
     }
   }
 }

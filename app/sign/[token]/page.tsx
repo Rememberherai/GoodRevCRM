@@ -2,10 +2,11 @@
 
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { CheckCircle2, XCircle, Loader2, AlertTriangle, Download, PenTool } from 'lucide-react';
+import { CheckCircle2, XCircle, Loader2, AlertTriangle, Download, PenTool, ChevronLeft, ChevronRight } from 'lucide-react';
 import type { SigningPageData, ContractFieldType } from '@/types/contract';
 
 type SigningStep = 'loading' | 'consent' | 'signing' | 'submitted' | 'completed' | 'declined' | 'delegated' | 'error';
+type DownloadState = 'idle' | 'generating' | 'ready' | 'error';
 
 export default function SigningPage() {
   const params = useParams();
@@ -24,10 +25,31 @@ export default function SigningPage() {
   const [showDeclineDialog, setShowDeclineDialog] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
   const [showDelegateDialog, setShowDelegateDialog] = useState(false);
+  const [downloadState, setDownloadState] = useState<DownloadState>('idle');
   const [delegateName, setDelegateName] = useState('');
   const [delegateEmail, setDelegateEmail] = useState('');
+  const [currentPage, setCurrentPage] = useState(1);
+  const [signatureFont, setSignatureFont] = useState<string>('Dancing Script');
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const isDrawing = useRef(false);
+
+  const SIGNATURE_FONTS = [
+    { name: 'Dancing Script', label: 'Elegant' },
+    { name: 'Caveat', label: 'Casual' },
+    { name: 'Great Vibes', label: 'Formal' },
+    { name: 'Kalam', label: 'Handwritten' },
+    { name: 'Pacifico', label: 'Bold' },
+  ];
+
+  // Load Google Fonts for signature options
+  useEffect(() => {
+    const families = SIGNATURE_FONTS.map((f) => f.name.replace(/ /g, '+')).join('&family=');
+    const link = document.createElement('link');
+    link.rel = 'stylesheet';
+    link.href = `https://fonts.googleapis.com/css2?family=${families}&display=swap`;
+    document.head.appendChild(link);
+    return () => { document.head.removeChild(link); };
+  }, []); // eslint-disable-line react-hooks/exhaustive-deps
 
   const loadData = useCallback(async () => {
     try {
@@ -158,6 +180,7 @@ export default function SigningPage() {
           signature_data: {
             type: signatureType,
             data: sigData,
+            ...(signatureType === 'type' ? { font: signatureFont } : {}),
           },
         }),
       });
@@ -208,6 +231,39 @@ export default function SigningPage() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delegate failed');
     }
+  };
+
+  const handleDownload = async () => {
+    setDownloadState('generating');
+    let attempts = 0;
+    const maxAttempts = 12; // ~60 seconds
+    while (attempts < maxAttempts) {
+      try {
+        const res = await fetch(`/api/sign/${token}/download`);
+        if (res.ok) {
+          const blob = await res.blob();
+          const url = URL.createObjectURL(blob);
+          const a = document.createElement('a');
+          a.href = url;
+          a.download = res.headers.get('content-disposition')?.match(/filename="(.+)"/)?.[1] ?? 'signed_document.pdf';
+          a.click();
+          URL.revokeObjectURL(url);
+          setDownloadState('ready');
+          return;
+        }
+        if (res.status === 409) {
+          // Still generating — wait and retry
+          attempts++;
+          await new Promise((r) => setTimeout(r, 5000));
+          continue;
+        }
+        throw new Error('Download failed');
+      } catch {
+        setDownloadState('error');
+        return;
+      }
+    }
+    setDownloadState('error');
   };
 
   // Drawing canvas handlers
@@ -281,21 +337,21 @@ export default function SigningPage() {
               onChange={(e) => handleFieldChange(field.id, e.target.checked ? 'true' : 'false')}
               className="rounded"
             />
-            <span className="text-sm">{field.label ?? field.field_type}</span>
+            <span className="text-sm text-gray-700">{field.label ?? field.field_type}</span>
             {field.is_required && <span className="text-red-500">*</span>}
           </label>
         );
       case 'dropdown':
         return (
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               {field.label ?? field.field_type}
               {field.is_required && <span className="text-red-500 ml-1">*</span>}
             </label>
             <select
               value={value}
               onChange={(e) => handleFieldChange(field.id, e.target.value)}
-              className="w-full border rounded-md px-3 py-2 text-sm"
+              className="w-full border rounded-md px-3 py-2 text-sm text-gray-900 bg-white"
             >
               <option value="">Select...</option>
               {(field.options as string[] ?? []).map((opt) => (
@@ -307,7 +363,7 @@ export default function SigningPage() {
       default:
         return (
           <div>
-            <label className="block text-sm font-medium mb-1">
+            <label className="block text-sm font-medium text-gray-700 mb-1">
               {field.label ?? field.field_type.replace(/_/g, ' ')}
               {field.is_required && <span className="text-red-500 ml-1">*</span>}
             </label>
@@ -316,7 +372,7 @@ export default function SigningPage() {
               value={value}
               onChange={(e) => handleFieldChange(field.id, e.target.value)}
               placeholder={field.placeholder ?? ''}
-              className="w-full border rounded-md px-3 py-2 text-sm"
+              className="w-full border rounded-md px-3 py-2 text-sm text-gray-900 bg-white"
             />
           </div>
         );
@@ -341,7 +397,7 @@ export default function SigningPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md mx-auto p-8">
           <AlertTriangle className="h-12 w-12 mx-auto text-red-500 mb-4" />
-          <h1 className="text-xl font-bold mb-2">Unable to Load Document</h1>
+          <h1 className="text-xl font-bold mb-2 text-gray-900">Unable to Load Document</h1>
           <p className="text-gray-600">{error}</p>
         </div>
       </div>
@@ -354,14 +410,48 @@ export default function SigningPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md mx-auto p-8">
           <CheckCircle2 className="h-16 w-16 mx-auto text-green-500 mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Document Signed</h1>
+          <h1 className="text-2xl font-bold mb-2 text-gray-900">Document Signed</h1>
           <p className="text-gray-600 mb-6">Thank you! The document has been signed successfully.</p>
-          <a
-            href={`/api/sign/${token}/download`}
-            className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
-          >
-            <Download className="mr-2 h-4 w-4" /> Download Signed Copy
-          </a>
+          {downloadState === 'idle' && (
+            <button
+              onClick={handleDownload}
+              className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+            >
+              <Download className="mr-2 h-4 w-4" /> Download Signed Copy
+            </button>
+          )}
+          {downloadState === 'generating' && (
+            <div className="space-y-3">
+              <div className="inline-flex items-center px-4 py-2 bg-gray-100 text-gray-600 rounded-md">
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" /> Generating signed PDF...
+              </div>
+              <p className="text-sm text-gray-500">This may take a moment while the document is finalized.</p>
+            </div>
+          )}
+          {downloadState === 'ready' && (
+            <div className="space-y-3">
+              <div className="inline-flex items-center px-4 py-2 bg-green-100 text-green-700 rounded-md">
+                <CheckCircle2 className="mr-2 h-4 w-4" /> Download complete
+              </div>
+              <button
+                onClick={handleDownload}
+                className="block mx-auto text-sm text-blue-600 hover:underline"
+              >
+                Download again
+              </button>
+            </div>
+          )}
+          {downloadState === 'error' && (
+            <div className="space-y-3">
+              <p className="text-sm text-red-600">Download failed. The document may still be processing.</p>
+              <button
+                onClick={handleDownload}
+                className="inline-flex items-center px-4 py-2 bg-blue-600 text-white rounded-md hover:bg-blue-700 transition-colors"
+              >
+                <Download className="mr-2 h-4 w-4" /> Try Again
+              </button>
+            </div>
+          )}
         </div>
       </div>
     );
@@ -372,7 +462,7 @@ export default function SigningPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md mx-auto p-8">
           <CheckCircle2 className="h-16 w-16 mx-auto text-green-500 mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Signature Submitted</h1>
+          <h1 className="text-2xl font-bold mb-2 text-gray-900">Signature Submitted</h1>
           <p className="text-gray-600">
             Your signature has been recorded. The completed PDF will be available after all required signers finish.
           </p>
@@ -387,7 +477,7 @@ export default function SigningPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md mx-auto p-8">
           <XCircle className="h-16 w-16 mx-auto text-red-500 mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Document Declined</h1>
+          <h1 className="text-2xl font-bold mb-2 text-gray-900">Document Declined</h1>
           <p className="text-gray-600">The document has been declined. The sender has been notified.</p>
         </div>
       </div>
@@ -399,7 +489,7 @@ export default function SigningPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="text-center max-w-md mx-auto p-8">
           <CheckCircle2 className="h-16 w-16 mx-auto text-blue-500 mb-4" />
-          <h1 className="text-2xl font-bold mb-2">Signing Delegated</h1>
+          <h1 className="text-2xl font-bold mb-2 text-gray-900">Signing Delegated</h1>
           <p className="text-gray-600">The delegate has been notified and can continue the signing process.</p>
         </div>
       </div>
@@ -412,7 +502,7 @@ export default function SigningPage() {
       <div className="min-h-screen flex items-center justify-center bg-gray-50">
         <div className="max-w-lg mx-auto bg-white rounded-xl shadow-lg p-8">
           <PenTool className="h-10 w-10 text-blue-600 mb-4" />
-          <h1 className="text-2xl font-bold mb-2">{data?.document_title}</h1>
+          <h1 className="text-2xl font-bold mb-2 text-gray-900">{data?.document_title}</h1>
           <p className="text-gray-600 mb-6">
             Hi {data?.recipient_name}, you have been asked to review and sign this document.
           </p>
@@ -445,7 +535,7 @@ export default function SigningPage() {
         {showDeclineDialog && (
           <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
             <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
-              <h2 className="text-lg font-bold mb-2">Decline to Sign</h2>
+              <h2 className="text-lg font-bold mb-2 text-gray-900">Decline to Sign</h2>
               <p className="text-sm text-gray-600 mb-4">The sender will be notified.</p>
               <textarea
                 value={declineReason}
@@ -455,7 +545,7 @@ export default function SigningPage() {
                 rows={3}
               />
               <div className="flex gap-3 justify-end">
-                <button onClick={() => setShowDeclineDialog(false)} className="px-4 py-2 border rounded-md text-sm">Cancel</button>
+                <button onClick={() => setShowDeclineDialog(false)} className="px-4 py-2 border rounded-md text-sm text-gray-700">Cancel</button>
                 <button onClick={handleDecline} className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700">Decline</button>
               </div>
             </div>
@@ -476,13 +566,13 @@ export default function SigningPage() {
       <div className="bg-white border-b sticky top-0 z-10">
         <div className="max-w-5xl mx-auto px-4 py-3 flex items-center justify-between">
           <div>
-            <h1 className="font-bold text-lg">{data?.document_title}</h1>
+            <h1 className="font-bold text-lg text-gray-900">{data?.document_title}</h1>
             <p className="text-sm text-gray-500">Signing as {data?.recipient_name}</p>
           </div>
           <div className="flex gap-2">
             <button
               onClick={() => setShowDelegateDialog(true)}
-              className="px-3 py-2 text-sm border rounded-md hover:bg-gray-50"
+              className="px-3 py-2 text-sm border border-gray-300 rounded-md text-gray-700 hover:bg-gray-50"
             >
               Delegate
             </button>
@@ -505,22 +595,79 @@ export default function SigningPage() {
         )}
 
         <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
-          {/* PDF Preview */}
+          {/* PDF Preview with field overlays */}
           <div className="lg:col-span-2">
             <div className="bg-white rounded-xl shadow-sm border p-4">
-              <h2 className="font-semibold mb-3">Document Preview</h2>
-              {pdfUrl ? (
-                <iframe
-                  src={pdfUrl}
-                  className="w-full rounded border"
-                  style={{ height: '700px' }}
-                  title="Document Preview"
-                />
-              ) : (
-                <div className="flex items-center justify-center h-96 bg-gray-100 rounded">
-                  <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
-                </div>
-              )}
+              <div className="flex items-center justify-between mb-3">
+                <h2 className="font-semibold text-gray-900">Document Preview</h2>
+                {data && data.page_count > 1 && (
+                  <div className="flex items-center gap-2">
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.max(1, p - 1))}
+                      disabled={currentPage <= 1}
+                      className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 text-gray-600"
+                    >
+                      <ChevronLeft className="h-5 w-5" />
+                    </button>
+                    <span className="text-sm text-gray-600">
+                      Page {currentPage} of {data.page_count}
+                    </span>
+                    <button
+                      onClick={() => setCurrentPage((p) => Math.min(data.page_count, p + 1))}
+                      disabled={currentPage >= data.page_count}
+                      className="p-1 rounded hover:bg-gray-100 disabled:opacity-30 text-gray-600"
+                    >
+                      <ChevronRight className="h-5 w-5" />
+                    </button>
+                  </div>
+                )}
+              </div>
+              <div className="relative" style={{ height: '700px' }}>
+                {pdfUrl ? (
+                  <>
+                    <iframe
+                      src={`${pdfUrl}#page=${currentPage}`}
+                      className="w-full h-full rounded border pointer-events-none select-none"
+                      title="Document Preview"
+                    />
+                    {/* Field position overlays */}
+                    {(data?.fields ?? [])
+                      .filter((f) => f.page_number === currentPage)
+                      .map((field) => {
+                        const isSig = field.field_type === 'signature' || field.field_type === 'initials';
+                        const isFilled = !!fieldValues[field.id] || (isSig && (typedSignature || signatureData));
+                        return (
+                          <div
+                            key={field.id}
+                            className={`absolute rounded flex items-center justify-center text-xs font-medium pointer-events-none ${
+                              isFilled
+                                ? 'bg-green-100 border-2 border-green-400 text-green-700'
+                                : 'bg-blue-100 border-2 border-blue-400 text-blue-700 animate-pulse'
+                            }`}
+                            style={{
+                              left: `${field.x}%`,
+                              top: `${field.y}%`,
+                              width: `${field.width}%`,
+                              height: `${field.height}%`,
+                            }}
+                          >
+                            {isSig ? (
+                              <PenTool className="h-4 w-4" />
+                            ) : (
+                              <span className="truncate px-1">
+                                {field.label ?? field.field_type.replace(/_/g, ' ')}
+                              </span>
+                            )}
+                          </div>
+                        );
+                      })}
+                  </>
+                ) : (
+                  <div className="flex items-center justify-center h-full bg-gray-100 rounded">
+                    <Loader2 className="h-6 w-6 animate-spin text-gray-400" />
+                  </div>
+                )}
+              </div>
             </div>
           </div>
 
@@ -529,7 +676,7 @@ export default function SigningPage() {
             {/* Fields */}
             {nonSignatureFields.length > 0 && (
               <div className="bg-white rounded-xl shadow-sm border p-4">
-                <h2 className="font-semibold mb-3">Required Information</h2>
+                <h2 className="font-semibold mb-3 text-gray-900">Required Information</h2>
                 <div className="space-y-4">
                   {nonSignatureFields.map((field) => (
                     <div key={field.id}>{renderField(field)}</div>
@@ -540,7 +687,7 @@ export default function SigningPage() {
 
             {/* Signature */}
             <div className="bg-white rounded-xl shadow-sm border p-4">
-              <h2 className="font-semibold mb-3">Your Signature</h2>
+              <h2 className="font-semibold mb-3 text-gray-900">Your Signature</h2>
               <div className="flex gap-2 mb-3">
                 <button
                   onClick={() => setSignatureType('type')}
@@ -563,14 +710,32 @@ export default function SigningPage() {
                     value={typedSignature}
                     onChange={(e) => setTypedSignature(e.target.value)}
                     placeholder="Type your full name"
-                    className="w-full border rounded-md px-3 py-2 text-sm"
+                    className="w-full border rounded-md px-3 py-2 text-sm text-gray-900 bg-white"
                   />
                   {typedSignature && (
-                    <div className="mt-3 p-4 border-b-2 border-gray-800">
-                      <p className="text-2xl" style={{ fontFamily: 'cursive' }}>
-                        {typedSignature}
-                      </p>
-                    </div>
+                    <>
+                      <div className="mt-3 grid grid-cols-1 gap-2">
+                        {SIGNATURE_FONTS.map((font) => (
+                          <button
+                            key={font.name}
+                            onClick={() => setSignatureFont(font.name)}
+                            className={`text-left p-3 rounded-lg border-2 transition-colors ${
+                              signatureFont === font.name
+                                ? 'border-blue-500 bg-blue-50'
+                                : 'border-gray-200 hover:border-gray-300 bg-white'
+                            }`}
+                          >
+                            <span className="text-xs text-gray-500 block mb-0.5">{font.label}</span>
+                            <span
+                              className="text-2xl text-gray-900 block"
+                              style={{ fontFamily: `'${font.name}', cursive` }}
+                            >
+                              {typedSignature}
+                            </span>
+                          </button>
+                        ))}
+                      </div>
+                    </>
                   )}
                 </div>
               ) : (
@@ -626,7 +791,7 @@ export default function SigningPage() {
       {showDeclineDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
-            <h2 className="text-lg font-bold mb-2">Decline to Sign</h2>
+            <h2 className="text-lg font-bold mb-2 text-gray-900">Decline to Sign</h2>
             <textarea
               value={declineReason}
               onChange={(e) => setDeclineReason(e.target.value)}
@@ -635,7 +800,7 @@ export default function SigningPage() {
               rows={3}
             />
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setShowDeclineDialog(false)} className="px-4 py-2 border rounded-md text-sm">Cancel</button>
+              <button onClick={() => setShowDeclineDialog(false)} className="px-4 py-2 border rounded-md text-sm text-gray-700">Cancel</button>
               <button onClick={handleDecline} className="px-4 py-2 bg-red-600 text-white rounded-md text-sm">Decline</button>
             </div>
           </div>
@@ -646,7 +811,7 @@ export default function SigningPage() {
       {showDelegateDialog && (
         <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
           <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
-            <h2 className="text-lg font-bold mb-2">Delegate Signing</h2>
+            <h2 className="text-lg font-bold mb-2 text-gray-900">Delegate Signing</h2>
             <p className="text-sm text-gray-600 mb-4">Assign someone else to sign on your behalf.</p>
             <div className="space-y-3 mb-4">
               <input
@@ -654,18 +819,18 @@ export default function SigningPage() {
                 value={delegateName}
                 onChange={(e) => setDelegateName(e.target.value)}
                 placeholder="Delegate's full name"
-                className="w-full border rounded-md px-3 py-2 text-sm"
+                className="w-full border rounded-md px-3 py-2 text-sm text-gray-900 bg-white"
               />
               <input
                 type="email"
                 value={delegateEmail}
                 onChange={(e) => setDelegateEmail(e.target.value)}
                 placeholder="Delegate's email"
-                className="w-full border rounded-md px-3 py-2 text-sm"
+                className="w-full border rounded-md px-3 py-2 text-sm text-gray-900 bg-white"
               />
             </div>
             <div className="flex gap-3 justify-end">
-              <button onClick={() => setShowDelegateDialog(false)} className="px-4 py-2 border rounded-md text-sm">Cancel</button>
+              <button onClick={() => setShowDelegateDialog(false)} className="px-4 py-2 border rounded-md text-sm text-gray-700">Cancel</button>
               <button
                 onClick={handleDelegate}
                 disabled={!delegateName.trim() || !delegateEmail.trim()}

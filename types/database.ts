@@ -788,6 +788,8 @@ export type Database = {
           receipt_sent_at: string | null
           reminder_enabled: boolean
           reminder_interval_days: number | null
+          send_completed_copy_to_recipients: boolean
+          send_completed_copy_to_sender: boolean
           sender_email: string | null
           sent_at: string | null
           signed_file_hash: string | null
@@ -825,6 +827,8 @@ export type Database = {
           receipt_sent_at?: string | null
           reminder_enabled?: boolean
           reminder_interval_days?: number | null
+          send_completed_copy_to_recipients?: boolean
+          send_completed_copy_to_sender?: boolean
           sender_email?: string | null
           sent_at?: string | null
           signed_file_hash?: string | null
@@ -862,6 +866,8 @@ export type Database = {
           receipt_sent_at?: string | null
           reminder_enabled?: boolean
           reminder_interval_days?: number | null
+          send_completed_copy_to_recipients?: boolean
+          send_completed_copy_to_sender?: boolean
           sender_email?: string | null
           sent_at?: string | null
           signed_file_hash?: string | null

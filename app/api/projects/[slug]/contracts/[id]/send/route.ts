@@ -10,6 +10,15 @@ function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
 }
 
+/** Strip dangerous HTML while keeping safe formatting tags from Tiptap */
+function sanitizeHtml(html: string): string {
+  return html
+    .replace(/<script\b[^>]*>[\s\S]*?<\/script>/gi, '')
+    .replace(/<iframe\b[^>]*>[\s\S]*?<\/iframe>/gi, '')
+    .replace(/\bon\w+\s*=/gi, 'data-removed=')
+    .replace(/javascript\s*:/gi, 'blocked:');
+}
+
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
 }
@@ -225,7 +234,7 @@ export async function POST(request: Request, context: RouteContext) {
               <h2>Document Ready for Signature</h2>
               <p>Hi ${escHtml(recipient.name)},</p>
               <p>${escHtml(gmailConn.email)} has sent you a document to ${recipient.role === 'signer' ? 'sign' : 'review'}: <strong>${escHtml(document.title)}</strong></p>
-              ${result.data.message ? `<p>${escHtml(result.data.message)}</p>` : ''}
+              ${result.data.message ? `<div style="margin: 16px 0; padding: 12px; border-left: 3px solid #e5e7eb; color: #374151;">${sanitizeHtml(result.data.message)}</div>` : ''}
               <p style="margin: 24px 0;">
                 <a href="${signingUrl}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">
                   Review &amp; Sign Document

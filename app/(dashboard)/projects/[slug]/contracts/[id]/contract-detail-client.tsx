@@ -3,9 +3,13 @@
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
+import { useEditor, EditorContent } from '@tiptap/react';
+import StarterKit from '@tiptap/starter-kit';
+import Placeholder from '@tiptap/extension-placeholder';
 import {
   ArrowLeft, Download, Send, Ban, Bell, FileText, Clock,
   CheckCircle2, XCircle, Eye, Shield, Loader2, Plus, Trash2, PenTool,
+  Bold, Italic, List, ListOrdered,
 } from 'lucide-react';
 import { DOCUMENT_STATUS_LABELS, RECIPIENT_STATUS_LABELS, type ContractDocumentStatus, type ContractRecipientStatus } from '@/types/contract';
 import { Button } from '@/components/ui/button';
@@ -102,6 +106,8 @@ interface ContractDetail {
   person?: { id: string; first_name: string; last_name: string } | null;
   opportunity?: { id: string; name: string } | null;
   owner?: { id: string; full_name: string | null; email: string } | null;
+  send_completed_copy_to_sender: boolean;
+  send_completed_copy_to_recipients: boolean;
 }
 
 export function ContractDetailClient() {
@@ -121,6 +127,25 @@ export function ContractDetailClient() {
   const [gmailConnections, setGmailConnections] = useState<Array<{ id: string; email: string }>>([]);
   const [selectedConnection, setSelectedConnection] = useState('');
   const [sendMessage, setSendMessage] = useState('');
+
+  const sendMessageEditor = useEditor({
+    extensions: [
+      StarterKit.configure({ heading: false }),
+      Placeholder.configure({
+        placeholder: 'Add a personal message to include in the signing invitation email...',
+      }),
+    ],
+    content: '',
+    editorProps: {
+      attributes: {
+        class: 'prose prose-sm max-w-none focus:outline-none min-h-[100px] px-3 py-2',
+      },
+    },
+    onUpdate: ({ editor }) => {
+      const html = editor.getHTML();
+      setSendMessage(html === '<p></p>' ? '' : html);
+    },
+  });
 
   // New recipient form
   const [newRecipientName, setNewRecipientName] = useState('');
@@ -582,6 +607,62 @@ export function ContractDetailClient() {
             </Card>
           </div>
 
+          {/* Completion Email Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Completion Emails</CardTitle>
+              <CardDescription>Control who receives a copy of the signed document when all parties have signed.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              <label className="flex items-center justify-between">
+                <span className="text-sm">Send signed copy to sender</span>
+                <input
+                  type="checkbox"
+                  checked={contract.send_completed_copy_to_sender}
+                  onChange={async (e) => {
+                    const val = e.target.checked;
+                    const prev = contract.send_completed_copy_to_sender;
+                    setContract((c) => c ? { ...c, send_completed_copy_to_sender: val } : c);
+                    try {
+                      const res = await fetch(`/api/projects/${slug}/contracts/${id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ send_completed_copy_to_sender: val }),
+                      });
+                      if (!res.ok) throw new Error();
+                    } catch {
+                      setContract((c) => c ? { ...c, send_completed_copy_to_sender: prev } : c);
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+              </label>
+              <label className="flex items-center justify-between">
+                <span className="text-sm">Send signed copy to recipients</span>
+                <input
+                  type="checkbox"
+                  checked={contract.send_completed_copy_to_recipients}
+                  onChange={async (e) => {
+                    const val = e.target.checked;
+                    const prev = contract.send_completed_copy_to_recipients;
+                    setContract((c) => c ? { ...c, send_completed_copy_to_recipients: val } : c);
+                    try {
+                      const res = await fetch(`/api/projects/${slug}/contracts/${id}`, {
+                        method: 'PATCH',
+                        headers: { 'Content-Type': 'application/json' },
+                        body: JSON.stringify({ send_completed_copy_to_recipients: val }),
+                      });
+                      if (!res.ok) throw new Error();
+                    } catch {
+                      setContract((c) => c ? { ...c, send_completed_copy_to_recipients: prev } : c);
+                    }
+                  }}
+                  className="h-4 w-4 rounded border-gray-300"
+                />
+              </label>
+            </CardContent>
+          </Card>
+
           {/* Signing Progress */}
           {!isDraft && signers.length > 0 && (
             <Card>
@@ -766,12 +847,55 @@ export function ContractDetailClient() {
             </div>
             <div>
               <Label>Message (optional)</Label>
-              <Input
-                value={sendMessage}
-                onChange={(e) => setSendMessage(e.target.value)}
-                placeholder="Add a personal message..."
-                className="mt-1"
-              />
+              <div className="mt-1 rounded-md border">
+                {sendMessageEditor && (
+                  <>
+                    <div className="flex items-center gap-0.5 border-b px-1 py-1">
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => sendMessageEditor.chain().focus().toggleBold().run()}
+                        data-active={sendMessageEditor.isActive('bold') || undefined}
+                      >
+                        <Bold className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => sendMessageEditor.chain().focus().toggleItalic().run()}
+                        data-active={sendMessageEditor.isActive('italic') || undefined}
+                      >
+                        <Italic className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => sendMessageEditor.chain().focus().toggleBulletList().run()}
+                        data-active={sendMessageEditor.isActive('bulletList') || undefined}
+                      >
+                        <List className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        type="button"
+                        variant="ghost"
+                        size="sm"
+                        className="h-7 w-7 p-0"
+                        onClick={() => sendMessageEditor.chain().focus().toggleOrderedList().run()}
+                        data-active={sendMessageEditor.isActive('orderedList') || undefined}
+                      >
+                        <ListOrdered className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
+                    <EditorContent editor={sendMessageEditor} />
+                  </>
+                )}
+              </div>
             </div>
           </div>
           <DialogFooter>

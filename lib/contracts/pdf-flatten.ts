@@ -1,5 +1,19 @@
 import { PDFDocument, rgb, StandardFonts } from 'pdf-lib';
+import fontkit from '@pdf-lib/fontkit';
+import { readFile } from 'fs/promises';
+import { join } from 'path';
 import { createServiceClient } from '@/lib/supabase/server';
+
+/** Map of font names (matching the signing page SIGNATURE_FONTS) to local .ttf files */
+const SIGNATURE_FONT_FILES: Record<string, string> = {
+  'Dancing Script': 'DancingScript.ttf',
+  'Caveat': 'Caveat.ttf',
+  'Great Vibes': 'GreatVibes.ttf',
+  'Kalam': 'Kalam.ttf',
+  'Pacifico': 'Pacifico.ttf',
+};
+
+const FONTS_DIR = join(process.cwd(), 'lib', 'contracts', 'fonts');
 
 interface FlattenOptions {
   documentId: string;
@@ -50,8 +64,29 @@ export async function flattenPdf(options: FlattenOptions): Promise<{
 
   const originalBytes = new Uint8Array(await fileData.arrayBuffer());
   const pdfDoc = await PDFDocument.load(originalBytes);
-  const font = await pdfDoc.embedFont(StandardFonts.Helvetica);
+  pdfDoc.registerFontkit(fontkit);
+  const fallbackFont = await pdfDoc.embedFont(StandardFonts.Helvetica);
   const pages = pdfDoc.getPages();
+
+  // Cache for embedded signature fonts (loaded on demand per recipient)
+  const embeddedFontCache = new Map<string, Awaited<ReturnType<typeof pdfDoc.embedFont>>>();
+
+  async function getSignatureFont(fontName?: string) {
+    if (!fontName) return fallbackFont;
+    const cached = embeddedFontCache.get(fontName);
+    if (cached) return cached;
+    const fileName = SIGNATURE_FONT_FILES[fontName];
+    if (!fileName) return fallbackFont;
+    try {
+      const fontBytes = await readFile(join(FONTS_DIR, fileName));
+      const embedded = await pdfDoc.embedFont(fontBytes);
+      embeddedFontCache.set(fontName, embedded);
+      return embedded;
+    } catch (err) {
+      console.error(`[FLATTEN] Failed to load font ${fontName}:`, err);
+      return fallbackFont;
+    }
+  }
 
   // Get recipients with signature data
   const { data: recipients } = await supabase
@@ -99,13 +134,14 @@ export async function flattenPdf(options: FlattenOptions): Promise<{
 
       if (sigData) {
         if (sigData.type === 'type') {
-          // Render typed signature in cursive-like style
+          // Render typed signature with the user's chosen font
+          const sigFont = await getSignatureFont(sigData.font);
           const fontSize = Math.min(fieldHeight * 0.6, 24);
           page.drawText(sigData.data, {
             x: x + 4,
             y: y + fieldHeight * 0.3,
             size: fontSize,
-            font,
+            font: sigFont,
             color: rgb(0.05, 0.05, 0.3),
           });
         } else if (sigData.type === 'draw' || sigData.type === 'upload') {
@@ -131,18 +167,19 @@ export async function flattenPdf(options: FlattenOptions): Promise<{
               x: x + 4,
               y: y + fieldHeight * 0.3,
               size: 10,
-              font,
+              font: fallbackFont,
               color: rgb(0.05, 0.05, 0.3),
             });
           }
         } else {
           // Adopted signature - render name
           const fontSize = Math.min(fieldHeight * 0.6, 20);
+          const adoptFont = await getSignatureFont(sigData.font);
           page.drawText(recipient?.name ?? 'Signed', {
             x: x + 4,
             y: y + fieldHeight * 0.3,
             size: fontSize,
-            font,
+            font: adoptFont,
             color: rgb(0.05, 0.05, 0.3),
           });
         }
@@ -153,7 +190,7 @@ export async function flattenPdf(options: FlattenOptions): Promise<{
           x: x + fieldWidth * 0.25,
           y: y + fieldHeight * 0.2,
           size: Math.min(fieldHeight * 0.7, 16),
-          font,
+          font: fallbackFont,
           color: rgb(0, 0, 0),
         });
       }
@@ -162,7 +199,7 @@ export async function flattenPdf(options: FlattenOptions): Promise<{
         x: x + 4,
         y: y + fieldHeight * 0.3,
         size: Math.min(fieldHeight * 0.5, 11),
-        font,
+        font: fallbackFont,
         color: rgb(0, 0, 0),
       });
     } else {
@@ -172,7 +209,7 @@ export async function flattenPdf(options: FlattenOptions): Promise<{
         x: x + 4,
         y: y + fieldHeight * 0.3,
         size: fontSize,
-        font,
+        font: fallbackFont,
         color: rgb(0, 0, 0),
       });
     }
