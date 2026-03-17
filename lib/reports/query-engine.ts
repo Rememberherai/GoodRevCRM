@@ -103,23 +103,39 @@ function buildAllowedColumnsMap(config: CustomReportConfig): Map<string, Set<str
 
 // ── FK Hint Resolution ───────────────────────────────────────────────────────
 
+import type { ReportableRelation } from './types';
+
 /**
- * Resolve the FK hint for a PostgREST embedded resource.
- * PostgREST needs `table!fk_column(...)` when the relationship is ambiguous
- * or not auto-detected from the schema cache.
+ * Find the relation definition from primaryObject to relatedObject.
  */
-function getFkHint(primaryObject: string, relatedObject: string): string {
+function findRelation(primaryObject: string, relatedObject: string): ReportableRelation | undefined {
   const schema = getStaticSchema();
   const primaryObj = schema.objects[primaryObject];
-  if (!primaryObj) return relatedObject;
+  if (!primaryObj) return undefined;
+  return primaryObj.relations.find((r) => r.targetObject === relatedObject);
+}
 
-  // Find the relation from primaryObject that targets relatedObject
-  const relation = primaryObj.relations.find((r) => r.targetObject === relatedObject);
-  if (relation) {
-    return `${relatedObject}!${relation.foreignKey}`;
+/**
+ * Build the PostgREST embedding expression for a related object's fields.
+ *
+ * Direct FK:    `organizations!organization_id(name, industry)`
+ * Through M2M: `person_organizations!person_id(organizations!organization_id(name, industry))`
+ */
+function buildEmbedExpression(primaryObject: string, relatedObject: string, fields: string[]): string {
+  const relation = findRelation(primaryObject, relatedObject);
+  const fieldList = fields.join(', ');
+
+  if (relation?.throughTable) {
+    // M2M through join table
+    return `${relation.throughTable}!${relation.foreignKey}(${relatedObject}!${relation.throughForeignKey}(${fieldList}))`;
   }
 
-  return relatedObject;
+  if (relation) {
+    return `${relatedObject}!${relation.foreignKey}(${fieldList})`;
+  }
+
+  // Fallback — let PostgREST auto-detect
+  return `${relatedObject}(${fieldList})`;
 }
 
 // ── Tabular Query Builder (PostgREST) ───────────────────────────────────────
@@ -148,8 +164,7 @@ function buildSelectString(columns: ReportColumn[], primaryObject: string): stri
 
   const parts = [...primaryCols];
   for (const [objName, fields] of relatedCols) {
-    const fkHint = getFkHint(primaryObject, objName);
-    parts.push(`${fkHint}(${fields.join(', ')})`);
+    parts.push(buildEmbedExpression(primaryObject, objName, fields));
   }
 
   return parts.join(', ');
@@ -228,8 +243,15 @@ export async function executeTabularReport(
   for (const filter of config.filters ?? []) {
     if (filter.objectName !== config.primaryObject && !relatedTablesInSelect.has(filter.objectName)) {
       // Add a minimal select on the related table so the filter can reference it
-      const filterFkHint = getFkHint(config.primaryObject, filter.objectName);
-      selectString += `, ${filterFkHint}!inner(id)`;
+      const relation = findRelation(config.primaryObject, filter.objectName);
+      if (relation?.throughTable) {
+        // M2M through-table: filter-only embeds not supported via PostgREST dot-notation
+        console.warn('[ReportQuery] Skipping M2M filter-only embed for %s (through %s)', filter.objectName, relation.throughTable);
+      } else if (relation) {
+        selectString += `, ${filter.objectName}!${relation.foreignKey}!inner(id)`;
+      } else {
+        selectString += `, ${filter.objectName}!inner(id)`;
+      }
       relatedTablesInSelect.add(filter.objectName);
     }
   }

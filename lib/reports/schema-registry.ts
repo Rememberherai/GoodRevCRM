@@ -27,6 +27,7 @@ const REPORTABLE_OBJECTS: Record<string, ReportableObject> = {
       { name: 'updated_at', label: 'Updated At', type: 'datetime', aggregatable: false, groupable: false, filterable: true },
     ],
     relations: [
+      { name: 'people', label: 'People', targetObject: 'people', type: 'has_many', foreignKey: 'organization_id', targetKey: 'id', throughTable: 'person_organizations', throughForeignKey: 'person_id' },
       { name: 'opportunities', label: 'Opportunities', targetObject: 'opportunities', type: 'has_many', foreignKey: 'organization_id', targetKey: 'id' },
       { name: 'rfps', label: 'RFPs', targetObject: 'rfps', type: 'has_many', foreignKey: 'organization_id', targetKey: 'id' },
     ],
@@ -58,7 +59,9 @@ const REPORTABLE_OBJECTS: Record<string, ReportableObject> = {
       { name: 'created_at', label: 'Created At', type: 'datetime', aggregatable: false, groupable: true, filterable: true },
       { name: 'updated_at', label: 'Updated At', type: 'datetime', aggregatable: false, groupable: false, filterable: true },
     ],
-    relations: [],
+    relations: [
+      { name: 'organization', label: 'Organization', targetObject: 'organizations', type: 'belongs_to', foreignKey: 'person_id', targetKey: 'id', throughTable: 'person_organizations', throughForeignKey: 'organization_id' },
+    ],
   },
 
   opportunities: {

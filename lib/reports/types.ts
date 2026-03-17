@@ -33,6 +33,10 @@ export interface ReportableRelation {
   type: ReportRelationType;
   foreignKey: string;
   targetKey: string;
+  /** For M2M relations: the join/bridge table name */
+  throughTable?: string;
+  /** For M2M relations: the FK on the bridge table pointing to the target */
+  throughForeignKey?: string;
 }
 
 export interface ReportableObject {
