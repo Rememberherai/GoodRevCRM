@@ -51,6 +51,10 @@ export async function executeWebhook(
       redirect: 'manual',
     });
 
+    if (!response.ok) {
+      throw new Error(`Webhook returned ${response.status}: ${response.statusText}`);
+    }
+
     let body: unknown;
     const contentType = response.headers.get('content-type') || '';
     if (contentType.includes('application/json')) {
@@ -63,10 +67,6 @@ export async function executeWebhook(
     response.headers.forEach((value, key) => {
       responseHeaders[key] = value;
     });
-
-    if (!response.ok) {
-      throw new Error(`Webhook returned ${response.status}: ${response.statusText}`);
-    }
 
     return {
       status: response.status,
