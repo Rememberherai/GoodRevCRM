@@ -71,7 +71,7 @@ export default function WorkflowsPage() {
                 data: { label: 'End', config: {} },
               },
             ],
-            edges: [],
+            edges: [{ id: 'e-start-end', source: 'start-1', target: 'end-1' }],
           },
         }),
       });

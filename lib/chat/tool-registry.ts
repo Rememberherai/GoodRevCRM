@@ -3981,7 +3981,7 @@ defineTool({
     if (is_active !== undefined) query = query.eq('is_active', is_active);
     if (tag) query = query.contains('tags', [tag]);
     if (search) {
-      const s = search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""');
+      const s = search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""').replace(/[,()]/g, '');
       query = query.or(`name.ilike."%${s}%",description.ilike."%${s}%"`);
     }
 
@@ -4094,8 +4094,10 @@ defineTool({
 
     if (getError) throw new Error(`Workflow not found: ${getError.message}`);
 
-    const newVersion = (current.current_version ?? 0) + 1;
-    const updateData: Record<string, unknown> = { current_version: newVersion };
+    const definitionChanged = params.nodes !== undefined || params.edges !== undefined || params.trigger_type !== undefined;
+    const newVersion = definitionChanged ? (current.current_version ?? 0) + 1 : current.current_version;
+    const updateData: Record<string, unknown> = {};
+    if (definitionChanged) updateData.current_version = newVersion;
     if (params.name !== undefined) updateData.name = params.name;
     if (params.description !== undefined) updateData.description = params.description;
     if (params.trigger_type !== undefined) updateData.trigger_type = params.trigger_type;
@@ -4120,15 +4122,18 @@ defineTool({
 
     if (error) throw new Error(`Failed to update workflow: ${error.message}`);
 
-    await ctx.supabase.from('workflow_versions').insert({
-      workflow_id: id,
-      version: newVersion,
-      definition: (updateData.definition ?? current.definition) as Json,
-      trigger_type: (params.trigger_type as string) ?? current.trigger_type,
-      trigger_config: current.trigger_config as Json,
-      change_summary: (params.change_summary as string) ?? 'Updated via chat',
-      created_by: ctx.userId,
-    });
+    // Only create version record when definition/trigger changes
+    if (definitionChanged) {
+      await ctx.supabase.from('workflow_versions').insert({
+        workflow_id: id,
+        version: newVersion,
+        definition: (updateData.definition ?? current.definition) as Json,
+        trigger_type: (params.trigger_type as string) ?? current.trigger_type,
+        trigger_config: current.trigger_config as Json,
+        change_summary: (params.change_summary as string) ?? 'Updated via chat',
+        created_by: ctx.userId,
+      });
+    }
 
     return JSON.stringify(data);
   },

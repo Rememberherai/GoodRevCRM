@@ -34,7 +34,7 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
       if (is_active !== undefined) query = query.eq('is_active', is_active);
       if (tag) query = query.contains('tags', [tag]);
       if (search) {
-        const s = search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""');
+        const s = search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""').replace(/[,()]/g, '');
         query = query.or(`name.ilike."%${s}%",description.ilike."%${s}%"`);
       }
 
@@ -169,8 +169,10 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
 
       if (getError) throw new Error(`Workflow not found: ${getError.message}`);
 
-      const newVersion = (current.current_version ?? 0) + 1;
-      const updateData: Record<string, unknown> = { current_version: newVersion };
+      const definitionChanged = updates.definition !== undefined || updates.trigger_type !== undefined || updates.trigger_config !== undefined;
+      const newVersion = definitionChanged ? (current.current_version ?? 0) + 1 : current.current_version;
+      const updateData: Record<string, unknown> = {};
+      if (definitionChanged) updateData.current_version = newVersion;
       if (updates.name !== undefined) updateData.name = updates.name;
       if (updates.description !== undefined) updateData.description = updates.description;
       if (updates.trigger_type !== undefined) updateData.trigger_type = updates.trigger_type;
@@ -192,16 +194,18 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
 
       if (error) throw new Error(`Failed to update workflow: ${error.message}`);
 
-      // Create version record
-      await ctx.supabase.from('workflow_versions').insert({
-        workflow_id: id,
-        version: newVersion,
-        definition: (updateData.definition ?? current.definition) as unknown as Json,
-        trigger_type: updates.trigger_type ?? current.trigger_type,
-        trigger_config: (updates.trigger_config ?? current.trigger_config) as unknown as Json,
-        change_summary: change_summary ?? 'Updated via MCP',
-        created_by: ctx.userId,
-      });
+      // Only create version record when definition/trigger changes
+      if (definitionChanged) {
+        await ctx.supabase.from('workflow_versions').insert({
+          workflow_id: id,
+          version: newVersion,
+          definition: (updateData.definition ?? current.definition) as unknown as Json,
+          trigger_type: updates.trigger_type ?? current.trigger_type,
+          trigger_config: (updates.trigger_config ?? current.trigger_config) as unknown as Json,
+          change_summary: change_summary ?? 'Updated via MCP',
+          created_by: ctx.userId,
+        });
+      }
 
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
