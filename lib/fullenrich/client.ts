@@ -261,9 +261,13 @@ export class FullEnrichClient {
 
     const data = await response.json();
 
+    // Log raw API response for debugging enrichment issues
+    console.log(`[FullEnrich] Raw response for ${endpoint}:`, JSON.stringify(data, null, 2));
+
     if (schema) {
       const parsed = schema.safeParse(data);
       if (!parsed.success) {
+        console.error('[FullEnrich] Zod parse error:', parsed.error.message, 'Raw data:', JSON.stringify(data));
         throw new FullEnrichError(
           'Invalid response from FullEnrich API',
           undefined,
