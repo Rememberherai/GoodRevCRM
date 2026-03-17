@@ -94,7 +94,7 @@ export async function POST(request: Request) {
     // Find all enrichment jobs with this external job ID
     const { data: jobs, error: fetchError } = await supabase
       .from('enrichment_jobs')
-      .select('id, person_id, project_id')
+      .select('id, person_id, project_id, created_by')
       .eq('external_job_id', enrichmentId)
       .order('created_at', { ascending: true });
 
@@ -102,6 +102,25 @@ export async function POST(request: Request) {
       console.error('Enrichment jobs not found for external ID:', enrichmentId.slice(0, 100).replace(/[\n\r]/g, ''));
       return NextResponse.json({ error: 'Jobs not found' }, { status: 404 });
     }
+
+    // Fetch person names and project slug for notifications
+    const personIds = [...new Set(jobs.map((j: { person_id: string }) => j.person_id))];
+    const { data: personRows } = await supabase
+      .from('people')
+      .select('id, first_name, last_name')
+      .in('id', personIds);
+    const personNameMap = new Map(
+      (personRows ?? []).map((p: { id: string; first_name: string | null; last_name: string | null }) =>
+        [p.id, [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unknown']
+      )
+    );
+    const projectId = jobs[0]?.project_id;
+    const { data: projectRow } = await supabase
+      .from('projects')
+      .select('slug')
+      .eq('id', projectId)
+      .single();
+    const projectSlug = projectRow?.slug ?? '';
 
     // Handle failed/canceled/insufficient credits statuses
     if (status === 'CANCELED' || status === 'CREDITS_INSUFFICIENT' || status === 'RATE_LIMIT') {
@@ -227,8 +246,27 @@ export async function POST(request: Request) {
         })
         .eq('id', job.id);
 
-      // Note: We do NOT auto-apply to person record here
-      // User must review and select which fields to apply via the review modal
+      // Create notification for the user
+      const hasData = !!(enrichmentResult.email || enrichmentResult.phone || allEmails.length > 0 || allPhones.length > 0);
+      const pName = personNameMap.get(job.person_id) ?? 'Unknown';
+      try {
+        await supabase.from('notifications').insert({
+          user_id: job.created_by,
+          type: 'custom',
+          title: hasData ? 'Enrichment Complete' : 'Enrichment Complete — No Data Found',
+          message: hasData
+            ? `New data found for ${pName}. Click to review and apply.`
+            : `No new data was found for ${pName}.`,
+          priority: 'normal',
+          entity_type: 'person',
+          entity_id: job.person_id,
+          project_id: projectId,
+          action_url: `/projects/${projectSlug}/people/${job.person_id}`,
+          data: { personId: job.person_id, projectSlug },
+        });
+      } catch (notifErr) {
+        console.error('Error creating enrichment notification:', notifErr);
+      }
     }
 
     return NextResponse.json({

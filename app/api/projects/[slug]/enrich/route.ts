@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import {
   enrichPersonSchema,
@@ -8,6 +9,37 @@ import {
 import { getProjectFullEnrichClient, type EnrichmentPerson } from '@/lib/fullenrich/client';
 import type { EnrichmentJob, EnrichmentInput } from '@/types/enrichment';
 import type { EnrichmentStatus } from '@/lib/fullenrich/client';
+
+/** Create a persistent DB notification when enrichment completes */
+async function createEnrichmentNotification(
+  userId: string,
+  personId: string,
+  personName: string,
+  projectSlug: string,
+  projectId: string,
+  hasData: boolean,
+) {
+  try {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const admin = createAdminClient() as any;
+    await admin.from('notifications').insert({
+      user_id: userId,
+      type: 'custom',
+      title: hasData ? 'Enrichment Complete' : 'Enrichment Complete — No Data Found',
+      message: hasData
+        ? `New data found for ${personName}. Click to review and apply.`
+        : `No new data was found for ${personName}.`,
+      priority: 'normal',
+      entity_type: 'person',
+      entity_id: personId,
+      project_id: projectId,
+      action_url: `/projects/${projectSlug}/people/${personId}`,
+      data: { personId, projectSlug },
+    });
+  } catch (err) {
+    console.error('Error creating enrichment notification:', err);
+  }
+}
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -114,6 +146,16 @@ export async function GET(request: Request, context: RouteContext) {
         try {
           const client = await getProjectFullEnrichClient(project.id);
           console.log('FullEnrich client created, polling jobs...');
+
+          // Fetch person names for notifications
+          const personIds = [...new Set(processingJobs.map((j) => j.person_id))];
+          const { data: personRows } = await supabase
+            .from('people')
+            .select('id, first_name, last_name')
+            .in('id', personIds);
+          const personNameMap = new Map(
+            (personRows ?? []).map((p) => [p.id, [p.first_name, p.last_name].filter(Boolean).join(' ') || 'Unknown'])
+          );
 
           // Group jobs by external_job_id to avoid duplicate API calls for bulk enrichments
           const jobsByExternalId = new Map<string, EnrichmentJobRow[]>();
@@ -242,6 +284,11 @@ export async function GET(request: Request, context: RouteContext) {
                         completed_at: new Date().toISOString(),
                       };
                     }
+
+                    // Create notification for the user
+                    const hasData = !!(enrichmentResult.email || enrichmentResult.phone || (enrichmentResult.all_emails?.length ?? 0) > 0 || (enrichmentResult.all_phones?.length ?? 0) > 0);
+                    const pName = personNameMap.get(job.person_id) ?? 'Unknown';
+                    createEnrichmentNotification(job.created_by, job.person_id, pName, slug, project.id, hasData);
                   } else {
                     console.log('No matching result found for job:', job.id, 'input:', inputData);
                   }
