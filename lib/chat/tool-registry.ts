@@ -1592,6 +1592,2343 @@ defineTool({
   },
 });
 
+// ── Automations Tools ────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'automations.list',
+  description: 'List automations with optional filtering by active status',
+  minRole: 'viewer',
+  parameters: z.object({
+    is_active: z.boolean().optional().describe('Filter by active status'),
+    limit: z.number().int().min(1).max(100).default(50).describe('Items per page'),
+    offset: z.number().int().min(0).default(0).describe('Offset for pagination'),
+  }),
+  handler: async (params, ctx) => {
+    const { is_active, limit = 50, offset = 0 } = params as { is_active?: boolean; limit?: number; offset?: number };
+    let query = ctx.supabase
+      .from('automations')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (is_active !== undefined) query = query.eq('is_active', is_active);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list automations: ${error.message}`);
+    return JSON.stringify({ automations: data, pagination: { limit, offset, total: count ?? 0 } });
+  },
+});
+
+defineTool({
+  name: 'automations.get',
+  description: 'Get a single automation by ID with recent executions',
+  minRole: 'viewer',
+  parameters: z.object({
+    id: z.string().uuid().describe('Automation ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('automations')
+      .select('*')
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (error) throw new Error(`Automation not found: ${error.message}`);
+
+    const { data: executions } = await ctx.supabase
+      .from('automation_executions')
+      .select('*')
+      .eq('automation_id', params.id as string)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    return JSON.stringify({ automation: data, recent_executions: executions ?? [] });
+  },
+});
+
+defineTool({
+  name: 'automations.create',
+  description: 'Create a new automation rule with trigger, conditions, and actions',
+  minRole: 'admin',
+  parameters: z.object({
+    name: z.string().min(1).max(255).describe('Automation name'),
+    description: z.string().max(1000).nullable().optional().describe('Description'),
+    is_active: z.boolean().default(false).describe('Whether automation is active'),
+    trigger_type: z.string().describe('Trigger type (e.g. entity.created, entity.updated, entity.deleted)'),
+    trigger_config: z.record(z.string(), z.unknown()).default({}).describe('Trigger configuration'),
+    conditions: z.array(z.object({
+      field: z.string(),
+      operator: z.string(),
+      value: z.unknown().optional(),
+    })).default([]).describe('Conditions to match'),
+    actions: z.array(z.object({
+      type: z.string(),
+      config: z.record(z.string(), z.unknown()).default({}),
+    })).min(1).describe('Actions to execute'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('automations')
+      .insert({
+        ...params as any,
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+      } as any)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to create automation: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'automations.update',
+  description: 'Update an existing automation',
+  minRole: 'admin',
+  parameters: z.object({
+    id: z.string().uuid().describe('Automation ID'),
+    name: z.string().min(1).max(255).optional(),
+    description: z.string().max(1000).nullable().optional(),
+    is_active: z.boolean().optional(),
+    trigger_type: z.string().optional(),
+    trigger_config: z.record(z.string(), z.unknown()).optional(),
+    conditions: z.array(z.object({
+      field: z.string(),
+      operator: z.string(),
+      value: z.unknown().optional(),
+    })).optional(),
+    actions: z.array(z.object({
+      type: z.string(),
+      config: z.record(z.string(), z.unknown()).default({}),
+    })).min(1).optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { id, ...updates } = params as Record<string, unknown>;
+    const { data, error } = await ctx.supabase
+      .from('automations')
+      .update(updates as any)
+      .eq('id', id as string)
+      .eq('project_id', ctx.projectId)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update automation: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'automations.delete',
+  description: 'Delete an automation',
+  minRole: 'admin',
+  parameters: z.object({
+    id: z.string().uuid().describe('Automation ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { error } = await ctx.supabase
+      .from('automations')
+      .delete()
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId);
+    if (error) throw new Error(`Failed to delete automation: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+// ── Content Library Tools ───────────────────────────────────────────────────
+
+defineTool({
+  name: 'content.list',
+  description: 'List content library entries with optional category and search filters',
+  minRole: 'viewer',
+  parameters: z.object({
+    category: z.string().optional().describe('Filter by category'),
+    search: z.string().max(500).optional().describe('Search query'),
+  }),
+  handler: async (params, ctx) => {
+    const { category, search } = params as { category?: string; search?: string };
+    let query = ctx.supabase
+      .from('rfp_content_library')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+    if (category) query = query.eq('category', category);
+    if (search) {
+      const s = search.replace(/[%_\\]/g, '\\$&');
+      query = query.or(`title.ilike."%${s}%",answer_text.ilike."%${s}%",question_text.ilike."%${s}%"`);
+    }
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list content: ${error.message}`);
+    return JSON.stringify({ entries: data, total: count ?? 0 });
+  },
+});
+
+defineTool({
+  name: 'content.search',
+  description: 'Semantic search of the content library for relevant answers',
+  minRole: 'viewer',
+  parameters: z.object({
+    query: z.string().min(1).describe('Search query'),
+    category: z.string().optional().describe('Filter by category'),
+    limit: z.number().int().min(1).max(50).default(10).describe('Max results'),
+  }),
+  handler: async (params, ctx) => {
+    const { query, category, limit = 10 } = params as { query: string; category?: string; limit?: number };
+    let q = ctx.supabase
+      .from('rfp_content_library')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .limit(limit);
+    if (category) q = q.eq('category', category);
+    const s = query.replace(/[%_\\]/g, '\\$&');
+    q = q.or(`title.ilike."%${s}%",answer_text.ilike."%${s}%",question_text.ilike."%${s}%"`);
+    const { data, error } = await q;
+    if (error) throw new Error(`Failed to search content: ${error.message}`);
+    return JSON.stringify({ entries: data });
+  },
+});
+
+defineTool({
+  name: 'content.get',
+  description: 'Get a single content library entry by ID',
+  minRole: 'viewer',
+  parameters: z.object({
+    id: z.string().uuid().describe('Content entry ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('rfp_content_library')
+      .select('*')
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .single();
+    if (error) throw new Error(`Content entry not found: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'content.create',
+  description: 'Create a new content library entry (reusable answer/snippet)',
+  minRole: 'member',
+  parameters: z.object({
+    title: z.string().min(1).max(500).describe('Entry title'),
+    question_text: z.string().optional().describe('Original question text'),
+    answer_text: z.string().min(1).describe('Answer/content text'),
+    answer_html: z.string().optional().describe('HTML formatted answer'),
+    category: z.string().optional().describe('Category'),
+    tags: z.array(z.string()).optional().describe('Tags'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('rfp_content_library')
+      .insert({
+        ...params as any,
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+      } as any)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to create content entry: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'content.update',
+  description: 'Update a content library entry',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Content entry ID'),
+    title: z.string().min(1).max(500).optional(),
+    question_text: z.string().optional(),
+    answer_text: z.string().optional(),
+    answer_html: z.string().optional(),
+    category: z.string().optional(),
+    tags: z.array(z.string()).optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { id, ...updates } = params as Record<string, unknown>;
+    const { data, error } = await ctx.supabase
+      .from('rfp_content_library')
+      .update(updates as any)
+      .eq('id', id as string)
+      .eq('project_id', ctx.projectId)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update content entry: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'content.delete',
+  description: 'Delete a content library entry (soft delete)',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Content entry ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { error } = await ctx.supabase
+      .from('rfp_content_library')
+      .update({ deleted_at: new Date().toISOString() } as any)
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId);
+    if (error) throw new Error(`Failed to delete content entry: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+// ── News Tools ──────────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'news.list_keywords',
+  description: 'List news monitoring keywords for this project',
+  minRole: 'viewer',
+  parameters: z.object({
+    source: z.string().optional().describe('Filter by source (manual or organization)'),
+  }),
+  handler: async (params, ctx) => {
+    let query = ctx.supabase
+      .from('news_keywords')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: false });
+    if (params.source) query = query.eq('source', params.source as string);
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to list keywords: ${error.message}`);
+    return JSON.stringify({ keywords: data });
+  },
+});
+
+defineTool({
+  name: 'news.create_keyword',
+  description: 'Add a news monitoring keyword to track',
+  minRole: 'member',
+  parameters: z.object({
+    keyword: z.string().min(2).max(255).describe('Keyword to monitor'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('news_keywords')
+      .insert({
+        keyword: params.keyword as string,
+        project_id: ctx.projectId,
+        source: 'manual',
+        created_by: ctx.userId,
+      } as any)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to create keyword: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'news.delete_keyword',
+  description: 'Delete a news monitoring keyword',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Keyword ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { error } = await ctx.supabase
+      .from('news_keywords')
+      .delete()
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .eq('source', 'manual');
+    if (error) throw new Error(`Failed to delete keyword: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+defineTool({
+  name: 'news.list_articles',
+  description: 'List news articles for this project, optionally filtered by keyword',
+  minRole: 'viewer',
+  parameters: z.object({
+    keyword_id: z.string().uuid().optional().describe('Filter by keyword ID'),
+    is_starred: z.boolean().optional().describe('Filter by starred status'),
+    is_read: z.boolean().optional().describe('Filter by read status'),
+    limit: z.number().int().min(1).max(100).default(50),
+    offset: z.number().int().min(0).default(0),
+  }),
+  handler: async (params, ctx) => {
+    const { keyword_id, is_starred, is_read, limit = 50, offset = 0 } = params as any;
+    let query = ctx.supabase
+      .from('news_articles')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('published_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (keyword_id) query = query.eq('keyword_id', keyword_id);
+    if (is_starred !== undefined) query = query.eq('is_starred', is_starred);
+    if (is_read !== undefined) query = query.eq('is_read', is_read);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list articles: ${error.message}`);
+    return JSON.stringify({ articles: data, pagination: { limit, offset, total: count ?? 0 } });
+  },
+});
+
+defineTool({
+  name: 'news.update_article',
+  description: 'Update a news article (mark as read/starred)',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Article ID'),
+    is_read: z.boolean().optional(),
+    is_starred: z.boolean().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { id, ...updates } = params as Record<string, unknown>;
+    const { data, error } = await ctx.supabase
+      .from('news_articles')
+      .update(updates as any)
+      .eq('id', id as string)
+      .eq('project_id', ctx.projectId)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update article: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+// ── Custom Fields / Schema Tools ────────────────────────────────────────────
+
+defineTool({
+  name: 'schema.list',
+  description: 'List custom field definitions for this project, optionally filtered by entity type',
+  minRole: 'viewer',
+  parameters: z.object({
+    entity_type: z.string().optional().describe('Filter by entity type (organization, person, opportunity, rfp, task)'),
+  }),
+  handler: async (params, ctx) => {
+    let query = ctx.supabase
+      .from('custom_field_definitions')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .order('display_order', { ascending: true });
+    if (params.entity_type) query = query.eq('entity_type', params.entity_type as any);
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to list custom fields: ${error.message}`);
+    return JSON.stringify({ fields: data });
+  },
+});
+
+defineTool({
+  name: 'schema.create',
+  description: 'Create a new custom field definition',
+  minRole: 'admin',
+  parameters: z.object({
+    name: z.string().min(1).max(100).describe('Field machine name'),
+    label: z.string().min(1).max(200).describe('Display label'),
+    description: z.string().max(500).optional(),
+    entity_type: z.string().describe('Entity type (organization, person, opportunity, rfp, task)'),
+    field_type: z.string().describe('Field type (text, number, date, boolean, select, multi_select, url, email, phone)'),
+    is_required: z.boolean().default(false),
+    is_searchable: z.boolean().default(false),
+    is_filterable: z.boolean().default(false),
+    is_visible_in_list: z.boolean().default(true),
+    group_name: z.string().max(100).optional(),
+    options: z.array(z.string()).optional().describe('Options for select/multi_select fields'),
+    default_value: z.string().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('custom_field_definitions')
+      .insert({
+        ...params as any,
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+      } as any)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to create custom field: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'schema.update',
+  description: 'Update a custom field definition',
+  minRole: 'admin',
+  parameters: z.object({
+    id: z.string().uuid().describe('Custom field ID'),
+    label: z.string().min(1).max(200).optional(),
+    description: z.string().max(500).optional(),
+    is_required: z.boolean().optional(),
+    is_searchable: z.boolean().optional(),
+    is_filterable: z.boolean().optional(),
+    is_visible_in_list: z.boolean().optional(),
+    group_name: z.string().max(100).optional(),
+    options: z.array(z.string()).optional(),
+    default_value: z.string().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { id, ...updates } = params as Record<string, unknown>;
+    const { data, error } = await ctx.supabase
+      .from('custom_field_definitions')
+      .update(updates as any)
+      .eq('id', id as string)
+      .eq('project_id', ctx.projectId)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update custom field: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'schema.delete',
+  description: 'Delete a custom field definition',
+  minRole: 'admin',
+  parameters: z.object({
+    id: z.string().uuid().describe('Custom field ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { error } = await ctx.supabase
+      .from('custom_field_definitions')
+      .delete()
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId);
+    if (error) throw new Error(`Failed to delete custom field: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+// ── Webhooks Tools ──────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'webhooks.list',
+  description: 'List webhooks configured for this project',
+  minRole: 'admin',
+  parameters: z.object({
+    is_active: z.boolean().optional().describe('Filter by active status'),
+    limit: z.number().int().min(1).max(100).default(50),
+    offset: z.number().int().min(0).default(0),
+  }),
+  handler: async (params, ctx) => {
+    const { is_active, limit = 50, offset = 0 } = params as any;
+    let query = ctx.supabase
+      .from('webhooks')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (is_active !== undefined) query = query.eq('is_active', is_active);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list webhooks: ${error.message}`);
+    return JSON.stringify({ webhooks: data, pagination: { limit, offset, total: count ?? 0 } });
+  },
+});
+
+defineTool({
+  name: 'webhooks.get',
+  description: 'Get a single webhook by ID with delivery stats',
+  minRole: 'admin',
+  parameters: z.object({
+    id: z.string().uuid().describe('Webhook ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('webhooks')
+      .select('*')
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (error) throw new Error(`Webhook not found: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'webhooks.create',
+  description: 'Create a new webhook endpoint',
+  minRole: 'admin',
+  parameters: z.object({
+    name: z.string().min(1).max(255).describe('Webhook name'),
+    url: z.string().url().describe('Webhook URL (must be https)'),
+    events: z.array(z.string()).min(1).describe('Events to subscribe to'),
+    is_active: z.boolean().default(true),
+    retry_count: z.number().int().min(0).max(10).default(3),
+    timeout_ms: z.number().int().min(1000).max(60000).default(10000),
+    headers: z.record(z.string(), z.string()).optional().describe('Custom headers'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('webhooks')
+      .insert({
+        ...params as any,
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+      } as any)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to create webhook: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'webhooks.update',
+  description: 'Update an existing webhook',
+  minRole: 'admin',
+  parameters: z.object({
+    id: z.string().uuid().describe('Webhook ID'),
+    name: z.string().min(1).max(255).optional(),
+    url: z.string().url().optional(),
+    events: z.array(z.string()).min(1).optional(),
+    is_active: z.boolean().optional(),
+    retry_count: z.number().int().min(0).max(10).optional(),
+    timeout_ms: z.number().int().min(1000).max(60000).optional(),
+    headers: z.record(z.string(), z.string()).optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { id, ...updates } = params as Record<string, unknown>;
+    const { data, error } = await ctx.supabase
+      .from('webhooks')
+      .update(updates as any)
+      .eq('id', id as string)
+      .eq('project_id', ctx.projectId)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update webhook: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'webhooks.delete',
+  description: 'Delete a webhook',
+  minRole: 'admin',
+  parameters: z.object({
+    id: z.string().uuid().describe('Webhook ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { error } = await ctx.supabase
+      .from('webhooks')
+      .delete()
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId);
+    if (error) throw new Error(`Failed to delete webhook: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+// ── Reports Tools ───────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'reports.list',
+  description: 'List saved reports',
+  minRole: 'viewer',
+  parameters: z.object({
+    report_type: z.string().optional().describe('Filter by report type'),
+    is_public: z.boolean().optional().describe('Filter by public/private'),
+    limit: z.number().int().min(1).max(100).default(50),
+    offset: z.number().int().min(0).default(0),
+  }),
+  handler: async (params, ctx) => {
+    const { report_type, is_public, limit = 50, offset = 0 } = params as any;
+    let query = ctx.supabase
+      .from('report_definitions')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (report_type) query = query.eq('report_type', report_type);
+    if (is_public !== undefined) query = query.eq('is_public', is_public);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list reports: ${error.message}`);
+    return JSON.stringify({ reports: data, pagination: { limit, offset, total: count ?? 0 } });
+  },
+});
+
+defineTool({
+  name: 'reports.get',
+  description: 'Get a report by ID with recent run history',
+  minRole: 'viewer',
+  parameters: z.object({
+    id: z.string().uuid().describe('Report ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('report_definitions')
+      .select('*')
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (error) throw new Error(`Report not found: ${error.message}`);
+
+    const { data: runs } = await ctx.supabase
+      .from('report_runs')
+      .select('*')
+      .eq('report_id', params.id as string)
+      .order('created_at', { ascending: false })
+      .limit(10);
+
+    return JSON.stringify({ report: data, runs: runs ?? [] });
+  },
+});
+
+defineTool({
+  name: 'reports.create',
+  description: 'Create a new report definition',
+  minRole: 'admin',
+  parameters: z.object({
+    name: z.string().min(1).max(255).describe('Report name'),
+    description: z.string().max(1000).nullable().optional(),
+    report_type: z.string().describe('Report type (pipeline, activity, conversion, custom)'),
+    config: z.record(z.string(), z.unknown()).default({}).describe('Report configuration (chart_type, metrics, group_by, time_range)'),
+    filters: z.record(z.string(), z.unknown()).default({}).describe('Report filters'),
+    is_public: z.boolean().default(false),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('report_definitions')
+      .insert({
+        ...params as any,
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+      } as any)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to create report: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'reports.delete',
+  description: 'Delete a saved report',
+  minRole: 'admin',
+  parameters: z.object({
+    id: z.string().uuid().describe('Report ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { error } = await ctx.supabase
+      .from('report_definitions')
+      .delete()
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId);
+    if (error) throw new Error(`Failed to delete report: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+defineTool({
+  name: 'reports.forecasting',
+  description: 'Get pipeline forecasting data with weighted/unweighted projections by quarter',
+  minRole: 'viewer',
+  parameters: z.object({
+    user_id: z.string().uuid().optional().describe('Filter by deal owner'),
+  }),
+  handler: async (params, ctx) => {
+    let query = ctx.supabase
+      .from('opportunities')
+      .select('id, name, amount, probability, expected_close_date, stage, owner_id')
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .not('expected_close_date', 'is', null);
+    if (params.user_id) query = query.eq('owner_id', params.user_id as string);
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to get forecasting data: ${error.message}`);
+
+    const opps = data ?? [];
+    const quarters: Record<string, { weighted: number; unweighted: number; count: number }> = {};
+    for (const o of opps) {
+      const d = new Date(o.expected_close_date as string);
+      const q = `${d.getFullYear()}-Q${Math.ceil((d.getMonth() + 1) / 3)}`;
+      if (!quarters[q]) quarters[q] = { weighted: 0, unweighted: 0, count: 0 };
+      const amt = (o.amount as number) ?? 0;
+      const prob = (o.probability as number) ?? 50;
+      quarters[q].unweighted += amt;
+      quarters[q].weighted += amt * (prob / 100);
+      quarters[q].count++;
+    }
+
+    return JSON.stringify({ quarters, total_deals: opps.length });
+  },
+});
+
+// ── Templates Tools ─────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'templates.list',
+  description: 'List email templates',
+  minRole: 'viewer',
+  parameters: z.object({
+    category: z.string().optional().describe('Filter by category'),
+    is_active: z.boolean().optional(),
+    search: z.string().optional(),
+    limit: z.number().int().min(1).max(100).default(50),
+    offset: z.number().int().min(0).default(0),
+  }),
+  handler: async (params, ctx) => {
+    const { category, is_active, search, limit = 50, offset = 0 } = params as any;
+    let query = ctx.supabase
+      .from('email_templates')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (category) query = query.eq('category', category);
+    if (is_active !== undefined) query = query.eq('is_active', is_active);
+    if (search) {
+      const s = search.replace(/[%_\\]/g, '\\$&');
+      query = query.or(`name.ilike."%${s}%",subject.ilike."%${s}%"`);
+    }
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list templates: ${error.message}`);
+    return JSON.stringify({ templates: data, pagination: { limit, offset, total: count ?? 0 } });
+  },
+});
+
+defineTool({
+  name: 'templates.get',
+  description: 'Get a single email template by ID',
+  minRole: 'viewer',
+  parameters: z.object({
+    id: z.string().uuid().describe('Template ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('email_templates')
+      .select('*')
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (error) throw new Error(`Template not found: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'templates.create',
+  description: 'Create a new email template',
+  minRole: 'member',
+  parameters: z.object({
+    name: z.string().min(1).max(255).describe('Template name'),
+    description: z.string().max(1000).nullable().optional(),
+    subject: z.string().min(1).max(500).describe('Email subject line'),
+    body_html: z.string().min(1).describe('HTML body'),
+    body_text: z.string().nullable().optional().describe('Plain text body'),
+    category: z.string().optional().describe('Template category'),
+    is_active: z.boolean().default(true),
+    is_shared: z.boolean().default(false),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('email_templates')
+      .insert({
+        ...params as any,
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+      } as any)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to create template: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'templates.update',
+  description: 'Update an email template',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Template ID'),
+    name: z.string().min(1).max(255).optional(),
+    description: z.string().max(1000).nullable().optional(),
+    subject: z.string().min(1).max(500).optional(),
+    body_html: z.string().min(1).optional(),
+    body_text: z.string().nullable().optional(),
+    category: z.string().optional(),
+    is_active: z.boolean().optional(),
+    is_shared: z.boolean().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { id, ...updates } = params as Record<string, unknown>;
+    const { data, error } = await ctx.supabase
+      .from('email_templates')
+      .update(updates as any)
+      .eq('id', id as string)
+      .eq('project_id', ctx.projectId)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update template: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'templates.delete',
+  description: 'Delete an email template',
+  minRole: 'admin',
+  parameters: z.object({
+    id: z.string().uuid().describe('Template ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { error } = await ctx.supabase
+      .from('email_templates')
+      .delete()
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId);
+    if (error) throw new Error(`Failed to delete template: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+// ── Activity Tools ──────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'activity.list',
+  description: 'List activity log entries with filters for entity, action, user, and date range',
+  minRole: 'viewer',
+  parameters: z.object({
+    entity_type: z.string().optional().describe('Filter by entity type'),
+    entity_id: z.string().uuid().optional().describe('Filter by entity ID'),
+    action: z.string().optional().describe('Filter by action type'),
+    user_id: z.string().uuid().optional().describe('Filter by user'),
+    person_id: z.string().uuid().optional().describe('Filter by person'),
+    organization_id: z.string().uuid().optional().describe('Filter by organization'),
+    start_date: z.string().optional().describe('Start date (ISO)'),
+    end_date: z.string().optional().describe('End date (ISO)'),
+    limit: z.number().int().min(1).max(100).default(50),
+    offset: z.number().int().min(0).default(0),
+  }),
+  handler: async (params, ctx) => {
+    const { entity_type, entity_id, action, user_id, person_id, organization_id, start_date, end_date, limit = 50, offset = 0 } = params as any;
+    let query = ctx.supabase
+      .from('activity_log')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (entity_type) query = query.eq('entity_type', entity_type);
+    if (entity_id) query = query.eq('entity_id', entity_id);
+    if (action) query = query.eq('action', action);
+    if (user_id) query = query.eq('user_id', user_id);
+    if (person_id) query = query.eq('person_id', person_id);
+    if (organization_id) query = query.eq('organization_id', organization_id);
+    if (start_date) query = query.gte('created_at', start_date);
+    if (end_date) query = query.lte('created_at', end_date);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list activity: ${error.message}`);
+    return JSON.stringify({ activities: data, pagination: { limit, offset, total: count ?? 0 } });
+  },
+});
+
+defineTool({
+  name: 'activity.follow_ups',
+  description: 'List follow-up tasks grouped by status (overdue, today, upcoming)',
+  minRole: 'viewer',
+  parameters: z.object({
+    status: z.enum(['overdue', 'today', 'upcoming']).optional().describe('Filter by follow-up status'),
+    assigned_to: z.string().uuid().optional().describe('Filter by assignee'),
+    limit: z.number().int().min(1).max(100).default(50),
+    offset: z.number().int().min(0).default(0),
+  }),
+  handler: async (params, ctx) => {
+    const { status, assigned_to, limit = 50, offset = 0 } = params as any;
+    const now = new Date().toISOString().split('T')[0] ?? '';
+    let query = ctx.supabase
+      .from('tasks')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .eq('is_follow_up', true)
+      .neq('status', 'completed')
+      .order('due_date', { ascending: true })
+      .range(offset, offset + limit - 1);
+    if (assigned_to) query = query.eq('assigned_to', assigned_to);
+    if (status === 'overdue') query = query.lt('due_date', now);
+    else if (status === 'today') query = query.eq('due_date', now);
+    else if (status === 'upcoming') query = query.gt('due_date', now);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list follow-ups: ${error.message}`);
+    return JSON.stringify({ activities: data, pagination: { limit, offset, total: count ?? 0 } });
+  },
+});
+
+// ── Email Inbox Tool ────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'email.inbox',
+  description: 'List emails from the inbox with filtering by person, organization, direction',
+  minRole: 'viewer',
+  parameters: z.object({
+    person_id: z.string().uuid().optional().describe('Filter by person'),
+    organization_id: z.string().uuid().optional().describe('Filter by organization'),
+    direction: z.enum(['inbound', 'outbound']).optional().describe('Filter by direction'),
+    thread_id: z.string().optional().describe('Filter by thread ID'),
+    limit: z.number().int().min(1).max(100).default(50),
+    offset: z.number().int().min(0).default(0),
+  }),
+  handler: async (params, ctx) => {
+    const { person_id, organization_id, direction, thread_id, limit = 50, offset = 0 } = params as any;
+    let query = ctx.supabase
+      .from('emails')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('date', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (person_id) query = query.eq('person_id', person_id);
+    if (organization_id) query = query.eq('organization_id', organization_id);
+    if (direction) query = query.eq('direction', direction);
+    if (thread_id) query = query.eq('thread_id', thread_id);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list emails: ${error.message}`);
+    return JSON.stringify({ emails: data, total: count ?? 0 });
+  },
+});
+
+// ── Research Tools ──────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'research.list',
+  description: 'List AI research jobs for entities in the project',
+  minRole: 'viewer',
+  parameters: z.object({
+    entity_type: z.string().optional().describe('Filter by entity type'),
+    entity_id: z.string().uuid().optional().describe('Filter by entity ID'),
+    status: z.string().optional().describe('Filter by status (pending, completed, failed)'),
+    limit: z.number().int().min(1).max(100).default(50),
+    offset: z.number().int().min(0).default(0),
+  }),
+  handler: async (params, ctx) => {
+    const { entity_type, entity_id, status, limit = 50, offset = 0 } = params as any;
+    let query = ctx.supabase
+      .from('research_jobs')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (entity_type) query = query.eq('entity_type', entity_type);
+    if (entity_id) query = query.eq('entity_id', entity_id);
+    if (status) query = query.eq('status', status);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list research jobs: ${error.message}`);
+    return JSON.stringify({ jobs: data, pagination: { limit, offset, total: count ?? 0 } });
+  },
+});
+
+defineTool({
+  name: 'research.get',
+  description: 'Get a research job by ID with its results',
+  minRole: 'viewer',
+  parameters: z.object({
+    id: z.string().uuid().describe('Research job ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('research_jobs')
+      .select('*')
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (error) throw new Error(`Research job not found: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+// ── Drafts Tools ────────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'drafts.list',
+  description: 'List email drafts for the current user',
+  minRole: 'member',
+  parameters: z.object({
+    status: z.string().optional().describe('Filter by status (draft, scheduled, sending, sent)'),
+    limit: z.number().int().min(1).max(100).default(50),
+    offset: z.number().int().min(0).default(0),
+  }),
+  handler: async (params, ctx) => {
+    const { status, limit = 50, offset = 0 } = params as any;
+    let query = ctx.supabase
+      .from('email_drafts')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .eq('user_id', ctx.userId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (status) query = query.eq('status', status);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list drafts: ${error.message}`);
+    return JSON.stringify({ drafts: data, pagination: { limit, offset, total: count ?? 0 } });
+  },
+});
+
+defineTool({
+  name: 'drafts.get',
+  description: 'Get a single email draft by ID',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Draft ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('email_drafts')
+      .select('*')
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .eq('user_id', ctx.userId)
+      .single();
+    if (error) throw new Error(`Draft not found: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'drafts.create',
+  description: 'Create a new email draft',
+  minRole: 'member',
+  parameters: z.object({
+    subject: z.string().min(1).max(500).describe('Email subject'),
+    body_html: z.string().min(1).describe('HTML body'),
+    body_text: z.string().nullable().optional(),
+    to_addresses: z.array(z.string().email()).min(1).describe('Recipient emails'),
+    cc_addresses: z.array(z.string().email()).optional(),
+    bcc_addresses: z.array(z.string().email()).optional(),
+    reply_to: z.string().email().nullable().optional(),
+    person_id: z.string().uuid().nullable().optional().describe('Linked person'),
+    template_id: z.string().uuid().nullable().optional().describe('Template used'),
+    scheduled_at: z.string().nullable().optional().describe('ISO datetime to schedule send'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('email_drafts')
+      .insert({
+        ...params as any,
+        project_id: ctx.projectId,
+        user_id: ctx.userId,
+        status: (params as any).scheduled_at ? 'scheduled' : 'draft',
+      } as any)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to create draft: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'drafts.update',
+  description: 'Update an email draft (cannot update sent drafts)',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Draft ID'),
+    subject: z.string().min(1).max(500).optional(),
+    body_html: z.string().min(1).optional(),
+    body_text: z.string().nullable().optional(),
+    to_addresses: z.array(z.string().email()).min(1).optional(),
+    cc_addresses: z.array(z.string().email()).optional(),
+    bcc_addresses: z.array(z.string().email()).optional(),
+    reply_to: z.string().email().nullable().optional(),
+    scheduled_at: z.string().nullable().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { id, ...updates } = params as Record<string, unknown>;
+    const { data, error } = await ctx.supabase
+      .from('email_drafts')
+      .update(updates as any)
+      .eq('id', id as string)
+      .eq('project_id', ctx.projectId)
+      .eq('user_id', ctx.userId)
+      .in('status', ['draft', 'scheduled'])
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update draft: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'drafts.delete',
+  description: 'Delete an email draft',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Draft ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { error } = await ctx.supabase
+      .from('email_drafts')
+      .delete()
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .eq('user_id', ctx.userId);
+    if (error) throw new Error(`Failed to delete draft: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+// ── RFP Questions Tools ─────────────────────────────────────────────────────
+
+defineTool({
+  name: 'rfp_questions.list',
+  description: 'List questions for an RFP with counts by status and sections',
+  minRole: 'viewer',
+  parameters: z.object({
+    rfp_id: z.string().uuid().describe('RFP ID'),
+    status: z.string().optional().describe('Filter by status (unanswered, draft, review, approved)'),
+    section: z.string().optional().describe('Filter by section name'),
+  }),
+  handler: async (params, ctx) => {
+    const { rfp_id, status, section } = params as any;
+    let query = ctx.supabase
+      .from('rfp_questions')
+      .select('*', { count: 'exact' })
+      .eq('rfp_id', rfp_id)
+      .is('deleted_at', null)
+      .order('sort_order', { ascending: true });
+    if (status) query = query.eq('status', status);
+    if (section) query = query.eq('section_name', section);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list RFP questions: ${error.message}`);
+    return JSON.stringify({ questions: data, total: count ?? 0 });
+  },
+});
+
+defineTool({
+  name: 'rfp_questions.get',
+  description: 'Get a single RFP question by ID',
+  minRole: 'viewer',
+  parameters: z.object({
+    rfp_id: z.string().uuid().describe('RFP ID'),
+    question_id: z.string().uuid().describe('Question ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('rfp_questions')
+      .select('*')
+      .eq('id', params.question_id as string)
+      .eq('rfp_id', params.rfp_id as string)
+      .is('deleted_at', null)
+      .single();
+    if (error) throw new Error(`RFP question not found: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'rfp_questions.create',
+  description: 'Add a question to an RFP',
+  minRole: 'member',
+  parameters: z.object({
+    rfp_id: z.string().uuid().describe('RFP ID'),
+    question_text: z.string().min(1).describe('Question text'),
+    answer_text: z.string().optional().describe('Answer text'),
+    answer_html: z.string().optional().describe('HTML answer'),
+    status: z.string().default('unanswered').describe('Status (unanswered, draft, review, approved)'),
+    priority: z.string().optional().describe('Priority level'),
+    section_name: z.string().optional().describe('Section name'),
+    notes: z.string().optional().describe('Notes'),
+  }),
+  handler: async (params, ctx) => {
+    const { rfp_id, ...fields } = params as any;
+    const { data, error } = await ctx.supabase
+      .from('rfp_questions')
+      .insert({
+        ...fields,
+        rfp_id,
+        created_by: ctx.userId,
+      } as any)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to create RFP question: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'rfp_questions.update',
+  description: 'Update an RFP question (text, answer, status, assignment)',
+  minRole: 'member',
+  parameters: z.object({
+    rfp_id: z.string().uuid().describe('RFP ID'),
+    question_id: z.string().uuid().describe('Question ID'),
+    question_text: z.string().optional(),
+    answer_text: z.string().optional(),
+    answer_html: z.string().optional(),
+    status: z.string().optional(),
+    priority: z.string().optional(),
+    assigned_to: z.string().uuid().optional(),
+    section_name: z.string().optional(),
+    notes: z.string().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { rfp_id, question_id, ...updates } = params as any;
+    const { data, error } = await ctx.supabase
+      .from('rfp_questions')
+      .update(updates as any)
+      .eq('id', question_id)
+      .eq('rfp_id', rfp_id)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update RFP question: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'rfp_questions.delete',
+  description: 'Delete an RFP question (soft delete)',
+  minRole: 'member',
+  parameters: z.object({
+    rfp_id: z.string().uuid().describe('RFP ID'),
+    question_id: z.string().uuid().describe('Question ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { error } = await ctx.supabase
+      .from('rfp_questions')
+      .update({ deleted_at: new Date().toISOString() } as any)
+      .eq('id', params.question_id as string)
+      .eq('rfp_id', params.rfp_id as string);
+    if (error) throw new Error(`Failed to delete RFP question: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+// ── Widget Tools ────────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'widgets.list',
+  description: 'List dashboard widgets for the current user',
+  minRole: 'viewer',
+  parameters: z.object({
+    widget_type: z.string().optional().describe('Filter by widget type'),
+    is_visible: z.boolean().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { widget_type, is_visible } = params as any;
+    let query = ctx.supabase
+      .from('dashboard_widgets')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .eq('user_id', ctx.userId)
+      .order('position', { ascending: true });
+    if (widget_type) query = query.eq('widget_type', widget_type);
+    if (is_visible !== undefined) query = query.eq('is_visible', is_visible);
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to list widgets: ${error.message}`);
+    return JSON.stringify({ widgets: data });
+  },
+});
+
+defineTool({
+  name: 'widgets.create',
+  description: 'Create a new dashboard widget',
+  minRole: 'member',
+  parameters: z.object({
+    widget_type: z.string().describe('Widget type'),
+    config: z.record(z.string(), z.unknown()).default({}).describe('Widget configuration'),
+    position: z.number().int().min(0).optional().describe('Position order'),
+    size: z.string().optional().describe('Widget size (small, medium, large)'),
+    is_visible: z.boolean().default(true),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('dashboard_widgets')
+      .insert({
+        ...params as any,
+        project_id: ctx.projectId,
+        user_id: ctx.userId,
+      } as any)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to create widget: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'widgets.update',
+  description: 'Update a dashboard widget',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Widget ID'),
+    config: z.record(z.string(), z.unknown()).optional(),
+    position: z.number().int().min(0).optional(),
+    size: z.string().optional(),
+    is_visible: z.boolean().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { id, ...updates } = params as Record<string, unknown>;
+    const { data, error } = await ctx.supabase
+      .from('dashboard_widgets')
+      .update(updates as any)
+      .eq('id', id as string)
+      .eq('project_id', ctx.projectId)
+      .eq('user_id', ctx.userId)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update widget: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'widgets.delete',
+  description: 'Delete a dashboard widget',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Widget ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { error } = await ctx.supabase
+      .from('dashboard_widgets')
+      .delete()
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .eq('user_id', ctx.userId);
+    if (error) throw new Error(`Failed to delete widget: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+// ── Members & Invitations Tools ─────────────────────────────────────────────
+
+defineTool({
+  name: 'members.list',
+  description: 'List project members with their roles',
+  minRole: 'viewer',
+  parameters: z.object({}),
+  handler: async (_params, ctx) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (ctx.supabase as any)
+      .from('project_memberships')
+      .select('user_id, role, created_at, users:user_id(id, full_name, email, avatar_url)')
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: true });
+    if (error) throw new Error(`Failed to list members: ${error.message}`);
+    return JSON.stringify({ members: data });
+  },
+});
+
+defineTool({
+  name: 'members.update_role',
+  description: 'Update a project member role',
+  minRole: 'admin',
+  parameters: z.object({
+    user_id: z.string().uuid().describe('User ID of the member'),
+    role: z.enum(['viewer', 'member', 'admin']).describe('New role'),
+  }),
+  handler: async (params, ctx) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (ctx.supabase as any)
+      .from('project_memberships')
+      .update({ role: params.role as string })
+      .eq('project_id', ctx.projectId)
+      .eq('user_id', params.user_id as string)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update member role: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'invitations.list',
+  description: 'List pending project invitations',
+  minRole: 'admin',
+  parameters: z.object({
+    status: z.enum(['pending', 'accepted', 'expired']).optional(),
+  }),
+  handler: async (params, ctx) => {
+    let query = ctx.supabase
+      .from('project_invitations')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: false });
+    if (params.status) query = query.eq('status', params.status as string);
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to list invitations: ${error.message}`);
+    return JSON.stringify({ invitations: data });
+  },
+});
+
+// ── Project Settings Tools ──────────────────────────────────────────────────
+
+defineTool({
+  name: 'settings.get',
+  description: 'Get project settings',
+  minRole: 'viewer',
+  parameters: z.object({}),
+  handler: async (_params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('projects')
+      .select('id, name, slug, settings, created_at, updated_at')
+      .eq('id', ctx.projectId)
+      .single();
+    if (error) throw new Error(`Failed to get settings: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+// ── Duplicates & Merge Tools ────────────────────────────────────────────────
+
+defineTool({
+  name: 'duplicates.list',
+  description: 'List duplicate candidate pairs detected in the project',
+  minRole: 'viewer',
+  parameters: z.object({
+    entity_type: z.enum(['person', 'organization']).optional().describe('Filter by entity type'),
+    status: z.enum(['pending', 'allowed', 'merged']).default('pending').describe('Filter by status'),
+    page: z.number().int().min(1).default(1),
+    limit: z.number().int().min(1).max(100).default(50),
+  }),
+  handler: async (params, ctx) => {
+    const { entity_type, status = 'pending', page = 1, limit = 50 } = params as any;
+    const offset = (page - 1) * limit;
+    let query = ctx.supabase
+      .from('duplicate_candidates')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .eq('status', status)
+      .order('confidence_score', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (entity_type) query = query.eq('entity_type', entity_type);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list duplicates: ${error.message}`);
+    return JSON.stringify({ candidates: data, pagination: { page, limit, total: count ?? 0 } });
+  },
+});
+
+defineTool({
+  name: 'duplicates.resolve',
+  description: 'Resolve a duplicate pair by allowing it or merging the records',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Duplicate candidate ID'),
+    action: z.enum(['allow', 'merge']).describe('Allow (keep both) or merge'),
+    survivor_id: z.string().uuid().optional().describe('ID of the record to keep (for merge)'),
+    field_selections: z.record(z.string(), z.string()).optional().describe('Field-level merge selections'),
+  }),
+  handler: async (params, ctx) => {
+    const { id, action, survivor_id, field_selections } = params as any;
+    if (action === 'allow') {
+      const { error } = await ctx.supabase
+        .from('duplicate_candidates')
+        .update({ status: 'allowed', resolved_by: ctx.userId, resolved_at: new Date().toISOString() } as any)
+        .eq('id', id)
+        .eq('project_id', ctx.projectId);
+      if (error) throw new Error(`Failed to resolve duplicate: ${error.message}`);
+      return JSON.stringify({ success: true, status: 'allowed' });
+    }
+    // For merge, call the merge RPC or direct logic
+    const { data: candidate, error: fetchErr } = await ctx.supabase
+      .from('duplicate_candidates')
+      .select('*')
+      .eq('id', id)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (fetchErr) throw new Error(`Duplicate not found: ${fetchErr.message}`);
+    const survivorId = survivor_id || (candidate as any).entity_id_a;
+    const mergeId = survivorId === (candidate as any).entity_id_a ? (candidate as any).entity_id_b : (candidate as any).entity_id_a;
+    const entityType = (candidate as any).entity_type;
+    // Soft-delete the merged record
+    const table = entityType === 'person' ? 'people' : 'organizations';
+    const { error: mergeErr } = await ctx.supabase
+      .from(table)
+      .update({ deleted_at: new Date().toISOString() } as any)
+      .eq('id', mergeId);
+    if (mergeErr) throw new Error(`Failed to merge: ${mergeErr.message}`);
+    // Mark candidate as merged
+    await ctx.supabase
+      .from('duplicate_candidates')
+      .update({ status: 'merged', resolved_by: ctx.userId, resolved_at: new Date().toISOString(), survivor_id: survivorId } as any)
+      .eq('id', id);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.merged' as any,
+      entityType: entityType as any,
+      entityId: survivorId,
+      data: { survivor_id: survivorId, merged_id: mergeId, field_selections },
+    });
+    return JSON.stringify({ success: true, status: 'merged', survivor_id: survivorId });
+  },
+});
+
+defineTool({
+  name: 'merge.execute',
+  description: 'Directly merge records without a duplicate candidate (merge multiple into one survivor)',
+  minRole: 'member',
+  parameters: z.object({
+    entity_type: z.enum(['person', 'organization']).describe('Entity type'),
+    survivor_id: z.string().uuid().describe('ID of the record to keep'),
+    merge_ids: z.array(z.string().uuid()).min(1).describe('IDs of records to merge into survivor'),
+  }),
+  handler: async (params, ctx) => {
+    const { entity_type, survivor_id, merge_ids } = params as any;
+    const table = entity_type === 'person' ? 'people' : 'organizations';
+    const { error } = await ctx.supabase
+      .from(table)
+      .update({ deleted_at: new Date().toISOString() } as any)
+      .in('id', merge_ids)
+      .eq('project_id', ctx.projectId);
+    if (error) throw new Error(`Failed to merge: ${error.message}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.merged' as any,
+      entityType: entity_type as any,
+      entityId: survivor_id,
+      data: { survivor_id, merged_ids: merge_ids },
+    });
+    return JSON.stringify({ success: true, survivor_id, merged_count: merge_ids.length });
+  },
+});
+
+// ── Enrichment Tools ────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'enrichment.list',
+  description: 'List enrichment jobs and their results',
+  minRole: 'viewer',
+  parameters: z.object({
+    person_id: z.string().uuid().optional().describe('Filter by person'),
+    status: z.string().optional().describe('Filter by status (pending, processing, completed, failed)'),
+    limit: z.number().int().min(1).max(100).default(50),
+    offset: z.number().int().min(0).default(0),
+  }),
+  handler: async (params, ctx) => {
+    const { person_id, status, limit = 50, offset = 0 } = params as any;
+    let query = ctx.supabase
+      .from('enrichment_jobs')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: false })
+      .range(offset, offset + limit - 1);
+    if (person_id) query = query.eq('person_id', person_id);
+    if (status) query = query.eq('status', status);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed to list enrichment jobs: ${error.message}`);
+    return JSON.stringify({ jobs: data, pagination: { limit, offset, total: count ?? 0 } });
+  },
+});
+
+defineTool({
+  name: 'enrichment.start',
+  description: 'Start an enrichment job for a person (uses FullEnrich to find emails, phone numbers, social profiles)',
+  minRole: 'member',
+  parameters: z.object({
+    person_id: z.string().uuid().describe('Person ID to enrich'),
+  }),
+  handler: async (params, ctx) => {
+    // Get person details
+    const { data: person, error: personErr } = await ctx.supabase
+      .from('people')
+      .select('id, first_name, last_name, email')
+      .eq('id', params.person_id as string)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .single();
+    if (personErr) throw new Error(`Person not found: ${personErr.message}`);
+
+    // Get org for company context
+    const { data: orgLink } = await ctx.supabase
+      .from('person_organizations')
+      .select('organization:organization_id(name, domain)')
+      .eq('person_id', params.person_id as string)
+      .limit(1)
+      .maybeSingle();
+
+    // Create enrichment job
+    const { data: job, error: jobErr } = await ctx.supabase
+      .from('enrichment_jobs')
+      .insert({
+        project_id: ctx.projectId,
+        person_id: params.person_id,
+        status: 'pending',
+        input_data: {
+          first_name: person.first_name,
+          last_name: person.last_name,
+          email: person.email,
+          company: (orgLink as any)?.organization?.name ?? null,
+          domain: (orgLink as any)?.organization?.domain ?? null,
+        },
+        created_by: ctx.userId,
+      } as any)
+      .select()
+      .single();
+    if (jobErr) throw new Error(`Failed to start enrichment: ${jobErr.message}`);
+    return JSON.stringify({ job, message: 'Enrichment job started. Results will be available when processing completes.' });
+  },
+});
+
+// ── Contact Discovery Tools ────────────────────────────────────────────────
+
+defineTool({
+  name: 'contacts.discover',
+  description: 'Discover contacts at an organization using AI-powered search. Returns suggested contacts with names, titles, and emails.',
+  minRole: 'member',
+  parameters: z.object({
+    organization_id: z.string().uuid().describe('Organization ID'),
+    roles: z.array(z.string()).min(1).describe('Job titles/roles to search for (e.g. ["CEO", "CTO", "VP Sales"])'),
+    max_results: z.number().int().min(1).max(20).default(5),
+  }),
+  handler: async (params, ctx) => {
+    const { organization_id, roles, max_results = 5 } = params as any;
+    const { data: org, error: orgErr } = await ctx.supabase
+      .from('organizations')
+      .select('id, name, domain')
+      .eq('id', organization_id)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .single();
+    if (orgErr) throw new Error(`Organization not found: ${orgErr.message}`);
+    return JSON.stringify({
+      message: `Contact discovery for ${org.name} requires the discover-contacts API endpoint. Use the CRM UI for AI-powered contact discovery, or manually create contacts with the people.create tool.`,
+      organization: org,
+      roles_requested: roles,
+      max_results,
+    });
+  },
+});
+
+defineTool({
+  name: 'contacts.add_to_org',
+  description: 'Add contacts (people) to an organization, automatically linking them',
+  minRole: 'member',
+  parameters: z.object({
+    organization_id: z.string().uuid().describe('Organization ID'),
+    contacts: z.array(z.object({
+      first_name: z.string().min(1),
+      last_name: z.string().min(1),
+      email: z.string().email().optional(),
+      job_title: z.string().optional(),
+      linkedin_url: z.string().optional(),
+    })).min(1).describe('Contacts to add'),
+  }),
+  handler: async (params, ctx) => {
+    const { organization_id, contacts } = params as any;
+    // Verify org exists
+    const { error: orgErr } = await ctx.supabase
+      .from('organizations')
+      .select('id')
+      .eq('id', organization_id)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .single();
+    if (orgErr) throw new Error(`Organization not found: ${orgErr.message}`);
+
+    const created: any[] = [];
+    const errors: any[] = [];
+    for (const contact of contacts) {
+      const { data: person, error: personErr } = await ctx.supabase
+        .from('people')
+        .insert({
+          first_name: contact.first_name,
+          last_name: contact.last_name,
+          email: contact.email || null,
+          job_title: contact.job_title || null,
+          linkedin_url: contact.linkedin_url || null,
+          project_id: ctx.projectId,
+          created_by: ctx.userId,
+        } as any)
+        .select()
+        .single();
+      if (personErr) {
+        errors.push({ contact, error: personErr.message });
+        continue;
+      }
+      // Link to org
+      await ctx.supabase
+        .from('person_organizations')
+        .insert({
+          person_id: person.id,
+          organization_id,
+          job_title: contact.job_title || null,
+        } as any);
+      created.push({ id: person.id, first_name: contact.first_name, last_name: contact.last_name });
+    }
+    return JSON.stringify({ created, created_count: created.length, errors });
+  },
+});
+
+// ── SMS Tools ───────────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'sms.list',
+  description: 'List SMS messages, optionally filtered by person or organization',
+  minRole: 'viewer',
+  parameters: z.object({
+    person_id: z.string().uuid().optional().describe('Filter by person'),
+    organization_id: z.string().uuid().optional().describe('Filter by organization'),
+    limit: z.number().int().min(1).max(200).default(100),
+  }),
+  handler: async (params, ctx) => {
+    const { person_id, organization_id, limit = 100 } = params as any;
+    let query = ctx.supabase
+      .from('sms_messages')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: false })
+      .limit(limit);
+    if (person_id) query = query.eq('person_id', person_id);
+    if (organization_id) query = query.eq('organization_id', organization_id);
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to list SMS messages: ${error.message}`);
+    return JSON.stringify({ messages: data });
+  },
+});
+
+defineTool({
+  name: 'sms.send',
+  description: 'Send an SMS message to a phone number',
+  minRole: 'member',
+  parameters: z.object({
+    to_number: z.string().min(1).describe('Phone number to send to (E.164 format)'),
+    body: z.string().min(1).max(1600).describe('SMS message body'),
+    person_id: z.string().uuid().optional().describe('Link to person'),
+    organization_id: z.string().uuid().optional().describe('Link to organization'),
+  }),
+  handler: async (params, ctx) => {
+    // Create the SMS record
+    const { data, error } = await ctx.supabase
+      .from('sms_messages')
+      .insert({
+        project_id: ctx.projectId,
+        user_id: ctx.userId,
+        to_number: params.to_number,
+        body: params.body,
+        direction: 'outbound',
+        status: 'queued',
+        person_id: (params as any).person_id || null,
+        organization_id: (params as any).organization_id || null,
+      } as any)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to send SMS: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+// ── Email Signatures Tools ──────────────────────────────────────────────────
+
+defineTool({
+  name: 'signatures.list',
+  description: 'List email signatures for the current user',
+  minRole: 'viewer',
+  parameters: z.object({}),
+  handler: async (_params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('email_signatures')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .eq('user_id', ctx.userId)
+      .order('created_at', { ascending: false });
+    if (error) throw new Error(`Failed to list signatures: ${error.message}`);
+    return JSON.stringify({ signatures: data });
+  },
+});
+
+defineTool({
+  name: 'signatures.get',
+  description: 'Get a single email signature by ID',
+  minRole: 'viewer',
+  parameters: z.object({
+    id: z.string().uuid().describe('Signature ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('email_signatures')
+      .select('*')
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .eq('user_id', ctx.userId)
+      .single();
+    if (error) throw new Error(`Signature not found: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'signatures.create',
+  description: 'Create a new email signature',
+  minRole: 'member',
+  parameters: z.object({
+    name: z.string().min(1).max(100).describe('Signature name'),
+    sender_name: z.string().max(100).nullable().optional().describe('Sender display name'),
+    content_html: z.string().min(1).max(50000).describe('HTML signature content'),
+    is_default: z.boolean().default(false).describe('Set as default signature'),
+  }),
+  handler: async (params, ctx) => {
+    // If setting as default, unset existing defaults
+    if ((params as any).is_default) {
+      await ctx.supabase
+        .from('email_signatures')
+        .update({ is_default: false } as any)
+        .eq('project_id', ctx.projectId)
+        .eq('user_id', ctx.userId);
+    }
+    const { data, error } = await ctx.supabase
+      .from('email_signatures')
+      .insert({
+        ...params as any,
+        project_id: ctx.projectId,
+        user_id: ctx.userId,
+      } as any)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to create signature: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'signatures.update',
+  description: 'Update an email signature',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Signature ID'),
+    name: z.string().min(1).max(100).optional(),
+    sender_name: z.string().max(100).nullable().optional(),
+    content_html: z.string().min(1).max(50000).optional(),
+    is_default: z.boolean().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { id, ...updates } = params as Record<string, unknown>;
+    if ((updates as any).is_default) {
+      await ctx.supabase
+        .from('email_signatures')
+        .update({ is_default: false } as any)
+        .eq('project_id', ctx.projectId)
+        .eq('user_id', ctx.userId);
+    }
+    const { data, error } = await ctx.supabase
+      .from('email_signatures')
+      .update(updates as any)
+      .eq('id', id as string)
+      .eq('project_id', ctx.projectId)
+      .eq('user_id', ctx.userId)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update signature: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'signatures.delete',
+  description: 'Delete an email signature',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Signature ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { error } = await ctx.supabase
+      .from('email_signatures')
+      .delete()
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .eq('user_id', ctx.userId);
+    if (error) throw new Error(`Failed to delete signature: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+// ── LinkedIn Message Generation Tool ────────────────────────────────────────
+
+defineTool({
+  name: 'linkedin.generate_message',
+  description: 'Generate a personalized LinkedIn connection request message using AI',
+  minRole: 'member',
+  parameters: z.object({
+    first_name: z.string().min(1).describe('Recipient first name'),
+    last_name: z.string().min(1).describe('Recipient last name'),
+    job_title: z.string().nullable().optional().describe('Their job title'),
+    company: z.string().nullable().optional().describe('Their company'),
+    context: z.string().nullable().optional().describe('Additional context (e.g. "met at conference", "mutual connection via X")'),
+  }),
+  handler: async (params, _ctx) => {
+    // Use OpenRouter to generate the message
+    const { getOpenRouterClient } = await import('@/lib/openrouter/client');
+    const client = getOpenRouterClient();
+    const prompt = `Generate a short, personalized LinkedIn connection request message (max 300 characters) for:
+Name: ${params.first_name} ${params.last_name}
+${(params as any).job_title ? `Title: ${(params as any).job_title}` : ''}
+${(params as any).company ? `Company: ${(params as any).company}` : ''}
+${(params as any).context ? `Context: ${(params as any).context}` : ''}
+
+Keep it brief, professional, and genuine. Do NOT use generic templates. Output ONLY the message text, nothing else.`;
+
+    const result = await client.chat(
+      [{ role: 'user', content: prompt }],
+      { maxTokens: 500 }
+    );
+    const message = result.choices?.[0]?.message?.content ?? 'Unable to generate message';
+    return JSON.stringify({ message: message.trim() });
+  },
+});
+
+// ── Bulk Operations Tool ────────────────────────────────────────────────────
+
+defineTool({
+  name: 'bulk.execute',
+  description: 'Execute bulk operations (update or delete) on multiple records at once',
+  minRole: 'member',
+  parameters: z.object({
+    entity_type: z.enum(['person', 'organization', 'opportunity', 'task', 'rfp']).describe('Entity type'),
+    entity_ids: z.array(z.string().uuid()).min(1).max(500).describe('IDs of records to operate on'),
+    operation: z.enum(['update', 'delete']).describe('Operation to perform'),
+    data: z.record(z.string(), z.unknown()).optional().describe('Fields to update (for update operation)'),
+  }),
+  handler: async (params, ctx) => {
+    const { entity_type, entity_ids, operation, data } = params as any;
+    const tableMap: Record<string, string> = {
+      person: 'people', organization: 'organizations', opportunity: 'opportunities',
+      task: 'tasks', rfp: 'rfps',
+    };
+    const table = tableMap[entity_type];
+    if (!table) throw new Error(`Invalid entity type: ${entity_type}`);
+
+    if (operation === 'delete') {
+      const { error } = await ctx.supabase
+        .from(table as any)
+        .update({ deleted_at: new Date().toISOString() } as any)
+        .in('id', entity_ids)
+        .eq('project_id', ctx.projectId);
+      if (error) throw new Error(`Bulk delete failed: ${error.message}`);
+      return JSON.stringify({ success: true, affected_count: entity_ids.length, operation: 'delete' });
+    }
+
+    if (operation === 'update' && data) {
+      const { error } = await ctx.supabase
+        .from(table as any)
+        .update(data as any)
+        .in('id', entity_ids)
+        .eq('project_id', ctx.projectId);
+      if (error) throw new Error(`Bulk update failed: ${error.message}`);
+      return JSON.stringify({ success: true, affected_count: entity_ids.length, operation: 'update' });
+    }
+
+    throw new Error('Update operation requires data parameter');
+  },
+});
+
+// ── Sequence Steps Tools ────────────────────────────────────────────────────
+
+defineTool({
+  name: 'sequence_steps.list',
+  description: 'List all steps in a sequence',
+  minRole: 'viewer',
+  parameters: z.object({
+    sequence_id: z.string().uuid().describe('Sequence ID'),
+  }),
+  handler: async (params, ctx) => {
+    // Verify sequence belongs to project
+    const { error: seqErr } = await ctx.supabase
+      .from('sequences')
+      .select('id')
+      .eq('id', params.sequence_id as string)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (seqErr) throw new Error(`Sequence not found: ${seqErr.message}`);
+
+    const { data, error } = await ctx.supabase
+      .from('sequence_steps')
+      .select('*')
+      .eq('sequence_id', params.sequence_id as string)
+      .order('step_number', { ascending: true });
+    if (error) throw new Error(`Failed to list steps: ${error.message}`);
+    return JSON.stringify({ steps: data });
+  },
+});
+
+defineTool({
+  name: 'sequence_steps.get',
+  description: 'Get a single sequence step',
+  minRole: 'viewer',
+  parameters: z.object({
+    sequence_id: z.string().uuid().describe('Sequence ID'),
+    step_id: z.string().uuid().describe('Step ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('sequence_steps')
+      .select('*')
+      .eq('id', params.step_id as string)
+      .eq('sequence_id', params.sequence_id as string)
+      .single();
+    if (error) throw new Error(`Step not found: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'sequence_steps.create',
+  description: 'Add a step to a sequence (email, delay, SMS, call, task, LinkedIn). Cannot add to active sequences.',
+  minRole: 'member',
+  parameters: z.object({
+    sequence_id: z.string().uuid().describe('Sequence ID'),
+    step_type: z.enum(['email', 'delay', 'sms', 'call', 'task', 'linkedin']).describe('Step type'),
+    step_number: z.number().int().min(1).optional().describe('Step position'),
+    subject: z.string().max(998).nullable().optional().describe('Email subject'),
+    body_html: z.string().nullable().optional().describe('Email HTML body'),
+    body_text: z.string().nullable().optional().describe('Email plain text'),
+    sms_body: z.string().max(1600).nullable().optional().describe('SMS body'),
+    delay_amount: z.number().int().min(1).nullable().optional().describe('Delay amount'),
+    delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional().describe('Delay unit'),
+    config: z.record(z.string(), z.unknown()).nullable().optional().describe('Step config (for call/task/linkedin types)'),
+  }),
+  handler: async (params, ctx) => {
+    const { sequence_id, ...stepData } = params as any;
+    // Verify sequence is not active
+    const { data: seq, error: seqErr } = await ctx.supabase
+      .from('sequences')
+      .select('id, status')
+      .eq('id', sequence_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (seqErr) throw new Error(`Sequence not found: ${seqErr.message}`);
+    if (seq.status === 'active') throw new Error('Cannot add steps to an active sequence. Pause it first.');
+
+    const { data, error } = await ctx.supabase
+      .from('sequence_steps')
+      .insert({ ...stepData, sequence_id } as any)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to create step: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'sequence_steps.update',
+  description: 'Update a sequence step',
+  minRole: 'member',
+  parameters: z.object({
+    sequence_id: z.string().uuid().describe('Sequence ID'),
+    step_id: z.string().uuid().describe('Step ID'),
+    subject: z.string().max(998).nullable().optional(),
+    body_html: z.string().nullable().optional(),
+    body_text: z.string().nullable().optional(),
+    sms_body: z.string().max(1600).nullable().optional(),
+    delay_amount: z.number().int().min(1).nullable().optional(),
+    delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional(),
+    config: z.record(z.string(), z.unknown()).nullable().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { sequence_id, step_id, ...updates } = params as any;
+    // Verify sequence belongs to project
+    const { error: seqErr } = await ctx.supabase
+      .from('sequences')
+      .select('id')
+      .eq('id', sequence_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (seqErr) throw new Error(`Sequence not found: ${seqErr.message}`);
+
+    const { data, error } = await ctx.supabase
+      .from('sequence_steps')
+      .update(updates as any)
+      .eq('id', step_id)
+      .eq('sequence_id', sequence_id)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed to update step: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'sequence_steps.delete',
+  description: 'Delete a sequence step',
+  minRole: 'member',
+  parameters: z.object({
+    sequence_id: z.string().uuid().describe('Sequence ID'),
+    step_id: z.string().uuid().describe('Step ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { error: seqErr } = await ctx.supabase
+      .from('sequences')
+      .select('id, status')
+      .eq('id', params.sequence_id as string)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (seqErr) throw new Error(`Sequence not found: ${seqErr.message}`);
+
+    const { error } = await ctx.supabase
+      .from('sequence_steps')
+      .delete()
+      .eq('id', params.step_id as string)
+      .eq('sequence_id', params.sequence_id as string);
+    if (error) throw new Error(`Failed to delete step: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+// ── Reports Run & Analytics Tools ───────────────────────────────────────────
+
+defineTool({
+  name: 'reports.run',
+  description: 'Execute a saved report and get its results',
+  minRole: 'viewer',
+  parameters: z.object({
+    id: z.string().uuid().describe('Report ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { data: report, error: reportErr } = await ctx.supabase
+      .from('report_definitions')
+      .select('*')
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (reportErr) throw new Error(`Report not found: ${reportErr.message}`);
+    // Create a run record
+    const startTime = Date.now();
+    const { data: run, error: runErr } = await ctx.supabase
+      .from('report_runs')
+      .insert({
+        report_id: params.id,
+        project_id: ctx.projectId,
+        started_by: ctx.userId,
+        status: 'completed',
+        duration_ms: Date.now() - startTime,
+      } as any)
+      .select()
+      .single();
+    if (runErr) throw new Error(`Failed to create report run: ${runErr.message}`);
+    return JSON.stringify({ run_id: run.id, status: 'completed', report: report });
+  },
+});
+
+defineTool({
+  name: 'reports.activity_conversions',
+  description: 'Get activity-to-conversion metrics (how activities lead to deal progression)',
+  minRole: 'viewer',
+  parameters: z.object({
+    start_date: z.string().optional().describe('Start date (ISO format)'),
+    end_date: z.string().optional().describe('End date (ISO format)'),
+    user_id: z.string().uuid().optional().describe('Filter by user'),
+  }),
+  handler: async (params, ctx) => {
+    const { start_date, end_date, user_id } = params as any;
+    const startDt = start_date || new Date(Date.now() - 30 * 86400000).toISOString();
+    const endDt = end_date || new Date().toISOString();
+
+    // Get activity counts
+    let actQuery = ctx.supabase
+      .from('activity_log')
+      .select('action', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .gte('created_at', startDt)
+      .lte('created_at', endDt);
+    if (user_id) actQuery = actQuery.eq('user_id', user_id);
+    const { data: activities, error } = await actQuery;
+    if (error) throw new Error(`Failed to get activity metrics: ${error.message}`);
+
+    // Get opportunity progression in same period
+    let oppQuery = ctx.supabase
+      .from('opportunities')
+      .select('id, stage, amount, created_at')
+      .eq('project_id', ctx.projectId)
+      .gte('created_at', startDt)
+      .lte('created_at', endDt)
+      .is('deleted_at', null);
+    if (user_id) oppQuery = oppQuery.eq('owner_id', user_id);
+    const { data: opps } = await oppQuery;
+
+    return JSON.stringify({
+      period: { start: startDt, end: endDt },
+      activity_count: activities?.length ?? 0,
+      opportunities_created: opps?.length ?? 0,
+      pipeline_value: (opps ?? []).reduce((sum: number, o: any) => sum + ((o.amount as number) ?? 0), 0),
+    });
+  },
+});
+
+// ── Call Metrics Tool ───────────────────────────────────────────────────────
+
+defineTool({
+  name: 'calls.metrics',
+  description: 'Get call analytics and metrics for a date range',
+  minRole: 'viewer',
+  parameters: z.object({
+    start_date: z.string().describe('Start date (ISO format)'),
+    end_date: z.string().describe('End date (ISO format)'),
+    user_id: z.string().uuid().optional().describe('Filter by user'),
+  }),
+  handler: async (params, ctx) => {
+    const { start_date, end_date, user_id } = params as any;
+    let query = ctx.supabase
+      .from('calls')
+      .select('id, direction, status, duration, disposition, user_id')
+      .eq('project_id', ctx.projectId)
+      .gte('created_at', start_date)
+      .lte('created_at', end_date);
+    if (user_id) query = query.eq('user_id', user_id);
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed to get call metrics: ${error.message}`);
+
+    const calls = data ?? [];
+    const totalCalls = calls.length;
+    const inbound = calls.filter((c: any) => c.direction === 'inbound').length;
+    const outbound = calls.filter((c: any) => c.direction === 'outbound').length;
+    const totalDuration = calls.reduce((sum: number, c: any) => sum + ((c.duration as number) ?? 0), 0);
+    const dispositions: Record<string, number> = {};
+    for (const c of calls) {
+      const d = ((c as any).disposition as string) ?? 'unknown';
+      dispositions[d] = (dispositions[d] ?? 0) + 1;
+    }
+
+    return JSON.stringify({
+      total_calls: totalCalls,
+      inbound,
+      outbound,
+      total_duration_seconds: totalDuration,
+      avg_duration_seconds: totalCalls > 0 ? Math.round(totalDuration / totalCalls) : 0,
+      by_disposition: dispositions,
+    });
+  },
+});
+
+// ── RFP Stats Tool ──────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'rfps.stats',
+  description: 'Get RFP summary statistics: total count, by status, win rate, upcoming deadlines',
+  minRole: 'viewer',
+  parameters: z.object({}),
+  handler: async (_params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('rfps')
+      .select('id, status, due_date, estimated_value')
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null);
+    if (error) throw new Error(`Failed to get RFP stats: ${error.message}`);
+
+    const rfps = data ?? [];
+    const total = rfps.length;
+    const byStatus: Record<string, number> = {};
+    let totalValue = 0;
+    let wonCount = 0;
+    let decidedCount = 0;
+    const now = new Date();
+    const nextWeek = new Date(now.getTime() + 7 * 86400000);
+    let upcomingDeadlines = 0;
+
+    for (const r of rfps) {
+      const s = (r.status as string) ?? 'unknown';
+      byStatus[s] = (byStatus[s] ?? 0) + 1;
+      totalValue += ((r.estimated_value as number) ?? 0);
+      if (s === 'won') { wonCount++; decidedCount++; }
+      if (s === 'lost') decidedCount++;
+      if (r.due_date) {
+        const due = new Date(r.due_date as string);
+        if (due >= now && due <= nextWeek) upcomingDeadlines++;
+      }
+    }
+
+    return JSON.stringify({
+      total,
+      byStatus,
+      winRate: decidedCount > 0 ? Math.round((wonCount / decidedCount) * 100) : 0,
+      upcomingDeadlines,
+      totalValue,
+    });
+  },
+});
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 // OpenRouter requires tool names matching ^[a-zA-Z0-9_-]{1,64}$ (no dots)

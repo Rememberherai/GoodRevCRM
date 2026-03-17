@@ -73,14 +73,40 @@ export function ChatSettings({ onBack }: ChatSettingsProps) {
             <ToolGroup name="Tasks" tools={['list', 'get', 'create', 'update', 'delete']} />
             <ToolGroup name="Notes" tools={['list', 'create', 'update', 'delete']} />
             <ToolGroup name="RFPs" tools={['list', 'get', 'create', 'update', 'delete']} />
+            <ToolGroup name="RFP Questions" tools={['list', 'get', 'create', 'update', 'delete']} />
             <ToolGroup name="Sequences" tools={['list', 'get', 'create', 'update', 'enroll', 'unenroll']} />
             <ToolGroup name="Meetings" tools={['list', 'create', 'update', 'delete']} />
             <ToolGroup name="Calls" tools={['list', 'get']} />
-            <ToolGroup name="Email" tools={['send', 'history']} />
+            <ToolGroup name="Email" tools={['send', 'history', 'inbox']} />
+            <ToolGroup name="Drafts" tools={['list', 'get', 'create', 'update', 'delete']} />
+            <ToolGroup name="Templates" tools={['list', 'get', 'create', 'update', 'delete']} />
             <ToolGroup name="Tags" tools={['list', 'create', 'assign', 'get_entity_tags']} />
             <ToolGroup name="Comments" tools={['list', 'create']} />
             <ToolGroup name="Dashboard" tools={['stats']} />
             <ToolGroup name="Search" tools={['global']} />
+            <ToolGroup name="Automations" tools={['list', 'get', 'create', 'update', 'delete']} />
+            <ToolGroup name="Content Library" tools={['list', 'search', 'get', 'create', 'update', 'delete']} />
+            <ToolGroup name="News" tools={['list_keywords', 'create_keyword', 'delete_keyword', 'list_articles', 'update_article']} />
+            <ToolGroup name="Custom Fields" tools={['list', 'create', 'update', 'delete']} />
+            <ToolGroup name="Webhooks" tools={['list', 'get', 'create', 'update', 'delete']} />
+            <ToolGroup name="Reports" tools={['list', 'get', 'create', 'delete', 'run', 'forecasting', 'activity_conversions']} />
+            <ToolGroup name="Activity" tools={['list', 'follow_ups']} />
+            <ToolGroup name="Research" tools={['list', 'get']} />
+            <ToolGroup name="Widgets" tools={['list', 'create', 'update', 'delete']} />
+            <ToolGroup name="Members" tools={['list', 'update_role']} />
+            <ToolGroup name="Invitations" tools={['list']} />
+            <ToolGroup name="Settings" tools={['get']} />
+            <ToolGroup name="Duplicates" tools={['list', 'resolve']} />
+            <ToolGroup name="Merge" tools={['execute']} />
+            <ToolGroup name="Enrichment" tools={['list', 'start']} />
+            <ToolGroup name="Contacts" tools={['discover', 'add_to_org']} />
+            <ToolGroup name="SMS" tools={['list', 'send']} />
+            <ToolGroup name="Signatures" tools={['list', 'get', 'create', 'update', 'delete']} />
+            <ToolGroup name="LinkedIn" tools={['generate_message']} />
+            <ToolGroup name="Bulk" tools={['execute']} />
+            <ToolGroup name="Sequence Steps" tools={['list', 'get', 'create', 'update', 'delete']} />
+            <ToolGroup name="Call Metrics" tools={['metrics']} />
+            <ToolGroup name="RFP Stats" tools={['stats']} />
           </div>
           <p className="text-xs text-muted-foreground">
             The AI can use these tools to read and modify your CRM data across all entity types.

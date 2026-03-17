@@ -65,6 +65,7 @@ All new features MUST include MCP tool support. When adding a new feature:
 - **Reuse existing Zod validators** from `lib/validators/` for tool input schemas where possible.
 - **Emit automation events** — call `emitAutomationEvent()` after mutations, same as API routes.
 - **See**: `lib/mcp/server.ts` for the MCP server architecture, `lib/mcp/tools/organizations.ts` for a reference implementation.
+- **Add chat agent tools** in `lib/chat/tool-registry.ts` — every new feature must also have a corresponding `defineTool()` entry so the AI chat agent can access it. Update `MUTATING_TOOLS` in `hooks/use-chat.ts` for any write operations, and add the tool category to `components/chat/chat-settings.tsx`, `components/chat/chat-message-list.tsx` (colors), and `lib/chat/system-prompt.ts`.
 
 ## Git commits
 
