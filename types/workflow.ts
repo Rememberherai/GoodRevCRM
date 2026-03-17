@@ -176,6 +176,7 @@ export interface WorkflowEdge {
   source: string;
   target: string;
   sourceHandle?: string;  // 'true'/'false' for condition, case labels for switch
+  targetHandle?: string;
   label?: string;
   animated?: boolean;
 }

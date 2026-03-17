@@ -48,6 +48,7 @@ interface WorkflowStoreState {
 
   // Dirty tracking
   lastSavedDefinition: WorkflowDefinition | null;
+  lastSavedMeta: { name: string; description: string; triggerType: string; triggerConfig: string; tags: string } | null;
 
   // Validation
   validationErrors: WorkflowValidationError[];
@@ -150,6 +151,7 @@ const initialState: WorkflowStoreState = {
   minimapVisible: true,
   palettePanelOpen: true,
   lastSavedDefinition: null,
+  lastSavedMeta: null,
   validationErrors: [],
   isLoading: false,
   isSaving: false,
@@ -175,6 +177,13 @@ export const useWorkflowStore = create<WorkflowStoreState & WorkflowStoreActions
       nodes: def.nodes,
       edges: def.edges,
       lastSavedDefinition: def,
+      lastSavedMeta: {
+        name: workflow.name,
+        description: workflow.description || '',
+        triggerType: workflow.trigger_type,
+        triggerConfig: JSON.stringify(workflow.trigger_config),
+        tags: JSON.stringify(workflow.tags),
+      },
       selectedNodeId: null,
       validationErrors: [],
       activeSubWorkflowId: null,
@@ -372,14 +381,29 @@ export const useWorkflowStore = create<WorkflowStoreState & WorkflowStoreActions
         nodes: s.nodes,
         edges: s.edges,
       },
+      lastSavedMeta: {
+        name: s.workflowName,
+        description: s.workflowDescription,
+        triggerType: s.triggerType,
+        triggerConfig: JSON.stringify(s.triggerConfig),
+        tags: JSON.stringify(s.tags),
+      },
     })),
 
   hasUnsavedChanges: () => {
     const s = get();
     if (!s.lastSavedDefinition) return s.nodes.length > 0;
-    return (
+    const defChanged =
       JSON.stringify(s.nodes) !== JSON.stringify(s.lastSavedDefinition.nodes) ||
-      JSON.stringify(s.edges) !== JSON.stringify(s.lastSavedDefinition.edges)
+      JSON.stringify(s.edges) !== JSON.stringify(s.lastSavedDefinition.edges);
+    if (defChanged) return true;
+    if (!s.lastSavedMeta) return false;
+    return (
+      s.workflowName !== s.lastSavedMeta.name ||
+      s.workflowDescription !== s.lastSavedMeta.description ||
+      s.triggerType !== s.lastSavedMeta.triggerType ||
+      JSON.stringify(s.triggerConfig) !== s.lastSavedMeta.triggerConfig ||
+      JSON.stringify(s.tags) !== s.lastSavedMeta.tags
     );
   },
 

@@ -47,6 +47,7 @@ const workflowEdgeSchema = z.object({
   source: z.string().min(1),
   target: z.string().min(1),
   sourceHandle: z.string().max(100).optional(),
+  targetHandle: z.string().max(100).optional(),
   label: z.string().max(100).optional(),
   animated: z.boolean().optional(),
 });

@@ -220,7 +220,7 @@ export function WorkflowPropertyPanel() {
             variant="destructive"
             size="sm"
             className="w-full"
-            onClick={() => removeNode(selectedNode.id)}
+            onClick={() => { removeNode(selectedNode.id); setSelectedNodeId(null); }}
           >
             Delete Node
           </Button>

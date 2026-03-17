@@ -125,6 +125,7 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
     source: e.source,
     target: e.target,
     sourceHandle: e.sourceHandle,
+    targetHandle: e.targetHandle,
     label: e.label,
     animated: e.animated,
     type: 'deletable',
@@ -160,7 +161,8 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
       const store = useWorkflowStore.getState();
       const currentRfEdges: Edge[] = store.edges.map((e) => ({
         id: e.id, source: e.source, target: e.target,
-        sourceHandle: e.sourceHandle, label: e.label, animated: e.animated, type: 'deletable',
+        sourceHandle: e.sourceHandle, targetHandle: e.targetHandle,
+        label: e.label, animated: e.animated, type: 'deletable',
       }));
       const updated = applyEdgeChanges(changes, currentRfEdges) as Edge[];
       store.setEdges(
@@ -169,6 +171,7 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
           source: e.source,
           target: e.target,
           sourceHandle: e.sourceHandle || undefined,
+          targetHandle: e.targetHandle || undefined,
           label: typeof e.label === 'string' ? e.label : undefined,
           animated: e.animated,
         }))

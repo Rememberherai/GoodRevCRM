@@ -305,11 +305,23 @@ async function traverseNode(
       case 'sub_workflow': {
         const inlineDef = node.data.config.inline_definition as WorkflowDefinition | undefined;
         if (inlineDef) {
+          // Prefix sub-workflow node IDs to avoid collisions with parent execution
+          const prefix = `${node.id}__`;
+          const prefixedDef: WorkflowDefinition = {
+            schema_version: inlineDef.schema_version,
+            nodes: inlineDef.nodes.map((n) => ({ ...n, id: `${prefix}${n.id}` })),
+            edges: inlineDef.edges.map((e) => ({
+              ...e,
+              id: `${prefix}${e.id}`,
+              source: `${prefix}${e.source}`,
+              target: `${prefix}${e.target}`,
+            })),
+          };
           await executeWorkflow(
             ctx.workflowId,
             ctx.executionId,
             ctx.projectId,
-            inlineDef,
+            prefixedDef,
             ctx.contextData,
             ctx.depth + 1
           );

@@ -75,10 +75,14 @@ export async function POST(request: Request, context: RouteContext) {
       .single();
 
     // Fire workflow engine asynchronously (don't block the response)
-    import('@/lib/workflows/engine').then(({ executeWorkflow }) => {
-      executeWorkflow(id, executionId, project.id, workflow.definition, context_data || {}).catch((err) =>
-        console.error('Workflow execution error:', err)
-      );
+    // Pre-import to catch module errors synchronously, then run async
+    const { executeWorkflow } = await import('@/lib/workflows/engine');
+    executeWorkflow(id, executionId, project.id, workflow.definition, context_data || {}).catch(async (err) => {
+      console.error('Workflow execution error:', err);
+      // Mark execution as failed if engine throws
+      await supabaseAny.from('workflow_executions')
+        .update({ status: 'failed', error_message: err instanceof Error ? err.message : String(err), completed_at: new Date().toISOString() })
+        .eq('id', executionId);
     });
 
     return NextResponse.json({ execution }, { status: 201 });

@@ -346,6 +346,11 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
       const ctx = getContext();
       checkPermission(ctx.role, 'viewer');
 
+      // Verify workflow belongs to this project first
+      const { data: wf, error: wfErr } = await ctx.supabase
+        .from('workflows').select('id').eq('id', params.id).eq('project_id', ctx.projectId).single();
+      if (wfErr || !wf) throw new Error('Workflow not found in this project');
+
       let query = ctx.supabase
         .from('workflow_executions')
         .select('*')

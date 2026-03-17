@@ -37,6 +37,7 @@ export default function WorkflowsPage() {
   async function fetchWorkflows() {
     try {
       const res = await fetch(`/api/projects/${slug}/workflows`);
+      if (!res.ok) { console.error('Failed to fetch workflows:', res.status); return; }
       const data = await res.json();
       setWorkflows(data.workflows || []);
     } catch (error) {
@@ -74,6 +75,7 @@ export default function WorkflowsPage() {
           },
         }),
       });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error || 'Failed to create'); return; }
       const data = await res.json();
       if (data.workflow) {
         router.push(`/projects/${slug}/workflows/${data.workflow.id}`);
@@ -85,7 +87,8 @@ export default function WorkflowsPage() {
 
   async function duplicateWorkflow(id: string) {
     try {
-      await fetch(`/api/projects/${slug}/workflows/${id}/duplicate`, { method: 'POST' });
+      const res = await fetch(`/api/projects/${slug}/workflows/${id}/duplicate`, { method: 'POST' });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error || 'Failed to duplicate'); return; }
       fetchWorkflows();
     } catch (error) {
       console.error('Failed to duplicate:', error);
@@ -95,7 +98,8 @@ export default function WorkflowsPage() {
   async function deleteWorkflow(id: string) {
     if (!confirm('Are you sure you want to delete this workflow?')) return;
     try {
-      await fetch(`/api/projects/${slug}/workflows/${id}`, { method: 'DELETE' });
+      const res = await fetch(`/api/projects/${slug}/workflows/${id}`, { method: 'DELETE' });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error || 'Failed to delete'); return; }
       fetchWorkflows();
     } catch (error) {
       console.error('Failed to delete:', error);
@@ -104,7 +108,8 @@ export default function WorkflowsPage() {
 
   async function toggleActive(id: string) {
     try {
-      await fetch(`/api/projects/${slug}/workflows/${id}/activate`, { method: 'POST' });
+      const res = await fetch(`/api/projects/${slug}/workflows/${id}/activate`, { method: 'POST' });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); alert(err.error || 'Failed to toggle'); return; }
       fetchWorkflows();
     } catch (error) {
       console.error('Failed to toggle active:', error);
