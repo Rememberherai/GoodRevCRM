@@ -16,7 +16,7 @@ interface RouteContext {
 }
 
 const sendMessageSchema = z.object({
-  conversationId: z.string().uuid().optional(),
+  conversationId: z.string().uuid().nullish(),
   message: z.string().min(1).max(10000),
 });
 
