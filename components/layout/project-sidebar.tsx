@@ -13,9 +13,11 @@ import {
   Library,
   BarChart3,
   Newspaper,
+  MessageSquare,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
+import { useChatStore } from '@/stores/chat';
 import type { Project } from '@/types/project';
 
 interface ProjectSidebarProps {
@@ -81,6 +83,8 @@ const bottomNavItems = [
 export function ProjectSidebar({ project }: ProjectSidebarProps) {
   const pathname = usePathname();
   const basePath = `/projects/${project.slug}`;
+  const toggleChat = useChatStore((s) => s.toggle);
+  const chatOpen = useChatStore((s) => s.isOpen);
 
   return (
     <aside className="w-64 border-r bg-card flex flex-col">
@@ -128,6 +132,18 @@ export function ProjectSidebar({ project }: ProjectSidebarProps) {
 
       {/* Bottom Navigation */}
       <div className="p-2 border-t space-y-1">
+        <button
+          onClick={toggleChat}
+          className={cn(
+            'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors w-full',
+            chatOpen
+              ? 'bg-primary text-primary-foreground'
+              : 'text-muted-foreground hover:text-foreground hover:bg-accent'
+          )}
+        >
+          <MessageSquare className="h-4 w-4" />
+          Chat
+        </button>
         {bottomNavItems.map((item) => {
           const href = `${basePath}${item.href}`;
           const isActive = pathname.startsWith(href);

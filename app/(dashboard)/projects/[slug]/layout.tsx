@@ -3,6 +3,7 @@ import { redirect, notFound } from 'next/navigation';
 import { ProjectSidebar } from '@/components/layout/project-sidebar';
 import { ProjectHeader } from '@/components/layout/project-header';
 import { CallClientWrapper } from '@/components/calls/call-client-wrapper';
+import { ChatPanel } from '@/components/chat/chat-panel';
 import type { Database } from '@/types/database';
 
 type Project = Database['public']['Tables']['projects']['Row'];
@@ -45,6 +46,7 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
           <main className="flex-1 overflow-auto p-6">{children}</main>
         </div>
       </div>
+      <ChatPanel projectSlug={slug} />
     </CallClientWrapper>
   );
 }

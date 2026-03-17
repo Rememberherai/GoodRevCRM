@@ -3,10 +3,49 @@ import { z } from 'zod';
 // OpenRouter API configuration
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
+// Tool call types for function calling
+export interface ToolCallFunction {
+  id: string;
+  type: 'function';
+  function: { name: string; arguments: string };
+}
+
+export interface ChatMessageWithTools {
+  role: 'system' | 'user' | 'assistant' | 'tool';
+  content?: string | null;
+  tool_calls?: ToolCallFunction[];
+  tool_call_id?: string;
+}
+
+export interface ToolDefinitionParam {
+  type: 'function';
+  function: {
+    name: string;
+    description: string;
+    parameters: Record<string, unknown>;
+  };
+}
+
+export interface ChatWithToolsResponse {
+  content: string | null;
+  tool_calls: ToolCallFunction[] | null;
+  usage: OpenRouterUsage | null;
+  model: string;
+  finish_reason: string | null;
+}
+
 // Response schemas
 const openRouterMessageSchema = z.object({
   role: z.enum(['assistant', 'user', 'system']),
-  content: z.string(),
+  content: z.string().nullable().optional(),
+  tool_calls: z.array(z.object({
+    id: z.string(),
+    type: z.literal('function'),
+    function: z.object({
+      name: z.string(),
+      arguments: z.string(),
+    }),
+  })).optional(),
 });
 
 const openRouterChoiceSchema = z.object({
@@ -273,6 +312,120 @@ export class OpenRouterClient {
       usage: response.usage ?? null,
       model: response.model,
     };
+  }
+
+  /**
+   * Chat completion with tool/function calling support (non-streaming).
+   * Returns tool_calls if the model wants to call tools, otherwise returns text content.
+   */
+  async chatWithTools(
+    messages: ChatMessageWithTools[],
+    tools: ToolDefinitionParam[],
+    options: OpenRouterRequestOptions = {}
+  ): Promise<ChatWithToolsResponse> {
+    const {
+      model = DEFAULT_MODEL,
+      temperature = 0.3,
+      maxTokens = 4096,
+      topP = 1,
+    } = options;
+
+    const body: Record<string, unknown> = {
+      model,
+      messages,
+      tools,
+      temperature,
+      max_tokens: maxTokens,
+      top_p: topP,
+    };
+
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'HTTP-Referer': this.siteUrl,
+        'X-Title': this.siteName,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      let errorBody: unknown;
+      try { errorBody = await response.json(); } catch { errorBody = await response.text(); }
+      console.error('[OpenRouter] Tool call API error:', response.status, errorBody);
+      throw new OpenRouterError(
+        `OpenRouter API error: ${response.status} ${response.statusText}`,
+        response.status
+      );
+    }
+
+    const data = await response.json();
+    const parsed = openRouterResponseSchema.safeParse(data);
+
+    if (!parsed.success) {
+      throw new OpenRouterError('Invalid response from OpenRouter API', undefined, data);
+    }
+
+    if (!parsed.data.choices.length) {
+      throw new OpenRouterError('No choices in OpenRouter response', undefined, data);
+    }
+
+    const choice = parsed.data.choices[0]!;
+    return {
+      content: choice.message?.content ?? null,
+      tool_calls: choice.message?.tool_calls ?? null,
+      usage: parsed.data.usage ?? null,
+      model: parsed.data.model,
+      finish_reason: choice.finish_reason ?? null,
+    };
+  }
+
+  /**
+   * Streaming chat completion. Returns the raw Response for SSE processing.
+   */
+  async chatStream(
+    messages: ChatMessageWithTools[],
+    options: OpenRouterRequestOptions = {}
+  ): Promise<Response> {
+    const {
+      model = DEFAULT_MODEL,
+      temperature = 0.3,
+      maxTokens = 4096,
+      topP = 1,
+    } = options;
+
+    const body: Record<string, unknown> = {
+      model,
+      messages,
+      stream: true,
+      temperature,
+      max_tokens: maxTokens,
+      top_p: topP,
+    };
+
+    const response = await fetch(OPENROUTER_API_URL, {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${this.apiKey}`,
+        'HTTP-Referer': this.siteUrl,
+        'X-Title': this.siteName,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(body),
+    });
+
+    if (!response.ok) {
+      let errorBody: unknown;
+      try { errorBody = await response.json(); } catch { errorBody = await response.text(); }
+      console.error('[OpenRouter] Stream API error:', response.status, errorBody);
+      throw new OpenRouterError(
+        `OpenRouter API error: ${response.status} ${response.statusText}`,
+        response.status
+      );
+    }
+
+    return response;
   }
 }
 
