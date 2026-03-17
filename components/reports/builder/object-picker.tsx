@@ -57,7 +57,7 @@ export function ObjectPicker({ objects, selectedObject, onSelect }: ObjectPicker
         </p>
       </div>
 
-      <div className="grid gap-3 grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
+      <div className="grid gap-3 grid-cols-2 sm:grid-cols-3">
         {Object.entries(objects).map(([key, obj]) => {
           const Icon = OBJECT_ICONS[key] ?? Activity;
           const colors = OBJECT_COLORS[key] ?? OBJECT_COLORS.activity_log;
@@ -73,19 +73,19 @@ export function ObjectPicker({ objects, selectedObject, onSelect }: ObjectPicker
               }`}
               onClick={() => onSelect(key)}
             >
-              <CardContent className="pt-5 pb-4">
-                <div className="flex items-center gap-3">
+              <CardContent className="p-3">
+                <div className="flex flex-col items-center gap-2 text-center">
                   <div
                     className={`flex h-10 w-10 shrink-0 items-center justify-center rounded-lg ${colors!.bg} transition-transform duration-200 group-hover:scale-110`}
                   >
                     <Icon className={`h-5 w-5 ${colors!.text}`} />
                   </div>
                   <div>
-                    <h4 className="font-semibold text-sm whitespace-nowrap">{obj.labelPlural}</h4>
-                    <p className="text-xs text-muted-foreground mt-0.5 whitespace-nowrap">
+                    <h4 className="font-semibold text-sm leading-tight">{obj.labelPlural}</h4>
+                    <p className="text-xs text-muted-foreground mt-0.5">
                       {obj.fields.length} fields
                       {obj.relations.length > 0 && (
-                        <span> &middot; {obj.relations.length} relations</span>
+                        <span> · {obj.relations.length} rel</span>
                       )}
                     </p>
                   </div>
