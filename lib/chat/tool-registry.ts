@@ -581,16 +581,27 @@ defineTool({
 
 // ── Exports ──────────────────────────────────────────────────────────────────
 
+// OpenRouter requires tool names matching ^[a-zA-Z0-9_-]{1,64}$ (no dots)
+function toApiName(name: string): string {
+  return name.replace(/\./g, '_');
+}
+
 export function getToolDefinitions(): ToolDefinition[] {
-  return tools.map((tool) => ({
-    type: 'function' as const,
-    function: {
-      name: tool.name,
-      description: tool.description,
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod v4 type compat with zod-to-json-schema
-      parameters: zodToJsonSchema(tool.parameters as any, { target: 'openAi' }) as Record<string, unknown>,
-    },
-  }));
+  return tools.map((tool) => {
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod v4 type compat with zod-to-json-schema
+    const schema = zodToJsonSchema(tool.parameters as any) as Record<string, unknown>;
+    // Remove top-level $schema and additionalProperties that some providers reject
+    delete schema.$schema;
+
+    return {
+      type: 'function' as const,
+      function: {
+        name: toApiName(tool.name),
+        description: tool.description,
+        parameters: schema,
+      },
+    };
+  });
 }
 
 export async function executeTool(
@@ -598,7 +609,8 @@ export async function executeTool(
   args: Record<string, unknown>,
   ctx: McpContext
 ): Promise<string> {
-  const tool = tools.find((t) => t.name === name);
+  // Accept both dotted (organizations.list) and underscored (organizations_list) names
+  const tool = tools.find((t) => t.name === name || toApiName(t.name) === name);
   if (!tool) throw new Error(`Unknown tool: ${name}`);
 
   checkPermission(ctx.role, tool.minRole);

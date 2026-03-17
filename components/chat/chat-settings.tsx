@@ -12,11 +12,12 @@ import {
 } from '@/components/ui/select';
 
 const MODELS = [
-  { value: 'anthropic/claude-3.5-sonnet', label: 'Claude 3.5 Sonnet', description: 'Best quality — default' },
-  { value: 'anthropic/claude-3-haiku', label: 'Claude 3 Haiku', description: 'Fastest responses' },
+  { value: 'google/gemini-2.5-flash', label: 'Gemini 2.5 Flash', description: 'Fast and capable — default' },
+  { value: 'anthropic/claude-sonnet-4.6', label: 'Claude Sonnet 4.6', description: 'Anthropic balanced' },
+  { value: 'anthropic/claude-opus-4.6', label: 'Claude Opus 4.6', description: 'Anthropic flagship' },
   { value: 'openai/gpt-4o', label: 'GPT-4o', description: 'OpenAI flagship' },
-  { value: 'openai/gpt-4o-mini', label: 'GPT-4o Mini', description: 'Fast and affordable' },
-  { value: 'google/gemini-pro-1.5', label: 'Gemini Pro 1.5', description: 'Google large context' },
+  { value: 'deepseek/deepseek-v3.2', label: 'DeepSeek V3.2', description: 'Open-source powerhouse' },
+  { value: 'x-ai/grok-4.1-fast', label: 'Grok 4.1 Fast', description: 'xAI fast reasoning' },
 ];
 
 interface ChatSettingsProps {
@@ -42,7 +43,7 @@ export function ChatSettings({ onBack }: ChatSettingsProps) {
         {/* Model selection */}
         <div className="space-y-2">
           <Label className="text-xs font-medium">AI Model</Label>
-          <Select defaultValue="anthropic/claude-3.5-sonnet">
+          <Select defaultValue="google/gemini-2.5-flash">
             <SelectTrigger className="w-full">
               <SelectValue />
             </SelectTrigger>

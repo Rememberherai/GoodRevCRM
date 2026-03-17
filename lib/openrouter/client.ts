@@ -85,15 +85,16 @@ export class OpenRouterError extends Error {
 
 // Model options
 export type OpenRouterModel =
-  | 'anthropic/claude-3.5-sonnet'
-  | 'anthropic/claude-3-haiku'
+  | 'google/gemini-2.5-flash'
+  | 'anthropic/claude-sonnet-4.6'
+  | 'anthropic/claude-opus-4.6'
   | 'openai/gpt-4o'
   | 'openai/gpt-4o-mini'
-  | 'google/gemini-pro-1.5'
-  | 'meta-llama/llama-3.1-70b-instruct';
+  | 'deepseek/deepseek-v3.2'
+  | 'x-ai/grok-4.1-fast';
 
-export const DEFAULT_MODEL: OpenRouterModel = 'anthropic/claude-3.5-sonnet';
-export const FAST_MODEL: OpenRouterModel = 'anthropic/claude-3-haiku';
+export const DEFAULT_MODEL: OpenRouterModel = 'google/gemini-2.5-flash';
+export const FAST_MODEL: OpenRouterModel = 'google/gemini-2.5-flash';
 
 // Request options
 export interface OpenRouterRequestOptions {
