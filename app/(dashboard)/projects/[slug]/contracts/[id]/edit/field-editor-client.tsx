@@ -43,6 +43,12 @@ interface Recipient {
   role: string;
 }
 
+interface DragState {
+  tempId: string;
+  offsetXPercent: number;
+  offsetYPercent: number;
+}
+
 const FIELD_TYPE_ICONS: Partial<Record<ContractFieldType, typeof PenTool>> = {
   signature: PenTool,
   initials: Type,
@@ -75,7 +81,7 @@ export function FieldEditorClient() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [documentTitle, setDocumentTitle] = useState('');
-  const [dragging, setDragging] = useState<string | null>(null);
+  const [dragging, setDragging] = useState<DragState | null>(null);
   const pdfContainerRef = useRef<HTMLDivElement>(null);
 
   const recipientColorMap = new Map<string, string>();
@@ -92,6 +98,11 @@ export function FieldEditorClient() {
       setDocumentTitle(data.contract.title);
       setPageCount(data.contract.page_count);
       setRecipients(data.contract.recipients);
+
+      if (!data.contract.recipients || data.contract.recipients.length === 0) {
+        router.replace(`/projects/${slug}/contracts/${id}?setup=recipients`);
+        return;
+      }
 
       // Map existing fields
       const existingFields: Field[] = (data.contract.fields ?? []).map((f: Record<string, unknown>) => ({
@@ -125,7 +136,7 @@ export function FieldEditorClient() {
     } finally {
       setLoading(false);
     }
-  }, [slug, id]);
+  }, [slug, id, router]);
 
   useEffect(() => {
     loadData();
@@ -224,23 +235,56 @@ export function FieldEditorClient() {
     }
   };
 
-  const handleFieldMouseDown = (e: React.MouseEvent, tempId: string) => {
+  const handleFieldMouseDown = (e: React.MouseEvent, field: Field) => {
+    if (!pdfContainerRef.current) return;
     e.stopPropagation();
-    setSelectedField(tempId);
-    setDragging(tempId);
-  };
+    e.preventDefault();
 
-  const handleMouseMove = (e: React.MouseEvent) => {
-    if (!dragging || !pdfContainerRef.current) return;
     const rect = pdfContainerRef.current.getBoundingClientRect();
-    const x = ((e.clientX - rect.left) / rect.width) * 100;
-    const y = ((e.clientY - rect.top) / rect.height) * 100;
-    updateField(dragging, { x: Math.max(0, Math.min(90, x)), y: Math.max(0, Math.min(90, y)) });
+    const pointerX = ((e.clientX - rect.left) / rect.width) * 100;
+    const pointerY = ((e.clientY - rect.top) / rect.height) * 100;
+
+    setSelectedField(field.tempId);
+    setDragging({
+      tempId: field.tempId,
+      offsetXPercent: pointerX - field.x,
+      offsetYPercent: pointerY - field.y,
+    });
   };
 
-  const handleMouseUp = () => {
+  const handleMouseMove = useCallback((e: MouseEvent) => {
+    if (!dragging || !pdfContainerRef.current) return;
+
+    const rect = pdfContainerRef.current.getBoundingClientRect();
+    const field = fields.find((f) => f.tempId === dragging.tempId);
+    if (!field) return;
+
+    const pointerX = ((e.clientX - rect.left) / rect.width) * 100;
+    const pointerY = ((e.clientY - rect.top) / rect.height) * 100;
+    const nextX = pointerX - dragging.offsetXPercent;
+    const nextY = pointerY - dragging.offsetYPercent;
+
+    updateField(dragging.tempId, {
+      x: Math.max(0, Math.min(100 - field.width, nextX)),
+      y: Math.max(0, Math.min(100 - field.height, nextY)),
+    });
+  }, [dragging, fields]);
+
+  const handleMouseUp = useCallback(() => {
     setDragging(null);
-  };
+  }, []);
+
+  useEffect(() => {
+    if (!dragging) return;
+
+    window.addEventListener('mousemove', handleMouseMove);
+    window.addEventListener('mouseup', handleMouseUp);
+
+    return () => {
+      window.removeEventListener('mousemove', handleMouseMove);
+      window.removeEventListener('mouseup', handleMouseUp);
+    };
+  }, [dragging, handleMouseMove, handleMouseUp]);
 
   const currentPageFields = fields.filter((f) => f.page_number === currentPage);
   const selected = fields.find((f) => f.tempId === selectedField);
@@ -270,7 +314,7 @@ export function FieldEditorClient() {
           </Button>
           <Button onClick={handleSave} disabled={saving}>
             {saving ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-            Save Fields
+            Save & Return
           </Button>
         </div>
       </div>
@@ -333,6 +377,9 @@ export function FieldEditorClient() {
             <span className="text-sm text-muted-foreground">
               Page {currentPage} of {pageCount}
             </span>
+            <span className="text-xs text-muted-foreground">
+              {currentPageFields.length} field{currentPageFields.length === 1 ? '' : 's'} on this page
+            </span>
             <div className="flex gap-1">
               <Button
                 variant="ghost"
@@ -357,14 +404,13 @@ export function FieldEditorClient() {
           <div
             ref={pdfContainerRef}
             className="flex-1 relative overflow-auto"
-            onMouseMove={handleMouseMove}
-            onMouseUp={handleMouseUp}
+            onMouseDown={() => setSelectedField(null)}
             onMouseLeave={handleMouseUp}
           >
             {pdfUrl ? (
               <iframe
                 src={`${pdfUrl}#page=${currentPage}`}
-                className="w-full h-full border-0"
+                className="w-full h-full border-0 pointer-events-none select-none"
                 title="PDF Preview"
               />
             ) : (
@@ -392,7 +438,7 @@ export function FieldEditorClient() {
                     border: isSelected ? `2px solid ${color}` : `1px solid ${color}88`,
                     zIndex: isSelected ? 10 : 1,
                   }}
-                  onMouseDown={(e) => handleFieldMouseDown(e, field.tempId)}
+                  onMouseDown={(e) => handleFieldMouseDown(e, field)}
                   onClick={(e) => {
                     e.stopPropagation();
                     setSelectedField(field.tempId);
@@ -557,7 +603,7 @@ export function FieldEditorClient() {
             <Card>
               <CardContent className="py-12 text-center text-muted-foreground text-sm">
                 <p>Select a field to edit its properties</p>
-                <p className="mt-2 text-xs">or add a new field from the palette</p>
+                <p className="mt-2 text-xs">Click a field to edit it, or drag fields around on the page after placing them.</p>
               </CardContent>
             </Card>
           )}
@@ -569,9 +615,10 @@ export function FieldEditorClient() {
             </CardHeader>
             <CardContent className="px-3 pb-3 space-y-1">
               {fields.length === 0 ? (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  No fields placed yet
-                </p>
+                <div className="text-xs text-muted-foreground text-center py-4 space-y-1">
+                  <p>No fields placed yet</p>
+                  <p>Choose a field type from the left to place your first signer field.</p>
+                </div>
               ) : (
                 fields.map((f) => {
                   const color = recipientColorMap.get(f.recipient_id) ?? '#6b7280';

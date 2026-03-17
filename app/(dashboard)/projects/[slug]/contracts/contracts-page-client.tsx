@@ -66,12 +66,14 @@ export function ContractsPageClient() {
     pagination,
     isLoading,
     error,
+    statusFilter,
     setSearch,
     setStatusFilter,
     remove,
     goToPage,
     reload,
   } = useContracts();
+  const hasFilters = searchInput.trim().length > 0 || !!statusFilter;
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const handleSearch = (value: string) => {
@@ -124,7 +126,7 @@ export function ContractsPageClient() {
             className="pl-10"
           />
         </div>
-        <Select onValueChange={(v) => setStatusFilter(v === 'all' ? null : v)}>
+        <Select value={statusFilter ?? 'all'} onValueChange={(v) => setStatusFilter(v === 'all' ? null : v)}>
           <SelectTrigger className="w-[160px]">
             <SelectValue placeholder="All Statuses" />
           </SelectTrigger>
@@ -168,8 +170,24 @@ export function ContractsPageClient() {
               <TableRow>
                 <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
                   <PenTool className="mx-auto h-12 w-12 mb-4 opacity-20" />
-                  <p>No contracts yet</p>
-                  <p className="text-sm mt-1">Create your first contract to get started</p>
+                  <p>{hasFilters ? 'No contracts match your filters' : 'No contracts yet'}</p>
+                  <p className="text-sm mt-1">
+                    {hasFilters ? 'Try clearing your search or status filter.' : 'Create your first contract to get started.'}
+                  </p>
+                  {hasFilters && (
+                    <Button
+                      variant="outline"
+                      size="sm"
+                      className="mt-4"
+                      onClick={() => {
+                        setSearchInput('');
+                        setSearch('');
+                        setStatusFilter(null);
+                      }}
+                    >
+                      Clear Filters
+                    </Button>
+                  )}
                 </TableCell>
               </TableRow>
             ) : (

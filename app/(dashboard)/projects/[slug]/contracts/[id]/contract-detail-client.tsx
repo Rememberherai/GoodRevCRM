@@ -1,7 +1,7 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import {
   ArrowLeft, Download, Send, Ban, Bell, FileText, Clock,
@@ -106,6 +106,7 @@ interface ContractDetail {
 
 export function ContractDetailClient() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
   const id = params.id as string;
 
@@ -311,6 +312,12 @@ export function ContractDetailClient() {
   const isDraft = contract.status === 'draft';
   const isActive = ['sent', 'viewed', 'partially_signed'].includes(contract.status);
   const signers = contract.recipients.filter((r) => r.role === 'signer');
+  const hasRecipients = signers.length > 0;
+  const hasFields = contract.fields.length > 0;
+  const canSendDraft = hasRecipients && hasFields;
+  const setupMessage = searchParams.get('setup') === 'recipients'
+    ? 'Add at least one signer before opening the field editor.'
+    : null;
 
   return (
     <div className="space-y-6">
@@ -341,18 +348,25 @@ export function ContractDetailClient() {
           </Button>
           {isDraft && (
             <>
-              <Button variant="outline" size="sm" asChild>
-                <Link href={`/projects/${slug}/contracts/${id}/edit`}>
+              {hasRecipients ? (
+                <Button variant="outline" size="sm" asChild>
+                  <Link href={`/projects/${slug}/contracts/${id}/edit`}>
+                    <PenTool className="mr-2 h-4 w-4" /> Edit Fields
+                  </Link>
+                </Button>
+              ) : (
+                <Button variant="outline" size="sm" disabled title="Add at least one signer first">
                   <PenTool className="mr-2 h-4 w-4" /> Edit Fields
-                </Link>
-              </Button>
+                </Button>
+              )}
               <Button
                 size="sm"
                 onClick={() => {
                   loadGmailConnections();
                   setShowSendDialog(true);
                 }}
-                disabled={signers.length === 0}
+                disabled={!canSendDraft}
+                title={!hasRecipients ? 'Add at least one signer first' : !hasFields ? 'Place at least one field first' : undefined}
               >
                 <Send className="mr-2 h-4 w-4" /> Send for Signing
               </Button>
@@ -381,10 +395,12 @@ export function ContractDetailClient() {
         </div>
       </div>
 
-      {error && (
+      {(error || setupMessage) && (
         <div className="bg-destructive/15 text-destructive px-4 py-3 rounded-md text-sm">
-          {error}
-          <Button variant="ghost" size="sm" className="ml-2" onClick={() => setError(null)}>Dismiss</Button>
+          {error ?? setupMessage}
+          {error && (
+            <Button variant="ghost" size="sm" className="ml-2" onClick={() => setError(null)}>Dismiss</Button>
+          )}
         </div>
       )}
 
@@ -396,6 +412,67 @@ export function ContractDetailClient() {
         </TabsList>
 
         <TabsContent value="overview" className="space-y-6 mt-4">
+          {isDraft && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="text-base">Draft Setup</CardTitle>
+                <CardDescription>Finish these steps before sending the contract for signature.</CardDescription>
+              </CardHeader>
+              <CardContent className="space-y-3">
+                <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <div>
+                    <p className="font-medium text-sm">1. Add signer recipients</p>
+                    <p className="text-sm text-muted-foreground">
+                      {hasRecipients ? `${signers.length} signer${signers.length === 1 ? '' : 's'} added` : 'No signers added yet'}
+                    </p>
+                  </div>
+                  {!hasRecipients && (
+                    <Button size="sm" variant="outline" onClick={() => setShowAddRecipient(true)}>
+                      <Plus className="mr-2 h-4 w-4" /> Add Recipient
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <div>
+                    <p className="font-medium text-sm">2. Place signing fields</p>
+                    <p className="text-sm text-muted-foreground">
+                      {hasFields ? `${contract.fields.length} field${contract.fields.length === 1 ? '' : 's'} placed` : 'No fields placed yet'}
+                    </p>
+                  </div>
+                  {hasRecipients ? (
+                    <Button size="sm" variant="outline" asChild>
+                      <Link href={`/projects/${slug}/contracts/${id}/edit`}>
+                        <PenTool className="mr-2 h-4 w-4" /> Edit Fields
+                      </Link>
+                    </Button>
+                  ) : (
+                    <Button size="sm" variant="outline" disabled>
+                      <PenTool className="mr-2 h-4 w-4" /> Edit Fields
+                    </Button>
+                  )}
+                </div>
+                <div className="flex items-center justify-between rounded-md border px-3 py-2">
+                  <div>
+                    <p className="font-medium text-sm">3. Send for signing</p>
+                    <p className="text-sm text-muted-foreground">
+                      {canSendDraft ? 'Ready to send' : 'Complete the first two steps to unlock sending'}
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    onClick={() => {
+                      loadGmailConnections();
+                      setShowSendDialog(true);
+                    }}
+                    disabled={!canSendDraft}
+                  >
+                    <Send className="mr-2 h-4 w-4" /> Send
+                  </Button>
+                </div>
+              </CardContent>
+            </Card>
+          )}
+
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
             {/* Document Info */}
             <Card className="md:col-span-2">
@@ -545,9 +622,14 @@ export function ContractDetailClient() {
             </CardHeader>
             <CardContent>
               {contract.recipients.length === 0 ? (
-                <p className="text-center text-muted-foreground py-8">
-                  No recipients added yet. Add at least one signer to send this contract.
-                </p>
+                <div className="text-center text-muted-foreground py-8 space-y-3">
+                  <p>No recipients added yet. Add at least one signer to place fields and send this contract.</p>
+                  {isDraft && (
+                    <Button size="sm" onClick={() => setShowAddRecipient(true)}>
+                      <Plus className="mr-2 h-4 w-4" /> Add Recipient
+                    </Button>
+                  )}
+                </div>
               ) : (
                 <div className="space-y-3">
                   {contract.recipients.map((r) => (
@@ -636,6 +718,12 @@ export function ContractDetailClient() {
             </DialogDescription>
           </DialogHeader>
           <div className="space-y-4 py-2">
+            <div className="rounded-md border bg-muted/40 px-3 py-3 text-sm">
+              <p className="font-medium">Ready to send</p>
+              <p className="text-muted-foreground mt-1">
+                {signers.length} signer{signers.length === 1 ? '' : 's'} and {contract.fields.length} field{contract.fields.length === 1 ? '' : 's'} configured.
+              </p>
+            </div>
             <div>
               <Label>Send from</Label>
               {gmailConnections.length === 0 ? (
@@ -672,7 +760,7 @@ export function ContractDetailClient() {
               disabled={!selectedConnection || actionLoading === 'send'}
             >
               {actionLoading === 'send' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Send className="mr-2 h-4 w-4" />}
-              Send
+              Send Invitations
             </Button>
           </DialogFooter>
         </DialogContent>
