@@ -234,21 +234,28 @@ export async function executeTabularReport(
     }
   }
 
+  // Get schema to check for project scoping and soft delete
+  const schema = await getReportSchema(projectId);
+  const primaryObj = schema.objects[config.primaryObject];
+
+  console.log('[ReportQuery] table=%s, select=%s', config.primaryObject, selectString);
+
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   let query = (supabase as any)
     .from(config.primaryObject)
-    .select(selectString, { count: 'exact' })
-    .eq('project_id', projectId);
+    .select(selectString, { count: 'exact' });
 
-  // Get schema to check for soft delete
-  const schema = await getReportSchema(projectId);
-  const primaryObj = schema.objects[config.primaryObject];
+  if (primaryObj?.projectScoped !== false) {
+    query = query.eq('project_id', projectId);
+  }
+
   if (primaryObj?.softDelete) {
     query = query.is('deleted_at', null);
   }
 
   // Apply filters
   for (const filter of config.filters ?? []) {
+    console.log('[ReportQuery] filter: %s.%s %s %s', filter.objectName, filter.fieldName, filter.operator, filter.value);
     query = applyFilter(query, filter, config.primaryObject);
   }
 
@@ -267,6 +274,7 @@ export async function executeTabularReport(
   const { data, error, count } = await query;
 
   if (error) {
+    console.error('[ReportQuery] Error: table=%s, select=%s, error=%s', config.primaryObject, selectString, error.message);
     throw new ReportQueryError(`Query execution failed: ${error.message}`, 500);
   }
 
