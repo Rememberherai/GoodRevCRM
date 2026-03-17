@@ -4,6 +4,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { insertAuditTrail } from '@/lib/contracts/audit';
 import { checkRateLimit } from '@/lib/contracts/rate-limit';
 import { delegateSchema } from '@/lib/validators/contract';
+import type { GmailConnection } from '@/types/gmail';
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -134,7 +135,7 @@ export async function POST(request: Request, context: RouteContext) {
   // Send signing email to delegate
   if (document.gmail_connection_id) {
     try {
-      const { data: connection } = await (supabase as unknown as { from: (table: string) => { select: (cols: string) => { eq: (col: string, val: string) => { single: () => Promise<{ data: { id: string; email: string; status: string } | null }> } } } })
+      const { data: connection } = await (supabase as unknown as { from: (table: string) => { select: (cols: string) => { eq: (col: string, val: string) => { single: () => Promise<{ data: GmailConnection | null }> } } } })
         .from('gmail_connections')
         .select('*')
         .eq('id', document.gmail_connection_id)
@@ -167,7 +168,7 @@ export async function POST(request: Request, context: RouteContext) {
               </div>
             `,
           },
-          'system',
+          connection.user_id,
           document.project_id
         );
       }

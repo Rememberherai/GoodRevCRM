@@ -124,7 +124,7 @@ export function ContractDetailClient() {
   // New recipient form
   const [newRecipientName, setNewRecipientName] = useState('');
   const [newRecipientEmail, setNewRecipientEmail] = useState('');
-  const [newRecipientRole, setNewRecipientRole] = useState<'signer' | 'cc' | 'witness'>('signer');
+  const [newRecipientRole, setNewRecipientRole] = useState<'signer'>('signer');
   const [newRecipientOrder, setNewRecipientOrder] = useState(1);
 
   const loadContract = useCallback(async () => {
@@ -696,12 +696,10 @@ export function ContractDetailClient() {
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label>Role</Label>
-                <Select value={newRecipientRole} onValueChange={(v) => setNewRecipientRole(v as 'signer' | 'cc' | 'witness')}>
+                <Select value={newRecipientRole} onValueChange={(v) => setNewRecipientRole(v as 'signer')}>
                   <SelectTrigger className="mt-1"><SelectValue /></SelectTrigger>
                   <SelectContent>
                     <SelectItem value="signer">Signer</SelectItem>
-                    <SelectItem value="cc">CC</SelectItem>
-                    <SelectItem value="witness">Witness</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

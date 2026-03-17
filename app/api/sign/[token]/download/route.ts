@@ -34,7 +34,11 @@ export async function GET(request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
-  const filePath = document.signed_file_path ?? document.original_file_path;
+  if (!document.signed_file_path) {
+    return NextResponse.json({ error: 'Signed document is still being finalized' }, { status: 409 });
+  }
+
+  const filePath = document.signed_file_path;
   const { data: fileData, error: downloadError } = await supabase.storage
     .from('contracts')
     .download(filePath);
@@ -53,9 +57,7 @@ export async function GET(request: Request, context: RouteContext) {
     ip_address: ip,
   });
 
-  const fileName = document.signed_file_path
-    ? `signed_${document.original_file_name}`
-    : document.original_file_name;
+  const fileName = `signed_${document.original_file_name}`;
 
   const arrayBuffer = await fileData.arrayBuffer();
   return new NextResponse(arrayBuffer, {

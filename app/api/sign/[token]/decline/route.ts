@@ -65,14 +65,17 @@ export async function POST(request: Request, context: RouteContext) {
 
   // Activity log
   try {
-    await supabase.from('activity_log').insert({
-      project_id: recipient.project_id,
-      user_id: document.owner_id ?? document.created_by ?? 'system',
-      entity_type: 'contract',
-      entity_id: document.id,
-      action: 'status_changed',
-      metadata: { title: document.title, new_status: 'declined', declined_by: recipient.name },
-    });
+    const activityUserId = document.owner_id ?? document.created_by;
+    if (activityUserId) {
+      await supabase.from('activity_log').insert({
+        project_id: recipient.project_id,
+        user_id: activityUserId,
+        entity_type: 'contract',
+        entity_id: document.id,
+        action: 'status_changed',
+        metadata: { title: document.title, new_status: 'declined', declined_by: recipient.name },
+      });
+    }
   } catch {
     // Non-critical
   }

@@ -79,6 +79,7 @@ export async function POST(_request: Request, context: RouteContext) {
     .select('*')
     .eq('document_id', id)
     .eq('project_id', project.id)
+    .eq('role', 'signer')
     .in('status', ['sent', 'viewed']);
 
   if (!recipients || recipients.length === 0) {
@@ -109,7 +110,7 @@ export async function POST(_request: Request, context: RouteContext) {
             </div>
           `,
         },
-        user.id,
+        gmailConn.user_id,
         project.id
       );
       sentCount++;

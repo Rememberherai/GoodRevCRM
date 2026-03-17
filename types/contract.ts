@@ -39,7 +39,8 @@ export type ContractRecipientStatus =
   | 'declined'
   | 'delegated';
 
-export type ContractRecipientRole = 'signer' | 'cc' | 'witness';
+// Runtime currently supports signer recipients only.
+export type ContractRecipientRole = 'signer';
 
 export type ContractFieldType =
   | 'signature'

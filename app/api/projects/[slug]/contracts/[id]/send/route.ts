@@ -87,9 +87,16 @@ export async function POST(request: Request, context: RouteContext) {
     .order('signing_order', { ascending: true });
 
   const signers = (recipients ?? []).filter((r) => r.role === 'signer');
+  const unsupportedRecipients = (recipients ?? []).filter((r) => r.role !== 'signer');
 
   if (signers.length === 0) {
     return NextResponse.json({ error: 'Contract must have at least one signer' }, { status: 400 });
+  }
+
+  if (unsupportedRecipients.length > 0) {
+    return NextResponse.json({
+      error: 'Only signer recipients are currently supported for contract delivery',
+    }, { status: 400 });
   }
 
   // Validate each signer has at least one field

@@ -49,15 +49,27 @@ export async function POST(request: Request, context: RouteContext) {
   const { recipient, document } = result;
   const supabase = createServiceClient();
 
-  // Validate all required fields are filled
+  // Validate all required fields are filled before persisting any field changes.
   const { data: fields } = await supabase
     .from('contract_fields')
     .select('id, field_type, is_required, value')
     .eq('document_id', recipient.document_id)
     .eq('recipient_id', recipient.id);
 
-  // Apply submitted field values
   const fieldMap = new Map(validation.data.fields.map((f) => [f.field_id, f.value]));
+  const missingRequired = (fields ?? []).filter((field) => {
+    if (!field.is_required) return false;
+    const submittedValue = fieldMap.get(field.id);
+    const effectiveValue = submittedValue !== undefined ? submittedValue : field.value;
+    return !effectiveValue;
+  });
+  if (missingRequired.length > 0) {
+    return NextResponse.json({
+      error: `Missing ${missingRequired.length} required field(s)`,
+    }, { status: 400 });
+  }
+
+  // === PHASE A: DB updates ===
 
   for (const field of fields ?? []) {
     const submittedValue = fieldMap.get(field.id);
@@ -69,22 +81,6 @@ export async function POST(request: Request, context: RouteContext) {
         .eq('recipient_id', recipient.id);
     }
   }
-
-  // Check required fields
-  const { data: updatedFields } = await supabase
-    .from('contract_fields')
-    .select('id, is_required, value')
-    .eq('document_id', recipient.document_id)
-    .eq('recipient_id', recipient.id);
-
-  const missingRequired = (updatedFields ?? []).filter((f) => f.is_required && !f.value);
-  if (missingRequired.length > 0) {
-    return NextResponse.json({
-      error: `Missing ${missingRequired.length} required field(s)`,
-    }, { status: 400 });
-  }
-
-  // === PHASE A: DB updates ===
 
   // Update recipient to signed (CAS: only if still sent/viewed)
   const { data: signedRecipient } = await supabase
@@ -135,36 +131,25 @@ export async function POST(request: Request, context: RouteContext) {
   // === CAS: Group advancement (sequential) ===
   let groupAdvanced = false;
   if (document.signing_order_type === 'sequential') {
-    const { data: casResult } = await supabase.rpc('advance_signing_group' as never, {
-      p_document_id: document.id,
-      p_current_group: recipient.signing_order,
-    } as never) as { data: boolean | null };
+    const { data: groupSigners } = await supabase
+      .from('contract_recipients')
+      .select('id, status')
+      .eq('document_id', document.id)
+      .eq('role', 'signer')
+      .eq('signing_order', recipient.signing_order);
 
-    // If no RPC exists, do it manually
-    if (casResult === null) {
-      // Manual CAS: check if all signers in current group are signed
-      const { data: groupSigners } = await supabase
-        .from('contract_recipients')
-        .select('id, status')
-        .eq('document_id', document.id)
-        .eq('role', 'signer')
-        .eq('signing_order', recipient.signing_order);
+    const allGroupSigned = (groupSigners ?? []).every((s) => s.status === 'signed');
+    if (allGroupSigned) {
+      const { data: advanced } = await supabase
+        .from('contract_documents')
+        .update({ current_signing_group: recipient.signing_order + 1 })
+        .eq('id', document.id)
+        .eq('signing_order_type', 'sequential')
+        .eq('current_signing_group', recipient.signing_order)
+        .select('current_signing_group')
+        .single();
 
-      const allGroupSigned = (groupSigners ?? []).every((s) => s.status === 'signed');
-      if (allGroupSigned) {
-        const { data: advanced } = await supabase
-          .from('contract_documents')
-          .update({ current_signing_group: recipient.signing_order + 1 })
-          .eq('id', document.id)
-          .eq('signing_order_type', 'sequential')
-          .eq('current_signing_group', recipient.signing_order)
-          .select('current_signing_group')
-          .single();
-
-        groupAdvanced = !!advanced;
-      }
-    } else {
-      groupAdvanced = !!casResult;
+      groupAdvanced = !!advanced;
     }
   }
 
@@ -214,14 +199,17 @@ export async function POST(request: Request, context: RouteContext) {
 
     // Activity log
     try {
-      await supabase.from('activity_log').insert({
-        project_id: recipient.project_id,
-        user_id: document.owner_id ?? document.created_by ?? 'system',
-        entity_type: 'contract',
-        entity_id: document.id,
-        action: 'completed',
-        metadata: { title: document.title },
-      });
+      const activityUserId = document.owner_id ?? document.created_by;
+      if (activityUserId) {
+        await supabase.from('activity_log').insert({
+          project_id: recipient.project_id,
+          user_id: activityUserId,
+          entity_type: 'contract',
+          entity_id: document.id,
+          action: 'completed',
+          metadata: { title: document.title },
+        });
+      }
     } catch {
       // Non-critical
     }
@@ -275,6 +263,7 @@ async function sendNextGroupEmails(
     .from('contract_recipients')
     .select('*')
     .eq('document_id', document.id)
+    .eq('role', 'signer')
     .eq('signing_order', nextGroup)
     .eq('status', 'pending');
 
@@ -283,7 +272,7 @@ async function sendNextGroupEmails(
   // Get gmail connection
   if (!document.gmail_connection_id) return;
 
-  const { data: connection } = await (supabase as unknown as { from: (table: string) => { select: (cols: string) => { eq: (col: string, val: string) => { single: () => Promise<{ data: { id: string; email: string; status: string } | null }> } } } })
+  const { data: connection } = await (supabase as unknown as { from: (table: string) => { select: (cols: string) => { eq: (col: string, val: string) => { single: () => Promise<{ data: import('@/types/gmail').GmailConnection | null }> } } } })
     .from('gmail_connections')
     .select('*')
     .eq('id', document.gmail_connection_id)
@@ -329,7 +318,7 @@ async function sendNextGroupEmails(
             </div>
           `,
         },
-        'system',
+        connection.user_id,
         document.project_id
       );
     } catch (err) {

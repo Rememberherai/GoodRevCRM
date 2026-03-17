@@ -10,7 +10,7 @@ export const contractRecipientStatuses = [
   'pending', 'sent', 'viewed', 'signed', 'declined', 'delegated',
 ] as const;
 
-export const contractRecipientRoles = ['signer', 'cc', 'witness'] as const;
+export const contractRecipientRoles = ['signer'] as const;
 
 export const contractFieldTypes = [
   'signature', 'initials', 'date_signed', 'text_input',

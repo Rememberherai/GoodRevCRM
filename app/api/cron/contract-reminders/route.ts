@@ -53,6 +53,7 @@ async function processContracts() {
           .from('contract_recipients')
           .select('id, name, email, status, signing_token')
           .eq('document_id', doc.id)
+          .eq('role', 'signer')
           .in('status', ['sent', 'viewed']);
 
         if (!recipients?.length) continue;
@@ -85,7 +86,7 @@ async function processContracts() {
                 subject: `Reminder: Please sign "${doc.title}"`,
                 body_html: `<p>Hi ${(recipient.name ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')},</p><p>This is a reminder that you have a document waiting for your signature: <strong>${(doc.title ?? '').replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;')}</strong>.</p><p style="margin: 24px 0;"><a href="${process.env.NEXT_PUBLIC_APP_URL}/sign/${recipient.signing_token}" style="background-color: #2563eb; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; display: inline-block;">Review &amp; Sign Document</a></p>`,
               },
-              doc.owner_id ?? 'system',
+              (connection as GmailConnection).user_id,
               doc.project_id,
             );
           } catch (emailErr) {

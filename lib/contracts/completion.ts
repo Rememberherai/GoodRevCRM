@@ -170,7 +170,7 @@ async function sendReceiptEmails(
             </div>
           `,
         },
-        'system',
+        (connection as GmailConnection).user_id,
         projectId
       );
     } catch (err) {
