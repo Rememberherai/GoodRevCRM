@@ -5,7 +5,7 @@ import type {
   ReportFilter,
   CustomReportResult,
 } from './types';
-import { getReportSchema, isValidObject, getAllowedColumnNames } from './schema-registry';
+import { getReportSchema, getStaticSchema, isValidObject, getAllowedColumnNames } from './schema-registry';
 
 // ── Constants ───────────────────────────────────────────────────────────────
 
@@ -101,6 +101,27 @@ function buildAllowedColumnsMap(config: CustomReportConfig): Map<string, Set<str
   return map;
 }
 
+// ── FK Hint Resolution ───────────────────────────────────────────────────────
+
+/**
+ * Resolve the FK hint for a PostgREST embedded resource.
+ * PostgREST needs `table!fk_column(...)` when the relationship is ambiguous
+ * or not auto-detected from the schema cache.
+ */
+function getFkHint(primaryObject: string, relatedObject: string): string {
+  const schema = getStaticSchema();
+  const primaryObj = schema.objects[primaryObject];
+  if (!primaryObj) return relatedObject;
+
+  // Find the relation from primaryObject that targets relatedObject
+  const relation = primaryObj.relations.find((r) => r.targetObject === relatedObject);
+  if (relation) {
+    return `${relatedObject}!${relation.foreignKey}`;
+  }
+
+  return relatedObject;
+}
+
 // ── Tabular Query Builder (PostgREST) ───────────────────────────────────────
 
 function buildSelectString(columns: ReportColumn[], primaryObject: string): string {
@@ -127,7 +148,8 @@ function buildSelectString(columns: ReportColumn[], primaryObject: string): stri
 
   const parts = [...primaryCols];
   for (const [objName, fields] of relatedCols) {
-    parts.push(`${objName}(${fields.join(', ')})`);
+    const fkHint = getFkHint(primaryObject, objName);
+    parts.push(`${fkHint}(${fields.join(', ')})`);
   }
 
   return parts.join(', ');
@@ -206,7 +228,8 @@ export async function executeTabularReport(
   for (const filter of config.filters ?? []) {
     if (filter.objectName !== config.primaryObject && !relatedTablesInSelect.has(filter.objectName)) {
       // Add a minimal select on the related table so the filter can reference it
-      selectString += `, ${filter.objectName}!inner(id)`;
+      const filterFkHint = getFkHint(config.primaryObject, filter.objectName);
+      selectString += `, ${filterFkHint}!inner(id)`;
       relatedTablesInSelect.add(filter.objectName);
     }
   }
