@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useRef } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import {
   ReactFlow,
   Controls,
@@ -23,8 +23,8 @@ import { useWorkflowStore } from '@/stores/workflow-store';
 import { WorkflowToolbar } from './workflow-toolbar';
 import { WorkflowNodePalette } from './workflow-node-palette';
 import { WorkflowPropertyPanel } from './workflow-property-panel';
-import { NODE_COLORS } from '@/types/workflow';
-import type { WorkflowNode, WorkflowEdge, WorkflowNodeType } from '@/types/workflow';
+import { NODE_COLORS, NODE_PALETTE, NODE_PALETTE_CATEGORIES } from '@/types/workflow';
+import type { WorkflowNode, WorkflowEdge, WorkflowNodeType, NodePaletteCategory } from '@/types/workflow';
 
 // Import custom node components
 import { StartNode } from './nodes/start-node';
@@ -64,9 +64,18 @@ interface WorkflowEditorProps {
   projectSlug: string;
 }
 
+interface ContextMenuState {
+  x: number;
+  y: number;
+  flowX: number;
+  flowY: number;
+}
+
 function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
-  const { screenToFlowPosition } = useReactFlow();
+  const { screenToFlowPosition, fitView } = useReactFlow();
+  const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
+  const hasFitView = useRef(false);
 
   const {
     nodes,
@@ -79,6 +88,19 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
     palettePanelOpen,
     activeSubWorkflowId,
   } = useWorkflowStore();
+
+  // Fit view when nodes first load
+  useEffect(() => {
+    if (nodes.length > 0 && !hasFitView.current) {
+      // Small delay to let ReactFlow measure node dimensions
+      const timer = setTimeout(() => {
+        fitView({ padding: 0.2 });
+        hasFitView.current = true;
+      }, 100);
+      return () => clearTimeout(timer);
+    }
+    return undefined;
+  }, [nodes.length, fitView]);
 
   // Convert our nodes/edges to ReactFlow format
   const rfNodes: Node[] = nodes.map((n) => ({
@@ -172,7 +194,41 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
 
   const onPaneClick = useCallback(() => {
     setSelectedNodeId(null);
+    setContextMenu(null);
   }, [setSelectedNodeId]);
+
+  const onPaneContextMenu = useCallback(
+    (event: MouseEvent | React.MouseEvent) => {
+      event.preventDefault();
+      const flowPos = screenToFlowPosition({ x: event.clientX, y: event.clientY });
+      setContextMenu({
+        x: event.clientX,
+        y: event.clientY,
+        flowX: flowPos.x,
+        flowY: flowPos.y,
+      });
+    },
+    [screenToFlowPosition]
+  );
+
+  const addNodeFromContextMenu = useCallback(
+    (type: WorkflowNodeType) => {
+      if (!contextMenu) return;
+      const newNode: WorkflowNode = {
+        id: `${type}-${Date.now()}`,
+        type,
+        position: { x: contextMenu.flowX, y: contextMenu.flowY },
+        data: {
+          label: type.charAt(0).toUpperCase() + type.slice(1).replace(/_/g, ' '),
+          config: {},
+        },
+      };
+      addNode(newNode);
+      setSelectedNodeId(newNode.id);
+      setContextMenu(null);
+    },
+    [contextMenu, addNode, setSelectedNodeId]
+  );
 
   // Handle drag-and-drop from palette
   const onDragOver = useCallback((event: React.DragEvent) => {
@@ -206,10 +262,29 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
     [screenToFlowPosition, addNode]
   );
 
+  const onInit = useCallback(() => {
+    // Fit view once ReactFlow is ready and has measured nodes
+    setTimeout(() => fitView({ padding: 0.2 }), 50);
+  }, [fitView]);
+
+  // Close context menu on scroll or click outside
+  useEffect(() => {
+    if (!contextMenu) return;
+    const close = () => setContextMenu(null);
+    window.addEventListener('scroll', close, true);
+    window.addEventListener('mousedown', close);
+    return () => {
+      window.removeEventListener('scroll', close, true);
+      window.removeEventListener('mousedown', close);
+    };
+  }, [contextMenu]);
+
   // Keyboard shortcuts
   useEffect(() => {
     function handleKeyDown(e: KeyboardEvent) {
       const isMod = e.metaKey || e.ctrlKey;
+      const target = e.target as HTMLElement;
+      const isInput = target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable;
 
       // Cmd+S: Save
       if (isMod && e.key === 's') {
@@ -217,10 +292,38 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
         document.querySelector<HTMLButtonElement>('[data-save-btn]')?.click();
       }
 
+      // Cmd+Z: Undo / Cmd+Shift+Z: Redo
+      if (isMod && e.key === 'z' && !isInput) {
+        e.preventDefault();
+        const store = useWorkflowStore.getState();
+        if (e.shiftKey) {
+          store.redo();
+        } else {
+          store.undo();
+        }
+      }
+
+      // Cmd+C: Copy selected node
+      if (isMod && e.key === 'c' && !isInput) {
+        const store = useWorkflowStore.getState();
+        if (store.selectedNodeId) {
+          e.preventDefault();
+          store.copySelectedNodes();
+        }
+      }
+
+      // Cmd+V: Paste nodes
+      if (isMod && e.key === 'v' && !isInput) {
+        const store = useWorkflowStore.getState();
+        if (store.clipboard) {
+          e.preventDefault();
+          store.pasteNodes();
+        }
+      }
+
       // Delete/Backspace: Remove selected node
       if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
-        const target = e.target as HTMLElement;
-        if (target.tagName === 'INPUT' || target.tagName === 'TEXTAREA' || target.isContentEditable) return;
+        if (isInput) return;
         e.preventDefault();
         const store = useWorkflowStore.getState();
         const node = store.nodes.find((n) => n.id === selectedNodeId);
@@ -274,8 +377,10 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
             onNodesChange={onNodesChange}
             onEdgesChange={onEdgesChange}
             onConnect={onConnect}
+            onInit={onInit}
             onNodeClick={onNodeClick}
             onPaneClick={onPaneClick}
+            onPaneContextMenu={onPaneContextMenu}
             onDragOver={onDragOver}
             onDrop={onDrop}
             nodeTypes={nodeTypes}
@@ -297,6 +402,31 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
             )}
             <Background variant={BackgroundVariant.Dots} gap={16} size={1} />
           </ReactFlow>
+
+          {/* Right-click context menu */}
+          {contextMenu && (
+            <div
+              className="fixed z-50 min-w-[180px] bg-popover border rounded-lg shadow-lg py-1 text-sm"
+              style={{ left: contextMenu.x, top: contextMenu.y }}
+            >
+              {(Object.keys(NODE_PALETTE_CATEGORIES) as NodePaletteCategory[]).map((cat) => (
+                <div key={cat}>
+                  <div className="px-3 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">
+                    {NODE_PALETTE_CATEGORIES[cat]}
+                  </div>
+                  {NODE_PALETTE.filter((n) => n.category === cat).map((item) => (
+                    <button
+                      key={item.type}
+                      className="w-full text-left px-3 py-1.5 hover:bg-accent transition-colors flex items-center gap-2"
+                      onClick={() => addNodeFromContextMenu(item.type)}
+                    >
+                      <span className="text-xs">{item.label}</span>
+                    </button>
+                  ))}
+                </div>
+              ))}
+            </div>
+          )}
         </div>
 
         {/* Right: Property Panel */}

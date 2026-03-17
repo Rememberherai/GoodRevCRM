@@ -20,6 +20,7 @@ export interface DelayProcessorResult {
   processed: number;
   failed: number;
   errors: string[];
+  scheduled_triggered?: number;
 }
 
 /**
@@ -147,4 +148,128 @@ export async function processDelayedSteps(): Promise<DelayProcessorResult> {
   }
 
   return result;
+}
+
+/**
+ * Process scheduled workflows — triggers active workflows with trigger_type='schedule'
+ * whose cron expression matches the current minute.
+ *
+ * trigger_config format: { cron: "0 9 * * 1" } (standard 5-field cron)
+ * Also supports: { interval_minutes: 60 } for simple repeating intervals.
+ */
+export async function processScheduledWorkflows(): Promise<{ triggered: number; errors: string[] }> {
+  const supabase = createAdminClient();
+  const result = { triggered: 0, errors: [] as string[] };
+
+  const { data: scheduledWorkflows, error } = await supabase
+    .from('workflows')
+    .select('id, project_id, current_version, definition, trigger_config')
+    .eq('trigger_type', 'schedule')
+    .eq('is_active', true);
+
+  if (error) {
+    result.errors.push(`Failed to query scheduled workflows: ${error.message}`);
+    return result;
+  }
+
+  if (!scheduledWorkflows || scheduledWorkflows.length === 0) return result;
+
+  const now = new Date();
+
+  for (const wf of scheduledWorkflows) {
+    try {
+      const config = wf.trigger_config as { cron?: string; interval_minutes?: number; last_run?: string };
+      let shouldTrigger = false;
+
+      if (config.cron) {
+        // Simple 5-field cron matching (minute, hour, day-of-month, month, day-of-week)
+        shouldTrigger = matchesCron(config.cron, now);
+      } else if (config.interval_minutes) {
+        // Interval-based: check if enough time has passed since last run
+        const lastRun = config.last_run ? new Date(config.last_run) : new Date(0);
+        const elapsed = (now.getTime() - lastRun.getTime()) / 60000;
+        shouldTrigger = elapsed >= config.interval_minutes;
+      }
+
+      if (!shouldTrigger) continue;
+
+      // Use RPC for atomic execution creation
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: executionId, error: rpcError } = await (supabase as any).rpc('log_workflow_execution', {
+        p_workflow_id: wf.id,
+        p_workflow_version: wf.current_version,
+        p_trigger_event: { type: 'schedule', triggered_at: now.toISOString() },
+        p_status: 'running',
+      });
+
+      if (rpcError || !executionId) {
+        result.errors.push(`Failed to create execution for ${wf.id}: ${rpcError?.message}`);
+        continue;
+      }
+
+      // Update last_run timestamp in trigger_config
+      await supabase
+        .from('workflows')
+        .update({
+          trigger_config: { ...config, last_run: now.toISOString() } as unknown as Json,
+        })
+        .eq('id', wf.id);
+
+      const definition = wf.definition as unknown as WorkflowDefinition;
+
+      // Fire and forget
+      executeWorkflow(wf.id, executionId, wf.project_id, definition, {}).catch((err) =>
+        console.error(`Scheduled workflow ${wf.id} execution failed:`, err)
+      );
+
+      result.triggered++;
+    } catch (err) {
+      result.errors.push(`Error processing scheduled workflow ${wf.id}: ${err instanceof Error ? err.message : String(err)}`);
+    }
+  }
+
+  return result;
+}
+
+/**
+ * Simple 5-field cron matcher (minute hour dom month dow)
+ * Supports: numbers, *, and step values (e.g. *​/5)
+ */
+function matchesCron(expr: string, date: Date): boolean {
+  const parts = expr.trim().split(/\s+/);
+  if (parts.length !== 5) return false;
+
+  const values = [
+    date.getMinutes(),   // 0-59
+    date.getHours(),     // 0-23
+    date.getDate(),      // 1-31
+    date.getMonth() + 1, // 1-12
+    date.getDay(),       // 0-6 (Sun=0)
+  ];
+
+  return parts.every((part, i) => matchesCronField(part!, values[i]!));
+}
+
+function matchesCronField(field: string, value: number): boolean {
+  if (field === '*') return true;
+
+  // Handle step: */N
+  if (field.startsWith('*/')) {
+    const step = parseInt(field.slice(2), 10);
+    return !isNaN(step) && step > 0 && value % step === 0;
+  }
+
+  // Handle comma-separated values
+  return field.split(',').some((part) => {
+    // Handle range: N-M
+    if (part.includes('-')) {
+      const [start, end] = part.split('-').map((s) => parseInt(s, 10));
+      if (start !== undefined && end !== undefined && !isNaN(start) && !isNaN(end)) {
+        return value >= start && value <= end;
+      }
+      return false;
+    }
+    // Exact match
+    return parseInt(part, 10) === value;
+  });
 }

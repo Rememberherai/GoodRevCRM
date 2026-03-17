@@ -2,6 +2,7 @@ import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { checkPermission } from '../auth';
 import { validateWorkflow } from '@/lib/workflows/validators/validate-workflow';
+import { sanitizeWorkflowDefinition } from '@/lib/workflows/sanitize-nodes';
 import { WORKFLOW_SCHEMA_VERSION } from '@/types/workflow';
 import type { Json } from '@/types/database';
 import type { McpContext } from '@/types/mcp';
@@ -80,7 +81,7 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
   // workflows.create
   server.tool(
     'workflows.create',
-    'Create a new workflow with optional definition (nodes and edges)',
+    `Create a new workflow with a visual node graph. Each node MUST have: id (string), type (one of: start, end, action, ai_agent, condition, switch, delay, loop, sub_workflow, mcp_tool, webhook, zapier), position ({x, y} coordinates), and data ({label, config: {}}). Every workflow needs one "start" node and at least one "end" node. Edges: {id, source, target}. Positions should be spaced ~150px apart vertically.`,
     {
       name: z.string().min(1).max(50).describe('Workflow name (lowercase alphanum, hyphens, underscores)'),
       description: z.string().max(2000).optional().describe('Workflow description'),
@@ -90,21 +91,17 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
         schema_version: z.string().default(WORKFLOW_SCHEMA_VERSION),
         nodes: z.array(z.record(z.string(), z.unknown())).default([]),
         edges: z.array(z.record(z.string(), z.unknown())).default([]),
-      }).optional().describe('Workflow graph definition with nodes and edges'),
+      }).optional().describe('Workflow graph definition. Nodes need: id, type (start|end|action|ai_agent|condition|switch|delay|loop|sub_workflow|mcp_tool|webhook|zapier), position ({x,y}), data ({label, config: {}})'),
       tags: z.array(z.string()).optional().describe('Tags for organization'),
     },
     async (params) => {
       const ctx = getContext();
       checkPermission(ctx.role, 'member');
 
-      const definition = params.definition ?? {
-        schema_version: WORKFLOW_SCHEMA_VERSION,
-        nodes: [
-          { id: 'start-1', type: 'start', position: { x: 250, y: 50 }, data: { label: 'Start', config: {} } },
-          { id: 'end-1', type: 'end', position: { x: 250, y: 300 }, data: { label: 'End', config: {} } },
-        ],
-        edges: [{ id: 'e-start-end', source: 'start-1', target: 'end-1' }],
-      };
+      const definition = sanitizeWorkflowDefinition(
+        params.definition?.nodes as unknown[] | undefined,
+        params.definition?.edges as unknown[] | undefined,
+      );
 
       const { data, error } = await ctx.supabase
         .from('workflows')
@@ -179,13 +176,10 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
       if (updates.trigger_type !== undefined) updateData.trigger_type = updates.trigger_type;
       if (updates.trigger_config !== undefined) updateData.trigger_config = updates.trigger_config;
       if (updates.definition !== undefined) {
-        // Merge with current definition to prevent partial overwrites
         const currentDef = current.definition as { schema_version?: string; nodes?: unknown[]; edges?: unknown[] };
-        updateData.definition = {
-          schema_version: updates.definition.schema_version ?? currentDef.schema_version ?? '1.0.0',
-          nodes: updates.definition.nodes ?? currentDef.nodes ?? [],
-          edges: updates.definition.edges ?? currentDef.edges ?? [],
-        };
+        const mergedNodes = (updates.definition.nodes as unknown[] | undefined) ?? currentDef.nodes ?? [];
+        const mergedEdges = (updates.definition.edges as unknown[] | undefined) ?? currentDef.edges ?? [];
+        updateData.definition = sanitizeWorkflowDefinition(mergedNodes, mergedEdges);
       }
 
       const { data, error } = await ctx.supabase
@@ -299,42 +293,40 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
 
       const { data: workflow, error: getError } = await ctx.supabase
         .from('workflows')
-        .select('id, current_version, definition, execution_count')
+        .select('id, current_version, definition')
         .eq('id', params.id)
         .eq('project_id', ctx.projectId)
         .single();
 
       if (getError) throw new Error(`Workflow not found: ${getError.message}`);
 
-      const { data: execution, error } = await ctx.supabase
-        .from('workflow_executions')
-        .insert({
-          workflow_id: workflow.id,
-          workflow_version: workflow.current_version,
-          trigger_event: { type: 'manual', user_id: ctx.userId } as unknown as Json,
-          status: 'running',
-          context_data: (params.context_data ?? {}) as unknown as Json,
-        })
-        .select()
-        .single();
+      // Use RPC for atomic execution creation + count increment
+      const { data: executionId, error: rpcError } = await ctx.supabase.rpc('log_workflow_execution', {
+        p_workflow_id: workflow.id,
+        p_workflow_version: workflow.current_version,
+        p_trigger_event: { type: 'manual', user_id: ctx.userId },
+        p_status: 'running',
+      });
 
-      if (error) throw new Error(`Failed to start execution: ${error.message}`);
+      if (rpcError || !executionId) throw new Error(`Failed to start execution: ${rpcError?.message ?? 'unknown'}`);
 
-      // Update execution count
-      await ctx.supabase
-        .from('workflows')
-        .update({
-          execution_count: (workflow.execution_count ?? 0) + 1,
-          last_executed_at: new Date().toISOString(),
-        })
-        .eq('id', workflow.id);
+      // Set context_data on the execution (RPC doesn't accept it)
+      if (params.context_data && Object.keys(params.context_data).length > 0) {
+        await ctx.supabase.from('workflow_executions')
+          .update({ context_data: params.context_data as unknown as Json })
+          .eq('id', executionId);
+      }
 
       // Fire workflow engine asynchronously
       import('@/lib/workflows/engine').then(({ executeWorkflow }) => {
-        executeWorkflow(workflow.id, execution.id, ctx.projectId, workflow.definition as unknown as Parameters<typeof executeWorkflow>[3], params.context_data ?? {}).catch((err) =>
+        executeWorkflow(workflow.id, executionId, ctx.projectId, workflow.definition as unknown as Parameters<typeof executeWorkflow>[3], params.context_data ?? {}).catch((err) =>
           console.error('MCP workflow execution error:', err)
         );
       });
+
+      // Fetch execution for response
+      const { data: execution } = await ctx.supabase
+        .from('workflow_executions').select('*').eq('id', executionId).single();
 
       return { content: [{ type: 'text' as const, text: JSON.stringify(execution) }] };
     }

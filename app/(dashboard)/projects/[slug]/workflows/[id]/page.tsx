@@ -9,29 +9,37 @@ export default function WorkflowEditorPage() {
   const params = useParams();
   const slug = params.slug as string;
   const id = params.id as string;
-  const { loadWorkflow, clearWorkflow, setIsLoading, isLoading } = useWorkflowStore();
+  const { workflowId, isLoading } = useWorkflowStore();
 
   useEffect(() => {
+    let cancelled = false;
+    const store = useWorkflowStore.getState();
+    store.setIsLoading(true);
+
     async function fetchWorkflow() {
-      setIsLoading(true);
       try {
         const res = await fetch(`/api/projects/${slug}/workflows/${id}`);
         const data = await res.json();
-        if (data.workflow) {
-          loadWorkflow(data.workflow);
+        if (!cancelled && data.workflow) {
+          useWorkflowStore.getState().loadWorkflow(data.workflow);
         }
       } catch (error) {
         console.error('Failed to fetch workflow:', error);
       } finally {
-        setIsLoading(false);
+        if (!cancelled) {
+          useWorkflowStore.getState().setIsLoading(false);
+        }
       }
     }
 
     fetchWorkflow();
-    return () => clearWorkflow();
+    return () => {
+      cancelled = true;
+      useWorkflowStore.getState().clearWorkflow();
+    };
   }, [slug, id]);
 
-  if (isLoading) {
+  if (isLoading || !workflowId) {
     return (
       <div className="flex items-center justify-center h-full">
         <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />

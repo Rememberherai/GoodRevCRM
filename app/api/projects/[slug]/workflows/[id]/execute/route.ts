@@ -45,37 +45,38 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { entity_type, entity_id, context_data } = validationResult.data;
 
-    // Create execution record
-    const { data: execution, error } = await supabaseAny
-      .from('workflow_executions')
-      .insert({
-        workflow_id: id,
-        workflow_version: workflow.current_version,
-        trigger_event: { type: 'manual', triggered_by: user.id, ...validationResult.data },
-        status: 'running',
-        entity_type: entity_type || null,
-        entity_id: entity_id || null,
-        context_data: context_data || {},
-      })
-      .select()
-      .single();
+    // Use RPC for atomic execution creation + count increment
+    const { data: executionId, error: rpcError } = await supabaseAny.rpc('log_workflow_execution', {
+      p_workflow_id: id,
+      p_workflow_version: workflow.current_version,
+      p_trigger_event: { type: 'manual', triggered_by: user.id, ...validationResult.data },
+      p_status: 'running',
+      p_entity_type: entity_type || null,
+      p_entity_id: entity_id || null,
+    });
 
-    if (error) {
-      console.error('Error creating workflow execution:', error);
+    if (rpcError || !executionId) {
+      console.error('Error creating workflow execution:', rpcError);
       return NextResponse.json({ error: 'Failed to start execution' }, { status: 500 });
     }
 
-    // Update execution count (read was already done above, minor race acceptable for manual triggers)
-    await supabaseAny.from('workflows')
-      .update({
-        execution_count: (workflow.execution_count ?? 0) + 1,
-        last_executed_at: new Date().toISOString(),
-      })
-      .eq('id', id);
+    // Set context_data on the execution (RPC doesn't accept it)
+    if (context_data && Object.keys(context_data).length > 0) {
+      await supabaseAny.from('workflow_executions')
+        .update({ context_data })
+        .eq('id', executionId);
+    }
+
+    // Fetch the created execution for the response
+    const { data: execution } = await supabaseAny
+      .from('workflow_executions')
+      .select('*')
+      .eq('id', executionId)
+      .single();
 
     // Fire workflow engine asynchronously (don't block the response)
     import('@/lib/workflows/engine').then(({ executeWorkflow }) => {
-      executeWorkflow(id, execution.id, project.id, workflow.definition, context_data || {}).catch((err) =>
+      executeWorkflow(id, executionId, project.id, workflow.definition, context_data || {}).catch((err) =>
         console.error('Workflow execution error:', err)
       );
     });

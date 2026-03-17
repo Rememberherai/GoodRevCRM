@@ -7,6 +7,20 @@ import type {
 } from '@/types/workflow';
 import { WORKFLOW_SCHEMA_VERSION } from '@/types/workflow';
 
+// ── History snapshot for undo/redo ──────────────────────────────────────
+interface HistorySnapshot {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+}
+
+const MAX_HISTORY = 50;
+
+// ── Clipboard for copy/paste ────────────────────────────────────────────
+interface ClipboardData {
+  nodes: WorkflowNode[];
+  edges: WorkflowEdge[];
+}
+
 interface WorkflowStoreState {
   // Workflow metadata
   workflowId: string | null;
@@ -41,6 +55,13 @@ interface WorkflowStoreState {
   // Loading
   isLoading: boolean;
   isSaving: boolean;
+
+  // Undo/redo
+  undoStack: HistorySnapshot[];
+  redoStack: HistorySnapshot[];
+
+  // Clipboard
+  clipboard: ClipboardData | null;
 }
 
 interface WorkflowStoreActions {
@@ -98,6 +119,17 @@ interface WorkflowStoreActions {
 
   // Get current definition
   getDefinition: () => WorkflowDefinition;
+
+  // Undo/redo
+  pushHistory: () => void;
+  undo: () => void;
+  redo: () => void;
+  canUndo: () => boolean;
+  canRedo: () => boolean;
+
+  // Copy/paste
+  copySelectedNodes: () => void;
+  pasteNodes: () => void;
 }
 
 const initialState: WorkflowStoreState = {
@@ -121,6 +153,9 @@ const initialState: WorkflowStoreState = {
   validationErrors: [],
   isLoading: false,
   isSaving: false,
+  undoStack: [],
+  redoStack: [],
+  clipboard: null,
 };
 
 export const useWorkflowStore = create<WorkflowStoreState & WorkflowStoreActions>((set, get) => ({
@@ -144,6 +179,8 @@ export const useWorkflowStore = create<WorkflowStoreState & WorkflowStoreActions
       validationErrors: [],
       activeSubWorkflowId: null,
       mainWorkflowSnapshot: null,
+      undoStack: [],
+      redoStack: [],
     });
   },
 
@@ -155,13 +192,112 @@ export const useWorkflowStore = create<WorkflowStoreState & WorkflowStoreActions
   setTriggerConfig: (config) => set({ triggerConfig: config }),
   setTags: (tags) => set({ tags }),
 
-  addNode: (node) => set((s) => ({ nodes: [...s.nodes, node] })),
-  removeNode: (id) =>
+  // ── History helpers ─────────────────────────────────────────────────
+  pushHistory: () =>
+    set((s) => ({
+      undoStack: [
+        ...s.undoStack.slice(-(MAX_HISTORY - 1)),
+        { nodes: structuredClone(s.nodes), edges: structuredClone(s.edges) },
+      ],
+      redoStack: [], // clear redo on new change
+    })),
+
+  undo: () =>
+    set((s) => {
+      if (s.undoStack.length === 0) return s;
+      const prev = s.undoStack[s.undoStack.length - 1]!;
+      return {
+        undoStack: s.undoStack.slice(0, -1),
+        redoStack: [
+          ...s.redoStack,
+          { nodes: structuredClone(s.nodes), edges: structuredClone(s.edges) },
+        ],
+        nodes: prev.nodes,
+        edges: prev.edges,
+        selectedNodeId: null,
+      };
+    }),
+
+  redo: () =>
+    set((s) => {
+      if (s.redoStack.length === 0) return s;
+      const next = s.redoStack[s.redoStack.length - 1]!;
+      return {
+        redoStack: s.redoStack.slice(0, -1),
+        undoStack: [
+          ...s.undoStack,
+          { nodes: structuredClone(s.nodes), edges: structuredClone(s.edges) },
+        ],
+        nodes: next.nodes,
+        edges: next.edges,
+        selectedNodeId: null,
+      };
+    }),
+
+  canUndo: () => get().undoStack.length > 0,
+  canRedo: () => get().redoStack.length > 0,
+
+  // ── Copy/Paste ──────────────────────────────────────────────────────
+  copySelectedNodes: () => {
+    const s = get();
+    if (!s.selectedNodeId) return;
+    const node = s.nodes.find((n) => n.id === s.selectedNodeId);
+    if (!node || node.type === 'start') return; // don't copy start node
+    // Collect the selected node + edges that connect between selected nodes
+    // For single node selection, just copy the node
+    const copiedNodes = [structuredClone(node)];
+    set({ clipboard: { nodes: copiedNodes, edges: [] } });
+  },
+
+  pasteNodes: () => {
+    const s = get();
+    if (!s.clipboard || s.clipboard.nodes.length === 0) return;
+
+    // Push history before paste
+    get().pushHistory();
+
+    const offset = { x: 50, y: 50 };
+    const idMap = new Map<string, string>();
+    const newNodes: WorkflowNode[] = s.clipboard.nodes.map((n) => {
+      const newId = `${n.type}-${Date.now()}-${Math.random().toString(36).slice(2, 6)}`;
+      idMap.set(n.id, newId);
+      return {
+        ...structuredClone(n),
+        id: newId,
+        position: { x: n.position.x + offset.x, y: n.position.y + offset.y },
+        data: { ...structuredClone(n.data), label: `${n.data.label} (copy)` },
+      };
+    });
+
+    const newEdges: WorkflowEdge[] = s.clipboard.edges
+      .filter((e) => idMap.has(e.source) && idMap.has(e.target))
+      .map((e) => ({
+        ...structuredClone(e),
+        id: `e-${idMap.get(e.source)}-${idMap.get(e.target)}-${Date.now()}`,
+        source: idMap.get(e.source)!,
+        target: idMap.get(e.target)!,
+      }));
+
+    set({
+      nodes: [...s.nodes, ...newNodes],
+      edges: [...s.edges, ...newEdges],
+      selectedNodeId: newNodes[0]?.id ?? null,
+    });
+  },
+
+  // ── Node operations (with history) ──────────────────────────────────
+  addNode: (node) => {
+    get().pushHistory();
+    set((s) => ({ nodes: [...s.nodes, node] }));
+  },
+  removeNode: (id) => {
+    get().pushHistory();
     set((s) => ({
       nodes: s.nodes.filter((n) => n.id !== id),
       edges: s.edges.filter((e) => e.source !== id && e.target !== id),
       selectedNodeId: s.selectedNodeId === id ? null : s.selectedNodeId,
-    })),
+    }));
+  },
   updateNodeData: (id, data) =>
     set((s) => ({
       nodes: s.nodes.map((n) =>
@@ -174,8 +310,15 @@ export const useWorkflowStore = create<WorkflowStoreState & WorkflowStoreActions
     })),
   setNodes: (nodes) => set({ nodes }),
 
-  addEdge: (edge) => set((s) => ({ edges: [...s.edges, edge] })),
-  removeEdge: (id) => set((s) => ({ edges: s.edges.filter((e) => e.id !== id) })),
+  // ── Edge operations (with history) ──────────────────────────────────
+  addEdge: (edge) => {
+    get().pushHistory();
+    set((s) => ({ edges: [...s.edges, edge] }));
+  },
+  removeEdge: (id) => {
+    get().pushHistory();
+    set((s) => ({ edges: s.edges.filter((e) => e.id !== id) }));
+  },
   setEdges: (edges) => set({ edges }),
 
   enterSubWorkflow: (nodeId, definition) =>
@@ -185,6 +328,8 @@ export const useWorkflowStore = create<WorkflowStoreState & WorkflowStoreActions
       nodes: definition.nodes,
       edges: definition.edges,
       selectedNodeId: null,
+      undoStack: [],
+      redoStack: [],
     })),
 
   exitSubWorkflow: () =>
@@ -207,6 +352,8 @@ export const useWorkflowStore = create<WorkflowStoreState & WorkflowStoreActions
         edges: s.mainWorkflowSnapshot.edges,
         mainWorkflowSnapshot: null,
         selectedNodeId: null,
+        undoStack: [],
+        redoStack: [],
       };
     }),
 

@@ -744,41 +744,41 @@ async function executeRunWorkflow(
     return { action_type: action.type, success: false, error: 'Workflow is not active' };
   }
 
-  // Create execution record
-  const { data: execution, error: execError } = await supabase
-    .from('workflow_executions')
-    .insert({
-      workflow_id: workflow.id,
-      workflow_version: workflow.current_version,
-      trigger_event: { type: 'automation', automation_id: context.automationId } as unknown as import('@/types/database').Json,
-      status: 'running',
-      context_data: {
-        entity_type: context.entityType,
-        entity_id: context.entityId,
-        ...context.data,
-      } as unknown as import('@/types/database').Json,
-    })
-    .select('id')
-    .single();
+  // Use RPC for atomic execution creation + count increment
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data: executionId, error: rpcError } = await (supabase as any).rpc('log_workflow_execution', {
+    p_workflow_id: workflow.id,
+    p_workflow_version: workflow.current_version,
+    p_trigger_event: { type: 'automation', automation_id: context.automationId },
+    p_status: 'running',
+    p_entity_type: context.entityType || null,
+    p_entity_id: context.entityId || null,
+  });
 
-  if (execError || !execution) {
-    return { action_type: action.type, success: false, error: `Failed to create execution: ${execError?.message}` };
+  if (rpcError || !executionId) {
+    return { action_type: action.type, success: false, error: `Failed to create execution: ${rpcError?.message}` };
   }
+
+  // Set context_data (RPC doesn't accept it)
+  const ctxData = { entity_type: context.entityType, entity_id: context.entityId, ...context.data };
+  await supabase.from('workflow_executions')
+    .update({ context_data: ctxData as unknown as import('@/types/database').Json })
+    .eq('id', executionId);
 
   // Fire and forget the actual workflow execution
   const { executeWorkflow } = await import('@/lib/workflows/engine');
   const definition = workflow.definition as unknown as import('@/types/workflow').WorkflowDefinition;
   executeWorkflow(
     workflow.id,
-    execution.id,
+    executionId,
     context.projectId,
     definition,
-    { entity_type: context.entityType, entity_id: context.entityId, ...context.data }
+    ctxData
   ).catch((err) => console.error('Workflow execution failed:', err));
 
   return {
     action_type: action.type,
     success: true,
-    result: { workflow_id: workflowId, execution_id: execution.id },
+    result: { workflow_id: workflowId, execution_id: executionId },
   };
 }

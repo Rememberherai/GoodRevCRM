@@ -3994,25 +3994,23 @@ defineTool({
 
 defineTool({
   name: 'workflows.create',
-  description: 'Create a new workflow. Optionally provide a full definition with nodes and edges.',
+  description: `Create a new workflow with a visual node graph. Each node MUST have: id (string), type (one of: start, end, action, ai_agent, condition, switch, delay, loop, sub_workflow, mcp_tool, webhook, zapier), position ({x, y} coordinates for canvas layout), and data ({label, config: {}}). Every workflow needs exactly one "start" node and at least one "end" node. Edges connect nodes: {id, source, target}. If nodes/edges are omitted, a default start→end workflow is created. Positions should be spaced ~150px apart vertically (e.g. start at y:50, next at y:200, etc.) with x:250 as center.`,
   minRole: 'member',
   parameters: z.object({
     name: z.string().min(1).max(50).describe('Workflow name'),
     description: z.string().max(2000).optional().describe('Description'),
     trigger_type: z.string().default('manual').describe('Trigger type'),
-    nodes: z.array(z.record(z.string(), z.unknown())).optional().describe('Workflow nodes'),
-    edges: z.array(z.record(z.string(), z.unknown())).optional().describe('Workflow edges'),
+    nodes: z.array(z.record(z.string(), z.unknown())).optional().describe('Workflow nodes array. Each node: {id, type, position: {x, y}, data: {label, config: {}}}. Valid types: start, end, action, ai_agent, condition, switch, delay, loop, sub_workflow, mcp_tool, webhook, zapier'),
+    edges: z.array(z.record(z.string(), z.unknown())).optional().describe('Edges connecting nodes: {id, source, target}'),
     tags: z.array(z.string()).optional().describe('Tags'),
   }),
   handler: async (params, ctx) => {
-    const definition = {
-      schema_version: '1.0.0',
-      nodes: (params.nodes as unknown[]) ?? [
-        { id: 'start-1', type: 'start', position: { x: 250, y: 50 }, data: { label: 'Start', config: {} } },
-        { id: 'end-1', type: 'end', position: { x: 250, y: 300 }, data: { label: 'End', config: {} } },
-      ],
-      edges: (params.edges as unknown[]) ?? [{ id: 'e-start-end', source: 'start-1', target: 'end-1' }],
-    };
+    const { sanitizeWorkflowDefinition } = await import('@/lib/workflows/sanitize-nodes');
+
+    const definition = sanitizeWorkflowDefinition(
+      params.nodes as unknown[] | undefined,
+      params.edges as unknown[] | undefined,
+    );
 
     const { data, error } = await ctx.supabase
       .from('workflows')
@@ -4079,11 +4077,12 @@ defineTool({
 
     const existingDef = current.definition as { schema_version: string; nodes: unknown[]; edges: unknown[] };
     if (params.nodes !== undefined || params.edges !== undefined) {
-      updateData.definition = {
-        schema_version: existingDef.schema_version ?? '1.0.0',
-        nodes: params.nodes ?? existingDef.nodes,
-        edges: params.edges ?? existingDef.edges,
-      };
+      const { sanitizeWorkflowDefinition } = await import('@/lib/workflows/sanitize-nodes');
+      const sanitized = sanitizeWorkflowDefinition(
+        (params.nodes as unknown[] | undefined) ?? existingDef.nodes,
+        (params.edges as unknown[] | undefined) ?? existingDef.edges,
+      );
+      updateData.definition = sanitized;
     }
 
     const { data, error } = await ctx.supabase
