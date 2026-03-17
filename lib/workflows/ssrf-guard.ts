@@ -4,6 +4,7 @@
  */
 
 // Block private/internal IP ranges and dangerous hostnames
+// NOTE: URL.hostname strips brackets from IPv6, so we match without brackets
 const BLOCKED_HOST_PATTERNS = [
   /^localhost$/i,
   /^127\./,
@@ -11,12 +12,18 @@ const BLOCKED_HOST_PATTERNS = [
   /^172\.(1[6-9]|2[0-9]|3[01])\./,
   /^192\.168\./,
   /^0\./,
-  /^169\.254\./,       // Link-local (AWS metadata)
-  /^\[::1\]/,          // IPv6 loopback
-  /^\[fc/,             // IPv6 private
-  /^\[fd/,             // IPv6 private
-  /^\[fe80/,           // IPv6 link-local
-  /^metadata\./i,      // Common cloud metadata aliases
+  /^169\.254\./,              // Link-local (AWS metadata)
+  /^::1$/,                    // IPv6 loopback (URL.hostname strips brackets)
+  /^::$/,                     // IPv6 unspecified
+  /^::ffff:127\./,            // IPv4-mapped IPv6 loopback
+  /^::ffff:10\./,             // IPv4-mapped IPv6 private
+  /^::ffff:172\.(1[6-9]|2[0-9]|3[01])\./,
+  /^::ffff:192\.168\./,
+  /^::ffff:169\.254\./,
+  /^fc/i,                     // IPv6 unique-local (fc00::/7)
+  /^fd/i,                     // IPv6 unique-local
+  /^fe80/i,                   // IPv6 link-local
+  /^metadata\./i,             // Common cloud metadata aliases
   /^internal\./i,
 ];
 
@@ -29,7 +36,13 @@ export function isBlockedUrl(url: string): boolean {
     const parsed = new URL(url);
     // Block non-http(s) schemes
     if (!['http:', 'https:'].includes(parsed.protocol)) return true;
-    return BLOCKED_HOST_PATTERNS.some((pattern) => pattern.test(parsed.hostname));
+    const host = parsed.hostname;
+    if (BLOCKED_HOST_PATTERNS.some((pattern) => pattern.test(host))) return true;
+    // Block numeric/octal IP encodings (e.g., 2130706433 = 127.0.0.1)
+    if (/^\d+$/.test(host)) return true;
+    // Block octal IPs (e.g., 0177.0.0.1)
+    if (/^0\d+\./.test(host)) return true;
+    return false;
   } catch {
     return true; // Invalid URL = blocked
   }

@@ -86,6 +86,11 @@ export async function PATCH(request: Request, context: RouteContext) {
     const updates = validationResult.data;
     const { change_summary, ...workflowUpdates } = updates;
 
+    // RBAC: only admin/owner can toggle is_active (matches /activate endpoint)
+    if (workflowUpdates.is_active !== undefined && !['owner', 'admin'].includes(membership.role)) {
+      delete workflowUpdates.is_active;
+    }
+
     // Validate graph if definition changed
     if (workflowUpdates.definition && workflowUpdates.definition.nodes.length > 0) {
       const graphErrors = validateWorkflow(workflowUpdates.definition);

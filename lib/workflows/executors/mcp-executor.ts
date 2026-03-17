@@ -16,6 +16,14 @@ interface McpToolResult {
   result: unknown;
 }
 
+function safeJsonParse(str: string): unknown {
+  try {
+    return JSON.parse(str);
+  } catch {
+    return { raw: str };
+  }
+}
+
 function createAdminClient() {
   return createClient(
     process.env.NEXT_PUBLIC_SUPABASE_URL!,
@@ -189,7 +197,7 @@ async function executeInternalTool(
   return {
     mode: 'manual',
     tool_name: toolName,
-    result: typeof result === 'string' ? JSON.parse(result) : result,
+    result: typeof result === 'string' ? safeJsonParse(result) : result,
   };
 }
 

@@ -73,9 +73,13 @@ export function WorkflowToolbar({ projectSlug }: WorkflowToolbarProps) {
         edges,
       };
 
-      // Validate
+      // Client-side validation (non-blocking for inactive workflows, but show errors)
       const errors = validateWorkflow(definition);
       setValidationErrors(errors);
+      const blockingErrors = errors.filter((e) => e.severity === 'error');
+      if (blockingErrors.length > 0) {
+        setSaveError(`${blockingErrors.length} error(s): ${blockingErrors.map((e) => e.message).join('; ')}`);
+      }
 
       const res = await fetch(`/api/projects/${projectSlug}/workflows/${workflowId}`, {
         method: 'PATCH',
@@ -92,9 +96,22 @@ export function WorkflowToolbar({ projectSlug }: WorkflowToolbarProps) {
 
       if (res.ok) {
         markSaved();
+        setSaveError(null);
       } else {
         const data = await res.json().catch(() => ({}));
-        setSaveError(data.error || `Save failed (${res.status})`);
+        let msg = data.error || `Save failed (${res.status})`;
+        // Show Zod validation details if present
+        if (data.details?.fieldErrors) {
+          const fields = Object.entries(data.details.fieldErrors)
+            .map(([k, v]) => `${k}: ${(v as string[]).join(', ')}`)
+            .join('; ');
+          if (fields) msg += ` — ${fields}`;
+        }
+        // Show graph validation errors if present
+        if (data.validation_errors?.length) {
+          msg = data.validation_errors.map((e: { message: string }) => e.message).join('; ');
+        }
+        setSaveError(msg);
       }
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Save failed');
@@ -105,22 +122,26 @@ export function WorkflowToolbar({ projectSlug }: WorkflowToolbarProps) {
 
   async function handleActivate() {
     if (!workflowId) return;
+    setSaveError(null);
     try {
       const res = await fetch(
         `/api/projects/${projectSlug}/workflows/${workflowId}/activate`,
         { method: 'POST' }
       );
+      const data = await res.json().catch(() => ({}));
       if (res.ok) {
-        const data = await res.json();
         useWorkflowStore.getState().loadWorkflow(data.workflow);
       } else {
-        const data = await res.json();
         if (data.validation_errors) {
           setValidationErrors(data.validation_errors);
+          setSaveError(data.validation_errors.map((e: { message: string }) => e.message).join('; '));
+        } else {
+          setSaveError(data.error || `Activate failed (${res.status})`);
         }
       }
     } catch (error) {
       console.error('Failed to toggle active:', error);
+      setSaveError('Failed to toggle active');
     }
   }
 
@@ -192,9 +213,13 @@ export function WorkflowToolbar({ projectSlug }: WorkflowToolbarProps) {
       )}
 
       {saveError && (
-        <Badge variant="destructive" className="text-xs cursor-pointer" onClick={() => setSaveError(null)}>
+        <div
+          className="text-xs text-destructive bg-destructive/10 border border-destructive/30 rounded px-2 py-1 max-w-sm truncate cursor-pointer"
+          title={saveError}
+          onClick={() => setSaveError(null)}
+        >
           {saveError}
-        </Badge>
+        </div>
       )}
 
       <div className="flex-1" />

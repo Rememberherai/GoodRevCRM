@@ -196,7 +196,7 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
       await ctx.supabase.from('workflow_versions').insert({
         workflow_id: id,
         version: newVersion,
-        definition: (updates.definition ?? current.definition) as unknown as Json,
+        definition: (updateData.definition ?? current.definition) as unknown as Json,
         trigger_type: updates.trigger_type ?? current.trigger_type,
         trigger_config: (updates.trigger_config ?? current.trigger_config) as unknown as Json,
         change_summary: change_summary ?? 'Updated via MCP',
@@ -232,9 +232,10 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
   // workflows.activate
   server.tool(
     'workflows.activate',
-    'Activate or deactivate a workflow. Validates the definition before activation.',
+    'Activate or deactivate a workflow. Pass active=true to activate or active=false to deactivate. Validates the definition before activation.',
     {
       id: z.string().uuid().describe('Workflow ID'),
+      active: z.boolean().optional().describe('Set to true to activate, false to deactivate. If omitted, toggles the current state.'),
     },
     async (params) => {
       const ctx = getContext();
@@ -249,7 +250,7 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
 
       if (getError) throw new Error(`Workflow not found: ${getError.message}`);
 
-      const newActive = !workflow.is_active;
+      const newActive = params.active !== undefined ? params.active : !workflow.is_active;
 
       // Validate before activating
       if (newActive) {

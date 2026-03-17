@@ -94,7 +94,7 @@ export function sanitizeWorkflowDefinition(
   rawEdges?: unknown[],
 ): SanitizedDefinition {
   if (!rawNodes || rawNodes.length === 0) {
-    return DEFAULT_DEFINITION;
+    return JSON.parse(JSON.stringify(DEFAULT_DEFINITION));
   }
 
   const Y_SPACING = 150;

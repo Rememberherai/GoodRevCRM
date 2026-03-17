@@ -251,6 +251,25 @@ async function traverseNode(
             }
             // Date already passed — continue immediately
           }
+        } else if (delayType === 'until_field') {
+          const fieldPath = node.data.config.field_path as string;
+          if (fieldPath) {
+            // Resolve field from context data
+            const parts = fieldPath.replace(/^context\./, '').split('.');
+            let value: unknown = ctx.contextData;
+            for (const p of parts) {
+              if (value && typeof value === 'object') value = (value as Record<string, unknown>)[p];
+              else { value = undefined; break; }
+            }
+            if (typeof value === 'string') {
+              const target = new Date(value);
+              if (!isNaN(target.getTime()) && target.getTime() > Date.now()) {
+                await updateStepStatusWithSchedule(supabase, stepId, 'waiting', target.toISOString());
+                ctx.hasPendingDelay = true;
+                return;
+              }
+            }
+          }
         }
         break;
       }

@@ -298,12 +298,14 @@ export const useWorkflowStore = create<WorkflowStoreState & WorkflowStoreActions
       selectedNodeId: s.selectedNodeId === id ? null : s.selectedNodeId,
     }));
   },
-  updateNodeData: (id, data) =>
+  updateNodeData: (id, data) => {
+    get().pushHistory();
     set((s) => ({
       nodes: s.nodes.map((n) =>
         n.id === id ? { ...n, data: { ...n.data, ...data } } : n
       ),
-    })),
+    }));
+  },
   updateNodePosition: (id, position) =>
     set((s) => ({
       nodes: s.nodes.map((n) => (n.id === id ? { ...n, position } : n)),
