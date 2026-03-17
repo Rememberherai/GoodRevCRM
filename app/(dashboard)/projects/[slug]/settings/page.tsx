@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
@@ -44,6 +44,7 @@ import { ContactProvidersSettings } from '@/components/settings/contact-provider
 import { EmailSignaturesPanel } from '@/components/settings/email-signatures-panel';
 import { DuplicatesPanel } from '@/components/deduplication/duplicates-panel';
 import { DuplicatesBadge } from '@/components/deduplication/duplicates-badge';
+import { McpSettingsPanel } from '@/components/settings/mcp-settings-panel';
 import type { ProjectRole } from '@/types/user';
 
 
@@ -262,6 +263,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             Duplicates
             <DuplicatesBadge projectSlug={slug} className="ml-1" />
           </TabsTrigger>
+          <TabsTrigger value="mcp" className="gap-2">
+            <Plug className="h-4 w-4" />
+            MCP
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6 mt-6">
@@ -446,6 +451,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
 
         <TabsContent value="duplicates" className="space-y-6 mt-6">
           <DuplicatesPanel slug={slug} />
+        </TabsContent>
+
+        <TabsContent value="mcp" className="space-y-6 mt-6">
+          <McpSettingsPanel slug={slug} />
         </TabsContent>
 
       </Tabs>

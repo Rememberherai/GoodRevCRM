@@ -55,6 +55,17 @@ When building new features, always consider adding automation support:
 - **Time-based triggers**: If the feature introduces a new time-based condition (e.g. "X days since last Y"), add it to `lib/automations/time-triggers.ts`.
 - **See**: `lib/automations/engine.ts` for the automation system architecture.
 
+## MCP considerations
+
+All new features MUST include MCP tool support. When adding a new feature:
+- **Add MCP tools** in `lib/mcp/tools/` — create a new module or extend an existing one with tools for the feature's CRUD operations.
+- **Register tools** in `lib/mcp/server.ts` via a `register*Tools()` function.
+- **Enforce RBAC** — use `checkPermission(ctx.role, requiredRole)` in every tool handler.
+- **Follow naming convention** — tools are namespaced as `module.action` (e.g., `emails.send`, `sequences.enroll`).
+- **Reuse existing Zod validators** from `lib/validators/` for tool input schemas where possible.
+- **Emit automation events** — call `emitAutomationEvent()` after mutations, same as API routes.
+- **See**: `lib/mcp/server.ts` for the MCP server architecture, `lib/mcp/tools/organizations.ts` for a reference implementation.
+
 ## Git commits
 
 When committing to git, unless otherwise noted, only commit file changes from the current chat session. Exclude changes that were made elsewhere outside the current chat context.
