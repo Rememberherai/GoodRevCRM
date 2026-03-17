@@ -3761,7 +3761,7 @@ defineTool({
 
 defineTool({
   name: 'reports.run',
-  description: 'Execute a saved report and get its results',
+  description: 'Execute a saved report and get its results. For custom reports, this executes the report config and returns actual data rows.',
   minRole: 'viewer',
   parameters: z.object({
     report_id: z.string().uuid().describe('Report ID'),
@@ -3774,7 +3774,32 @@ defineTool({
       .eq('project_id', ctx.projectId)
       .single();
     if (reportErr) throw new Error(`Report not found: ${reportErr.message}`);
-    // Create a run record
+
+    // Custom reports: execute via query engine and return data
+    if (report.report_type === 'custom' && report.config) {
+      const { executeCustomReport, ReportQueryError } = await import('@/lib/reports/query-engine');
+      try {
+        const result = await executeCustomReport(
+          ctx.supabase,
+          report.config as unknown as import('@/lib/reports/types').CustomReportConfig,
+          ctx.projectId
+        );
+        return JSON.stringify({
+          reportName: report.name,
+          totalRows: result.totalRows,
+          truncated: result.truncated,
+          executionMs: result.executionMs,
+          columns: result.columns,
+          rows: result.rows.slice(0, 50),
+          ...(result.rows.length > 50 ? { note: `Showing 50 of ${result.totalRows} total rows` } : {}),
+        }, null, 2);
+      } catch (e) {
+        const message = e instanceof ReportQueryError ? e.message : 'Report execution failed';
+        return JSON.stringify({ error: message });
+      }
+    }
+
+    // Non-custom reports: create a run record
     const startTime = Date.now();
     const { data: run, error: runErr } = await ctx.supabase
       .from('report_runs')
@@ -4262,6 +4287,163 @@ defineTool({
       valid: !hasErrors,
       errors: errors.filter((e) => e.severity === 'error'),
       warnings: errors.filter((e) => e.severity === 'warning'),
+    });
+  },
+});
+
+// ── Report Tools ────────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'reports.get_schema',
+  description: 'Get the schema of all reportable CRM objects, their fields (with types, aggregatable/groupable flags), and relationships. Always call this first before building a custom report to discover available data sources and field names.',
+  minRole: 'viewer',
+  parameters: z.object({}),
+  handler: async (_params, ctx) => {
+    const { getReportSchema } = await import('@/lib/reports/schema-registry');
+    const schema = await getReportSchema(ctx.projectId);
+
+    const simplified: Record<string, unknown> = {};
+    for (const [key, obj] of Object.entries(schema.objects)) {
+      simplified[key] = {
+        label: obj.labelPlural,
+        fields: obj.fields
+          .filter((f) => f.name !== 'id' && f.name !== 'project_id' && f.name !== 'deleted_at')
+          .map((f) => ({
+            name: f.name,
+            label: f.label,
+            type: f.type,
+            aggregatable: f.aggregatable,
+            groupable: f.groupable,
+            ...(f.enumValues ? { enumValues: f.enumValues } : {}),
+          })),
+        relations: obj.relations.map((r) => ({
+          name: r.name,
+          label: r.label,
+          target: r.targetObject,
+          type: r.type,
+        })),
+      };
+    }
+
+    return JSON.stringify(simplified, null, 2);
+  },
+});
+
+defineTool({
+  name: 'reports.preview',
+  description: 'Run an ad-hoc report preview without saving. Returns up to 100 rows. Use this to test a report configuration before saving. The config needs: primaryObject (table name), columns (array of {objectName, fieldName}), and optionally filters, groupBy, aggregations.',
+  minRole: 'viewer',
+  parameters: z.object({
+    primaryObject: z.string().describe('Primary table name, e.g. "opportunities"'),
+    columns: z.array(z.object({
+      objectName: z.string().describe('Table name'),
+      fieldName: z.string().describe('Column name'),
+      alias: z.string().optional(),
+      aggregation: z.enum(['sum', 'avg', 'count', 'min', 'max', 'count_distinct']).optional(),
+    })).min(1).describe('Fields to include'),
+    filters: z.array(z.object({
+      objectName: z.string(),
+      fieldName: z.string(),
+      operator: z.enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'in', 'is_null', 'is_not_null', 'between']),
+      value: z.unknown().optional(),
+      value2: z.unknown().optional(),
+    })).default([]).describe('Filter conditions'),
+    groupBy: z.array(z.string()).optional().describe('Fields to group by'),
+    aggregations: z.array(z.object({
+      objectName: z.string(),
+      fieldName: z.string(),
+      function: z.enum(['sum', 'avg', 'count', 'min', 'max', 'count_distinct']),
+      alias: z.string(),
+    })).optional().describe('Aggregation functions'),
+    orderBy: z.array(z.object({
+      field: z.string(),
+      direction: z.enum(['asc', 'desc']),
+    })).optional(),
+    limit: z.number().int().min(1).max(10000).optional(),
+    chartType: z.enum(['table', 'bar', 'line', 'pie', 'funnel']).optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { executeCustomReport, ReportQueryError } = await import('@/lib/reports/query-engine');
+    try {
+      const config = params as unknown as import('@/lib/reports/types').CustomReportConfig;
+      const result = await executeCustomReport(ctx.supabase, config, ctx.projectId, { preview: true });
+      return JSON.stringify({
+        totalRows: result.totalRows,
+        truncated: result.truncated,
+        executionMs: result.executionMs,
+        columns: result.columns,
+        rows: result.rows.slice(0, 20),
+        ...(result.rows.length > 20 ? { note: `Showing 20 of ${result.rows.length} preview rows` } : {}),
+      }, null, 2);
+    } catch (error) {
+      const message = error instanceof ReportQueryError ? error.message : 'Report preview failed';
+      return JSON.stringify({ error: message });
+    }
+  },
+});
+
+defineTool({
+  name: 'reports.create_custom',
+  description: 'Save a new custom report. The report will appear in the Reports page for all users (if public) or just the creator (if private). Always preview first before saving.',
+  minRole: 'member',
+  parameters: z.object({
+    name: z.string().min(1).max(255).describe('Report name'),
+    description: z.string().max(1000).optional().describe('Report description'),
+    primaryObject: z.string().describe('Primary table name'),
+    columns: z.array(z.object({
+      objectName: z.string(),
+      fieldName: z.string(),
+      alias: z.string().optional(),
+      aggregation: z.enum(['sum', 'avg', 'count', 'min', 'max', 'count_distinct']).optional(),
+    })).min(1),
+    filters: z.array(z.object({
+      objectName: z.string(),
+      fieldName: z.string(),
+      operator: z.enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'in', 'is_null', 'is_not_null', 'between']),
+      value: z.unknown().optional(),
+      value2: z.unknown().optional(),
+    })).default([]),
+    groupBy: z.array(z.string()).optional(),
+    aggregations: z.array(z.object({
+      objectName: z.string(),
+      fieldName: z.string(),
+      function: z.enum(['sum', 'avg', 'count', 'min', 'max', 'count_distinct']),
+      alias: z.string(),
+    })).optional(),
+    orderBy: z.array(z.object({ field: z.string(), direction: z.enum(['asc', 'desc']) })).optional(),
+    chartType: z.enum(['table', 'bar', 'line', 'pie', 'funnel']).optional(),
+    is_public: z.boolean().default(false),
+  }),
+  handler: async (params, ctx) => {
+    const { name, description, is_public, ...configFields } = params as {
+      name: string; description?: string; is_public: boolean;
+      primaryObject: string; columns: unknown[]; filters: unknown[];
+      groupBy?: string[]; aggregations?: unknown[]; orderBy?: unknown[]; chartType?: string;
+    };
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (ctx.supabase as any)
+      .from('report_definitions')
+      .insert({
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+        name,
+        description: description ?? null,
+        report_type: 'custom',
+        config: configFields,
+        filters: {},
+        is_public,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create report: ${error.message}`);
+
+    return JSON.stringify({
+      success: true,
+      report_id: data.id,
+      name: data.name,
+      message: `Report "${data.name}" created successfully. It's now available in the Reports page.`,
     });
   },
 });

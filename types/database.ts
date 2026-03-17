@@ -6069,6 +6069,10 @@ export type Database = {
         }
         Returns: string
       }
+      execute_custom_report: {
+        Args: { p_config: Json; p_project_id: string }
+        Returns: Json
+      }
       get_activity_conversion_metrics: {
         Args: {
           p_end_date?: string

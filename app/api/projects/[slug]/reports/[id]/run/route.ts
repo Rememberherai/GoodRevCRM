@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { executeCustomReport, ReportQueryError } from '@/lib/reports/query-engine';
+import type { CustomReportConfig } from '@/lib/reports/types';
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
@@ -115,6 +117,19 @@ export async function POST(_request: Request, context: RouteContext) {
             p_end_date: endDate,
           });
           result = data ?? [];
+          break;
+        }
+        case 'custom': {
+          try {
+            const customConfig = report.config as CustomReportConfig;
+            const customResult = await executeCustomReport(supabase, customConfig, project.id);
+            result = customResult.rows as Record<string, unknown>[];
+          } catch (e) {
+            if (e instanceof ReportQueryError) {
+              throw new Error(e.message);
+            }
+            throw e;
+          }
           break;
         }
         default:

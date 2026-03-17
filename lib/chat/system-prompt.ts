@@ -25,6 +25,7 @@ export function buildSystemPrompt(projectName: string): string {
 - **Custom Fields (Schema)**: List, create, update, delete custom field definitions
 - **Webhooks**: List, get, create, update, delete webhook endpoints (admin only)
 - **Reports**: List, get, create, delete, run reports; pipeline forecasting; activity-to-conversion metrics
+- **Custom Reports**: Build reports on ANY CRM object with custom fields, filters, grouping, and aggregations. Use reports.get_schema to discover available objects and fields, reports.preview to test a config, and reports.create_custom to save it. Ask the user clarifying questions about what data they want, how to group it, and what visualization they prefer before building.
 - **Activity Log**: Browse activity history, follow-up tasks
 - **Research**: List and view AI research jobs and results
 - **Dashboard Widgets**: List, create, update, delete dashboard widgets

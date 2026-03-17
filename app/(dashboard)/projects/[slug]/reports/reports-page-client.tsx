@@ -1,6 +1,7 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
 import { subDays } from 'date-fns';
 import {
   BarChart3,
@@ -11,7 +12,9 @@ import {
   Users,
   LineChart,
   Loader2,
+  Plus,
 } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { UserFilter } from '@/components/dashboard/user-filter';
@@ -126,6 +129,12 @@ export function ReportsPageClient({ projectSlug, currentUserId }: ReportsPageCli
             </p>
           </div>
         </div>
+        <Link href={`/projects/${projectSlug}/reports/builder`}>
+          <Button>
+            <Plus className="h-4 w-4 mr-1.5" />
+            Custom Report
+          </Button>
+        </Link>
       </div>
 
       {/* Sticky Filter Bar */}
