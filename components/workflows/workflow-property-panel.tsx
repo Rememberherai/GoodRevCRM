@@ -1,5 +1,7 @@
 'use client';
 
+import { useEffect, useState } from 'react';
+import { useParams } from 'next/navigation';
 import { X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -13,10 +15,142 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { useWorkflowStore } from '@/stores/workflow-store';
-import { actionTypeOptions, conditionOperatorLabels } from '@/types/automation';
+import {
+  actionTypeOptions,
+  conditionOperatorLabels,
+  opportunityStages,
+  rfpStatuses,
+} from '@/types/automation';
+import { ACTIVITY_TYPE_LABELS } from '@/types/activity';
+import type { ActivityType } from '@/types/activity';
 import type { WorkflowNodeType } from '@/types/workflow';
 
+// ── Resource types (matching automation-form.tsx) ────────────────────────────
+
+interface ProjectMember {
+  user_id: string;
+  role: string;
+  user: { id: string; full_name: string | null; email: string };
+}
+
+interface ProjectTag {
+  id: string;
+  name: string;
+  color: string;
+}
+
+interface ProjectSequence {
+  id: string;
+  name: string;
+  status: string;
+}
+
+interface ProjectTemplate {
+  id: string;
+  name: string;
+  subject: string;
+  category: string;
+}
+
+// Known value options for update_field action
+const fieldValueOptions: Record<string, { value: string; label: string }[]> = {
+  stage: [
+    { value: 'prospecting', label: 'Prospecting' },
+    { value: 'qualification', label: 'Qualification' },
+    { value: 'proposal', label: 'Proposal' },
+    { value: 'negotiation', label: 'Negotiation' },
+    { value: 'closed_won', label: 'Closed Won' },
+    { value: 'closed_lost', label: 'Closed Lost' },
+  ],
+  status: [
+    { value: 'identified', label: 'Identified' },
+    { value: 'reviewing', label: 'Reviewing' },
+    { value: 'preparing', label: 'Preparing' },
+    { value: 'submitted', label: 'Submitted' },
+    { value: 'won', label: 'Won' },
+    { value: 'lost', label: 'Lost' },
+    { value: 'no_bid', label: 'No Bid' },
+  ],
+  priority: [
+    { value: 'low', label: 'Low' },
+    { value: 'medium', label: 'Medium' },
+    { value: 'high', label: 'High' },
+    { value: 'urgent', label: 'Urgent' },
+  ],
+};
+
+// Entity fields available for the update_field action
+const updateFieldOptions = [
+  { value: 'stage', label: 'Stage (Opportunity)' },
+  { value: 'status', label: 'Status (RFP)' },
+  { value: 'priority', label: 'Priority (Task)' },
+  { value: 'owner_id', label: 'Owner' },
+  { value: 'name', label: 'Name' },
+  { value: 'description', label: 'Description' },
+  { value: 'amount', label: 'Amount' },
+  { value: 'close_date', label: 'Close Date' },
+];
+
+const activityTypeOptionsForAction: { value: ActivityType; label: string }[] = (
+  Object.entries(ACTIVITY_TYPE_LABELS) as [ActivityType, string][]
+)
+  .filter(([v]) => v !== 'system' && v !== 'sequence_completed')
+  .map(([value, label]) => ({ value, label }));
+
+// ── Hook: fetch project resources ────────────────────────────────────────────
+
+function useProjectResources(slug: string | undefined) {
+  const [members, setMembers] = useState<ProjectMember[]>([]);
+  const [tags, setTags] = useState<ProjectTag[]>([]);
+  const [sequences, setSequences] = useState<ProjectSequence[]>([]);
+  const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
+
+  useEffect(() => {
+    if (!slug) return;
+
+    async function fetchResources() {
+      const [membersRes, tagsRes, sequencesRes, templatesRes] = await Promise.allSettled([
+        fetch(`/api/projects/${slug}/members?limit=100`),
+        fetch(`/api/projects/${slug}/tags?limit=100`),
+        fetch(`/api/projects/${slug}/sequences?status=active&limit=100`),
+        fetch(`/api/projects/${slug}/templates?is_active=true&limit=100`),
+      ]);
+
+      if (membersRes.status === 'fulfilled' && membersRes.value.ok) {
+        const data = await membersRes.value.json();
+        setMembers(data.members ?? []);
+      }
+      if (tagsRes.status === 'fulfilled' && tagsRes.value.ok) {
+        const data = await tagsRes.value.json();
+        setTags(data.tags ?? []);
+      }
+      if (sequencesRes.status === 'fulfilled' && sequencesRes.value.ok) {
+        const data = await sequencesRes.value.json();
+        setSequences(data.sequences ?? []);
+      }
+      if (templatesRes.status === 'fulfilled' && templatesRes.value.ok) {
+        const data = await templatesRes.value.json();
+        setTemplates(data.data ?? []);
+      }
+    }
+
+    fetchResources();
+  }, [slug]);
+
+  return { members, tags, sequences, templates };
+}
+
+function getMemberLabel(m: ProjectMember) {
+  return m.user.full_name || m.user.email;
+}
+
+// ── Component ────────────────────────────────────────────────────────────────
+
 export function WorkflowPropertyPanel() {
+  const params = useParams();
+  const slug = params.slug as string | undefined;
+  const resources = useProjectResources(slug);
+
   const {
     nodes,
     selectedNodeId,
@@ -77,7 +211,7 @@ export function WorkflowPropertyPanel() {
       </div>
 
       {/* Type-specific config */}
-      {renderTypeConfig(type, config, updateConfig)}
+      {renderTypeConfig(type, config, updateConfig, resources)}
 
       {/* Delete button */}
       {type !== 'start' && (
@@ -96,15 +230,21 @@ export function WorkflowPropertyPanel() {
   );
 }
 
+// ── Type-specific config rendering ───────────────────────────────────────────
+
 function renderTypeConfig(
   type: WorkflowNodeType,
   config: Record<string, unknown>,
-  updateConfig: (key: string, value: unknown) => void
+  updateConfig: (key: string, value: unknown) => void,
+  resources: ReturnType<typeof useProjectResources>
 ) {
+  const { members, tags, sequences, templates } = resources;
+
   switch (type) {
     case 'action':
       return (
         <div className="space-y-3">
+          {/* Action type selector */}
           <div className="space-y-1.5">
             <Label className="text-xs">Action Type</Label>
             <Select
@@ -123,6 +263,446 @@ function renderTypeConfig(
               </SelectContent>
             </Select>
           </div>
+
+          {/* ── Action-specific config fields ── */}
+
+          {config.action_type === 'create_task' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Task Title</Label>
+                <Input
+                  value={(config.title as string) ?? ''}
+                  onChange={(e) => updateConfig('title', e.target.value)}
+                  className="h-8 text-sm"
+                  placeholder="e.g. Follow up with {{name}}"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Description</Label>
+                <Textarea
+                  value={(config.description as string) ?? ''}
+                  onChange={(e) => updateConfig('description', e.target.value)}
+                  className="text-sm min-h-[60px]"
+                  placeholder="Optional task description..."
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Priority</Label>
+                <Select
+                  value={(config.priority as string) ?? 'medium'}
+                  onValueChange={(v) => updateConfig('priority', v)}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="urgent">Urgent</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Due in (days)</Label>
+                <Input
+                  type="number"
+                  value={(config.due_in_days as number) ?? 3}
+                  onChange={(e) => updateConfig('due_in_days', Number(e.target.value))}
+                  className="h-8 text-sm"
+                  min={1}
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Assign to</Label>
+                <Select
+                  value={(config.assign_to as string) ?? ''}
+                  onValueChange={(v) => updateConfig('assign_to', v)}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select member (optional)..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {members.map((m) => (
+                      <SelectItem key={m.user_id} value={m.user_id}>
+                        {getMemberLabel(m)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'update_field' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Field</Label>
+                <Select
+                  value={(config.field_name as string) ?? ''}
+                  onValueChange={(v) => updateConfig('field_name', v)}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select field..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {updateFieldOptions.map((f) => (
+                      <SelectItem key={f.value} value={f.value}>
+                        {f.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Value</Label>
+                {config.field_name && fieldValueOptions[config.field_name as string] ? (
+                  <Select
+                    value={(config.value as string) ?? ''}
+                    onValueChange={(v) => updateConfig('value', v)}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Select value..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {(fieldValueOptions[config.field_name as string] ?? []).map((opt) => (
+                        <SelectItem key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : config.field_name === 'owner_id' ? (
+                  <Select
+                    value={(config.value as string) ?? ''}
+                    onValueChange={(v) => updateConfig('value', v)}
+                  >
+                    <SelectTrigger className="h-8 text-sm">
+                      <SelectValue placeholder="Select member..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {members.map((m) => (
+                        <SelectItem key={m.user_id} value={m.user_id}>
+                          {getMemberLabel(m)}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                ) : (
+                  <Input
+                    value={(config.value as string) ?? ''}
+                    onChange={(e) => updateConfig('value', e.target.value)}
+                    className="h-8 text-sm"
+                    placeholder="New value"
+                  />
+                )}
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'change_stage' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Stage</Label>
+              <Select
+                value={(config.stage as string) ?? ''}
+                onValueChange={(v) => updateConfig('stage', v)}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Select stage..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {opportunityStages.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s.replace(/_/g, ' ')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {config.action_type === 'change_status' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Status</Label>
+              <Select
+                value={(config.status as string) ?? ''}
+                onValueChange={(v) => updateConfig('status', v)}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Select status..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {rfpStatuses.map((s) => (
+                    <SelectItem key={s} value={s}>
+                      {s.replace(/_/g, ' ')}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {config.action_type === 'assign_owner' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">New Owner</Label>
+              <Select
+                value={(config.user_id as string) ?? ''}
+                onValueChange={(v) => updateConfig('user_id', v)}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Select team member..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {members.length === 0 ? (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">No team members found</div>
+                  ) : (
+                    members.map((m) => (
+                      <SelectItem key={m.user_id} value={m.user_id}>
+                        {getMemberLabel(m)}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {config.action_type === 'send_notification' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Notify</Label>
+                <Select
+                  value={(config.user_id as string) ?? ''}
+                  onValueChange={(v) => updateConfig('user_id', v)}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select team member..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {members.map((m) => (
+                      <SelectItem key={m.user_id} value={m.user_id}>
+                        {getMemberLabel(m)}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Message</Label>
+                <Input
+                  value={(config.message as string) ?? ''}
+                  onChange={(e) => updateConfig('message', e.target.value)}
+                  className="h-8 text-sm"
+                  placeholder="Notification message..."
+                />
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'send_email' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Email Template</Label>
+                <Select
+                  value={(config.template_id as string) ?? ''}
+                  onValueChange={(v) => updateConfig('template_id', v)}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue placeholder="Select template..." />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {templates.length === 0 ? (
+                      <div className="px-2 py-1.5 text-xs text-muted-foreground">No active templates found</div>
+                    ) : (
+                      templates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name} — {t.subject}
+                        </SelectItem>
+                      ))
+                    )}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Send to field</Label>
+                <Input
+                  value={(config.to_field as string) ?? 'email'}
+                  onChange={(e) => updateConfig('to_field', e.target.value)}
+                  className="h-8 text-sm"
+                  placeholder="Field containing recipient email"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Entity field with the recipient email (default: email)
+                </p>
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'send_sms' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Message</Label>
+              <Textarea
+                value={(config.message as string) ?? ''}
+                onChange={(e) => updateConfig('message', e.target.value)}
+                className="text-sm min-h-[80px]"
+                placeholder="SMS text. Use {{first_name}}, {{last_name}}, {{email}}, {{phone}} for variables."
+              />
+              <p className="text-[10px] text-muted-foreground">Max 1600 characters</p>
+            </div>
+          )}
+
+          {config.action_type === 'enroll_in_sequence' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Sequence</Label>
+              <Select
+                value={(config.sequence_id as string) ?? ''}
+                onValueChange={(v) => updateConfig('sequence_id', v)}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Select sequence..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {sequences.length === 0 ? (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">No active sequences found</div>
+                  ) : (
+                    sequences.map((s) => (
+                      <SelectItem key={s.id} value={s.id}>
+                        {s.name}
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+              <p className="text-[10px] text-muted-foreground">Only applies to person entities</p>
+            </div>
+          )}
+
+          {config.action_type === 'add_tag' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Tag</Label>
+              <Select
+                value={(config.tag_id as string) ?? ''}
+                onValueChange={(v) => updateConfig('tag_id', v)}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Select tag..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {tags.length === 0 ? (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">No tags found — create tags first</div>
+                  ) : (
+                    tags.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        <span className="flex items-center gap-2">
+                          <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: t.color }} />
+                          {t.name}
+                        </span>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {config.action_type === 'remove_tag' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Tag to Remove</Label>
+              <Select
+                value={(config.tag_id as string) ?? ''}
+                onValueChange={(v) => updateConfig('tag_id', v)}
+              >
+                <SelectTrigger className="h-8 text-sm">
+                  <SelectValue placeholder="Select tag..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {tags.length === 0 ? (
+                    <div className="px-2 py-1.5 text-xs text-muted-foreground">No tags found</div>
+                  ) : (
+                    tags.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>
+                        <span className="flex items-center gap-2">
+                          <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: t.color }} />
+                          {t.name}
+                        </span>
+                      </SelectItem>
+                    ))
+                  )}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
+
+          {config.action_type === 'create_activity' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Activity Type</Label>
+                <Select
+                  value={(config.type as string) ?? 'note'}
+                  onValueChange={(v) => updateConfig('type', v)}
+                >
+                  <SelectTrigger className="h-8 text-sm">
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {activityTypeOptionsForAction.map((opt) => (
+                      <SelectItem key={opt.value} value={opt.value}>
+                        {opt.label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Subject</Label>
+                <Input
+                  value={(config.subject as string) ?? ''}
+                  onChange={(e) => updateConfig('subject', e.target.value)}
+                  className="h-8 text-sm"
+                  placeholder="Activity subject"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Notes</Label>
+                <Textarea
+                  value={(config.notes as string) ?? ''}
+                  onChange={(e) => updateConfig('notes', e.target.value)}
+                  className="text-sm min-h-[60px]"
+                  placeholder="Activity notes..."
+                />
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'fire_webhook' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Webhook URL</Label>
+              <Input
+                value={(config.webhook_url as string) ?? ''}
+                onChange={(e) => updateConfig('webhook_url', e.target.value)}
+                className="h-8 text-sm"
+                placeholder="https://..."
+              />
+            </div>
+          )}
+
+          {config.action_type === 'run_ai_research' && (
+            <p className="text-xs text-muted-foreground">
+              Triggers AI research on the entity. No additional configuration needed.
+            </p>
+          )}
+
+          {config.action_type === 'run_workflow' && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Workflow ID</Label>
+              <Input
+                value={(config.workflow_id as string) ?? ''}
+                onChange={(e) => updateConfig('workflow_id', e.target.value)}
+                className="h-8 text-sm"
+                placeholder="Target workflow ID"
+              />
+            </div>
+          )}
         </div>
       );
 
