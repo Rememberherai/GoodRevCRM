@@ -99,3 +99,17 @@ export function getNewsApiClient(): NewsApiClient {
   }
   return instance;
 }
+
+/**
+ * Get a NewsAPI client using the project's stored API key (with env var fallback).
+ */
+export async function getProjectNewsApiClient(
+  projectId: string
+): Promise<NewsApiClient> {
+  const { getProjectSecret } = await import('@/lib/secrets');
+  const apiKey = await getProjectSecret(projectId, 'news_api_key');
+  if (!apiKey) {
+    throw new NewsApiError('News API key not configured for this project');
+  }
+  return new NewsApiClient(apiKey);
+}

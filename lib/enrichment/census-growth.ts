@@ -80,7 +80,8 @@ const CACHE_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
  */
 async function fetchStatePlacePopulations(
   stateFips: string,
-  year: number
+  year: number,
+  projectId?: string
 ): Promise<PopulationEntry[]> {
   const cacheKey = `${stateFips}-${year}`;
   const cached = statePopCache.get(cacheKey);
@@ -91,7 +92,12 @@ async function fetchStatePlacePopulations(
 
   // B01001_001E is total population
   // NAME gives us the place name
-  const apiKey = process.env.CENSUS_API_KEY;
+  let apiKey: string | null = null;
+  if (projectId) {
+    const { getProjectSecret } = await import('@/lib/secrets');
+    apiKey = await getProjectSecret(projectId, 'census_api_key');
+  }
+  if (!apiKey) apiKey = process.env.CENSUS_API_KEY || null;
   const keyParam = apiKey ? `&key=${apiKey}` : '';
 
   const url = `https://api.census.gov/data/${year}/acs/acs5?get=NAME,B01001_001E&for=place:*&in=state:${stateFips}${keyParam}`;
@@ -176,7 +182,8 @@ function findBestMatch(entries: PopulationEntry[], targetCity: string): Populati
  */
 export async function getCensusGrowth(
   city: string,
-  state: string
+  state: string,
+  projectId?: string
 ): Promise<PopulationGrowthData | null> {
   const stateFips = getStateFips(state);
   if (!stateFips) {
@@ -186,8 +193,8 @@ export async function getCensusGrowth(
 
   // Fetch both years
   const [pop2019, pop2023] = await Promise.all([
-    fetchStatePlacePopulations(stateFips, 2019),
-    fetchStatePlacePopulations(stateFips, 2023),
+    fetchStatePlacePopulations(stateFips, 2019, projectId),
+    fetchStatePlacePopulations(stateFips, 2023, projectId),
   ]);
 
   // Find matching place in both years

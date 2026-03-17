@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { startRfpResearchSchema, rfpResearchResultSchema } from '@/lib/validators/rfp-research';
-import { getOpenRouterClient } from '@/lib/openrouter/client';
+import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
 import { logAiUsage } from '@/lib/openrouter/usage';
 import { buildRfpResearchPrompt, RFP_RESEARCH_MODEL } from '@/lib/openrouter/rfp-research-prompts';
 import type { RfpResearchContext, RfpResearchResult } from '@/types/rfp-research';
@@ -252,7 +252,7 @@ async function executeResearch(
   adminClient: any
 ): Promise<void> {
   try {
-    const client = getOpenRouterClient();
+    const client = await getProjectOpenRouterClient(projectId);
     const prompt = buildRfpResearchPrompt(context);
 
     console.log('[RFP Research] Starting research for job:', jobId);

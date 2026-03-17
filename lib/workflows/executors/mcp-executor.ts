@@ -324,8 +324,9 @@ function resolveParams(
 /**
  * Call OpenRouter API for AI-assisted param resolution / tool selection
  */
-async function callOpenRouter(prompt: string, _projectId: string): Promise<string> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+async function callOpenRouter(prompt: string, projectId: string): Promise<string> {
+  const { getProjectSecret } = await import('@/lib/secrets');
+  const apiKey = await getProjectSecret(projectId, 'openrouter_api_key');
   if (!apiKey) throw new Error('OPENROUTER_API_KEY not configured');
 
   const response = await fetch('https://openrouter.ai/api/v1/chat/completions', {

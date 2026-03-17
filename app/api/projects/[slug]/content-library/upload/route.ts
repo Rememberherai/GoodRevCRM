@@ -128,14 +128,14 @@ export async function POST(request: Request, context: RouteContext) {
     // Call AI to extract/restructure content (dynamic import for debug logging)
     console.log('[content-library/upload] importing openrouter modules...');
     const { buildContentExtractionPrompt, buildContentRestructurePrompt } = await import('@/lib/openrouter/prompts');
-    const { getOpenRouterClient, DEFAULT_MODEL } = await import('@/lib/openrouter/client');
+    const { getProjectOpenRouterClient, DEFAULT_MODEL } = await import('@/lib/openrouter/client');
     const { logAiUsage } = await import('@/lib/openrouter/usage');
     console.log('[content-library/upload] openrouter modules imported successfully');
 
     const prompt = mode === 'llm'
       ? buildContentRestructurePrompt(documentText, companyContext, category ?? undefined)
       : buildContentExtractionPrompt(documentText, companyContext, category ?? undefined);
-    const client = getOpenRouterClient();
+    const client = await getProjectOpenRouterClient(project.id);
 
     console.log('[content-library/upload] calling AI for extraction...');
     const aiResult = await client.completeJsonWithUsage(

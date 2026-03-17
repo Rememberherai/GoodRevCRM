@@ -3541,8 +3541,8 @@ defineTool({
   }),
   handler: async (params, _ctx) => {
     // Use OpenRouter to generate the message
-    const { getOpenRouterClient } = await import('@/lib/openrouter/client');
-    const client = getOpenRouterClient();
+    const { getProjectOpenRouterClient } = await import('@/lib/openrouter/client');
+    const client = await getProjectOpenRouterClient(_ctx.projectId);
     const prompt = `Generate a short, personalized LinkedIn connection request message (max 300 characters) for:
 Name: ${params.first_name} ${params.last_name}
 ${(params as any).job_title ? `Title: ${(params as any).job_title}` : ''}
@@ -4474,6 +4474,69 @@ defineTool({
 function toApiName(name: string): string {
   return name.replace(/\./g, '_');
 }
+
+// ── Project Secrets Tools ────────────────────────────────────────────────────
+
+defineTool({
+  name: 'secrets.list',
+  description: 'List all configured API keys for this project (shows masked values only)',
+  minRole: 'admin',
+  parameters: z.object({}),
+  handler: async (_params, ctx) => {
+    const { listProjectSecrets, SECRET_KEYS } = await import('@/lib/secrets');
+    const stored = await listProjectSecrets(ctx.projectId);
+    const allKeys = Object.entries(SECRET_KEYS).map(([key, meta]) => {
+      const s = stored.find((r) => r.key_name === key);
+      return {
+        key_name: key,
+        label: meta.label,
+        description: meta.description,
+        is_set: !!s,
+        masked_value: s?.masked_value || '',
+        has_env_fallback: !!process.env[meta.envVar],
+      };
+    });
+    return JSON.stringify({ secrets: allKeys });
+  },
+});
+
+defineTool({
+  name: 'secrets.set',
+  description: 'Set an API key for this project. Available keys: openrouter_api_key, fullenrich_api_key, news_api_key, census_api_key',
+  minRole: 'admin',
+  parameters: z.object({
+    key_name: z.string().describe('Secret key name'),
+    value: z.string().min(1).describe('The API key value'),
+  }),
+  handler: async (params, ctx) => {
+    const keyName = params.key_name as string;
+    const value = params.value as string;
+    const secrets = await import('@/lib/secrets');
+    if (!(keyName in secrets.SECRET_KEYS)) {
+      throw new Error(`Invalid key name. Must be one of: ${Object.keys(secrets.SECRET_KEYS).join(', ')}`);
+    }
+    await secrets.setProjectSecret(ctx.projectId, keyName as import('@/lib/secrets').SecretKeyName, value, ctx.userId);
+    return JSON.stringify({ success: true, message: `${keyName} has been saved` });
+  },
+});
+
+defineTool({
+  name: 'secrets.delete',
+  description: 'Remove an API key from this project (will fall back to env var if set)',
+  minRole: 'admin',
+  parameters: z.object({
+    key_name: z.string().describe('Secret key name to remove'),
+  }),
+  handler: async (params, ctx) => {
+    const keyName = params.key_name as string;
+    const secrets = await import('@/lib/secrets');
+    if (!(keyName in secrets.SECRET_KEYS)) {
+      throw new Error(`Invalid key name. Must be one of: ${Object.keys(secrets.SECRET_KEYS).join(', ')}`);
+    }
+    await secrets.deleteProjectSecret(ctx.projectId, keyName as import('@/lib/secrets').SecretKeyName);
+    return JSON.stringify({ success: true, message: `${keyName} has been removed` });
+  },
+});
 
 export function getToolDefinitions(): ToolDefinition[] {
   return tools.map((tool) => {

@@ -294,7 +294,7 @@ export async function GET(request: Request, context: RouteContext) {
         .catch((err: unknown) => { console.error('Analytics error (team_members):', err); return [] as TeamMember[]; }),
 
       // OpenRouter key info (bonus)
-      getOpenRouterKeyInfo().catch((err: unknown) => { console.error('Analytics error (openrouter_key_info):', err); return null; }),
+      getOpenRouterKeyInfo(project.id).catch((err: unknown) => { console.error('Analytics error (openrouter_key_info):', err); return null; }),
     ]);
 
     const data: AnalyticsData = {

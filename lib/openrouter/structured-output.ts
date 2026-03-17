@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { getOpenRouterClient, FAST_MODEL, type OpenRouterRequestOptions } from './client';
+import { getOpenRouterClient, getProjectOpenRouterClient, FAST_MODEL, type OpenRouterRequestOptions } from './client';
 
 // Simple JSON schema types for prompts (no Zod internal API dependency)
 export interface JsonSchemaProperty {
@@ -140,9 +140,11 @@ export async function getStructuredOutput<T>(
   schemaName: string,
   instructions: string,
   context?: string,
-  options?: OpenRouterRequestOptions
+  options?: OpenRouterRequestOptions & { projectId?: string }
 ): Promise<T> {
-  const client = getOpenRouterClient();
+  const client = options?.projectId
+    ? await getProjectOpenRouterClient(options.projectId)
+    : getOpenRouterClient();
   const prompt = generateStructuredPrompt(schemaName, instructions, context);
 
   return client.completeJson(prompt, schema, {
@@ -157,7 +159,7 @@ export async function getStructuredOutputBatch<T>(
   schema: z.ZodSchema<T>,
   schemaName: string,
   items: { instructions: string; context?: string }[],
-  options?: OpenRouterRequestOptions
+  options?: OpenRouterRequestOptions & { projectId?: string }
 ): Promise<({ success: T; error: null } | { success: null; error: Error })[]> {
   const results = await Promise.allSettled(
     items.map((item) =>

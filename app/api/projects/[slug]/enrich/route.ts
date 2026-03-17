@@ -5,7 +5,7 @@ import {
   bulkEnrichSchema,
   enrichmentHistoryQuerySchema,
 } from '@/lib/validators/enrichment';
-import { getFullEnrichClient, type EnrichmentPerson } from '@/lib/fullenrich/client';
+import { getProjectFullEnrichClient, type EnrichmentPerson } from '@/lib/fullenrich/client';
 import type { EnrichmentJob, EnrichmentInput } from '@/types/enrichment';
 import type { EnrichmentStatus } from '@/lib/fullenrich/client';
 
@@ -112,7 +112,7 @@ export async function GET(request: Request, context: RouteContext) {
 
       if (processingJobs.length > 0) {
         try {
-          const client = getFullEnrichClient();
+          const client = await getProjectFullEnrichClient(project.id);
           console.log('FullEnrich client created, polling jobs...');
 
           // Group jobs by external_job_id to avoid duplicate API calls for bulk enrichments
@@ -513,7 +513,7 @@ export async function POST(request: Request, context: RouteContext) {
 
       // Start enrichment with FullEnrich (async - results come via webhook)
       try {
-        const client = getFullEnrichClient();
+        const client = await getProjectFullEnrichClient(project.id);
         const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/fullenrich`;
 
         // Include job_id and person_id for reliable result matching
@@ -601,7 +601,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     // Start bulk enrichment with FullEnrich
     try {
-      const client = getFullEnrichClient();
+      const client = await getProjectFullEnrichClient(project.id);
       const webhookUrl = `${process.env.NEXT_PUBLIC_APP_URL}/api/webhooks/fullenrich`;
 
       // Build enrichment input with job_id and person_id for reliable result matching

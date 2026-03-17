@@ -45,14 +45,19 @@ export async function logAiUsage(
  * Get OpenRouter account key info (balance, credits remaining).
  * Calls GET https://openrouter.ai/api/v1/auth/key
  */
-export async function getOpenRouterKeyInfo(): Promise<{
+export async function getOpenRouterKeyInfo(projectId?: string): Promise<{
   label: string;
   usage: number;
   limit: number | null;
   is_free_tier: boolean;
   rate_limit: { requests: number; interval: string } | null;
 } | null> {
-  const apiKey = process.env.OPENROUTER_API_KEY;
+  let apiKey: string | null = null;
+  if (projectId) {
+    const { getProjectSecret } = await import('@/lib/secrets');
+    apiKey = await getProjectSecret(projectId, 'openrouter_api_key');
+  }
+  if (!apiKey) apiKey = process.env.OPENROUTER_API_KEY || null;
   if (!apiKey) return null;
 
   try {

@@ -38,6 +38,7 @@ const MUTATING_TOOLS = new Set([
   'linkedin_generate_message',
   'bulk_execute',
   'sequence_steps_create', 'sequence_steps_update', 'sequence_steps_delete',
+  'secrets_set', 'secrets_delete',
 ]);
 
 export interface PageContext {

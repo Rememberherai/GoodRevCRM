@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { contactDiscoverySchema } from '@/lib/validators/contact-discovery';
 import { buildContactDiscoveryPrompt } from '@/lib/openrouter/prompts';
-import { getOpenRouterClient } from '@/lib/openrouter/client';
+import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
 import { logAiUsage } from '@/lib/openrouter/usage';
 import type { DiscoveredContact, ContactDiscoveryResult } from '@/types/contact-discovery';
 
@@ -103,7 +103,7 @@ export async function POST(request: Request, context: RouteContext) {
     const prompt = buildContactDiscoveryPrompt(organization, roles, max_results);
 
     // Call OpenRouter
-    const client = getOpenRouterClient();
+    const client = await getProjectOpenRouterClient(project.id);
     const aiResult = await client.completeJsonWithUsage<ContactDiscoveryResult>(
       prompt,
       contactDiscoveryResultSchema,

@@ -3597,6 +3597,58 @@ export type Database = {
           },
         ]
       }
+      project_secrets: {
+        Row: {
+          created_at: string
+          encrypted_value: string
+          id: string
+          key_name: string
+          project_id: string
+          updated_at: string
+          updated_by: string | null
+        }
+        Insert: {
+          created_at?: string
+          encrypted_value: string
+          id?: string
+          key_name: string
+          project_id: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Update: {
+          created_at?: string
+          encrypted_value?: string
+          id?: string
+          key_name?: string
+          project_id?: string
+          updated_at?: string
+          updated_by?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "project_secrets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "project_secrets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "project_secrets_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       projects: {
         Row: {
           created_at: string
@@ -5975,6 +6027,10 @@ export type Database = {
       }
     }
     Functions: {
+      _resolve_report_fk: {
+        Args: { p_primary: string; p_related: string }
+        Returns: string
+      }
       accept_invitation: { Args: { p_token: string }; Returns: Json }
       archive_notifications: {
         Args: { p_notification_ids: string[] }

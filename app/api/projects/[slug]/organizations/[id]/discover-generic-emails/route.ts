@@ -2,7 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { buildGenericEmailDiscoveryPrompt } from '@/lib/openrouter/prompts';
-import { getOpenRouterClient } from '@/lib/openrouter/client';
+import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
 import { logAiUsage } from '@/lib/openrouter/usage';
 
 interface RouteContext {
@@ -114,7 +114,7 @@ export async function POST(request: Request, context: RouteContext) {
     );
 
     // Call OpenRouter
-    const client = getOpenRouterClient();
+    const client = await getProjectOpenRouterClient(project.id);
     const aiResult = await client.completeJsonWithUsage<GenericEmailResult>(
       prompt,
       genericEmailSchema,

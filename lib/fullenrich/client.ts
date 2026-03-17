@@ -377,6 +377,20 @@ export function getFullEnrichClient(): FullEnrichClient {
   return clientInstance;
 }
 
+/**
+ * Get a FullEnrich client using the project's stored API key (with env var fallback).
+ */
+export async function getProjectFullEnrichClient(
+  projectId: string
+): Promise<FullEnrichClient> {
+  const { getProjectSecret } = await import('@/lib/secrets');
+  const apiKey = await getProjectSecret(projectId, 'fullenrich_api_key');
+  if (!apiKey) {
+    throw new FullEnrichError('FullEnrich API key not configured for this project');
+  }
+  return new FullEnrichClient({ apiKey });
+}
+
 // Helper to create a new client (useful for testing)
 export function createFullEnrichClient(
   options?: { apiKey?: string }

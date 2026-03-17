@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { startResearchSchema, researchHistoryQuerySchema } from '@/lib/validators/research';
-import { getOpenRouterClient, DEFAULT_MODEL, type OpenRouterUsage } from '@/lib/openrouter/client';
+import { getProjectOpenRouterClient, DEFAULT_MODEL, type OpenRouterUsage } from '@/lib/openrouter/client';
 import { logAiUsage } from '@/lib/openrouter/usage';
 import {
   organizationResearchSchema,
@@ -316,7 +316,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     // Execute the research (async but we'll wait for it)
     try {
-      const client = getOpenRouterClient();
+      const client = await getProjectOpenRouterClient(project.id);
 
       // Call the appropriate schema based on entity type
       // Use configured model and settings

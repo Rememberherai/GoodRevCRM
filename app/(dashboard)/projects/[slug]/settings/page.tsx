@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug, Plug2 } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug, Plug2, KeyRound } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
@@ -46,6 +46,7 @@ import { DuplicatesPanel } from '@/components/deduplication/duplicates-panel';
 import { DuplicatesBadge } from '@/components/deduplication/duplicates-badge';
 import { McpSettingsPanel } from '@/components/settings/mcp-settings-panel';
 import { ApiConnectionsPanel } from '@/components/settings/api-connections-panel';
+import { ProjectSecretsPanel } from '@/components/settings/project-secrets-panel';
 import type { ProjectRole } from '@/types/user';
 
 
@@ -268,6 +269,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             <Plug className="h-4 w-4" />
             MCP
           </TabsTrigger>
+          <TabsTrigger value="api-keys" className="gap-2">
+            <KeyRound className="h-4 w-4" />
+            API Keys
+          </TabsTrigger>
           <TabsTrigger value="api-connections" className="gap-2">
             <Plug2 className="h-4 w-4" />
             API Connections
@@ -460,6 +465,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
 
         <TabsContent value="mcp" className="space-y-6 mt-6">
           <McpSettingsPanel slug={slug} />
+        </TabsContent>
+
+        <TabsContent value="api-keys" className="space-y-6 mt-6">
+          <ProjectSecretsPanel slug={slug} />
         </TabsContent>
 
         <TabsContent value="api-connections" className="space-y-6 mt-6">

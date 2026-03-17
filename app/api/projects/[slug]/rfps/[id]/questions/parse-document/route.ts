@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { extractTextFromPdf, extractTextFromPlainText } from '@/lib/pdf/extract-text';
-import { getOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
+import { getProjectOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
 import { logAiUsage } from '@/lib/openrouter/usage';
 import { buildRfpQuestionExtractionPrompt } from '@/lib/openrouter/prompts';
 import { rfpDocumentExtractionResultSchema } from '@/lib/validators/rfp-question';
@@ -113,7 +113,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     // Call AI to extract questions
     const prompt = buildRfpQuestionExtractionPrompt(documentText, companyContext);
-    const client = getOpenRouterClient();
+    const client = await getProjectOpenRouterClient(project.id);
 
     const aiResult = await client.completeJsonWithUsage(
       prompt,

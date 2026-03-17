@@ -430,7 +430,7 @@ export class OpenRouterClient {
   }
 }
 
-// Singleton instance for server-side usage
+// Singleton instance for server-side usage (uses env var)
 let clientInstance: OpenRouterClient | null = null;
 
 export function getOpenRouterClient(): OpenRouterClient {
@@ -438,6 +438,21 @@ export function getOpenRouterClient(): OpenRouterClient {
     clientInstance = new OpenRouterClient();
   }
   return clientInstance;
+}
+
+/**
+ * Get an OpenRouter client using the project's stored API key (with env var fallback).
+ * Use this in API routes where a project context is available.
+ */
+export async function getProjectOpenRouterClient(
+  projectId: string
+): Promise<OpenRouterClient> {
+  const { getProjectSecret } = await import('@/lib/secrets');
+  const apiKey = await getProjectSecret(projectId, 'openrouter_api_key');
+  if (!apiKey) {
+    throw new OpenRouterError('OpenRouter API key not configured for this project');
+  }
+  return new OpenRouterClient({ apiKey });
 }
 
 // Helper to create a new client (useful for testing)

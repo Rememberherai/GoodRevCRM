@@ -4,7 +4,7 @@
  */
 
 import { z } from 'zod';
-import { getOpenRouterClient } from '../openrouter/client';
+import { getOpenRouterClient, getProjectOpenRouterClient } from '../openrouter/client';
 import type { CapacityData } from './epa-capacity';
 import type { PopulationGrowthData } from './census-growth';
 import type { BondHistoryData, ReferendumInfo } from './emma-bonds';
@@ -112,6 +112,7 @@ interface ResearchOptions {
   includeInfrastructure?: boolean;
   includePopulation?: boolean;
   includeBonds?: boolean;
+  projectId?: string;
 }
 
 /**
@@ -147,7 +148,9 @@ export async function aiResearchMunicipality(
     + `\n\nFocus on: ${researchAreas.join(', ')}`;
 
   try {
-    const client = getOpenRouterClient();
+    const client = options.projectId
+      ? await getProjectOpenRouterClient(options.projectId)
+      : getOpenRouterClient();
     const response = await client.chat(
       [{ role: 'user', content: prompt }],
       {
@@ -190,13 +193,15 @@ export async function aiResearchMunicipality(
 export async function aiResearchCapacity(
   city: string,
   region: string,
-  country: string
+  country: string,
+  projectId?: string
 ): Promise<CapacityData | null> {
   const research = await aiResearchMunicipality(city, region, country, {
     includeCapacity: true,
     includeInfrastructure: false,
     includePopulation: false,
     includeBonds: false,
+    projectId,
   });
 
   if (!research?.capacity) {
@@ -228,13 +233,15 @@ export async function aiResearchCapacity(
 export async function aiResearchInfrastructure(
   city: string,
   region: string,
-  country: string
+  country: string,
+  projectId?: string
 ): Promise<InfrastructureData | null> {
   const research = await aiResearchMunicipality(city, region, country, {
     includeCapacity: false,
     includeInfrastructure: true,
     includePopulation: false,
     includeBonds: false,
+    projectId,
   });
 
   if (!research?.infrastructure) {
@@ -265,13 +272,15 @@ export async function aiResearchInfrastructure(
 export async function aiResearchPopulationGrowth(
   city: string,
   region: string,
-  country: string
+  country: string,
+  projectId?: string
 ): Promise<PopulationGrowthData | null> {
   const research = await aiResearchMunicipality(city, region, country, {
     includeCapacity: false,
     includeInfrastructure: false,
     includePopulation: true,
     includeBonds: false,
+    projectId,
   });
 
   if (!research?.population_growth) {
@@ -296,13 +305,15 @@ export async function aiResearchPopulationGrowth(
 export async function aiResearchBonds(
   city: string,
   region: string,
-  country: string
+  country: string,
+  projectId?: string
 ): Promise<BondHistoryData | null> {
   const research = await aiResearchMunicipality(city, region, country, {
     includeCapacity: false,
     includeInfrastructure: false,
     includePopulation: false,
     includeBonds: true,
+    projectId,
   });
 
   if (!research?.bond_history) {
@@ -334,7 +345,8 @@ export async function aiResearchBonds(
 export async function aiResearchAll(
   city: string,
   region: string,
-  country: string
+  country: string,
+  projectId?: string
 ): Promise<{
   capacity: CapacityData | null;
   infrastructure: InfrastructureData | null;
@@ -347,6 +359,7 @@ export async function aiResearchAll(
     includeInfrastructure: true,
     includePopulation: true,
     includeBonds: true,
+    projectId,
   });
 
   const timestamp = new Date().toISOString();

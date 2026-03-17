@@ -1,5 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
-import { NewsApiClient } from './client';
+import { NewsApiClient, getProjectNewsApiClient } from './client';
 import { NewsApiError } from './types';
 import type { NewsApiArticle } from './types';
 import { emitAutomationEvent } from '@/lib/automations/engine';
@@ -98,7 +98,7 @@ export async function fetchNewsForProject(projectId: string): Promise<FetchResul
 
   let client: NewsApiClient;
   try {
-    client = new NewsApiClient();
+    client = await getProjectNewsApiClient(projectId);
   } catch (e) {
     result.errors.push(e instanceof Error ? e.message : 'Failed to create NewsAPI client');
     return result;
@@ -280,7 +280,7 @@ export async function fetchNewsForOrganization(
 
   let client: NewsApiClient;
   try {
-    client = new NewsApiClient();
+    client = await getProjectNewsApiClient(projectId);
   } catch (e) {
     result.errors.push(e instanceof Error ? e.message : 'Failed to create NewsAPI client');
     return result;

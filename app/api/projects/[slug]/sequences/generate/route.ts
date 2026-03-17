@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { getOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
+import { getProjectOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
 import { logAiUsage } from '@/lib/openrouter/usage';
 import { buildSequenceGenerationPrompt } from '@/lib/openrouter/prompts';
 import {
@@ -65,7 +65,7 @@ export async function POST(request: Request, context: RouteContext) {
     });
 
     // Call OpenRouter API
-    const openRouterClient = getOpenRouterClient();
+    const openRouterClient = await getProjectOpenRouterClient(project.id);
 
     let generatedSequence: GeneratedSequence;
     try {

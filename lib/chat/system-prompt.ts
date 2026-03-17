@@ -42,6 +42,7 @@ export function buildSystemPrompt(projectName: string): string {
 - **Sequence Steps**: List, get, create, update, delete steps within sequences
 - **Call Metrics**: Get call analytics for date ranges
 - **RFP Stats**: Get RFP summary statistics, win rates, deadlines
+- **API Keys (Secrets)**: List, set, and delete project API keys (admin only) — OpenRouter, FullEnrich, News API, Census
 
 ## Guidelines
 - When users ask about their data, ALWAYS use tools to look it up — do not guess or make assumptions

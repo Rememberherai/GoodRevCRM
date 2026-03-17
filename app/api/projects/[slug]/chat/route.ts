@@ -1,7 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
-import { getOpenRouterClient } from '@/lib/openrouter/client';
+import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
 import type { ChatMessageWithTools, ToolCallFunction } from '@/lib/openrouter/client';
 import { getToolDefinitions, executeTool } from '@/lib/chat/tool-registry';
 import { buildSystemPrompt } from '@/lib/chat/system-prompt';
@@ -153,7 +153,7 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const toolDefs = getToolDefinitions();
-    const openrouter = getOpenRouterClient();
+    const openrouter = await getProjectOpenRouterClient(project.id);
     const encoder = new TextEncoder();
 
     const stream = new ReadableStream({

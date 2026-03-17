@@ -58,7 +58,7 @@ function getOAuthConfig() {
 }
 
 /**
- * Generate the authorization URL for Gmail OAuth
+ * Generate the authorization URL for Gmail OAuth.
  */
 export function getAuthorizationUrl(state: string): string {
   const { clientId, redirectUri } = getOAuthConfig();

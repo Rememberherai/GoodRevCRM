@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { getOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
+import { getProjectOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
 import { logAiUsage } from '@/lib/openrouter/usage';
 import { buildRfpResponsePrompt, type RfpResponseContext } from '@/lib/openrouter/prompts';
 import { generateRfpResponseInputSchema, aiRfpResponseSchema } from '@/lib/validators/rfp-question';
@@ -154,7 +154,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     // Build prompt and call AI
     const prompt = buildRfpResponsePrompt(promptContext);
-    const client = getOpenRouterClient();
+    const client = await getProjectOpenRouterClient(project.id);
 
     const aiResult = await client.completeJsonWithUsage(
       prompt,

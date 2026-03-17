@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { getOpenRouterClient, FAST_MODEL } from '@/lib/openrouter/client';
+import { getProjectOpenRouterClient, FAST_MODEL } from '@/lib/openrouter/client';
 import { logAiUsage } from '@/lib/openrouter/usage';
 import { z } from 'zod';
 
@@ -83,7 +83,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const prompt = promptParts.join('\n');
 
-    const openRouterClient = getOpenRouterClient();
+    const openRouterClient = await getProjectOpenRouterClient(project.id);
     const response = await openRouterClient.chat(
       [{ role: 'user', content: prompt }],
       {
