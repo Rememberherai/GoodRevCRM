@@ -155,18 +155,21 @@ export function ContractDetailClient() {
 
   const loadGmailConnections = useCallback(async () => {
     try {
-      const res = await fetch(`/api/projects/${slug}/email/connections`);
+      const res = await fetch('/api/gmail/connections');
       if (res.ok) {
         const data = await res.json();
-        setGmailConnections(data.connections ?? []);
-        if (data.connections?.length > 0) {
-          setSelectedConnection(data.connections[0].id);
+        const active = (data.connections ?? []).filter(
+          (c: { status: string }) => c.status === 'connected'
+        );
+        setGmailConnections(active);
+        if (active.length > 0) {
+          setSelectedConnection(active[0].id);
         }
       }
     } catch {
       // Non-critical
     }
-  }, [slug]);
+  }, []);
 
   useEffect(() => {
     loadContract();
