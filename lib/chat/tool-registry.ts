@@ -80,13 +80,13 @@ defineTool({
   description: 'Get a single organization by ID with full details',
   minRole: 'viewer',
   parameters: z.object({
-    id: z.string().uuid().describe('Organization ID'),
+    organization_id: z.string().uuid().describe('Organization ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('organizations')
       .select('*')
-      .eq('id', params.id as string)
+      .eq('id', params.organization_id as string)
       .eq('project_id', ctx.projectId)
       .is('deleted_at', null)
       .single();
@@ -149,7 +149,7 @@ defineTool({
   description: 'Update an existing organization',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Organization ID'),
+    organization_id: z.string().uuid().describe('Organization ID'),
     name: z.string().min(1).max(200).optional(),
     domain: z.string().max(100).nullable().optional(),
     website: z.string().url().max(500).nullable().optional(),
@@ -161,7 +161,7 @@ defineTool({
     custom_fields: z.record(z.string(), z.unknown()).optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, custom_fields: cf, ...updates } = params as Record<string, unknown>;
+    const { organization_id: id, custom_fields: cf, ...updates } = params as Record<string, unknown>;
     const updateData = cf !== undefined ? { ...updates, custom_fields: cf as unknown as Json } : updates;
 
     const { data, error } = await ctx.supabase
@@ -192,13 +192,13 @@ defineTool({
   description: 'Soft-delete an organization',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Organization ID'),
+    organization_id: z.string().uuid().describe('Organization ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('organizations')
       .update({ deleted_at: new Date().toISOString() })
-      .eq('id', params.id as string)
+      .eq('id', params.organization_id as string)
       .eq('project_id', ctx.projectId)
       .is('deleted_at', null)
       .select()
@@ -223,13 +223,13 @@ defineTool({
   description: 'Get all people linked to an organization',
   minRole: 'viewer',
   parameters: z.object({
-    id: z.string().uuid().describe('Organization ID'),
+    organization_id: z.string().uuid().describe('Organization ID'),
   }),
   handler: async (params, ctx) => {
     const { data: links, error: linkError } = await ctx.supabase
       .from('person_organizations')
       .select('person_id, job_title, department, is_primary')
-      .eq('organization_id', params.id as string)
+      .eq('organization_id', params.organization_id as string)
       .eq('project_id', ctx.projectId);
 
     if (linkError) throw new Error(`Failed to get linked people: ${linkError.message}`);
@@ -312,13 +312,13 @@ defineTool({
   description: 'Get a single person/contact by ID with full details',
   minRole: 'viewer',
   parameters: z.object({
-    id: z.string().uuid().describe('Person ID'),
+    person_id: z.string().uuid().describe('Person ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('people')
       .select('*')
-      .eq('id', params.id as string)
+      .eq('id', params.person_id as string)
       .eq('project_id', ctx.projectId)
       .is('deleted_at', null)
       .single();
@@ -390,7 +390,7 @@ defineTool({
   description: 'Update an existing person/contact',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Person ID'),
+    person_id: z.string().uuid().describe('Person ID'),
     first_name: z.string().min(1).max(100).optional(),
     last_name: z.string().min(1).max(100).optional(),
     email: z.string().email().max(255).nullable().optional(),
@@ -403,7 +403,7 @@ defineTool({
     custom_fields: z.record(z.string(), z.unknown()).optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, custom_fields: cf, ...updates } = params as Record<string, unknown>;
+    const { person_id: id, custom_fields: cf, ...updates } = params as Record<string, unknown>;
     const updateData = cf !== undefined ? { ...updates, custom_fields: cf as unknown as Json } : updates;
 
     const { data, error } = await ctx.supabase
@@ -434,13 +434,13 @@ defineTool({
   description: 'Soft-delete a person/contact',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Person ID'),
+    person_id: z.string().uuid().describe('Person ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('people')
       .update({ deleted_at: new Date().toISOString() })
-      .eq('id', params.id as string)
+      .eq('id', params.person_id as string)
       .eq('project_id', ctx.projectId)
       .is('deleted_at', null)
       .select()
@@ -629,13 +629,13 @@ defineTool({
   description: 'Get a single opportunity/deal by ID with full details',
   minRole: 'viewer',
   parameters: z.object({
-    id: z.string().uuid().describe('Opportunity ID'),
+    opportunity_id: z.string().uuid().describe('Opportunity ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('opportunities')
       .select('*')
-      .eq('id', params.id as string)
+      .eq('id', params.opportunity_id as string)
       .eq('project_id', ctx.projectId)
       .is('deleted_at', null)
       .single();
@@ -695,7 +695,7 @@ defineTool({
   description: 'Update an existing opportunity/deal',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Opportunity ID'),
+    opportunity_id: z.string().uuid().describe('Opportunity ID'),
     name: z.string().min(1).max(200).optional(),
     stage: z.string().optional(),
     amount: z.number().min(0).nullable().optional(),
@@ -709,7 +709,7 @@ defineTool({
     custom_fields: z.record(z.string(), z.unknown()).optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, custom_fields: cf, ...updates } = params as Record<string, unknown>;
+    const { opportunity_id: id, custom_fields: cf, ...updates } = params as Record<string, unknown>;
     const updateData = cf !== undefined ? { ...updates, custom_fields: cf as unknown as Json } : updates;
 
     const { data, error } = await ctx.supabase
@@ -740,13 +740,13 @@ defineTool({
   description: 'Soft-delete an opportunity/deal',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Opportunity ID'),
+    opportunity_id: z.string().uuid().describe('Opportunity ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('opportunities')
       .update({ deleted_at: new Date().toISOString() })
-      .eq('id', params.id as string)
+      .eq('id', params.opportunity_id as string)
       .eq('project_id', ctx.projectId)
       .is('deleted_at', null)
       .select()
@@ -805,9 +805,9 @@ defineTool({
   name: 'tasks.get',
   description: 'Get a single task by ID',
   minRole: 'viewer',
-  parameters: z.object({ id: z.string().uuid().describe('Task ID') }),
+  parameters: z.object({ task_id: z.string().uuid().describe('Task ID') }),
   handler: async (params, ctx) => {
-    const { data, error } = await ctx.supabase.from('tasks').select('*').eq('id', params.id as string).eq('project_id', ctx.projectId).single();
+    const { data, error } = await ctx.supabase.from('tasks').select('*').eq('id', params.task_id as string).eq('project_id', ctx.projectId).single();
     if (error) throw new Error(`Task not found: ${error.message}`);
     return JSON.stringify(data);
   },
@@ -846,7 +846,7 @@ defineTool({
   description: 'Update an existing task',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Task ID'),
+    task_id: z.string().uuid().describe('Task ID'),
     title: z.string().min(1).max(500).optional(),
     description: z.string().max(5000).nullable().optional(),
     status: z.string().optional(),
@@ -856,7 +856,7 @@ defineTool({
     completed_at: z.string().nullable().optional().describe('Set completion timestamp'),
   }),
   handler: async (params, ctx) => {
-    const { id, ...updates } = params as Record<string, unknown>;
+    const { task_id: id, ...updates } = params as Record<string, unknown>;
     const { data, error } = await ctx.supabase.from('tasks').update(updates as Record<string, unknown>).eq('id', id as string).eq('project_id', ctx.projectId).select().single();
     if (error) throw new Error(`Failed to update task: ${error.message}`);
     return JSON.stringify(data);
@@ -867,11 +867,11 @@ defineTool({
   name: 'tasks.delete',
   description: 'Delete a task',
   minRole: 'member',
-  parameters: z.object({ id: z.string().uuid().describe('Task ID') }),
+  parameters: z.object({ task_id: z.string().uuid().describe('Task ID') }),
   handler: async (params, ctx) => {
-    const { error } = await ctx.supabase.from('tasks').delete().eq('id', params.id as string).eq('project_id', ctx.projectId);
+    const { error } = await ctx.supabase.from('tasks').delete().eq('id', params.task_id as string).eq('project_id', ctx.projectId);
     if (error) throw new Error(`Failed to delete task: ${error.message}`);
-    return JSON.stringify({ deleted: true, id: params.id });
+    return JSON.stringify({ deleted: true, id: params.task_id });
   },
 });
 
@@ -933,12 +933,12 @@ defineTool({
   description: 'Update a note',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Note ID'),
+    note_id: z.string().uuid().describe('Note ID'),
     content: z.string().min(1).max(10000).optional(),
     is_pinned: z.boolean().optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, ...updates } = params as Record<string, unknown>;
+    const { note_id: id, ...updates } = params as Record<string, unknown>;
     const { data, error } = await ctx.supabase.from('notes').update(updates as Record<string, unknown>).eq('id', id as string).eq('project_id', ctx.projectId).select().single();
     if (error) throw new Error(`Failed to update note: ${error.message}`);
     return JSON.stringify(data);
@@ -949,11 +949,11 @@ defineTool({
   name: 'notes.delete',
   description: 'Delete a note',
   minRole: 'member',
-  parameters: z.object({ id: z.string().uuid().describe('Note ID') }),
+  parameters: z.object({ note_id: z.string().uuid().describe('Note ID') }),
   handler: async (params, ctx) => {
-    const { error } = await ctx.supabase.from('notes').delete().eq('id', params.id as string).eq('project_id', ctx.projectId);
+    const { error } = await ctx.supabase.from('notes').delete().eq('id', params.note_id as string).eq('project_id', ctx.projectId);
     if (error) throw new Error(`Failed to delete note: ${error.message}`);
-    return JSON.stringify({ deleted: true, id: params.id });
+    return JSON.stringify({ deleted: true, id: params.note_id });
   },
 });
 
@@ -1214,9 +1214,9 @@ defineTool({
   name: 'rfps.get',
   description: 'Get a single RFP by ID with full details',
   minRole: 'viewer',
-  parameters: z.object({ id: z.string().uuid().describe('RFP ID') }),
+  parameters: z.object({ rfp_id: z.string().uuid().describe('RFP ID') }),
   handler: async (params, ctx) => {
-    const { data, error } = await ctx.supabase.from('rfps').select('*').eq('id', params.id as string).eq('project_id', ctx.projectId).is('deleted_at', null).single();
+    const { data, error } = await ctx.supabase.from('rfps').select('*').eq('id', params.rfp_id as string).eq('project_id', ctx.projectId).is('deleted_at', null).single();
     if (error) throw new Error(`RFP not found: ${error.message}`);
     return JSON.stringify(data);
   },
@@ -1257,7 +1257,7 @@ defineTool({
   description: 'Update an existing RFP',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('RFP ID'),
+    rfp_id: z.string().uuid().describe('RFP ID'),
     title: z.string().min(1).max(500).optional(),
     description: z.string().max(5000).nullable().optional(),
     status: z.string().optional(),
@@ -1269,7 +1269,7 @@ defineTool({
     custom_fields: z.record(z.string(), z.unknown()).optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, custom_fields: cf, ...updates } = params as Record<string, unknown>;
+    const { rfp_id: id, custom_fields: cf, ...updates } = params as Record<string, unknown>;
     const updateData = cf !== undefined ? { ...updates, custom_fields: cf as unknown as Json } : updates;
 
     const { data, error } = await ctx.supabase.from('rfps').update(updateData as Record<string, unknown>).eq('id', id as string).eq('project_id', ctx.projectId).is('deleted_at', null).select().single();
@@ -1282,9 +1282,9 @@ defineTool({
   name: 'rfps.delete',
   description: 'Soft-delete an RFP',
   minRole: 'member',
-  parameters: z.object({ id: z.string().uuid().describe('RFP ID') }),
+  parameters: z.object({ rfp_id: z.string().uuid().describe('RFP ID') }),
   handler: async (params, ctx) => {
-    const { data, error } = await ctx.supabase.from('rfps').update({ deleted_at: new Date().toISOString() }).eq('id', params.id as string).eq('project_id', ctx.projectId).is('deleted_at', null).select().single();
+    const { data, error } = await ctx.supabase.from('rfps').update({ deleted_at: new Date().toISOString() }).eq('id', params.rfp_id as string).eq('project_id', ctx.projectId).is('deleted_at', null).select().single();
     if (error) throw new Error(`Failed to delete RFP: ${error.message}`);
     return JSON.stringify({ deleted: true, id: data.id });
   },
@@ -1315,14 +1315,14 @@ defineTool({
   name: 'sequences.get',
   description: 'Get a sequence with its steps and enrollment stats',
   minRole: 'viewer',
-  parameters: z.object({ id: z.string().uuid().describe('Sequence ID') }),
+  parameters: z.object({ sequence_id: z.string().uuid().describe('Sequence ID') }),
   handler: async (params, ctx) => {
-    const { data: seq, error } = await ctx.supabase.from('sequences').select('*').eq('id', params.id as string).eq('project_id', ctx.projectId).single();
+    const { data: seq, error } = await ctx.supabase.from('sequences').select('*').eq('id', params.sequence_id as string).eq('project_id', ctx.projectId).single();
     if (error) throw new Error(`Sequence not found: ${error.message}`);
 
-    const { data: steps } = await ctx.supabase.from('sequence_steps').select('*').eq('sequence_id', params.id as string).order('step_order', { ascending: true });
+    const { data: steps } = await ctx.supabase.from('sequence_steps').select('*').eq('sequence_id', params.sequence_id as string).order('step_order', { ascending: true });
 
-    const { count: enrollmentCount } = await ctx.supabase.from('sequence_enrollments').select('*', { count: 'exact', head: true }).eq('sequence_id', params.id as string);
+    const { count: enrollmentCount } = await ctx.supabase.from('sequence_enrollments').select('*', { count: 'exact', head: true }).eq('sequence_id', params.sequence_id as string);
 
     return JSON.stringify({ sequence: seq, steps: steps ?? [], enrollment_count: enrollmentCount ?? 0 });
   },
@@ -1356,13 +1356,13 @@ defineTool({
   description: 'Update a sequence',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Sequence ID'),
+    sequence_id: z.string().uuid().describe('Sequence ID'),
     name: z.string().min(1).max(200).optional(),
     description: z.string().max(2000).nullable().optional(),
     status: z.string().optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, ...updates } = params as Record<string, unknown>;
+    const { sequence_id: id, ...updates } = params as Record<string, unknown>;
     const { data, error } = await ctx.supabase.from('sequences').update(updates as Record<string, unknown>).eq('id', id as string).eq('project_id', ctx.projectId).select().single();
     if (error) throw new Error(`Failed to update sequence: ${error.message}`);
     return JSON.stringify(data);
@@ -1478,7 +1478,7 @@ defineTool({
   description: 'Update a meeting',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Meeting ID'),
+    meeting_id: z.string().uuid().describe('Meeting ID'),
     title: z.string().min(1).max(500).optional(),
     status: z.string().optional(),
     scheduled_at: z.string().optional(),
@@ -1488,7 +1488,7 @@ defineTool({
     next_steps: z.string().max(5000).nullable().optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, ...updates } = params as Record<string, unknown>;
+    const { meeting_id: id, ...updates } = params as Record<string, unknown>;
     const { data, error } = await ctx.supabase.from('meetings').update(updates as Record<string, unknown>).eq('id', id as string).eq('project_id', ctx.projectId).select().single();
     if (error) throw new Error(`Failed to update meeting: ${error.message}`);
     return JSON.stringify(data);
@@ -1499,11 +1499,11 @@ defineTool({
   name: 'meetings.delete',
   description: 'Delete a meeting',
   minRole: 'member',
-  parameters: z.object({ id: z.string().uuid().describe('Meeting ID') }),
+  parameters: z.object({ meeting_id: z.string().uuid().describe('Meeting ID') }),
   handler: async (params, ctx) => {
-    const { error } = await ctx.supabase.from('meetings').delete().eq('id', params.id as string).eq('project_id', ctx.projectId);
+    const { error } = await ctx.supabase.from('meetings').delete().eq('id', params.meeting_id as string).eq('project_id', ctx.projectId);
     if (error) throw new Error(`Failed to delete meeting: ${error.message}`);
-    return JSON.stringify({ deleted: true, id: params.id });
+    return JSON.stringify({ deleted: true, id: params.meeting_id });
   },
 });
 
@@ -1623,13 +1623,13 @@ defineTool({
   description: 'Get a single automation by ID with recent executions',
   minRole: 'viewer',
   parameters: z.object({
-    id: z.string().uuid().describe('Automation ID'),
+    automation_id: z.string().uuid().describe('Automation ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('automations')
       .select('*')
-      .eq('id', params.id as string)
+      .eq('id', params.automation_id as string)
       .eq('project_id', ctx.projectId)
       .single();
     if (error) throw new Error(`Automation not found: ${error.message}`);
@@ -1637,7 +1637,7 @@ defineTool({
     const { data: executions } = await ctx.supabase
       .from('automation_executions')
       .select('*')
-      .eq('automation_id', params.id as string)
+      .eq('automation_id', params.automation_id as string)
       .order('created_at', { ascending: false })
       .limit(10);
 
@@ -1685,7 +1685,7 @@ defineTool({
   description: 'Update an existing automation',
   minRole: 'admin',
   parameters: z.object({
-    id: z.string().uuid().describe('Automation ID'),
+    automation_id: z.string().uuid().describe('Automation ID'),
     name: z.string().min(1).max(255).optional(),
     description: z.string().max(1000).nullable().optional(),
     is_active: z.boolean().optional(),
@@ -1702,7 +1702,7 @@ defineTool({
     })).min(1).optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, ...updates } = params as Record<string, unknown>;
+    const { automation_id: id, ...updates } = params as Record<string, unknown>;
     const { data, error } = await ctx.supabase
       .from('automations')
       .update(updates as any)
@@ -1720,13 +1720,13 @@ defineTool({
   description: 'Delete an automation',
   minRole: 'admin',
   parameters: z.object({
-    id: z.string().uuid().describe('Automation ID'),
+    automation_id: z.string().uuid().describe('Automation ID'),
   }),
   handler: async (params, ctx) => {
     const { error } = await ctx.supabase
       .from('automations')
       .delete()
-      .eq('id', params.id as string)
+      .eq('id', params.automation_id as string)
       .eq('project_id', ctx.projectId);
     if (error) throw new Error(`Failed to delete automation: ${error.message}`);
     return JSON.stringify({ success: true });
@@ -1793,13 +1793,13 @@ defineTool({
   description: 'Get a single content library entry by ID',
   minRole: 'viewer',
   parameters: z.object({
-    id: z.string().uuid().describe('Content entry ID'),
+    content_entry_id: z.string().uuid().describe('Content entry ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('rfp_content_library')
       .select('*')
-      .eq('id', params.id as string)
+      .eq('id', params.content_entry_id as string)
       .eq('project_id', ctx.projectId)
       .is('deleted_at', null)
       .single();
@@ -1840,7 +1840,7 @@ defineTool({
   description: 'Update a content library entry',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Content entry ID'),
+    content_entry_id: z.string().uuid().describe('Content entry ID'),
     title: z.string().min(1).max(500).optional(),
     question_text: z.string().optional(),
     answer_text: z.string().optional(),
@@ -1849,7 +1849,7 @@ defineTool({
     tags: z.array(z.string()).optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, ...updates } = params as Record<string, unknown>;
+    const { content_entry_id: id, ...updates } = params as Record<string, unknown>;
     const { data, error } = await ctx.supabase
       .from('rfp_content_library')
       .update(updates as any)
@@ -1867,13 +1867,13 @@ defineTool({
   description: 'Delete a content library entry (soft delete)',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Content entry ID'),
+    content_entry_id: z.string().uuid().describe('Content entry ID'),
   }),
   handler: async (params, ctx) => {
     const { error } = await ctx.supabase
       .from('rfp_content_library')
       .update({ deleted_at: new Date().toISOString() } as any)
-      .eq('id', params.id as string)
+      .eq('id', params.content_entry_id as string)
       .eq('project_id', ctx.projectId);
     if (error) throw new Error(`Failed to delete content entry: ${error.message}`);
     return JSON.stringify({ success: true });
@@ -1930,13 +1930,13 @@ defineTool({
   description: 'Delete a news monitoring keyword',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Keyword ID'),
+    keyword_id: z.string().uuid().describe('Keyword ID'),
   }),
   handler: async (params, ctx) => {
     const { error } = await ctx.supabase
       .from('news_keywords')
       .delete()
-      .eq('id', params.id as string)
+      .eq('id', params.keyword_id as string)
       .eq('project_id', ctx.projectId)
       .eq('source', 'manual');
     if (error) throw new Error(`Failed to delete keyword: ${error.message}`);
@@ -1977,12 +1977,12 @@ defineTool({
   description: 'Update a news article (mark as read/starred)',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Article ID'),
+    article_id: z.string().uuid().describe('Article ID'),
     is_read: z.boolean().optional(),
     is_starred: z.boolean().optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, ...updates } = params as Record<string, unknown>;
+    const { article_id: id, ...updates } = params as Record<string, unknown>;
     const { data, error } = await ctx.supabase
       .from('news_articles')
       .update(updates as any)
@@ -2055,7 +2055,7 @@ defineTool({
   description: 'Update a custom field definition',
   minRole: 'admin',
   parameters: z.object({
-    id: z.string().uuid().describe('Custom field ID'),
+    field_id: z.string().uuid().describe('Custom field ID'),
     label: z.string().min(1).max(200).optional(),
     description: z.string().max(500).optional(),
     is_required: z.boolean().optional(),
@@ -2067,7 +2067,7 @@ defineTool({
     default_value: z.string().optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, ...updates } = params as Record<string, unknown>;
+    const { field_id: id, ...updates } = params as Record<string, unknown>;
     const { data, error } = await ctx.supabase
       .from('custom_field_definitions')
       .update(updates as any)
@@ -2085,13 +2085,13 @@ defineTool({
   description: 'Delete a custom field definition',
   minRole: 'admin',
   parameters: z.object({
-    id: z.string().uuid().describe('Custom field ID'),
+    field_id: z.string().uuid().describe('Custom field ID'),
   }),
   handler: async (params, ctx) => {
     const { error } = await ctx.supabase
       .from('custom_field_definitions')
       .delete()
-      .eq('id', params.id as string)
+      .eq('id', params.field_id as string)
       .eq('project_id', ctx.projectId);
     if (error) throw new Error(`Failed to delete custom field: ${error.message}`);
     return JSON.stringify({ success: true });
@@ -2129,13 +2129,13 @@ defineTool({
   description: 'Get a single webhook by ID with delivery stats',
   minRole: 'admin',
   parameters: z.object({
-    id: z.string().uuid().describe('Webhook ID'),
+    webhook_id: z.string().uuid().describe('Webhook ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('webhooks')
       .select('*')
-      .eq('id', params.id as string)
+      .eq('id', params.webhook_id as string)
       .eq('project_id', ctx.projectId)
       .single();
     if (error) throw new Error(`Webhook not found: ${error.message}`);
@@ -2176,7 +2176,7 @@ defineTool({
   description: 'Update an existing webhook',
   minRole: 'admin',
   parameters: z.object({
-    id: z.string().uuid().describe('Webhook ID'),
+    webhook_id: z.string().uuid().describe('Webhook ID'),
     name: z.string().min(1).max(255).optional(),
     url: z.string().url().optional(),
     events: z.array(z.string()).min(1).optional(),
@@ -2186,7 +2186,7 @@ defineTool({
     headers: z.record(z.string(), z.string()).optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, ...updates } = params as Record<string, unknown>;
+    const { webhook_id: id, ...updates } = params as Record<string, unknown>;
     const { data, error } = await ctx.supabase
       .from('webhooks')
       .update(updates as any)
@@ -2204,13 +2204,13 @@ defineTool({
   description: 'Delete a webhook',
   minRole: 'admin',
   parameters: z.object({
-    id: z.string().uuid().describe('Webhook ID'),
+    webhook_id: z.string().uuid().describe('Webhook ID'),
   }),
   handler: async (params, ctx) => {
     const { error } = await ctx.supabase
       .from('webhooks')
       .delete()
-      .eq('id', params.id as string)
+      .eq('id', params.webhook_id as string)
       .eq('project_id', ctx.projectId);
     if (error) throw new Error(`Failed to delete webhook: ${error.message}`);
     return JSON.stringify({ success: true });
@@ -2250,13 +2250,13 @@ defineTool({
   description: 'Get a report by ID with recent run history',
   minRole: 'viewer',
   parameters: z.object({
-    id: z.string().uuid().describe('Report ID'),
+    report_id: z.string().uuid().describe('Report ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('report_definitions')
       .select('*')
-      .eq('id', params.id as string)
+      .eq('id', params.report_id as string)
       .eq('project_id', ctx.projectId)
       .single();
     if (error) throw new Error(`Report not found: ${error.message}`);
@@ -2264,7 +2264,7 @@ defineTool({
     const { data: runs } = await ctx.supabase
       .from('report_runs')
       .select('*')
-      .eq('report_id', params.id as string)
+      .eq('report_id', params.report_id as string)
       .order('created_at', { ascending: false })
       .limit(10);
 
@@ -2304,13 +2304,13 @@ defineTool({
   description: 'Delete a saved report',
   minRole: 'admin',
   parameters: z.object({
-    id: z.string().uuid().describe('Report ID'),
+    report_id: z.string().uuid().describe('Report ID'),
   }),
   handler: async (params, ctx) => {
     const { error } = await ctx.supabase
       .from('report_definitions')
       .delete()
-      .eq('id', params.id as string)
+      .eq('id', params.report_id as string)
       .eq('project_id', ctx.projectId);
     if (error) throw new Error(`Failed to delete report: ${error.message}`);
     return JSON.stringify({ success: true });
@@ -2390,13 +2390,13 @@ defineTool({
   description: 'Get a single email template by ID',
   minRole: 'viewer',
   parameters: z.object({
-    id: z.string().uuid().describe('Template ID'),
+    template_id: z.string().uuid().describe('Template ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('email_templates')
       .select('*')
-      .eq('id', params.id as string)
+      .eq('id', params.template_id as string)
       .eq('project_id', ctx.projectId)
       .single();
     if (error) throw new Error(`Template not found: ${error.message}`);
@@ -2438,7 +2438,7 @@ defineTool({
   description: 'Update an email template',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Template ID'),
+    template_id: z.string().uuid().describe('Template ID'),
     name: z.string().min(1).max(255).optional(),
     description: z.string().max(1000).nullable().optional(),
     subject: z.string().min(1).max(500).optional(),
@@ -2449,7 +2449,7 @@ defineTool({
     is_shared: z.boolean().optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, ...updates } = params as Record<string, unknown>;
+    const { template_id: id, ...updates } = params as Record<string, unknown>;
     const { data, error } = await ctx.supabase
       .from('email_templates')
       .update(updates as any)
@@ -2467,13 +2467,13 @@ defineTool({
   description: 'Delete an email template',
   minRole: 'admin',
   parameters: z.object({
-    id: z.string().uuid().describe('Template ID'),
+    template_id: z.string().uuid().describe('Template ID'),
   }),
   handler: async (params, ctx) => {
     const { error } = await ctx.supabase
       .from('email_templates')
       .delete()
-      .eq('id', params.id as string)
+      .eq('id', params.template_id as string)
       .eq('project_id', ctx.projectId);
     if (error) throw new Error(`Failed to delete template: ${error.message}`);
     return JSON.stringify({ success: true });
@@ -2618,13 +2618,13 @@ defineTool({
   description: 'Get a research job by ID with its results',
   minRole: 'viewer',
   parameters: z.object({
-    id: z.string().uuid().describe('Research job ID'),
+    research_job_id: z.string().uuid().describe('Research job ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('research_jobs')
       .select('*')
-      .eq('id', params.id as string)
+      .eq('id', params.research_job_id as string)
       .eq('project_id', ctx.projectId)
       .single();
     if (error) throw new Error(`Research job not found: ${error.message}`);
@@ -2664,13 +2664,13 @@ defineTool({
   description: 'Get a single email draft by ID',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Draft ID'),
+    draft_id: z.string().uuid().describe('Draft ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('email_drafts')
       .select('*')
-      .eq('id', params.id as string)
+      .eq('id', params.draft_id as string)
       .eq('project_id', ctx.projectId)
       .eq('user_id', ctx.userId)
       .single();
@@ -2716,7 +2716,7 @@ defineTool({
   description: 'Update an email draft (cannot update sent drafts)',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Draft ID'),
+    draft_id: z.string().uuid().describe('Draft ID'),
     subject: z.string().min(1).max(500).optional(),
     body_html: z.string().min(1).optional(),
     body_text: z.string().nullable().optional(),
@@ -2727,7 +2727,7 @@ defineTool({
     scheduled_at: z.string().nullable().optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, ...updates } = params as Record<string, unknown>;
+    const { draft_id: id, ...updates } = params as Record<string, unknown>;
     const { data, error } = await ctx.supabase
       .from('email_drafts')
       .update(updates as any)
@@ -2747,13 +2747,13 @@ defineTool({
   description: 'Delete an email draft',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Draft ID'),
+    draft_id: z.string().uuid().describe('Draft ID'),
   }),
   handler: async (params, ctx) => {
     const { error } = await ctx.supabase
       .from('email_drafts')
       .delete()
-      .eq('id', params.id as string)
+      .eq('id', params.draft_id as string)
       .eq('project_id', ctx.projectId)
       .eq('user_id', ctx.userId);
     if (error) throw new Error(`Failed to delete draft: ${error.message}`);
@@ -2945,14 +2945,14 @@ defineTool({
   description: 'Update a dashboard widget',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Widget ID'),
+    widget_id: z.string().uuid().describe('Widget ID'),
     config: z.record(z.string(), z.unknown()).optional(),
     position: z.number().int().min(0).optional(),
     size: z.string().optional(),
     is_visible: z.boolean().optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, ...updates } = params as Record<string, unknown>;
+    const { widget_id: id, ...updates } = params as Record<string, unknown>;
     const { data, error } = await ctx.supabase
       .from('dashboard_widgets')
       .update(updates as any)
@@ -2971,13 +2971,13 @@ defineTool({
   description: 'Delete a dashboard widget',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Widget ID'),
+    widget_id: z.string().uuid().describe('Widget ID'),
   }),
   handler: async (params, ctx) => {
     const { error } = await ctx.supabase
       .from('dashboard_widgets')
       .delete()
-      .eq('id', params.id as string)
+      .eq('id', params.widget_id as string)
       .eq('project_id', ctx.projectId)
       .eq('user_id', ctx.userId);
     if (error) throw new Error(`Failed to delete widget: ${error.message}`);
@@ -3098,13 +3098,13 @@ defineTool({
   description: 'Resolve a duplicate pair by allowing it or merging the records',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Duplicate candidate ID'),
+    duplicate_id: z.string().uuid().describe('Duplicate candidate ID'),
     action: z.enum(['allow', 'merge']).describe('Allow (keep both) or merge'),
     survivor_id: z.string().uuid().optional().describe('ID of the record to keep (for merge)'),
     field_selections: z.record(z.string(), z.string()).optional().describe('Field-level merge selections'),
   }),
   handler: async (params, ctx) => {
-    const { id, action, survivor_id, field_selections } = params as any;
+    const { duplicate_id: id, action, survivor_id, field_selections } = params as any;
     if (action === 'allow') {
       const { error } = await ctx.supabase
         .from('duplicate_candidates')
@@ -3426,13 +3426,13 @@ defineTool({
   description: 'Get a single email signature by ID',
   minRole: 'viewer',
   parameters: z.object({
-    id: z.string().uuid().describe('Signature ID'),
+    signature_id: z.string().uuid().describe('Signature ID'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase
       .from('email_signatures')
       .select('*')
-      .eq('id', params.id as string)
+      .eq('id', params.signature_id as string)
       .eq('project_id', ctx.projectId)
       .eq('user_id', ctx.userId)
       .single();
@@ -3479,14 +3479,14 @@ defineTool({
   description: 'Update an email signature',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Signature ID'),
+    signature_id: z.string().uuid().describe('Signature ID'),
     name: z.string().min(1).max(100).optional(),
     sender_name: z.string().max(100).nullable().optional(),
     content_html: z.string().min(1).max(50000).optional(),
     is_default: z.boolean().optional(),
   }),
   handler: async (params, ctx) => {
-    const { id, ...updates } = params as Record<string, unknown>;
+    const { signature_id: id, ...updates } = params as Record<string, unknown>;
     if ((updates as any).is_default) {
       await ctx.supabase
         .from('email_signatures')
@@ -3512,13 +3512,13 @@ defineTool({
   description: 'Delete an email signature',
   minRole: 'member',
   parameters: z.object({
-    id: z.string().uuid().describe('Signature ID'),
+    signature_id: z.string().uuid().describe('Signature ID'),
   }),
   handler: async (params, ctx) => {
     const { error } = await ctx.supabase
       .from('email_signatures')
       .delete()
-      .eq('id', params.id as string)
+      .eq('id', params.signature_id as string)
       .eq('project_id', ctx.projectId)
       .eq('user_id', ctx.userId);
     if (error) throw new Error(`Failed to delete signature: ${error.message}`);
@@ -3764,13 +3764,13 @@ defineTool({
   description: 'Execute a saved report and get its results',
   minRole: 'viewer',
   parameters: z.object({
-    id: z.string().uuid().describe('Report ID'),
+    report_id: z.string().uuid().describe('Report ID'),
   }),
   handler: async (params, ctx) => {
     const { data: report, error: reportErr } = await ctx.supabase
       .from('report_definitions')
       .select('*')
-      .eq('id', params.id as string)
+      .eq('id', params.report_id as string)
       .eq('project_id', ctx.projectId)
       .single();
     if (reportErr) throw new Error(`Report not found: ${reportErr.message}`);
@@ -3779,7 +3779,7 @@ defineTool({
     const { data: run, error: runErr } = await ctx.supabase
       .from('report_runs')
       .insert({
-        report_id: params.id,
+        report_id: params.report_id,
         project_id: ctx.projectId,
         started_by: ctx.userId,
         status: 'completed',

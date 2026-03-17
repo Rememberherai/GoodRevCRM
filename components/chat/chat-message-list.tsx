@@ -83,7 +83,7 @@ export function ChatMessageList({ messages, streamingContent, pendingToolCalls, 
   }, [messages, streamingContent, pendingToolCalls, completedToolCalls]);
 
   return (
-    <ScrollArea className="flex-1 px-4">
+    <ScrollArea className="flex-1 px-4 overflow-hidden">
       <div className="space-y-4 py-4">
         {messages.length === 0 && !isStreaming && (
           <div className="flex flex-col items-center justify-center py-12 text-center">
