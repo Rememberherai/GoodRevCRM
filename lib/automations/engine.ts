@@ -104,6 +104,13 @@ function matchesTriggerConfig(
     return false;
   }
 
+  // Check document status filter (for document.* triggers)
+  if (event.triggerType.startsWith('document.') && triggerConfig.document_status) {
+    if (event.data.status !== triggerConfig.document_status) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -312,6 +319,8 @@ export async function dryRunAutomation(
     task: 'tasks',
     meeting: 'meetings',
     call: 'calls',
+    document: 'contract_documents',
+    workflow: 'workflows',
   };
 
   const tableName = entityTableMap[entityType];

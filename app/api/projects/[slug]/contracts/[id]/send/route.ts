@@ -102,7 +102,7 @@ export async function POST(request: Request, context: RouteContext) {
   // Validate each signer has at least one field
   const { data: fields } = await supabase
     .from('contract_fields')
-    .select('recipient_id')
+    .select('recipient_id, field_type')
     .eq('document_id', id)
     .eq('project_id', project.id);
 
@@ -112,6 +112,28 @@ export async function POST(request: Request, context: RouteContext) {
   if (signersWithoutFields.length > 0) {
     return NextResponse.json({
       error: `Signers without fields: ${signersWithoutFields.map((s) => s.name).join(', ')}`,
+    }, { status: 400 });
+  }
+
+  const signerIds = new Set(signers.map((s) => s.id));
+  const signerFields = (fields ?? []).filter((f) => signerIds.has(f.recipient_id));
+  const signersWithSignatureField = new Set(
+    signerFields
+      .filter((f) => f.field_type === 'signature')
+      .map((f) => f.recipient_id)
+  );
+  const signersWithoutSignatureField = signers.filter((s) => !signersWithSignatureField.has(s.id));
+
+  if (signersWithoutSignatureField.length > 0) {
+    return NextResponse.json({
+      error: `Each signer must have a signature field. Missing: ${signersWithoutSignatureField.map((s) => s.name).join(', ')}`,
+    }, { status: 400 });
+  }
+
+  const hasInitialsFields = signerFields.some((f) => f.field_type === 'initials');
+  if (hasInitialsFields) {
+    return NextResponse.json({
+      error: 'Initials fields are not supported in the current signing flow',
     }, { status: 400 });
   }
 

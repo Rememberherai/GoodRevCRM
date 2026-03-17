@@ -3,6 +3,7 @@ import { validateSigningToken } from '@/lib/contracts/signing-token';
 import { createServiceClient } from '@/lib/supabase/server';
 import { insertAuditTrail } from '@/lib/contracts/audit';
 import { checkRateLimit } from '@/lib/contracts/rate-limit';
+import type { ContractRecipientStatus } from '@/types/contract';
 
 interface RouteContext {
   params: Promise<{ token: string }>;
@@ -23,35 +24,48 @@ export async function GET(request: Request, context: RouteContext) {
   }
 
   const { recipient, document } = result;
+  let effectiveRecipientStatus = recipient.status;
+  let effectiveDocumentStatus = document.status;
 
   // Update recipient to 'viewed' if first view
   if (recipient.status === 'sent') {
     const supabase = createServiceClient();
-    await supabase
+    const { data: viewedRecipient } = await supabase
       .from('contract_recipients')
       .update({ status: 'viewed', viewed_at: new Date().toISOString() })
       .eq('id', recipient.id)
-      .eq('status', 'sent');
+      .eq('status', 'sent')
+      .select('status')
+      .single();
 
     // Update document to 'viewed' if first view
     if (document.status === 'sent') {
-      await supabase
+      const { data: viewedDocument } = await supabase
         .from('contract_documents')
         .update({ status: 'viewed' })
         .eq('id', document.id)
-        .eq('status', 'sent');
+        .eq('status', 'sent')
+        .select('status')
+        .single();
+
+      if (viewedDocument?.status) {
+        effectiveDocumentStatus = viewedDocument.status;
+      }
     }
 
-    insertAuditTrail({
-      project_id: recipient.project_id,
-      document_id: recipient.document_id,
-      recipient_id: recipient.id,
-      action: 'viewed',
-      actor_type: 'signer',
-      actor_name: recipient.name,
-      ip_address: ip,
-      user_agent: request.headers.get('user-agent'),
-    });
+    if (viewedRecipient?.status) {
+        effectiveRecipientStatus = viewedRecipient.status as ContractRecipientStatus;
+      insertAuditTrail({
+        project_id: recipient.project_id,
+        document_id: recipient.document_id,
+        recipient_id: recipient.id,
+        action: 'viewed',
+        actor_type: 'signer',
+        actor_name: recipient.name,
+        ip_address: ip,
+        user_agent: request.headers.get('user-agent'),
+      });
+    }
   }
 
   // Fetch fields for this recipient
@@ -68,8 +82,8 @@ export async function GET(request: Request, context: RouteContext) {
     page_count: document.page_count,
     recipient_name: recipient.name,
     recipient_email: recipient.email,
-    recipient_status: recipient.status,
-    document_status: document.status,
+    recipient_status: effectiveRecipientStatus,
+    document_status: effectiveDocumentStatus,
     consent_given: !!recipient.consent_timestamp,
     fields: (fields ?? []).map((f) => ({
       id: f.id,

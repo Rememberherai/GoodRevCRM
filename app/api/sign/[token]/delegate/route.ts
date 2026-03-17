@@ -105,15 +105,24 @@ export async function POST(request: Request, context: RouteContext) {
     clearedFieldIds.push(field.id);
   }
 
-  // Mark original as delegated
-  await supabase
+  // Mark original as delegated (CAS: only from active states)
+  const { data: delegateUpdate } = await supabase
     .from('contract_recipients')
     .update({
       status: 'delegated',
       delegated_to_recipient_id: successor.id,
       delegated_at: new Date().toISOString(),
     })
-    .eq('id', recipient.id);
+    .eq('id', recipient.id)
+    .in('status', ['sent', 'viewed'])
+    .select('id')
+    .single();
+
+  if (!delegateUpdate) {
+    // Recipient status changed since validation — clean up successor
+    await supabase.from('contract_recipients').delete().eq('id', successor.id);
+    return NextResponse.json({ error: 'Recipient status has changed' }, { status: 409 });
+  }
 
   insertAuditTrail({
     project_id: recipient.project_id,

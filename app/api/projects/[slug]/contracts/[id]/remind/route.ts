@@ -65,10 +65,10 @@ export async function POST(_request: Request, context: RouteContext) {
     insertAuditTrail({
       project_id: project.id,
       document_id: id,
-      action: 'reminder_sent',
+      action: 'send_failed',
       actor_type: 'user',
       actor_id: user.id,
-      details: { skipped: true, reason: 'gmail_connection_expired' },
+      details: { skipped: true, reason: 'gmail_connection_expired', type: 'reminder' },
     });
     return NextResponse.json({ error: 'Gmail connection is expired or deleted' }, { status: 400 });
   }

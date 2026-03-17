@@ -5,7 +5,7 @@ import { useParams } from 'next/navigation';
 import { CheckCircle2, XCircle, Loader2, AlertTriangle, Download, PenTool } from 'lucide-react';
 import type { SigningPageData, ContractFieldType } from '@/types/contract';
 
-type SigningStep = 'loading' | 'consent' | 'signing' | 'completed' | 'declined' | 'error';
+type SigningStep = 'loading' | 'consent' | 'signing' | 'submitted' | 'completed' | 'declined' | 'delegated' | 'error';
 
 export default function SigningPage() {
   const params = useParams();
@@ -50,6 +50,10 @@ export default function SigningPage() {
         setStep('completed');
       } else if (signingData.document_status === 'declined') {
         setStep('declined');
+      } else if (signingData.recipient_status === 'delegated') {
+        setStep('delegated');
+      } else if (signingData.recipient_status === 'signed') {
+        setStep('submitted');
       } else if (!signingData.consent_given) {
         setStep('consent');
       } else {
@@ -163,7 +167,8 @@ export default function SigningPage() {
         throw new Error(err.error ?? 'Submit failed');
       }
 
-      setStep('completed');
+      const submitResult = await res.json();
+      setStep(submitResult.completed ? 'completed' : 'submitted');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Submit failed');
     } finally {
@@ -199,7 +204,7 @@ export default function SigningPage() {
         throw new Error(err.error ?? 'Delegate failed');
       }
       setShowDelegateDialog(false);
-      setStep('declined'); // Show a completion-like state
+      setStep('delegated');
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Delegate failed');
     }
@@ -362,6 +367,20 @@ export default function SigningPage() {
     );
   }
 
+  if (step === 'submitted') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md mx-auto p-8">
+          <CheckCircle2 className="h-16 w-16 mx-auto text-green-500 mb-4" />
+          <h1 className="text-2xl font-bold mb-2">Signature Submitted</h1>
+          <p className="text-gray-600">
+            Your signature has been recorded. The completed PDF will be available after all required signers finish.
+          </p>
+        </div>
+      </div>
+    );
+  }
+
   // Declined
   if (step === 'declined') {
     return (
@@ -370,6 +389,18 @@ export default function SigningPage() {
           <XCircle className="h-16 w-16 mx-auto text-red-500 mb-4" />
           <h1 className="text-2xl font-bold mb-2">Document Declined</h1>
           <p className="text-gray-600">The document has been declined. The sender has been notified.</p>
+        </div>
+      </div>
+    );
+  }
+
+  if (step === 'delegated') {
+    return (
+      <div className="min-h-screen flex items-center justify-center bg-gray-50">
+        <div className="text-center max-w-md mx-auto p-8">
+          <CheckCircle2 className="h-16 w-16 mx-auto text-blue-500 mb-4" />
+          <h1 className="text-2xl font-bold mb-2">Signing Delegated</h1>
+          <p className="text-gray-600">The delegate has been notified and can continue the signing process.</p>
         </div>
       </div>
     );

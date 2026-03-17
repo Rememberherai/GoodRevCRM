@@ -31,15 +31,22 @@ export async function POST(request: Request, context: RouteContext) {
   const { recipient, document } = result;
   const supabase = createServiceClient();
 
-  // Update recipient
-  await supabase
+  // Update recipient (CAS: only from active states)
+  const { data: recipientUpdate } = await supabase
     .from('contract_recipients')
     .update({
       status: 'declined',
       declined_at: new Date().toISOString(),
       decline_reason: validation.success ? validation.data.reason ?? null : null,
     })
-    .eq('id', recipient.id);
+    .eq('id', recipient.id)
+    .in('status', ['sent', 'viewed'])
+    .select('id')
+    .single();
+
+  if (!recipientUpdate) {
+    return NextResponse.json({ error: 'Recipient status has changed' }, { status: 409 });
+  }
 
   // Update document status (CAS: only transition from active states)
   await supabase

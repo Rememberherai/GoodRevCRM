@@ -24,6 +24,11 @@ export async function PATCH(request: Request, context: RouteContext) {
     return NextResponse.json({ error: result.error }, { status: result.status ?? 400 });
   }
 
+  // Only allow field writes for active (unsigned) recipients
+  if (!['sent', 'viewed'].includes(result.recipient.status)) {
+    return NextResponse.json({ error: 'Cannot update fields — recipient has already signed, declined, or been delegated' }, { status: 400 });
+  }
+
   const body = await request.json();
   const validation = saveFieldsSchema.safeParse(body);
   if (!validation.success) {

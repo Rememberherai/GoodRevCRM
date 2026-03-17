@@ -289,7 +289,9 @@ export function FieldEditorClient() {
               <CardTitle className="text-sm">Add Field</CardTitle>
             </CardHeader>
             <CardContent className="px-3 pb-3 space-y-1">
-              {(Object.entries(FIELD_TYPE_LABELS) as [ContractFieldType, string][]).map(([type, label]) => {
+              {(Object.entries(FIELD_TYPE_LABELS) as [ContractFieldType, string][])
+                .filter(([type]) => type !== 'initials')
+                .map(([type, label]) => {
                 const Icon = FIELD_TYPE_ICONS[type] ?? Hash;
                 return (
                   <button

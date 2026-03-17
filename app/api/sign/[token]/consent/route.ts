@@ -33,7 +33,7 @@ export async function POST(request: Request, context: RouteContext) {
   const supabase = createServiceClient();
 
   // Only record consent if not already given (immutable forensic record)
-  await supabase
+  const { data: updatedRecipient } = await supabase
     .from('contract_recipients')
     .update({
       consent_ip: ip,
@@ -41,18 +41,22 @@ export async function POST(request: Request, context: RouteContext) {
       consent_timestamp: new Date().toISOString(),
     })
     .eq('id', result.recipient.id)
-    .is('consent_timestamp', null);
+    .is('consent_timestamp', null)
+    .select('id')
+    .single();
 
-  insertAuditTrail({
-    project_id: result.recipient.project_id,
-    document_id: result.recipient.document_id,
-    recipient_id: result.recipient.id,
-    action: 'consent_given',
-    actor_type: 'signer',
-    actor_name: result.recipient.name,
-    ip_address: ip,
-    user_agent: ua,
-  });
+  if (updatedRecipient) {
+    insertAuditTrail({
+      project_id: result.recipient.project_id,
+      document_id: result.recipient.document_id,
+      recipient_id: result.recipient.id,
+      action: 'consent_given',
+      actor_type: 'signer',
+      actor_name: result.recipient.name,
+      ip_address: ip,
+      user_agent: ua,
+    });
+  }
 
   return NextResponse.json({ success: true });
 }
