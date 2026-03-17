@@ -4,7 +4,6 @@ import { Handle, Position, type NodeProps } from '@xyflow/react';
 import { Play } from 'lucide-react';
 
 export function StartNode(props: NodeProps) {
-  console.log('[StartNode] rendering, id:', props.id, 'position:', props.positionAbsoluteX, props.positionAbsoluteY);
   return (
     <div className={`flex flex-col items-center ${props.selected ? 'ring-2 ring-primary ring-offset-2 rounded-full' : ''}`}>
       <div className="w-12 h-12 rounded-full bg-emerald-500 flex items-center justify-center shadow-md">

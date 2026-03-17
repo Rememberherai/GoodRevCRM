@@ -102,13 +102,14 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
     return undefined;
   }, [nodes.length, fitView]);
 
-  // DEBUG: Log nodes to help diagnose rendering issues
+  // DEBUG: Log nodes to help diagnose rendering issues (only on count change)
   useEffect(() => {
     console.log('[WorkflowEditor] nodes count:', nodes.length);
     if (nodes.length > 0) {
       console.log('[WorkflowEditor] nodes:', JSON.stringify(nodes.map(n => ({ id: n.id, type: n.type, position: n.position })), null, 2));
     }
-  }, [nodes]);
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [nodes.length]);
 
   // Convert our nodes/edges to ReactFlow format
   const rfNodes: Node[] = nodes.map((n) => ({
@@ -118,9 +119,6 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
     data: n.data,
     selected: n.id === selectedNodeId,
   }));
-
-  // DEBUG: Log what we're passing to ReactFlow
-  console.log('[WorkflowEditor] rfNodes count:', rfNodes.length, 'rfEdges count:', edges.length);
 
   const rfEdges: Edge[] = edges.map((e) => ({
     id: e.id,
@@ -134,12 +132,17 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
+      // Filter out dimension changes — they come from React Flow measuring nodes
+      // and cause infinite re-render loops when we write them back to the store
+      const meaningful = changes.filter((c) => c.type !== 'dimensions');
+      if (meaningful.length === 0) return;
+
       const store = useWorkflowStore.getState();
       const currentRfNodes: Node[] = store.nodes.map((n) => ({
         id: n.id, type: n.type, position: n.position, data: n.data,
         selected: n.id === store.selectedNodeId,
       }));
-      const updated = applyNodeChanges(changes, currentRfNodes) as Node[];
+      const updated = applyNodeChanges(meaningful, currentRfNodes) as Node[];
       store.setNodes(
         updated.map((n) => ({
           id: n.id,
@@ -366,7 +369,7 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
   }, [selectedNodeId, setSelectedNodeId]);
 
   return (
-    <div className="flex flex-col h-[calc(100vh-3.5rem)]">
+    <div className="flex flex-col -m-6" style={{ width: 'calc(100% + 3rem)', height: 'calc(100vh - 3.5rem)' }}>
       <WorkflowToolbar projectSlug={projectSlug} />
 
       {activeSubWorkflowId && (
@@ -392,7 +395,7 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
         )}
 
         {/* Center: ReactFlow Canvas */}
-        <div className="flex-1" ref={reactFlowWrapper}>
+        <div className="flex-1 h-full" ref={reactFlowWrapper}>
           <ReactFlow
             nodes={rfNodes}
             edges={rfEdges}
