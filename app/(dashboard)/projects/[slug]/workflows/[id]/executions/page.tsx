@@ -53,6 +53,7 @@ export default function WorkflowExecutionsPage() {
   async function fetchExecutions() {
     try {
       const res = await fetch(`/api/projects/${slug}/workflows/${id}/executions`);
+      if (!res.ok) { console.error('Failed to fetch executions:', res.status); return; }
       const data = await res.json();
       setExecutions(data.executions || []);
     } catch (error) {
@@ -67,6 +68,7 @@ export default function WorkflowExecutionsPage() {
     setSelectedStepNodeId(null);
     try {
       const res = await fetch(`/api/projects/${slug}/workflows/${id}/executions/${exec.id}`);
+      if (!res.ok) { console.error('Failed to fetch execution detail:', res.status); return; }
       const data = await res.json();
       setSteps(data.steps || []);
     } catch (error) {

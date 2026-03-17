@@ -247,16 +247,19 @@ function matchesCron(expr: string, date: Date): boolean {
     date.getDay(),       // 0-6 (Sun=0)
   ];
 
-  return parts.every((part, i) => matchesCronField(part!, values[i]!));
+  // Fields 2 (dom) and 3 (month) are 1-based; fields 0 (min), 1 (hour), 4 (dow) are 0-based
+  const oneBasedFields = [false, false, true, true, false];
+  return parts.every((part, i) => matchesCronField(part!, values[i]!, oneBasedFields[i]!));
 }
 
-function matchesCronField(field: string, value: number): boolean {
+function matchesCronField(field: string, value: number, oneBased = false): boolean {
   if (field === '*') return true;
 
-  // Handle step: */N
+  // Handle step: */N — for 1-based fields use (value - 1) % step === 0
   if (field.startsWith('*/')) {
     const step = parseInt(field.slice(2), 10);
-    return !isNaN(step) && step > 0 && value % step === 0;
+    if (isNaN(step) || step <= 0) return false;
+    return oneBased ? (value - 1) % step === 0 : value % step === 0;
   }
 
   // Handle comma-separated values

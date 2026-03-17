@@ -42,6 +42,8 @@ export function isBlockedUrl(url: string): boolean {
     if (/^\d+$/.test(host)) return true;
     // Block octal IPs (e.g., 0177.0.0.1)
     if (/^0\d+\./.test(host)) return true;
+    // Block hex-encoded IPs (e.g., 0x7f000001 = 127.0.0.1)
+    if (/^0x[0-9a-f]+$/i.test(host)) return true;
     return false;
   } catch {
     return true; // Invalid URL = blocked

@@ -85,7 +85,8 @@ export async function GET(request: Request, context: RouteContext) {
       query = query.contains('tags', [tag]);
     }
     if (search) {
-      const s = search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""');
+      // Escape PostgREST special chars to prevent filter injection
+      const s = search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""').replace(/[,()]/g, '');
       query = query.or(`name.ilike."%${s}%",description.ilike."%${s}%"`);
     }
 

@@ -15,6 +15,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { useWorkflowStore } from '@/stores/workflow-store';
 import { validateWorkflow } from '@/lib/workflows/validators/validate-workflow';
+import { sanitizeWorkflowDefinition } from '@/lib/workflows/sanitize-nodes';
 import { WORKFLOW_SCHEMA_VERSION } from '@/types/workflow';
 import type { WorkflowDefinition } from '@/types/workflow';
 
@@ -82,10 +83,12 @@ export function WorkflowImportDialog({ open, onOpenChange }: WorkflowImportDialo
       return;
     }
 
-    // Apply to store
+    // Sanitize and apply to store (with undo support)
+    const sanitized = sanitizeWorkflowDefinition(parsed.nodes, parsed.edges);
     const store = useWorkflowStore.getState();
-    store.setNodes(parsed.nodes);
-    store.setEdges(parsed.edges);
+    store.pushHistory();
+    store.setNodes(sanitized.nodes);
+    store.setEdges(sanitized.edges);
     store.setValidationErrors(errors);
 
     onOpenChange(false);

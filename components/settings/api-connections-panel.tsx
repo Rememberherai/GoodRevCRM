@@ -314,6 +314,16 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
       return;
     }
 
+    // Per-service-type validation
+    if ((serviceType === 'webhook' || serviceType === 'mcp') && !serverUrl.trim()) {
+      toast.error('Server URL is required');
+      return;
+    }
+    if (serviceType === 'oauth2' && (!apiKey.trim() || !clientSecret.trim())) {
+      toast.error('Client ID and Client Secret are required');
+      return;
+    }
+
     setSaving(true);
     try {
       const config: Record<string, string> = {};
@@ -357,6 +367,8 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
         setApiKey('');
         setServerUrl('');
         setClientSecret('');
+        setHeaderName('Authorization');
+        setServiceType('zapier');
       } else {
         const data = await res.json();
         toast.error(data.error || 'Failed to create connection');

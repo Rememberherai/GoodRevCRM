@@ -1,5 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { validateWorkflow } from '@/lib/workflows/validators/validate-workflow';
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string; ver: string }>;
@@ -28,17 +29,35 @@ export async function POST(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Member role required' }, { status: 403 });
     }
 
+    // Validate version number parameter
+    const versionNum = parseInt(ver, 10);
+    if (isNaN(versionNum) || versionNum < 1) {
+      return NextResponse.json({ error: 'Invalid version number' }, { status: 400 });
+    }
+
     // Verify workflow belongs to this project first
     const { data: existing } = await supabaseAny
-      .from('workflows').select('current_version')
+      .from('workflows').select('current_version, is_active')
       .eq('id', id).eq('project_id', project.id).single();
     if (!existing) return NextResponse.json({ error: 'Workflow not found' }, { status: 404 });
 
     // Get the version to restore
     const { data: version } = await supabaseAny
       .from('workflow_versions').select('*')
-      .eq('workflow_id', id).eq('version', parseInt(ver, 10)).single();
+      .eq('workflow_id', id).eq('version', versionNum).single();
     if (!version) return NextResponse.json({ error: 'Version not found' }, { status: 404 });
+
+    // Validate restored definition if workflow is active
+    if (existing.is_active && version.definition) {
+      const errors = validateWorkflow(version.definition);
+      const blockers = errors.filter((e: { severity: string }) => e.severity === 'error');
+      if (blockers.length > 0) {
+        return NextResponse.json(
+          { error: 'Cannot restore: definition has validation errors', validation_errors: blockers },
+          { status: 400 }
+        );
+      }
+    }
 
     const newVersion = existing.current_version + 1;
 

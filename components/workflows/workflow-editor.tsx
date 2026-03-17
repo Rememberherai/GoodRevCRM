@@ -133,9 +133,9 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
 
   const onNodesChange = useCallback(
     (changes: NodeChange[]) => {
-      // Filter out dimension changes — they come from React Flow measuring nodes
-      // and cause infinite re-render loops when we write them back to the store
-      const meaningful = changes.filter((c) => c.type !== 'dimensions');
+      // Filter out dimension and select changes — dimensions cause infinite re-render loops,
+      // and selection is managed exclusively via selectedNodeId in the Zustand store
+      const meaningful = changes.filter((c) => c.type !== 'dimensions' && c.type !== 'select');
       if (meaningful.length === 0) return;
 
       const store = useWorkflowStore.getState();
@@ -350,13 +350,15 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
       }
 
       // Delete/Backspace: Remove selected node
-      if ((e.key === 'Delete' || e.key === 'Backspace') && selectedNodeId) {
+      if ((e.key === 'Delete' || e.key === 'Backspace')) {
         if (isInput) return;
-        e.preventDefault();
         const store = useWorkflowStore.getState();
-        const node = store.nodes.find((n) => n.id === selectedNodeId);
+        const currentSelected = store.selectedNodeId;
+        if (!currentSelected) return;
+        e.preventDefault();
+        const node = store.nodes.find((n) => n.id === currentSelected);
         if (node && node.type !== 'start') {
-          store.removeNode(selectedNodeId);
+          store.removeNode(currentSelected);
           store.setSelectedNodeId(null);
         }
       }

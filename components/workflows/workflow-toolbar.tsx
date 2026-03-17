@@ -79,6 +79,11 @@ export function WorkflowToolbar({ projectSlug }: WorkflowToolbarProps) {
       const blockingErrors = errors.filter((e) => e.severity === 'error');
       if (blockingErrors.length > 0) {
         setSaveError(`${blockingErrors.length} error(s): ${blockingErrors.map((e) => e.message).join('; ')}`);
+        // Block save for active workflows with validation errors
+        if (isActive) {
+          setIsSaving(false);
+          return;
+        }
       }
 
       const res = await fetch(`/api/projects/${projectSlug}/workflows/${workflowId}`, {
@@ -147,13 +152,21 @@ export function WorkflowToolbar({ projectSlug }: WorkflowToolbarProps) {
 
   async function handleTestRun() {
     if (!workflowId) return;
+    setSaveError(null);
     try {
-      await fetch(
+      const res = await fetch(
         `/api/projects/${projectSlug}/workflows/${workflowId}/execute`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }
       );
+      if (res.ok) {
+        setSaveError(null);
+      } else {
+        const data = await res.json().catch(() => ({}));
+        setSaveError(data.error || `Test run failed (${res.status})`);
+      }
     } catch (error) {
       console.error('Failed to execute:', error);
+      setSaveError('Failed to start test run');
     }
   }
 
@@ -169,7 +182,7 @@ export function WorkflowToolbar({ projectSlug }: WorkflowToolbarProps) {
     a.href = url;
     a.download = `${workflowName || 'workflow'}.json`;
     a.click();
-    URL.revokeObjectURL(url);
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
   }
 
   return (

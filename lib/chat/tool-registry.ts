@@ -4159,6 +4159,7 @@ defineTool({
   minRole: 'admin',
   parameters: z.object({
     workflow_id: z.string().uuid().describe('Workflow ID'),
+    active: z.boolean().optional().describe('Explicitly set active state. Omit to toggle.'),
   }),
   handler: async (params, ctx) => {
     const { validateWorkflow } = await import('@/lib/workflows/validators/validate-workflow');
@@ -4172,7 +4173,7 @@ defineTool({
 
     if (getError) throw new Error(`Workflow not found: ${getError.message}`);
 
-    const newActive = !workflow.is_active;
+    const newActive = params.active !== undefined ? (params.active as boolean) : !workflow.is_active;
 
     if (newActive) {
       const def = workflow.definition as unknown as Parameters<typeof validateWorkflow>[0];
@@ -4207,31 +4208,45 @@ defineTool({
   handler: async (params, ctx) => {
     const { data: workflow, error: getError } = await ctx.supabase
       .from('workflows')
-      .select('id, current_version')
+      .select('id, current_version, definition')
       .eq('id', params.workflow_id as string)
       .eq('project_id', ctx.projectId)
       .single();
 
     if (getError) throw new Error(`Workflow not found: ${getError.message}`);
 
-    const { data: execution, error } = await ctx.supabase
-      .from('workflow_executions')
-      .insert({
-        workflow_id: workflow.id,
-        workflow_version: workflow.current_version,
-        trigger_event: { type: 'manual', user_id: ctx.userId } as unknown as Json,
-        status: 'running',
-        context_data: ((params.context_data as Record<string, unknown>) ?? {}) as unknown as Json,
-      })
-      .select()
-      .single();
+    // Use RPC for atomic execution creation + count increment (matches MCP tool & API route)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: executionId, error: rpcError } = await (ctx.supabase as any).rpc('log_workflow_execution', {
+      p_workflow_id: workflow.id,
+      p_workflow_version: workflow.current_version,
+      p_trigger_event: { type: 'manual', user_id: ctx.userId },
+      p_status: 'running',
+    });
 
-    if (error) throw new Error(`Failed to start execution: ${error.message}`);
+    if (rpcError || !executionId) throw new Error(`Failed to start execution: ${rpcError?.message ?? 'unknown'}`);
 
-    await ctx.supabase
-      .from('workflows')
-      .update({ last_executed_at: new Date().toISOString() })
-      .eq('id', workflow.id);
+    // Set context_data on the execution (RPC doesn't accept it)
+    const contextData = (params.context_data as Record<string, unknown>) ?? {};
+    if (Object.keys(contextData).length > 0) {
+      await ctx.supabase.from('workflow_executions')
+        .update({ context_data: contextData as unknown as Json })
+        .eq('id', executionId);
+    }
+
+    // Fire workflow engine asynchronously (don't block the response)
+    import('@/lib/workflows/engine').then(({ executeWorkflow }) => {
+      executeWorkflow(workflow.id, executionId as string, ctx.projectId, workflow.definition as unknown as Parameters<typeof executeWorkflow>[3], contextData).catch(async (err) => {
+        console.error('Chat workflow execution error:', err);
+        await ctx.supabase.from('workflow_executions')
+          .update({ status: 'failed', error_message: err instanceof Error ? err.message : String(err), completed_at: new Date().toISOString() })
+          .eq('id', executionId);
+      });
+    });
+
+    // Fetch execution for response
+    const { data: execution } = await ctx.supabase
+      .from('workflow_executions').select('*').eq('id', executionId).single();
 
     return JSON.stringify(execution);
   },
@@ -4247,6 +4262,11 @@ defineTool({
     status: z.enum(['running', 'completed', 'failed', 'cancelled', 'paused']).optional().describe('Filter by status'),
   }),
   handler: async (params, ctx) => {
+    // Verify workflow belongs to this project first
+    const { data: wf, error: wfErr } = await ctx.supabase
+      .from('workflows').select('id').eq('id', params.workflow_id as string).eq('project_id', ctx.projectId).single();
+    if (wfErr || !wf) throw new Error('Workflow not found in this project');
+
     let query = ctx.supabase
       .from('workflow_executions')
       .select('*')

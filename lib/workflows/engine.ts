@@ -45,7 +45,8 @@ export async function executeWorkflow(
   projectId: string,
   definition: WorkflowDefinition,
   initialContext: Record<string, unknown> = {},
-  depth = 0
+  depth = 0,
+  parentStepCount = 0
 ): Promise<void> {
   const supabase = createAdminClient();
 
@@ -60,7 +61,7 @@ export async function executeWorkflow(
     projectId,
     contextData: { ...initialContext },
     depth,
-    stepCount: 0,
+    stepCount: parentStepCount,
     insideLoop: false,
     hasPendingDelay: false,
   };
@@ -134,7 +135,7 @@ async function traverseNode(
       .eq('node_id', node.id)
       .in('status', ['completed', 'running', 'waiting'])
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (existingStep) {
       // Already executed — skip and continue to next nodes
@@ -323,7 +324,8 @@ async function traverseNode(
             ctx.projectId,
             prefixedDef,
             ctx.contextData,
-            ctx.depth + 1
+            ctx.depth + 1,
+            ctx.stepCount
           );
         }
         // TODO: Handle workflow_id reference
@@ -369,10 +371,22 @@ async function traverseNode(
       return true;
     });
 
-    for (const edge of outEdges) {
-      const targetNode = nodes.find((n) => n.id === edge.target);
-      if (targetNode) {
-        await traverseNode(supabase, targetNode, nodes, edges, ctx);
+    // Deep-clone contextData for each branch when there are multiple outgoing edges
+    // to prevent one branch's mutations from corrupting another branch's data
+    if (outEdges.length > 1) {
+      for (const edge of outEdges) {
+        const targetNode = nodes.find((n) => n.id === edge.target);
+        if (targetNode) {
+          const branchCtx = { ...ctx, contextData: structuredClone(ctx.contextData) };
+          await traverseNode(supabase, targetNode, nodes, edges, branchCtx);
+        }
+      }
+    } else {
+      for (const edge of outEdges) {
+        const targetNode = nodes.find((n) => n.id === edge.target);
+        if (targetNode) {
+          await traverseNode(supabase, targetNode, nodes, edges, ctx);
+        }
       }
     }
   } catch (error) {
