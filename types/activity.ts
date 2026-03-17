@@ -8,7 +8,8 @@ export type ActivityEntityType =
   | 'note'
   | 'sequence'
   | 'email'
-  | 'meeting';
+  | 'meeting'
+  | 'contract';
 
 // Activity actions
 export type ActivityAction =

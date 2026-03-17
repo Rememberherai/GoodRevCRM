@@ -687,6 +687,557 @@ export type Database = {
           },
         ]
       }
+      contract_audit_trail: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_name: string | null
+          actor_type: string
+          created_at: string
+          details: Json | null
+          document_id: string
+          id: string
+          ip_address: string | null
+          project_id: string
+          recipient_id: string | null
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_name?: string | null
+          actor_type?: string
+          created_at?: string
+          details?: Json | null
+          document_id: string
+          id?: string
+          ip_address?: string | null
+          project_id: string
+          recipient_id?: string | null
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_name?: string | null
+          actor_type?: string
+          created_at?: string
+          details?: Json | null
+          document_id?: string
+          id?: string
+          ip_address?: string | null
+          project_id?: string
+          recipient_id?: string | null
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_audit_trail_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "contract_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_audit_trail_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "contract_audit_trail_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_audit_trail_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "contract_recipients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_documents: {
+        Row: {
+          certificate_file_path: string | null
+          completed_at: string | null
+          created_at: string
+          created_by: string | null
+          current_signing_group: number | null
+          custom_fields: Json
+          declined_at: string | null
+          deleted_at: string | null
+          description: string | null
+          expires_at: string | null
+          gmail_connection_id: string | null
+          id: string
+          last_reminder_at: string | null
+          opportunity_id: string | null
+          organization_id: string | null
+          original_file_hash: string | null
+          original_file_name: string
+          original_file_path: string
+          owner_id: string | null
+          page_count: number
+          person_id: string | null
+          project_id: string
+          receipt_sent_at: string | null
+          reminder_enabled: boolean
+          reminder_interval_days: number | null
+          sender_email: string | null
+          sent_at: string | null
+          signed_file_hash: string | null
+          signed_file_path: string | null
+          signing_order_type: string
+          status: string
+          template_id: string | null
+          title: string
+          updated_at: string
+          voided_at: string | null
+        }
+        Insert: {
+          certificate_file_path?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_signing_group?: number | null
+          custom_fields?: Json
+          declined_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          expires_at?: string | null
+          gmail_connection_id?: string | null
+          id?: string
+          last_reminder_at?: string | null
+          opportunity_id?: string | null
+          organization_id?: string | null
+          original_file_hash?: string | null
+          original_file_name: string
+          original_file_path: string
+          owner_id?: string | null
+          page_count?: number
+          person_id?: string | null
+          project_id: string
+          receipt_sent_at?: string | null
+          reminder_enabled?: boolean
+          reminder_interval_days?: number | null
+          sender_email?: string | null
+          sent_at?: string | null
+          signed_file_hash?: string | null
+          signed_file_path?: string | null
+          signing_order_type?: string
+          status?: string
+          template_id?: string | null
+          title: string
+          updated_at?: string
+          voided_at?: string | null
+        }
+        Update: {
+          certificate_file_path?: string | null
+          completed_at?: string | null
+          created_at?: string
+          created_by?: string | null
+          current_signing_group?: number | null
+          custom_fields?: Json
+          declined_at?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          expires_at?: string | null
+          gmail_connection_id?: string | null
+          id?: string
+          last_reminder_at?: string | null
+          opportunity_id?: string | null
+          organization_id?: string | null
+          original_file_hash?: string | null
+          original_file_name?: string
+          original_file_path?: string
+          owner_id?: string | null
+          page_count?: number
+          person_id?: string | null
+          project_id?: string
+          receipt_sent_at?: string | null
+          reminder_enabled?: boolean
+          reminder_interval_days?: number | null
+          sender_email?: string | null
+          sent_at?: string | null
+          signed_file_hash?: string | null
+          signed_file_path?: string | null
+          signing_order_type?: string
+          status?: string
+          template_id?: string | null
+          title?: string
+          updated_at?: string
+          voided_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_documents_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_documents_opportunity_id_fkey"
+            columns: ["opportunity_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_documents_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_documents_owner_id_fkey"
+            columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_documents_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "contract_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_documents_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contract_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_fields: {
+        Row: {
+          auto_populate_from: string | null
+          created_at: string
+          document_id: string
+          field_type: string
+          filled_at: string | null
+          height: number
+          id: string
+          is_required: boolean
+          label: string | null
+          options: Json | null
+          page_number: number
+          placeholder: string | null
+          project_id: string
+          recipient_id: string
+          updated_at: string
+          validation_rule: string | null
+          value: string | null
+          width: number
+          x: number
+          y: number
+        }
+        Insert: {
+          auto_populate_from?: string | null
+          created_at?: string
+          document_id: string
+          field_type: string
+          filled_at?: string | null
+          height: number
+          id?: string
+          is_required?: boolean
+          label?: string | null
+          options?: Json | null
+          page_number?: number
+          placeholder?: string | null
+          project_id: string
+          recipient_id: string
+          updated_at?: string
+          validation_rule?: string | null
+          value?: string | null
+          width: number
+          x: number
+          y: number
+        }
+        Update: {
+          auto_populate_from?: string | null
+          created_at?: string
+          document_id?: string
+          field_type?: string
+          filled_at?: string | null
+          height?: number
+          id?: string
+          is_required?: boolean
+          label?: string | null
+          options?: Json | null
+          page_number?: number
+          placeholder?: string | null
+          project_id?: string
+          recipient_id?: string
+          updated_at?: string
+          validation_rule?: string | null
+          value?: string | null
+          width?: number
+          x?: number
+          y?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_fields_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "contract_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_fields_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "contract_fields_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_fields_recipient_id_fkey"
+            columns: ["recipient_id"]
+            isOneToOne: false
+            referencedRelation: "contract_recipients"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_recipients: {
+        Row: {
+          consent_ip: string | null
+          consent_timestamp: string | null
+          consent_user_agent: string | null
+          created_at: string
+          decline_reason: string | null
+          declined_at: string | null
+          delegated_at: string | null
+          delegated_to_recipient_id: string | null
+          document_id: string
+          email: string
+          id: string
+          initials_data: Json | null
+          name: string
+          person_id: string | null
+          project_id: string
+          role: string
+          sent_at: string | null
+          signature_data: Json | null
+          signed_at: string | null
+          signing_ip: string | null
+          signing_order: number
+          signing_token: string
+          signing_user_agent: string | null
+          status: string
+          token_expires_at: string | null
+          updated_at: string
+          viewed_at: string | null
+        }
+        Insert: {
+          consent_ip?: string | null
+          consent_timestamp?: string | null
+          consent_user_agent?: string | null
+          created_at?: string
+          decline_reason?: string | null
+          declined_at?: string | null
+          delegated_at?: string | null
+          delegated_to_recipient_id?: string | null
+          document_id: string
+          email: string
+          id?: string
+          initials_data?: Json | null
+          name: string
+          person_id?: string | null
+          project_id: string
+          role?: string
+          sent_at?: string | null
+          signature_data?: Json | null
+          signed_at?: string | null
+          signing_ip?: string | null
+          signing_order?: number
+          signing_token?: string
+          signing_user_agent?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          viewed_at?: string | null
+        }
+        Update: {
+          consent_ip?: string | null
+          consent_timestamp?: string | null
+          consent_user_agent?: string | null
+          created_at?: string
+          decline_reason?: string | null
+          declined_at?: string | null
+          delegated_at?: string | null
+          delegated_to_recipient_id?: string | null
+          document_id?: string
+          email?: string
+          id?: string
+          initials_data?: Json | null
+          name?: string
+          person_id?: string | null
+          project_id?: string
+          role?: string
+          sent_at?: string | null
+          signature_data?: Json | null
+          signed_at?: string | null
+          signing_ip?: string | null
+          signing_order?: number
+          signing_token?: string
+          signing_user_agent?: string | null
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string
+          viewed_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_recipients_delegated_to_recipient_id_fkey"
+            columns: ["delegated_to_recipient_id"]
+            isOneToOne: false
+            referencedRelation: "contract_recipients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_recipients_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "contract_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_recipients_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_recipients_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "contract_recipients_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contract_templates: {
+        Row: {
+          category: string | null
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          description: string | null
+          fields: Json
+          file_name: string
+          file_path: string
+          id: string
+          last_used_at: string | null
+          merge_fields: Json
+          name: string
+          page_count: number
+          project_id: string
+          roles: Json
+          updated_at: string
+          use_count: number
+        }
+        Insert: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          fields?: Json
+          file_name: string
+          file_path: string
+          id?: string
+          last_used_at?: string | null
+          merge_fields?: Json
+          name: string
+          page_count?: number
+          project_id: string
+          roles?: Json
+          updated_at?: string
+          use_count?: number
+        }
+        Update: {
+          category?: string | null
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          description?: string | null
+          fields?: Json
+          file_name?: string
+          file_path?: string
+          id?: string
+          last_used_at?: string | null
+          merge_fields?: Json
+          name?: string
+          page_count?: number
+          project_id?: string
+          roles?: Json
+          updated_at?: string
+          use_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contract_templates_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contract_templates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "contract_templates_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       custom_field_definitions: {
         Row: {
           ai_confidence_threshold: number | null

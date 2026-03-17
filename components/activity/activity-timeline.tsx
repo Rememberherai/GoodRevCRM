@@ -23,6 +23,7 @@ import {
   Clock,
   ChevronDown,
   ChevronUp,
+  PenTool,
 } from 'lucide-react';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Badge } from '@/components/ui/badge';
@@ -50,6 +51,7 @@ const entityIcons: Record<ActivityEntityType, typeof User> = {
   sequence: RefreshCw,
   email: Mail,
   meeting: Calendar,
+  contract: PenTool,
 };
 
 const actionIcons: Partial<Record<ActivityAction, typeof Plus>> = {

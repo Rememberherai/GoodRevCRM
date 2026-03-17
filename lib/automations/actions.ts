@@ -41,6 +41,7 @@ const entityTableMap: Record<AutomationEntityType, string> = {
   meeting: 'meetings',
   call: 'calls',
   workflow: 'workflows',
+  document: 'contract_documents',
 };
 
 /**
@@ -82,6 +83,12 @@ export async function executeAction(
         return await executeFireWebhook(action, context);
       case 'run_workflow':
         return await executeRunWorkflow(action, context);
+      case 'send_document':
+        return { action_type: action.type, success: false, error: 'send_document automation action not yet implemented' };
+      case 'void_document':
+        return { action_type: action.type, success: false, error: 'void_document automation action not yet implemented' };
+      case 'send_signing_reminder':
+        return { action_type: action.type, success: false, error: 'send_signing_reminder automation action not yet implemented' };
       default:
         return { action_type: action.type, success: false, error: `Unknown action type: ${action.type}` };
     }
@@ -154,6 +161,7 @@ async function executeUpdateField(
     tasks: ['title', 'description', 'priority', 'status', 'due_date'],
     meetings: ['title', 'description', 'status', 'outcome_notes', 'next_steps'],
     calls: ['status', 'disposition', 'disposition_notes', 'duration_seconds'],
+    contract_documents: ['title', 'description', 'status', 'reminder_enabled', 'reminder_interval_days'],
   };
 
   // Handle custom fields

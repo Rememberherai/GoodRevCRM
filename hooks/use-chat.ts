@@ -40,6 +40,8 @@ const MUTATING_TOOLS = new Set([
   'sequence_steps_create', 'sequence_steps_update', 'sequence_steps_delete',
   'secrets_set', 'secrets_delete',
   'workflows_create', 'workflows_update', 'workflows_delete', 'workflows_activate', 'workflows_execute',
+  'contracts_create', 'contracts_update', 'contracts_delete', 'contracts_void',
+  'contracts_add_recipient', 'contracts_add_field',
 ]);
 
 export interface PageContext {

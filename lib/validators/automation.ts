@@ -20,6 +20,12 @@ export const triggerTypes = [
   'time.task_overdue',
   'time.close_date_approaching',
   'time.created_ago',
+  'document.sent',
+  'document.signed',
+  'document.completed',
+  'document.declined',
+  'document.expired',
+  'document.voided',
 ] as const;
 
 export const actionTypes = [
@@ -36,6 +42,11 @@ export const actionTypes = [
   'run_ai_research',
   'create_activity',
   'fire_webhook',
+  'send_sms',
+  'run_workflow',
+  'send_document',
+  'void_document',
+  'send_signing_reminder',
 ] as const;
 
 export const conditionOperators = [
@@ -58,6 +69,9 @@ export const automationEntityTypes = [
   'rfp',
   'task',
   'meeting',
+  'call',
+  'workflow',
+  'document',
 ] as const;
 
 const conditionValueSchema = z.union([

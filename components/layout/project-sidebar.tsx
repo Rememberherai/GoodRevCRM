@@ -15,6 +15,7 @@ import {
   Newspaper,
   MessageSquare,
   GitBranch,
+  PenTool,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -70,6 +71,11 @@ const navItems = [
     title: 'News',
     href: '/news',
     icon: Newspaper,
+  },
+  {
+    title: 'Contracts',
+    href: '/contracts',
+    icon: PenTool,
   },
   {
     title: 'Workflows',

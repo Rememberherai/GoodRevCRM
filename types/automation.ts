@@ -42,7 +42,14 @@ export type TriggerType =
   // Workflow events
   | 'workflow.completed'
   | 'workflow.failed'
-  | 'workflow.step_failed';
+  | 'workflow.step_failed'
+  // Document/contract events
+  | 'document.sent'
+  | 'document.signed'
+  | 'document.completed'
+  | 'document.declined'
+  | 'document.expired'
+  | 'document.voided';
 
 export type ActionType =
   | 'create_task'
@@ -59,7 +66,10 @@ export type ActionType =
   | 'run_ai_research'
   | 'create_activity'
   | 'fire_webhook'
-  | 'run_workflow';
+  | 'run_workflow'
+  | 'send_document'
+  | 'void_document'
+  | 'send_signing_reminder';
 
 export type ConditionOperator =
   | 'equals'
@@ -81,7 +91,8 @@ export type AutomationEntityType =
   | 'task'
   | 'meeting'
   | 'call'
-  | 'workflow';
+  | 'workflow'
+  | 'document';
 
 export type ExecutionStatus =
   | 'success'
@@ -116,6 +127,7 @@ export interface TriggerConfig {
   direction?: string;
   days?: number;
   days_before?: number;
+  document_status?: string;
 }
 
 export interface Automation {
@@ -249,6 +261,17 @@ export const triggerTypeGroups = {
       { type: 'news.article_found' as TriggerType, label: 'Relevant News Found', description: 'When a news article matching tracked keywords is found' },
     ],
   },
+  document: {
+    label: 'Document Events',
+    triggers: [
+      { type: 'document.sent' as TriggerType, label: 'Document Sent', description: 'When a document is sent for signing' },
+      { type: 'document.signed' as TriggerType, label: 'Document Signed', description: 'When a signer completes signing' },
+      { type: 'document.completed' as TriggerType, label: 'Document Completed', description: 'When all signers have signed' },
+      { type: 'document.declined' as TriggerType, label: 'Document Declined', description: 'When a signer declines to sign' },
+      { type: 'document.expired' as TriggerType, label: 'Document Expired', description: 'When a document expires' },
+      { type: 'document.voided' as TriggerType, label: 'Document Voided', description: 'When a document is voided by the owner' },
+    ],
+  },
 };
 
 export const allTriggerTypes = Object.values(triggerTypeGroups).flatMap(g => g.triggers.map(t => t.type));
@@ -277,6 +300,9 @@ export const actionTypeOptions = [
   { type: 'run_ai_research' as ActionType, label: 'Run AI Research', description: 'Trigger AI research on the entity' },
   { type: 'create_activity' as ActionType, label: 'Log Activity', description: 'Create a custom activity log entry' },
   { type: 'fire_webhook' as ActionType, label: 'Fire Webhook', description: 'Send a custom webhook request' },
+  { type: 'send_document' as ActionType, label: 'Send Document', description: 'Send a contract document for signing' },
+  { type: 'void_document' as ActionType, label: 'Void Document', description: 'Void an active contract document' },
+  { type: 'send_signing_reminder' as ActionType, label: 'Send Signing Reminder', description: 'Send a reminder to unsigned recipients' },
 ];
 
 export const conditionOperatorLabels: Record<ConditionOperator, string> = {

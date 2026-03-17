@@ -43,6 +43,7 @@ export function buildSystemPrompt(projectName: string): string {
 - **Call Metrics**: Get call analytics for date ranges
 - **RFP Stats**: Get RFP summary statistics, win rates, deadlines
 - **Workflows**: List, get, create, update, delete workflows; activate/deactivate; manually execute; view executions; validate definitions
+- **Contracts/E-Signatures**: List, get, create, void contract documents; add recipients and fields; view audit trails; list templates
 - **API Keys (Secrets)**: List, set, and delete project API keys (admin only) — OpenRouter, FullEnrich, News API, Census
 
 ## Guidelines

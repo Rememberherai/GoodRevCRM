@@ -4547,6 +4547,105 @@ defineTool({
   },
 });
 
+// ── Contract Tools ──────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'contracts.list',
+  description: 'List contract documents with pagination and filtering',
+  minRole: 'viewer',
+  parameters: z.object({
+    page: z.number().int().min(1).default(1).describe('Page number'),
+    limit: z.number().int().min(1).max(100).default(50).describe('Items per page'),
+    search: z.string().optional().describe('Search by title'),
+    status: z.string().optional().describe('Filter by status'),
+  }),
+  handler: async (params, ctx) => {
+    const { page = 1, limit = 50, search, status } = params as {
+      page?: number; limit?: number; search?: string; status?: string;
+    };
+    const offset = (page - 1) * limit;
+    let query = ctx.supabase
+      .from('contract_documents')
+      .select('id, title, status, signing_order_type, original_file_name, created_at, sent_at, completed_at', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null);
+    if (search) {
+      const sanitized = search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""');
+      query = query.ilike('title', `%${sanitized}%`);
+    }
+    if (status) query = query.eq('status', status);
+    query = query.order('created_at', { ascending: false }).range(offset, offset + limit - 1);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify({ contracts: data, pagination: { page, limit, total: count ?? 0 } });
+  },
+});
+
+defineTool({
+  name: 'contracts.get',
+  description: 'Get a contract document by ID with recipients',
+  minRole: 'viewer',
+  parameters: z.object({
+    id: z.string().uuid().describe('Contract document ID'),
+  }),
+  handler: async (params, ctx) => {
+    const id = params.id as string;
+    const { data: doc, error } = await ctx.supabase
+      .from('contract_documents')
+      .select('*')
+      .eq('id', id)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .single();
+    if (error) throw new Error(`Not found: ${error.message}`);
+    const { data: recipients } = await ctx.supabase
+      .from('contract_recipients')
+      .select('id, name, email, role, signing_order, status')
+      .eq('document_id', id)
+      .order('signing_order');
+    return JSON.stringify({ ...doc, recipients: recipients ?? [] });
+  },
+});
+
+defineTool({
+  name: 'contracts.void',
+  description: 'Void an active contract document',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Contract document ID'),
+    reason: z.string().optional().describe('Reason for voiding'),
+  }),
+  handler: async (params, ctx) => {
+    const id = params.id as string;
+    const { error } = await ctx.supabase
+      .from('contract_documents')
+      .update({ status: 'voided', voided_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .in('status', ['sent', 'viewed', 'partially_signed', 'expired', 'declined']);
+    if (error) throw new Error(`Failed to void: ${error.message}`);
+    const { insertAuditTrail } = await import('@/lib/contracts/audit');
+    insertAuditTrail({
+      project_id: ctx.projectId,
+      document_id: id,
+      action: 'voided',
+      actor_type: 'user',
+      actor_id: ctx.userId,
+      details: { reason: params.reason as string },
+    });
+    const { emitAutomationEvent } = await import('@/lib/automations/engine');
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'document.voided' as never,
+      entityType: 'document' as never,
+      entityId: id,
+      data: { title: 'voided' },
+    });
+    return JSON.stringify({ success: true });
+  },
+});
+
 export function getToolDefinitions(): ToolDefinition[] {
   return tools.map((tool) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod v4 type compat with zod-to-json-schema
