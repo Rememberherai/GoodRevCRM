@@ -44,7 +44,7 @@ export async function GET(request: Request, context: RouteContext) {
 
   let query = supabase
     .from('contract_documents')
-    .select('*, organization:organizations(id, name), person:people(id, first_name, last_name, email), opportunity:opportunities(id, title), owner:users!contract_documents_owner_id_fkey(id, full_name, email)', { count: 'exact' })
+    .select('*, organization:organizations(id, name), person:people(id, first_name, last_name, email), opportunity:opportunities(id, name), owner:users!contract_documents_owner_id_fkey(id, full_name, email)', { count: 'exact' })
     .eq('project_id', project.id)
     .is('deleted_at', null);
 

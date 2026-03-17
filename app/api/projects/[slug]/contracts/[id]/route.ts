@@ -32,7 +32,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
   const { data: document, error } = await supabase
     .from('contract_documents')
-    .select('*, organization:organizations(id, name), person:people(id, first_name, last_name, email), opportunity:opportunities(id, title), owner:users!contract_documents_owner_id_fkey(id, full_name, email), template:contract_templates(id, name)')
+    .select('*, organization:organizations(id, name), person:people(id, first_name, last_name, email), opportunity:opportunities(id, name), owner:users!contract_documents_owner_id_fkey(id, full_name, email), template:contract_templates(id, name)')
     .eq('id', id)
     .eq('project_id', project.id)
     .is('deleted_at', null)

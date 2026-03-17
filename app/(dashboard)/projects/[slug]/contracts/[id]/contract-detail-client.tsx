@@ -100,7 +100,7 @@ interface ContractDetail {
   fields: unknown[];
   organization?: { id: string; name: string } | null;
   person?: { id: string; first_name: string; last_name: string } | null;
-  opportunity?: { id: string; title: string } | null;
+  opportunity?: { id: string; name: string } | null;
   owner?: { id: string; full_name: string | null; email: string } | null;
 }
 
@@ -472,7 +472,7 @@ export function ContractDetailClient() {
                   <div>
                     <span className="text-muted-foreground">Opportunity: </span>
                     <Link href={`/projects/${slug}/opportunities/${contract.opportunity.id}`} className="text-primary hover:underline">
-                      {contract.opportunity.title}
+                      {contract.opportunity.name}
                     </Link>
                   </div>
                 ) : null}
