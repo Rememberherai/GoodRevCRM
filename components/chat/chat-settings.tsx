@@ -69,10 +69,21 @@ export function ChatSettings({ onBack }: ChatSettingsProps) {
           <div className="rounded-md border p-3 space-y-2">
             <ToolGroup name="Organizations" tools={['list', 'get', 'create', 'update', 'delete', 'get_people']} />
             <ToolGroup name="People" tools={['list', 'get', 'create', 'update', 'delete', 'link_organization']} />
+            <ToolGroup name="Opportunities" tools={['list', 'get', 'create', 'update', 'delete']} />
+            <ToolGroup name="Tasks" tools={['list', 'get', 'create', 'update', 'delete']} />
+            <ToolGroup name="Notes" tools={['list', 'create', 'update', 'delete']} />
+            <ToolGroup name="RFPs" tools={['list', 'get', 'create', 'update', 'delete']} />
+            <ToolGroup name="Sequences" tools={['list', 'get', 'create', 'update', 'enroll', 'unenroll']} />
+            <ToolGroup name="Meetings" tools={['list', 'create', 'update', 'delete']} />
+            <ToolGroup name="Calls" tools={['list', 'get']} />
+            <ToolGroup name="Email" tools={['send', 'history']} />
+            <ToolGroup name="Tags" tools={['list', 'create', 'assign', 'get_entity_tags']} />
+            <ToolGroup name="Comments" tools={['list', 'create']} />
+            <ToolGroup name="Dashboard" tools={['stats']} />
             <ToolGroup name="Search" tools={['global']} />
           </div>
           <p className="text-xs text-muted-foreground">
-            The AI can use these tools to read and modify your CRM data. More tools will be added as features are built.
+            The AI can use these tools to read and modify your CRM data across all entity types.
           </p>
         </div>
 
