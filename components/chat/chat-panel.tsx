@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useCallback, useRef, useState } from 'react';
-import { X, Plus, MessageSquare, Settings, Trash2 } from 'lucide-react';
+import { X, Plus, MessageSquare, Settings, Trash2, Pencil, Check } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   DropdownMenu,
@@ -35,10 +35,13 @@ export function ChatPanel({ projectSlug }: ChatPanelProps) {
     loadConversation,
     newConversation,
     deleteConversation,
+    renameConversation,
     stopStreaming,
   } = useChat(projectSlug);
 
   const [showSettings, setShowSettings] = useState(false);
+  const [editingId, setEditingId] = useState<string | null>(null);
+  const [editTitle, setEditTitle] = useState('');
   const [isResizing, setIsResizing] = useState(false);
   const resizeRef = useRef<{ startX: number; startWidth: number } | null>(null);
 
@@ -145,19 +148,62 @@ export function ChatPanel({ projectSlug }: ChatPanelProps) {
                     <DropdownMenuItem
                       key={conv.id}
                       className="flex items-center justify-between gap-2"
+                      onSelect={(e) => {
+                        if (editingId === conv.id) e.preventDefault();
+                      }}
                     >
-                      <button
-                        className="flex-1 text-left text-xs truncate"
-                        onClick={() => loadConversation(conv.id)}
-                      >
-                        {conv.title ?? 'Untitled'}
-                      </button>
-                      <button
-                        className="shrink-0 text-muted-foreground hover:text-destructive"
-                        onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id); }}
-                      >
-                        <Trash2 className="h-3 w-3" />
-                      </button>
+                      {editingId === conv.id ? (
+                        <form
+                          className="flex-1 flex items-center gap-1"
+                          onSubmit={(e) => {
+                            e.preventDefault();
+                            if (editTitle.trim()) {
+                              renameConversation(conv.id, editTitle.trim());
+                            }
+                            setEditingId(null);
+                          }}
+                        >
+                          <input
+                            className="flex-1 text-xs bg-muted rounded px-1.5 py-0.5 outline-none border border-input"
+                            value={editTitle}
+                            onChange={(e) => setEditTitle(e.target.value)}
+                            autoFocus
+                            onKeyDown={(e) => {
+                              if (e.key === 'Escape') setEditingId(null);
+                              e.stopPropagation();
+                            }}
+                            onClick={(e) => e.stopPropagation()}
+                          />
+                          <button type="submit" className="shrink-0 text-muted-foreground hover:text-primary" onClick={(e) => e.stopPropagation()}>
+                            <Check className="h-3 w-3" />
+                          </button>
+                        </form>
+                      ) : (
+                        <>
+                          <button
+                            className="flex-1 text-left text-xs truncate"
+                            onClick={() => loadConversation(conv.id)}
+                          >
+                            {conv.title ?? 'Untitled'}
+                          </button>
+                          <button
+                            className="shrink-0 text-muted-foreground hover:text-foreground"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setEditingId(conv.id);
+                              setEditTitle(conv.title ?? '');
+                            }}
+                          >
+                            <Pencil className="h-3 w-3" />
+                          </button>
+                          <button
+                            className="shrink-0 text-muted-foreground hover:text-destructive"
+                            onClick={(e) => { e.stopPropagation(); deleteConversation(conv.id); }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </>
+                      )}
                     </DropdownMenuItem>
                   ))}
                   <DropdownMenuSeparator />

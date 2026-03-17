@@ -1,9 +1,28 @@
 import { useCallback, useRef } from 'react';
+import { usePathname } from 'next/navigation';
 import { useChatStore, type ChatMessage } from '@/stores/chat';
+
+export interface PageContext {
+  entityType: 'organization' | 'person';
+  entityId: string;
+}
+
+function detectPageContext(pathname: string): PageContext | null {
+  // Match /projects/[slug]/organizations/[uuid]
+  const orgMatch = pathname.match(/\/projects\/[^/]+\/organizations\/([0-9a-f-]{36})/);
+  if (orgMatch?.[1]) return { entityType: 'organization', entityId: orgMatch[1] };
+
+  // Match /projects/[slug]/people/[uuid]
+  const personMatch = pathname.match(/\/projects\/[^/]+\/people\/([0-9a-f-]{36})/);
+  if (personMatch?.[1]) return { entityType: 'person', entityId: personMatch[1] };
+
+  return null;
+}
 
 export function useChat(projectSlug: string) {
   const store = useChatStore();
   const abortRef = useRef<AbortController | null>(null);
+  const pathname = usePathname();
 
   const loadConversations = useCallback(async () => {
     try {
@@ -49,12 +68,14 @@ export function useChat(projectSlug: string) {
     abortRef.current = controller;
 
     try {
+      const pageContext = detectPageContext(pathname);
       const res = await fetch(`/api/projects/${projectSlug}/chat`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           conversationId: store.currentConversationId,
           message: text,
+          pageContext,
         }),
         signal: controller.signal,
       });
@@ -159,7 +180,7 @@ export function useChat(projectSlug: string) {
       store.resetStreamingContent();
       abortRef.current = null;
     }
-  }, [projectSlug, store, loadConversations]);
+  }, [projectSlug, store, loadConversations, pathname]);
 
   const newConversation = useCallback(() => {
     store.reset();
@@ -177,6 +198,24 @@ export function useChat(projectSlug: string) {
     }
   }, [projectSlug, store]);
 
+  const renameConversation = useCallback(async (conversationId: string, title: string) => {
+    try {
+      const res = await fetch(`/api/projects/${projectSlug}/chat/${conversationId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title }),
+      });
+      if (!res.ok) return;
+      store.setConversations(
+        store.conversations.map((c) =>
+          c.id === conversationId ? { ...c, title } : c
+        )
+      );
+    } catch {
+      // Silently fail
+    }
+  }, [projectSlug, store]);
+
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort();
   }, []);
@@ -188,6 +227,7 @@ export function useChat(projectSlug: string) {
     loadConversation,
     newConversation,
     deleteConversation,
+    renameConversation,
     stopStreaming,
   };
 }

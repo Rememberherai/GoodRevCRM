@@ -15,9 +15,15 @@ interface RouteContext {
   params: Promise<{ slug: string }>;
 }
 
+const pageContextSchema = z.object({
+  entityType: z.enum(['organization', 'person']),
+  entityId: z.string().uuid(),
+}).nullish();
+
 const sendMessageSchema = z.object({
   conversationId: z.string().uuid().nullish(),
   message: z.string().min(1).max(10000),
+  pageContext: pageContextSchema.optional(),
 });
 
 const MAX_TOOL_ITERATIONS = 10;
@@ -53,7 +59,27 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Validation failed', details: validation.error.flatten() }, { status: 400 });
     }
 
-    const { conversationId, message } = validation.data;
+    const { conversationId, message, pageContext } = validation.data;
+
+    // Fetch page context entity data if provided
+    let pageContextPrompt = '';
+    if (pageContext) {
+      const table = pageContext.entityType === 'organization' ? 'organizations' : 'people';
+      const { data: entity } = await supabase
+        .from(table)
+        .select('*')
+        .eq('id', pageContext.entityId)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+
+      if (entity) {
+        const label = pageContext.entityType === 'organization'
+          ? (entity as Record<string, unknown>).name
+          : `${(entity as Record<string, unknown>).first_name} ${(entity as Record<string, unknown>).last_name}`;
+        pageContextPrompt = `\n\n## Current Page Context\nThe user is currently viewing the ${pageContext.entityType} detail page for **${label}** (ID: ${pageContext.entityId}).\nFull record:\n\`\`\`json\n${JSON.stringify(entity, null, 2)}\n\`\`\`\nIf the user's message seems to relate to this ${pageContext.entityType}, use this context rather than asking for clarification.`;
+      }
+    }
 
     // Build MCP context for tool execution (use admin client for full access within project scope)
     const adminSupabase = createAdminClient();
@@ -100,7 +126,7 @@ export async function POST(request: Request, context: RouteContext) {
       .limit(100);
 
     // Build message history for OpenRouter
-    const systemPrompt = buildSystemPrompt(project.name);
+    const systemPrompt = buildSystemPrompt(project.name) + pageContextPrompt;
     const messages: ChatMessageWithTools[] = [
       { role: 'system', content: systemPrompt },
     ];
