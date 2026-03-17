@@ -125,15 +125,25 @@ export async function POST(_request: Request, context: RouteContext) {
       });
     } catch (err) {
       console.error(`[CONTRACT_REMIND] Failed to send to ${recipient.email}:`, err);
+      insertAuditTrail({
+        project_id: project.id,
+        document_id: id,
+        recipient_id: recipient.id,
+        action: 'send_failed',
+        actor_type: 'user',
+        actor_id: user.id,
+        details: { error: err instanceof Error ? err.message : 'Unknown error', type: 'reminder', email: recipient.email },
+      });
     }
   }
 
-  // Update last_reminder_at
-  await adminClient
-    .from('contract_documents')
-    .update({ last_reminder_at: new Date().toISOString() })
-    .eq('id', id)
-    .eq('project_id', project.id);
+  if (sentCount > 0) {
+    await adminClient
+      .from('contract_documents')
+      .update({ last_reminder_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('project_id', project.id);
+  }
 
   return NextResponse.json({ success: true, sent_count: sentCount });
 }

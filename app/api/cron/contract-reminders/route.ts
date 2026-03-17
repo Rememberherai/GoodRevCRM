@@ -77,6 +77,7 @@ async function processContracts() {
         }
 
         // Send reminder to each pending recipient
+        let sentCount = 0;
         for (const recipient of recipients) {
           try {
             await sendEmail(
@@ -89,9 +90,22 @@ async function processContracts() {
               (connection as GmailConnection).user_id,
               doc.project_id,
             );
+            sentCount++;
           } catch (emailErr) {
             console.error(`[Contract Cron] Failed to send reminder to ${recipient.email}:`, emailErr);
+            insertAuditTrail({
+              project_id: doc.project_id,
+              document_id: doc.id,
+              recipient_id: recipient.id,
+              action: 'send_failed',
+              actor_type: 'system',
+              details: { error: emailErr instanceof Error ? emailErr.message : 'Unknown error', type: 'reminder', email: recipient.email },
+            });
           }
+        }
+
+        if (sentCount === 0) {
+          continue;
         }
 
         insertAuditTrail({
@@ -99,7 +113,7 @@ async function processContracts() {
           document_id: doc.id,
           action: 'reminder_sent',
           actor_type: 'system',
-          details: { recipient_count: recipients.length },
+          details: { recipient_count: sentCount },
         });
 
         // Update last_reminder_at

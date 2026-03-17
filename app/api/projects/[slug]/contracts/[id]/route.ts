@@ -124,12 +124,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     .update(updateData)
     .eq('id', id)
     .eq('project_id', project.id)
+    .eq('status', 'draft')
     .select()
     .single();
 
-  if (error) {
+  if (error || !document) {
     console.error('[CONTRACTS] Update error:', error);
-    return NextResponse.json({ error: 'Failed to update contract' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update contract' }, { status: 409 });
   }
 
   emitAutomationEvent({
@@ -163,16 +164,36 @@ export async function DELETE(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Project not found' }, { status: 404 });
   }
 
+  const { data: existing } = await supabase
+    .from('contract_documents')
+    .select('id, status')
+    .eq('id', id)
+    .eq('project_id', project.id)
+    .is('deleted_at', null)
+    .single();
+
+  if (!existing) {
+    return NextResponse.json({ error: 'Contract not found' }, { status: 404 });
+  }
+
+  if (existing.status !== 'draft') {
+    return NextResponse.json({ error: 'Can only delete draft contracts' }, { status: 400 });
+  }
+
   // Soft delete
-  const { error } = await supabase
+  const { data: deletedDocument, error } = await supabase
     .from('contract_documents')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', id)
-    .eq('project_id', project.id);
+    .eq('project_id', project.id)
+    .eq('status', 'draft')
+    .is('deleted_at', null)
+    .select('id')
+    .single();
 
-  if (error) {
+  if (error || !deletedDocument) {
     console.error('[CONTRACTS] Delete error:', error);
-    return NextResponse.json({ error: 'Failed to delete contract' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete contract' }, { status: 409 });
   }
 
   return NextResponse.json({ success: true });

@@ -66,10 +66,7 @@ export type ActionType =
   | 'run_ai_research'
   | 'create_activity'
   | 'fire_webhook'
-  | 'run_workflow'
-  | 'send_document'
-  | 'void_document'
-  | 'send_signing_reminder';
+  | 'run_workflow';
 
 export type ConditionOperator =
   | 'equals'
@@ -300,9 +297,6 @@ export const actionTypeOptions = [
   { type: 'run_ai_research' as ActionType, label: 'Run AI Research', description: 'Trigger AI research on the entity' },
   { type: 'create_activity' as ActionType, label: 'Log Activity', description: 'Create a custom activity log entry' },
   { type: 'fire_webhook' as ActionType, label: 'Fire Webhook', description: 'Send a custom webhook request' },
-  { type: 'send_document' as ActionType, label: 'Send Document', description: 'Send a contract document for signing' },
-  { type: 'void_document' as ActionType, label: 'Void Document', description: 'Void an active contract document' },
-  { type: 'send_signing_reminder' as ActionType, label: 'Send Signing Reminder', description: 'Send a reminder to unsigned recipients' },
 ];
 
 export const conditionOperatorLabels: Record<ConditionOperator, string> = {

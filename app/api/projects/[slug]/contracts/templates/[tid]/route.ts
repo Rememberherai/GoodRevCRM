@@ -67,7 +67,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     .select()
     .single();
 
-  if (error) return NextResponse.json({ error: 'Failed to update template' }, { status: 500 });
+  if (error || !template) return NextResponse.json({ error: 'Failed to update template' }, { status: 409 });
 
   return NextResponse.json({ template });
 }
@@ -88,11 +88,18 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
   if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
-  await supabase
+  const { data: deletedTemplate, error } = await supabase
     .from('contract_templates')
     .update({ deleted_at: new Date().toISOString() })
     .eq('id', tid)
-    .eq('project_id', project.id);
+    .eq('project_id', project.id)
+    .is('deleted_at', null)
+    .select('id')
+    .single();
+
+  if (error || !deletedTemplate) {
+    return NextResponse.json({ error: 'Failed to delete template' }, { status: 409 });
+  }
 
   return NextResponse.json({ success: true });
 }

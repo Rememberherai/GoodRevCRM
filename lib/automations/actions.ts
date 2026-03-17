@@ -83,12 +83,6 @@ export async function executeAction(
         return await executeFireWebhook(action, context);
       case 'run_workflow':
         return await executeRunWorkflow(action, context);
-      case 'send_document':
-        return { action_type: action.type, success: false, error: 'send_document automation action not yet implemented' };
-      case 'void_document':
-        return { action_type: action.type, success: false, error: 'void_document automation action not yet implemented' };
-      case 'send_signing_reminder':
-        return { action_type: action.type, success: false, error: 'send_signing_reminder automation action not yet implemented' };
       default:
         return { action_type: action.type, success: false, error: `Unknown action type: ${action.type}` };
     }

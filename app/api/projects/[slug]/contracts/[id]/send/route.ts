@@ -184,13 +184,33 @@ export async function POST(request: Request, context: RouteContext) {
 
   for (const recipient of firstGroupRecipients) {
     // Update status to sent
-    await adminClient
+    const { data: sentRecipient } = await adminClient
       .from('contract_recipients')
       .update({
         status: 'sent',
         sent_at: new Date().toISOString(),
       })
-      .eq('id', recipient.id);
+      .eq('id', recipient.id)
+      .eq('status', 'pending')
+      .select('id')
+      .single();
+
+    if (!sentRecipient) {
+      sendResults.push({
+        recipientId: recipient.id,
+        success: false,
+        error: 'Recipient status changed before send',
+      });
+      auditEntries.push({
+        project_id: project.id,
+        document_id: id,
+        recipient_id: recipient.id,
+        action: 'send_failed',
+        actor_type: 'system',
+        details: { error: 'Recipient status changed before send', email: recipient.email },
+      });
+      continue;
+    }
 
     // Attempt email delivery
     try {

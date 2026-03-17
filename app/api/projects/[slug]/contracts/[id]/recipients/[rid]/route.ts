@@ -62,9 +62,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     .select()
     .single();
 
-  if (error) {
+  if (error || !recipient) {
     console.error('[CONTRACTS] Update recipient error:', error);
-    return NextResponse.json({ error: 'Failed to update recipient' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to update recipient' }, { status: 409 });
   }
 
   return NextResponse.json({ recipient });
@@ -115,16 +115,18 @@ export async function DELETE(_request: Request, context: RouteContext) {
     .eq('document_id', id)
     .eq('project_id', project.id);
 
-  const { error } = await supabase
+  const { data: deletedRecipient, error } = await supabase
     .from('contract_recipients')
     .delete()
     .eq('id', rid)
     .eq('document_id', id)
-    .eq('project_id', project.id);
+    .eq('project_id', project.id)
+    .select('id')
+    .single();
 
-  if (error) {
+  if (error || !deletedRecipient) {
     console.error('[CONTRACTS] Delete recipient error:', error);
-    return NextResponse.json({ error: 'Failed to delete recipient' }, { status: 500 });
+    return NextResponse.json({ error: 'Failed to delete recipient' }, { status: 409 });
   }
 
   return NextResponse.json({ success: true });

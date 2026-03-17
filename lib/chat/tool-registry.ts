@@ -4608,6 +4608,193 @@ defineTool({
 });
 
 defineTool({
+  name: 'contracts.create',
+  description: 'Create a new contract document from an uploaded PDF path',
+  minRole: 'member',
+  parameters: z.object({
+    title: z.string().min(1).describe('Document title'),
+    original_file_path: z.string().describe('Storage path from contract upload'),
+    original_file_name: z.string().describe('Original PDF filename'),
+    page_count: z.number().int().min(1).default(1).describe('PDF page count'),
+    signing_order_type: z.enum(['sequential', 'parallel']).default('sequential'),
+    opportunity_id: z.string().uuid().optional(),
+    organization_id: z.string().uuid().optional(),
+    person_id: z.string().uuid().optional(),
+    description: z.string().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const payload = params as {
+      title: string;
+      original_file_path: string;
+      original_file_name: string;
+      page_count?: number;
+      signing_order_type?: 'sequential' | 'parallel';
+      opportunity_id?: string;
+      organization_id?: string;
+      person_id?: string;
+      description?: string;
+    };
+
+    const { data, error } = await ctx.supabase
+      .from('contract_documents')
+      .insert({
+        project_id: ctx.projectId,
+        title: payload.title,
+        description: payload.description ?? null,
+        original_file_path: payload.original_file_path,
+        original_file_name: payload.original_file_name,
+        page_count: payload.page_count ?? 1,
+        signing_order_type: payload.signing_order_type ?? 'sequential',
+        opportunity_id: payload.opportunity_id ?? null,
+        organization_id: payload.organization_id ?? null,
+        person_id: payload.person_id ?? null,
+        created_by: ctx.userId,
+        owner_id: ctx.userId,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create contract: ${error.message}`);
+
+    const { insertAuditTrail } = await import('@/lib/contracts/audit');
+    insertAuditTrail({
+      project_id: ctx.projectId,
+      document_id: data.id,
+      action: 'created',
+      actor_type: 'user',
+      actor_id: ctx.userId,
+    });
+
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'contracts.add_recipient',
+  description: 'Add a signer recipient to a draft contract',
+  minRole: 'member',
+  parameters: z.object({
+    document_id: z.string().uuid().describe('Contract document ID'),
+    name: z.string().min(1).describe('Recipient name'),
+    email: z.string().email().describe('Recipient email'),
+    signing_order: z.number().int().min(1).default(1),
+    person_id: z.string().uuid().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const payload = params as {
+      document_id: string;
+      name: string;
+      email: string;
+      signing_order?: number;
+      person_id?: string;
+    };
+
+    const { data: doc } = await ctx.supabase
+      .from('contract_documents')
+      .select('id, status')
+      .eq('id', payload.document_id)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .single();
+
+    if (!doc) throw new Error('Document not found');
+    if (doc.status !== 'draft') throw new Error('Can only add recipients to draft contracts');
+
+    const { data, error } = await ctx.supabase
+      .from('contract_recipients')
+      .insert({
+        project_id: ctx.projectId,
+        document_id: payload.document_id,
+        name: payload.name,
+        email: payload.email,
+        role: 'signer',
+        signing_order: payload.signing_order ?? 1,
+        person_id: payload.person_id ?? null,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to add recipient: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'contracts.add_field',
+  description: 'Add a field to a draft contract for a signer recipient',
+  minRole: 'member',
+  parameters: z.object({
+    document_id: z.string().uuid().describe('Contract document ID'),
+    recipient_id: z.string().uuid().describe('Recipient ID on this contract'),
+    field_type: z.enum(['signature', 'date_signed', 'text_input', 'checkbox', 'dropdown', 'name', 'email', 'company', 'title']),
+    page_number: z.number().int().min(1).default(1),
+    x: z.number().min(0).max(100),
+    y: z.number().min(0).max(100),
+    width: z.number().min(1).max(100).default(20),
+    height: z.number().min(1).max(100).default(4),
+    label: z.string().optional(),
+    is_required: z.boolean().default(true),
+  }),
+  handler: async (params, ctx) => {
+    const payload = params as {
+      document_id: string;
+      recipient_id: string;
+      field_type: 'signature' | 'date_signed' | 'text_input' | 'checkbox' | 'dropdown' | 'name' | 'email' | 'company' | 'title';
+      page_number?: number;
+      x: number;
+      y: number;
+      width?: number;
+      height?: number;
+      label?: string;
+      is_required?: boolean;
+    };
+
+    const { data: doc } = await ctx.supabase
+      .from('contract_documents')
+      .select('id, status')
+      .eq('id', payload.document_id)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .single();
+
+    if (!doc) throw new Error('Document not found');
+    if (doc.status !== 'draft') throw new Error('Can only add fields to draft contracts');
+
+    const { data: recipient } = await ctx.supabase
+      .from('contract_recipients')
+      .select('id, role')
+      .eq('id', payload.recipient_id)
+      .eq('document_id', payload.document_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+
+    if (!recipient) throw new Error('Recipient not found on this contract');
+    if (recipient.role !== 'signer') throw new Error('Only signer recipients are currently supported');
+
+    const { data, error } = await ctx.supabase
+      .from('contract_fields')
+      .insert({
+        project_id: ctx.projectId,
+        document_id: payload.document_id,
+        recipient_id: payload.recipient_id,
+        field_type: payload.field_type,
+        page_number: payload.page_number ?? 1,
+        x: payload.x,
+        y: payload.y,
+        width: payload.width ?? 20,
+        height: payload.height ?? 4,
+        label: payload.label ?? null,
+        is_required: payload.is_required ?? true,
+      })
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to add field: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
   name: 'contracts.void',
   description: 'Void an active contract document',
   minRole: 'member',
@@ -4617,14 +4804,16 @@ defineTool({
   }),
   handler: async (params, ctx) => {
     const id = params.id as string;
-    const { error } = await ctx.supabase
+    const { data: voidedDoc, error } = await ctx.supabase
       .from('contract_documents')
       .update({ status: 'voided', voided_at: new Date().toISOString() })
       .eq('id', id)
       .eq('project_id', ctx.projectId)
       .is('deleted_at', null)
-      .in('status', ['sent', 'viewed', 'partially_signed', 'expired', 'declined']);
-    if (error) throw new Error(`Failed to void: ${error.message}`);
+      .in('status', ['sent', 'viewed', 'partially_signed', 'expired', 'declined'])
+      .select('id')
+      .single();
+    if (error || !voidedDoc) throw new Error(`Failed to void: ${error?.message ?? 'document state changed'}`);
     const { insertAuditTrail } = await import('@/lib/contracts/audit');
     insertAuditTrail({
       project_id: ctx.projectId,
@@ -4643,6 +4832,45 @@ defineTool({
       data: { title: 'voided' },
     });
     return JSON.stringify({ success: true });
+  },
+});
+
+defineTool({
+  name: 'contracts.audit_trail',
+  description: 'View the audit trail for a contract document',
+  minRole: 'viewer',
+  parameters: z.object({
+    document_id: z.string().uuid().describe('Contract document ID'),
+  }),
+  handler: async (params, ctx) => {
+    const documentId = params.document_id as string;
+    const { data, error } = await ctx.supabase
+      .from('contract_audit_trail')
+      .select('*')
+      .eq('document_id', documentId)
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: true });
+
+    if (error) throw new Error(`Failed to fetch audit trail: ${error.message}`);
+    return JSON.stringify(data ?? []);
+  },
+});
+
+defineTool({
+  name: 'contracts.templates.list',
+  description: 'List contract templates',
+  minRole: 'viewer',
+  parameters: z.object({}),
+  handler: async (_params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('contract_templates')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .order('created_at', { ascending: false });
+
+    if (error) throw new Error(`Failed to list templates: ${error.message}`);
+    return JSON.stringify(data ?? []);
   },
 });
 

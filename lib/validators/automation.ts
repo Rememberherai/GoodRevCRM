@@ -44,9 +44,6 @@ export const actionTypes = [
   'fire_webhook',
   'send_sms',
   'run_workflow',
-  'send_document',
-  'void_document',
-  'send_signing_reminder',
 ] as const;
 
 export const conditionOperators = [
