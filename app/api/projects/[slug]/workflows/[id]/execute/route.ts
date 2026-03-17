@@ -62,17 +62,24 @@ export async function POST(request: Request, context: RouteContext) {
 
     // Set context_data on the execution (RPC doesn't accept it)
     if (context_data && Object.keys(context_data).length > 0) {
-      await supabaseAny.from('workflow_executions')
+      const { error: ctxError } = await supabaseAny.from('workflow_executions')
         .update({ context_data })
         .eq('id', executionId);
+      if (ctxError) {
+        console.error('Failed to set execution context_data:', ctxError.message);
+      }
     }
 
     // Fetch the created execution for the response
-    const { data: execution } = await supabaseAny
+    const { data: execution, error: fetchError } = await supabaseAny
       .from('workflow_executions')
       .select('*')
       .eq('id', executionId)
       .single();
+    if (fetchError || !execution) {
+      console.error('Failed to fetch created execution:', fetchError?.message);
+      return NextResponse.json({ error: 'Execution created but failed to fetch' }, { status: 500 });
+    }
 
     // Fire workflow engine asynchronously (don't block the response)
     // Pre-import to catch module errors synchronously, then run async

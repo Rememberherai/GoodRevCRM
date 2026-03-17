@@ -303,7 +303,7 @@ async function executeExternalTool(
       throw new Error(`MCP server returned ${response.status}: ${response.statusText}`);
     }
 
-    data = await response.json();
+    data = (await response.json()) ?? {};
   } finally {
     clearTimeout(timeout);
   }

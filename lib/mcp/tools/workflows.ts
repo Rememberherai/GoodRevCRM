@@ -333,8 +333,9 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
       });
 
       // Fetch execution for response
-      const { data: execution } = await ctx.supabase
+      const { data: execution, error: fetchErr } = await ctx.supabase
         .from('workflow_executions').select('*').eq('id', executionId).single();
+      if (fetchErr) throw new Error(`Execution started but failed to fetch: ${fetchErr.message}`);
 
       return { content: [{ type: 'text' as const, text: JSON.stringify(execution) }] };
     }

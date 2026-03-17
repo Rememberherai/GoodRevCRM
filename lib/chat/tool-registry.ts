@@ -4181,11 +4181,15 @@ defineTool({
     const newActive = params.active !== undefined ? (params.active as boolean) : !workflow.is_active;
 
     if (newActive) {
-      const def = workflow.definition as unknown as Parameters<typeof validateWorkflow>[0];
-      const errors = validateWorkflow(def);
-      const blockers = errors.filter((e) => e.severity === 'error');
-      if (blockers.length > 0) {
-        return JSON.stringify({ error: 'Validation failed', validation_errors: blockers });
+      try {
+        const def = workflow.definition as unknown as Parameters<typeof validateWorkflow>[0];
+        const errors = validateWorkflow(def);
+        const blockers = errors.filter((e) => e.severity === 'error');
+        if (blockers.length > 0) {
+          return JSON.stringify({ error: 'Validation failed', validation_errors: blockers });
+        }
+      } catch {
+        return JSON.stringify({ error: 'Workflow definition is malformed and cannot be validated' });
       }
     }
 
