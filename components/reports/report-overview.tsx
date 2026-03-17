@@ -1,6 +1,8 @@
 'use client';
 
 import * as React from 'react';
+import Link from 'next/link';
+import { useRouter } from 'next/navigation';
 import {
   Target,
   DollarSign,
@@ -12,9 +14,11 @@ import {
   Clock,
   Globe,
   Lock,
+  Plus,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Button } from '@/components/ui/button';
 import type { AnalyticsData } from '@/types/analytics';
 import type { ReportDefinition } from '@/types/report';
 import { reportTypeLabels } from '@/types/report';
@@ -99,6 +103,7 @@ function formatCurrency(value: number) {
 }
 
 export function ReportOverview({ projectSlug, data, onTabChange }: ReportOverviewProps) {
+  const router = useRouter();
   const [savedReports, setSavedReports] = React.useState<ReportDefinition[]>([]);
   const [reportsLoading, setReportsLoading] = React.useState(true);
 
@@ -268,8 +273,14 @@ export function ReportOverview({ projectSlug, data, onTabChange }: ReportOvervie
                 <div>
                   <p className="font-medium">No saved reports yet</p>
                   <p className="text-sm text-muted-foreground mt-1">
-                    Open any report view and save it to create reusable configurations
+                    Build a custom report on any CRM object with filters, grouping, and charts
                   </p>
+                  <Link href={`/projects/${projectSlug}/reports/builder`}>
+                    <Button variant="outline" size="sm" className="mt-3">
+                      <Plus className="h-3.5 w-3.5 mr-1.5" />
+                      Build Custom Report
+                    </Button>
+                  </Link>
                 </div>
               </div>
             </CardContent>
@@ -291,6 +302,13 @@ export function ReportOverview({ projectSlug, data, onTabChange }: ReportOvervie
                   <tr
                     key={report.id}
                     className="border-b last:border-0 hover:bg-muted/30 transition-colors cursor-pointer"
+                    onClick={() => {
+                      if (report.report_type === 'custom') {
+                        router.push(`/projects/${projectSlug}/reports/builder?edit=${report.id}`);
+                      } else {
+                        onTabChange(report.report_type);
+                      }
+                    }}
                   >
                     <td className="py-3 px-4">
                       <div>
