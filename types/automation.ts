@@ -38,7 +38,11 @@ export type TriggerType =
   | 'call.missed'
   | 'call.dispositioned'
   // News events
-  | 'news.article_found';
+  | 'news.article_found'
+  // Workflow events
+  | 'workflow.completed'
+  | 'workflow.failed'
+  | 'workflow.step_failed';
 
 export type ActionType =
   | 'create_task'
@@ -54,7 +58,8 @@ export type ActionType =
   | 'remove_tag'
   | 'run_ai_research'
   | 'create_activity'
-  | 'fire_webhook';
+  | 'fire_webhook'
+  | 'run_workflow';
 
 export type ConditionOperator =
   | 'equals'
@@ -75,7 +80,8 @@ export type AutomationEntityType =
   | 'rfp'
   | 'task'
   | 'meeting'
-  | 'call';
+  | 'call'
+  | 'workflow';
 
 export type ExecutionStatus =
   | 'success'

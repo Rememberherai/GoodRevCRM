@@ -40,6 +40,7 @@ const entityTableMap: Record<AutomationEntityType, string> = {
   task: 'tasks',
   meeting: 'meetings',
   call: 'calls',
+  workflow: 'workflows',
 };
 
 /**
@@ -79,6 +80,8 @@ export async function executeAction(
         return await executeRunAiResearch(action, context);
       case 'fire_webhook':
         return await executeFireWebhook(action, context);
+      case 'run_workflow':
+        return await executeRunWorkflow(action, context);
       default:
         return { action_type: action.type, success: false, error: `Unknown action type: ${action.type}` };
     }
@@ -715,4 +718,67 @@ async function executeFireWebhook(
       error: error instanceof Error ? error.message : 'Webhook request failed',
     };
   }
+}
+
+async function executeRunWorkflow(
+  action: AutomationAction,
+  context: ActionContext
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+  const workflowId = String(action.config.workflow_id || '');
+  if (!workflowId) return { action_type: action.type, success: false, error: 'No workflow_id specified' };
+
+  // Load the workflow
+  const { data: workflow, error: wfError } = await supabase
+    .from('workflows')
+    .select('id, current_version, definition, is_active')
+    .eq('id', workflowId)
+    .eq('project_id', context.projectId)
+    .single();
+
+  if (wfError || !workflow) {
+    return { action_type: action.type, success: false, error: `Workflow not found: ${wfError?.message || 'not found'}` };
+  }
+
+  if (!workflow.is_active) {
+    return { action_type: action.type, success: false, error: 'Workflow is not active' };
+  }
+
+  // Create execution record
+  const { data: execution, error: execError } = await supabase
+    .from('workflow_executions')
+    .insert({
+      workflow_id: workflow.id,
+      workflow_version: workflow.current_version,
+      trigger_event: { type: 'automation', automation_id: context.automationId } as unknown as import('@/types/database').Json,
+      status: 'running',
+      context_data: {
+        entity_type: context.entityType,
+        entity_id: context.entityId,
+        ...context.data,
+      } as unknown as import('@/types/database').Json,
+    })
+    .select('id')
+    .single();
+
+  if (execError || !execution) {
+    return { action_type: action.type, success: false, error: `Failed to create execution: ${execError?.message}` };
+  }
+
+  // Fire and forget the actual workflow execution
+  const { executeWorkflow } = await import('@/lib/workflows/engine');
+  const definition = workflow.definition as unknown as import('@/types/workflow').WorkflowDefinition;
+  executeWorkflow(
+    workflow.id,
+    execution.id,
+    context.projectId,
+    definition,
+    { entity_type: context.entityType, entity_id: context.entityId, ...context.data }
+  ).catch((err) => console.error('Workflow execution failed:', err));
+
+  return {
+    action_type: action.type,
+    success: true,
+    result: { workflow_id: workflowId, execution_id: execution.id },
+  };
 }

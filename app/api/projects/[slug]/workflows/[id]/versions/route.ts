@@ -1,0 +1,51 @@
+import { createClient } from '@/lib/supabase/server';
+import { NextResponse } from 'next/server';
+
+interface RouteContext {
+  params: Promise<{ slug: string; id: string }>;
+}
+
+// GET /api/projects/[slug]/workflows/[id]/versions
+export async function GET(_request: Request, context: RouteContext) {
+  try {
+    const { slug, id } = await context.params;
+    const supabase = await createClient();
+
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+
+    const { data: project } = await supabase
+      .from('projects').select('id').eq('slug', slug).is('deleted_at', null).single();
+    if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const supabaseAny = supabase as any;
+
+    const { data: membership } = await supabaseAny
+      .from('project_memberships').select('role')
+      .eq('project_id', project.id).eq('user_id', user.id).single();
+    if (!membership) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+
+    // Verify workflow belongs to this project
+    const { data: workflow } = await supabaseAny
+      .from('workflows').select('id')
+      .eq('id', id).eq('project_id', project.id).single();
+    if (!workflow) return NextResponse.json({ error: 'Workflow not found' }, { status: 404 });
+
+    const { data: versions, error } = await supabaseAny
+      .from('workflow_versions')
+      .select('id, workflow_id, version, trigger_type, change_summary, created_by, created_at')
+      .eq('workflow_id', id)
+      .order('version', { ascending: false });
+
+    if (error) {
+      console.error('Error fetching versions:', error);
+      return NextResponse.json({ error: 'Failed to fetch versions' }, { status: 500 });
+    }
+
+    return NextResponse.json({ versions: versions ?? [] });
+  } catch (error) {
+    console.error('Error in GET /workflows/[id]/versions:', error);
+    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+  }
+}

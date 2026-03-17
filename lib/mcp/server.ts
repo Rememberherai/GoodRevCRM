@@ -3,6 +3,7 @@ import { z } from 'zod';
 import { registerOrganizationTools } from './tools/organizations';
 import { registerPeopleTools } from './tools/people';
 import { registerSearchTools } from './tools/search';
+import { registerWorkflowTools } from './tools/workflows';
 import type { McpContext } from '@/types/mcp';
 
 const SERVER_NAME = 'goodrev-crm';
@@ -22,6 +23,7 @@ export function createMcpServer(getContext: () => McpContext): McpServer {
   registerOrganizationTools(server, getContext);
   registerPeopleTools(server, getContext);
   registerSearchTools(server, getContext);
+  registerWorkflowTools(server, getContext);
 
   // Register MCP resources
   registerResources(server, getContext);

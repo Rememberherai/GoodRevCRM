@@ -1320,3 +1320,63 @@ npm run typecheck && npm run lint && npm run build && npm run test
 ---
 
 *Fix it before you move on.*
+
+---
+
+# Workflow Management System (Added 2026-03-16)
+
+## Completed
+- [x] Database schema (0077_workflows.sql): workflows, workflow_versions, workflow_executions, workflow_step_executions, api_connections
+- [x] Types (types/workflow.ts): 12 node types, McpNodeMode, constraints, NODE_PALETTE, NODE_COLORS
+- [x] Validators: Zod schemas (lib/validators/workflow.ts) + graph validation (lib/workflows/validators/validate-workflow.ts)
+- [x] API routes: Full CRUD, activate, execute, validate, duplicate, versions, restore, templates, executions
+- [x] API connections routes: CRUD, test, tools (live MCP/Zapier tool discovery)
+- [x] Zustand store (stores/workflow-store.ts): nodes/edges CRUD, sub-workflow support, dirty tracking
+- [x] Visual editor: 3-column layout (palette, ReactFlow canvas, property panel)
+- [x] 12 custom node components + deletable edge
+- [x] Property panel with type-specific config forms
+- [x] Workflow execution engine (lib/workflows/engine.ts): DAG traversal, all 12 node types
+- [x] Executors: webhook (SSRF protection), MCP (3 modes), Zapier (connection-based)
+- [x] Delay processor + cron endpoint
+- [x] MCP tools (lib/mcp/tools/workflows.ts): 9 workflow tools registered
+- [x] Chat tools: 10 workflow tools in tool-registry.ts
+- [x] API connections settings panel (components/settings/api-connections-panel.tsx)
+- [x] Keyboard shortcuts: Cmd+S save, Delete remove node, Escape deselect
+- [x] Import/Export JSON workflow definitions
+- [x] Built-in workflow templates (lead qualification, deal stage notify, customer onboarding)
+- [x] Sidebar nav: Workflows tab with GitBranch icon
+
+## Bug Fixes Completed (2026-03-16)
+- [x] Critical: Cron auth bypass — changed from `if (cronSecret && ...)` to `if (!cronSecret || ...)`
+- [x] Critical: execution_count used wrong field (current_version) in MCP tools
+- [x] Critical: SSRF in test/tools endpoints — added shared ssrf-guard.ts
+- [x] Critical: Delay resume re-executed entire workflow — added existingStep check
+- [x] Critical: Sub-workflow overwrote parent execution status — added depth guards
+- [x] High: PostgREST filter injection via search — escaped special chars in all 3 locations
+- [x] High: Missing project_id scoping on executions/versions queries (4 API routes)
+- [x] High: ReactFlow deleteKeyCode conflict — set to null, custom handler handles it
+- [x] High: Null check on connection.source/target + self-loop/duplicate prevention
+- [x] High: Save error feedback + metadata (description, trigger, tags) sent on save
+- [x] High: MCP partial definition overwrite — merge with current definition
+- [x] High: Timeouts + SSRF protection on MCP and Zapier executors
+- [x] Medium: Stale closures in onNodesChange/onEdgesChange — read from store.getState()
+- [x] Medium: Import dialog state reset on close + 1MB file size limit
+- [x] Medium: Webhook context leak — added payload_fields config option
+- [x] Medium: createStepExecution throws on failure instead of returning empty string
+- [x] Medium: Engine helpers log Supabase update errors instead of swallowing
+- [x] Medium: Switch node uses loose equality for string/number coercion
+- [x] Medium: Delay node handles until_date type (not just duration)
+- [x] Medium: Validator field name mismatch (natural_language_prompt → task_description)
+- [x] Medium: Version insert error logging in PATCH route
+
+## Future Enhancements (Not Yet Started)
+- [ ] Undo/redo (Cmd+Z / Cmd+Shift+Z) — requires history stack in Zustand store
+- [ ] Copy/paste nodes (Cmd+C / Cmd+V) — serialize selected nodes + edges
+- [ ] Version diff viewer in UI — visual comparison between workflow versions
+- [ ] Workflow execution viewer with color-coded nodes (green=completed, red=failed, etc.)
+- [ ] OAuth2 authorization code flow for API connections (currently only credentials-based)
+- [ ] Rate limiting awareness in Zapier executor (2 tasks per tool call)
+- [ ] Dead letter queue for persistent workflow failures
+- [ ] Workflow scheduling (cron-based triggers)
+- [ ] Bulk workflow operations (activate/deactivate multiple)
+- [ ] Workflow analytics dashboard (execution success rate, avg duration, etc.)
