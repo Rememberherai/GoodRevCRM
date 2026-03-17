@@ -35,6 +35,40 @@ const CHART_COLORS = [
   '#06b6d4', '#ec4899', '#14b8a6', '#f97316', '#6366f1',
 ];
 
+/**
+ * Extract readable values from nested PostgREST embedded objects.
+ *
+ * Direct FK:  { name: "Acme", industry: "Tech" } → "Acme, Tech"
+ * M2M array:  [{ organizations: { name: "Acme" } }] → "Acme"
+ * Multiple:   [{ organizations: { name: "Acme" } }, { organizations: { name: "Beta" } }] → "Acme, Beta"
+ */
+function flattenRelatedValue(value: unknown): string {
+  if (value === null || value === undefined) return '—';
+
+  // Direct FK embed: { name: "Acme", industry: "Tech" }
+  if (typeof value === 'object' && !Array.isArray(value)) {
+    const obj = value as Record<string, unknown>;
+    const vals = Object.values(obj)
+      .filter((v) => v !== null && v !== undefined && typeof v !== 'object')
+      .map(String);
+    if (vals.length > 0) return vals.join(', ');
+    // Nested object (e.g., M2M inner): recurse
+    const nestedVals = Object.values(obj)
+      .filter((v) => v !== null && typeof v === 'object')
+      .map((v) => flattenRelatedValue(v));
+    return nestedVals.filter(Boolean).join(', ');
+  }
+
+  // M2M through-table array: [{ organizations: { name: "Acme" } }, ...]
+  if (Array.isArray(value)) {
+    if (value.length === 0) return '—';
+    const items = value.map((item) => flattenRelatedValue(item)).filter((v) => v && v !== '—');
+    return items.length > 0 ? items.join('; ') : '—';
+  }
+
+  return String(value);
+}
+
 function formatCellValue(value: unknown): string {
   if (value === null || value === undefined) return '—';
   if (typeof value === 'number') {
@@ -46,7 +80,7 @@ function formatCellValue(value: unknown): string {
     return String(value);
   }
   if (typeof value === 'boolean') return value ? 'Yes' : 'No';
-  if (typeof value === 'object') return JSON.stringify(value);
+  if (typeof value === 'object') return flattenRelatedValue(value);
   return String(value);
 }
 
