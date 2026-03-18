@@ -3,8 +3,8 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
 const createCompanySchema = z.object({
-  name: z.string().min(1).max(255),
-  base_currency: z.string().length(3).default('USD'),
+  name: z.string().trim().min(1).max(255),
+  base_currency: z.string().trim().toUpperCase().regex(/^[A-Z]{3}$/).default('USD'),
   fiscal_year_start_month: z.number().int().min(1).max(12).default(1),
 });
 
@@ -26,7 +26,7 @@ export async function GET() {
       .select('company_id, role, accounting_companies(*)')
       .eq('user_id', user.id)
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (!membership?.accounting_companies) {
       return NextResponse.json({ company: null });
@@ -58,7 +58,7 @@ export async function POST(request: Request) {
       .select('company_id')
       .eq('user_id', user.id)
       .limit(1)
-      .single();
+      .maybeSingle();
 
     if (existing) {
       return NextResponse.json({ error: 'You already have an accounting company' }, { status: 400 });
@@ -93,10 +93,20 @@ export async function POST(request: Request) {
 
     if (settingsError) {
       console.error('Error creating accounting settings:', settingsError);
+      await supabase.from('accounting_companies').delete().eq('id', company.id);
+      return NextResponse.json({ error: 'Failed to initialize accounting company' }, { status: 500 });
     }
 
-    // Seed default chart of accounts will happen in Phase 1
-    // For now, just return the created company
+    // Seed default chart of accounts and update settings with default account references
+    const { error: seedError } = await supabase.rpc('seed_default_accounts', {
+      p_company_id: company.id,
+    });
+
+    if (seedError) {
+      console.error('Error seeding default accounts:', seedError);
+      await supabase.from('accounting_companies').delete().eq('id', company.id);
+      return NextResponse.json({ error: 'Failed to initialize accounting company' }, { status: 500 });
+    }
 
     return NextResponse.json({ company }, { status: 201 });
   } catch (error) {

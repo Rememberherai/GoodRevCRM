@@ -768,6 +768,75 @@ export type Database = {
           },
         ]
       }
+      chart_of_accounts: {
+        Row: {
+          account_code: string
+          account_subtype: string | null
+          account_type: string
+          company_id: string
+          created_at: string
+          currency: string
+          deleted_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          is_system: boolean
+          name: string
+          normal_balance: string
+          parent_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_code: string
+          account_subtype?: string | null
+          account_type: string
+          company_id: string
+          created_at?: string
+          currency?: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          name: string
+          normal_balance: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_code?: string
+          account_subtype?: string | null
+          account_type?: string
+          company_id?: string
+          created_at?: string
+          currency?: string
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_system?: boolean
+          name?: string
+          normal_balance?: string
+          parent_id?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "chart_of_accounts_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "chart_of_accounts_parent_id_fkey"
+            columns: ["parent_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       chat_conversations: {
         Row: {
           created_at: string
@@ -1419,6 +1488,47 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      currency_rates: {
+        Row: {
+          company_id: string
+          created_at: string
+          effective_date: string
+          from_currency: string
+          id: string
+          rate: number
+          to_currency: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          effective_date: string
+          from_currency: string
+          id?: string
+          rate: number
+          to_currency: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          effective_date?: string
+          from_currency?: string
+          id?: string
+          rate?: number
+          to_currency?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "currency_rates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_companies"
             referencedColumns: ["id"]
           },
         ]
@@ -2711,6 +2821,162 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journal_entries: {
+        Row: {
+          company_id: string
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          entry_date: string
+          entry_number: number
+          id: string
+          memo: string | null
+          posted_at: string | null
+          project_id: string | null
+          reference: string | null
+          source_id: string | null
+          source_type: string | null
+          status: string
+          updated_at: string
+          voided_at: string | null
+          voided_by_entry_id: string | null
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          created_by: string
+          deleted_at?: string | null
+          entry_date: string
+          entry_number: number
+          id?: string
+          memo?: string | null
+          posted_at?: string | null
+          project_id?: string | null
+          reference?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string
+          updated_at?: string
+          voided_at?: string | null
+          voided_by_entry_id?: string | null
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          entry_date?: string
+          entry_number?: number
+          id?: string
+          memo?: string | null
+          posted_at?: string | null
+          project_id?: string | null
+          reference?: string | null
+          source_id?: string | null
+          source_type?: string | null
+          status?: string
+          updated_at?: string
+          voided_at?: string | null
+          voided_by_entry_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entries_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "journal_entries_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entries_voided_by_entry_id_fkey"
+            columns: ["voided_by_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      journal_entry_lines: {
+        Row: {
+          account_id: string
+          base_credit: number
+          base_debit: number
+          created_at: string
+          credit: number
+          currency: string
+          debit: number
+          description: string | null
+          exchange_rate: number
+          id: string
+          journal_entry_id: string
+          organization_id: string | null
+        }
+        Insert: {
+          account_id: string
+          base_credit?: number
+          base_debit?: number
+          created_at?: string
+          credit?: number
+          currency?: string
+          debit?: number
+          description?: string | null
+          exchange_rate?: number
+          id?: string
+          journal_entry_id: string
+          organization_id?: string | null
+        }
+        Update: {
+          account_id?: string
+          base_credit?: number
+          base_debit?: number
+          created_at?: string
+          credit?: number
+          currency?: string
+          debit?: number
+          description?: string | null
+          exchange_rate?: number
+          id?: string
+          journal_entry_id?: string
+          organization_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "journal_entry_lines_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "journal_entry_lines_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
             referencedColumns: ["id"]
           },
         ]
@@ -7120,6 +7386,19 @@ export type Database = {
         Args: { p_days_old?: number }
         Returns: number
       }
+      create_journal_entry: {
+        Args: {
+          p_company_id: string
+          p_entry_date: string
+          p_lines?: Json
+          p_memo?: string
+          p_project_id?: string
+          p_reference?: string
+          p_source_id?: string
+          p_source_type?: string
+        }
+        Returns: string
+      }
       create_notification: {
         Args: {
           p_action_url?: string
@@ -7260,6 +7539,15 @@ export type Database = {
           p_user_id?: string
         }
         Returns: Json
+      }
+      get_exchange_rate: {
+        Args: {
+          p_company_id: string
+          p_date: string
+          p_from_currency: string
+          p_to_currency: string
+        }
+        Returns: number
       }
       get_opportunity_funnel: {
         Args: {
@@ -7566,9 +7854,17 @@ export type Database = {
         Args: { p_active?: boolean; p_name: string; p_schedule?: string }
         Returns: undefined
       }
+      seed_default_accounts: {
+        Args: { p_company_id: string }
+        Returns: undefined
+      }
       set_primary_quote: {
         Args: { p_project_id: string; p_quote_id: string }
         Returns: undefined
+      }
+      update_draft_journal_entry: {
+        Args: { p_entry_id: string; p_lines?: Json; p_patch?: Json }
+        Returns: string
       }
       update_member_role: {
         Args: { p_new_role: string; p_project_id: string; p_user_id: string }
@@ -7597,6 +7893,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      void_journal_entry: { Args: { p_entry_id: string }; Returns: string }
     }
     Enums: {
       accounting_role: "owner" | "admin" | "member" | "viewer"

@@ -20,36 +20,43 @@ const navItems = [
     title: 'Overview',
     href: '',
     icon: LayoutDashboard,
+    disabled: false,
   },
   {
     title: 'Chart of Accounts',
     href: '/accounts',
     icon: BookOpen,
+    disabled: false,
   },
   {
     title: 'Invoices',
     href: '/invoices',
     icon: Receipt,
+    disabled: true,
   },
   {
     title: 'Bills',
     href: '/bills',
     icon: FileText,
+    disabled: true,
   },
   {
     title: 'Journal Entries',
     href: '/journal-entries',
     icon: BookOpen,
+    disabled: false,
   },
   {
     title: 'Bank Accounts',
     href: '/bank-accounts',
     icon: Landmark,
+    disabled: true,
   },
   {
     title: 'Reports',
     href: '/reports',
     icon: PieChart,
+    disabled: true,
   },
 ];
 
@@ -58,6 +65,7 @@ const bottomNavItems = [
     title: 'Settings',
     href: '/settings',
     icon: Settings,
+    disabled: false,
   },
 ];
 
@@ -88,6 +96,20 @@ export function AccountingSidebar({ companyName }: AccountingSidebarProps) {
           const isActive = item.href === ''
             ? pathname === basePath
             : pathname.startsWith(href);
+
+          if (item.disabled) {
+            return (
+              <div
+                key={item.title}
+                aria-disabled="true"
+                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground/60 cursor-not-allowed"
+                title="Coming soon"
+              >
+                <item.icon className="h-4 w-4" />
+                {item.title}
+              </div>
+            );
+          }
 
           return (
             <Link
@@ -124,6 +146,20 @@ export function AccountingSidebar({ companyName }: AccountingSidebarProps) {
         {bottomNavItems.map((item) => {
           const href = `${basePath}${item.href}`;
           const isActive = pathname.startsWith(href);
+
+          if (item.disabled) {
+            return (
+              <div
+                key={item.title}
+                aria-disabled="true"
+                className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground/60 cursor-not-allowed"
+                title="Coming soon"
+              >
+                <item.icon className="h-4 w-4" />
+                {item.title}
+              </div>
+            );
+          }
 
           return (
             <Link

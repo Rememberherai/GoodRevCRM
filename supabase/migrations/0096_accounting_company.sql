@@ -8,7 +8,7 @@ CREATE TYPE public.accounting_role AS ENUM ('owner', 'admin', 'member', 'viewer'
 CREATE TABLE IF NOT EXISTS public.accounting_companies (
     id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
     name TEXT NOT NULL,
-    created_by UUID NOT NULL REFERENCES public.users(id) ON DELETE CASCADE,
+    created_by UUID NOT NULL REFERENCES public.users(id) ON DELETE RESTRICT,
     base_currency TEXT NOT NULL DEFAULT 'USD',
     fiscal_year_start_month INTEGER NOT NULL DEFAULT 1
         CHECK (fiscal_year_start_month >= 1 AND fiscal_year_start_month <= 12),

@@ -23,7 +23,7 @@ export default async function AccountingLayout({
     .select('company_id, role, accounting_companies(*)')
     .eq('user_id', user.id)
     .limit(1)
-    .single();
+    .maybeSingle();
 
   const company = membership?.accounting_companies ?? null;
   const companyId = membership?.company_id ?? null;

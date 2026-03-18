@@ -1,0 +1,177 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
+
+type AccountingRole = Database['public']['Enums']['accounting_role'];
+
+interface AccountingContext {
+  companyId: string;
+  role: AccountingRole;
+  userId: string;
+}
+
+interface ValidateCompanyAccountIdsOptions {
+  requireActive?: boolean;
+}
+
+interface CompanyAccountRecord {
+  id: string;
+  account_type: string;
+  parent_id?: string | null;
+}
+
+/**
+ * Get the current user's accounting company context.
+ * Returns null if user has no accounting company.
+ */
+export async function getAccountingContext(
+  supabase: SupabaseClient<Database>,
+): Promise<AccountingContext | null> {
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  if (!user) return null;
+
+  const { data: membership } = await supabase
+    .from('accounting_company_memberships')
+    .select('company_id, role')
+    .eq('user_id', user.id)
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) return null;
+
+  return {
+    companyId: membership.company_id,
+    role: membership.role,
+    userId: user.id,
+  };
+}
+
+const ROLE_HIERARCHY: Record<AccountingRole, number> = {
+  owner: 4,
+  admin: 3,
+  member: 2,
+  viewer: 1,
+};
+
+/**
+ * Check if a role meets the minimum required level.
+ */
+export function hasMinRole(userRole: AccountingRole, requiredRole: AccountingRole): boolean {
+  return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
+}
+
+/**
+ * Validate that all provided account IDs belong to the current company.
+ * By default only active, non-deleted accounts are considered valid.
+ */
+export async function validateCompanyAccountIds(
+  supabase: SupabaseClient<Database>,
+  companyId: string,
+  accountIds: string[],
+  options: ValidateCompanyAccountIdsOptions = {},
+): Promise<boolean> {
+  const uniqueIds = [...new Set(accountIds.filter(Boolean))];
+
+  if (uniqueIds.length === 0) {
+    return true;
+  }
+
+  let query = supabase
+    .from('chart_of_accounts')
+    .select('id')
+    .eq('company_id', companyId)
+    .in('id', uniqueIds)
+    .is('deleted_at', null);
+
+  if (options.requireActive !== false) {
+    query = query.eq('is_active', true);
+  }
+
+  const { data, error } = await query;
+
+  if (error) {
+    console.error('Error validating company account IDs:', error);
+    return false;
+  }
+
+  return (data?.length ?? 0) === uniqueIds.length;
+}
+
+/**
+ * Load a company account by id, optionally requiring it to be active.
+ */
+export async function getCompanyAccount(
+  supabase: SupabaseClient<Database>,
+  companyId: string,
+  accountId: string,
+  options: ValidateCompanyAccountIdsOptions = {},
+): Promise<CompanyAccountRecord | null> {
+  let query = supabase
+    .from('chart_of_accounts')
+    .select('id, account_type, parent_id')
+    .eq('company_id', companyId)
+    .eq('id', accountId)
+    .is('deleted_at', null);
+
+  if (options.requireActive !== false) {
+    query = query.eq('is_active', true);
+  }
+
+  const { data, error } = await query.maybeSingle();
+
+  if (error) {
+    console.error('Error loading company account:', error);
+    return null;
+  }
+
+  return data;
+}
+
+/**
+ * Returns true when assigning `parentAccountId` to `accountId` would create a cycle.
+ */
+export async function wouldCreateAccountCycle(
+  supabase: SupabaseClient<Database>,
+  companyId: string,
+  accountId: string,
+  parentAccountId: string | null,
+): Promise<boolean> {
+  if (!parentAccountId) {
+    return false;
+  }
+
+  if (accountId === parentAccountId) {
+    return true;
+  }
+
+  const visited = new Set<string>();
+  let currentParentId: string | null = parentAccountId;
+
+  while (currentParentId) {
+    if (visited.has(currentParentId)) {
+      return true;
+    }
+    visited.add(currentParentId);
+
+    if (currentParentId === accountId) {
+      return true;
+    }
+
+    const parent = await getCompanyAccount(
+      supabase,
+      companyId,
+      currentParentId,
+      { requireActive: false },
+    );
+
+    if (!parent) {
+      return false;
+    }
+
+    currentParentId = parent.parent_id ?? null;
+  }
+
+  return false;
+}

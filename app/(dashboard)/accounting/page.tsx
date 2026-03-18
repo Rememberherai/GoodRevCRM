@@ -20,7 +20,7 @@ export default async function AccountingPage() {
     .select('company_id, role, accounting_companies(*)')
     .eq('user_id', user.id)
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (!membership?.accounting_companies) {
     return <AccountingOnboarding />;
