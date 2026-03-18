@@ -34,6 +34,176 @@ export type Database = {
   }
   public: {
     Tables: {
+      accounting_companies: {
+        Row: {
+          base_currency: string
+          bill_prefix: string
+          created_at: string
+          created_by: string
+          deleted_at: string | null
+          fiscal_year_start_month: number
+          id: string
+          invoice_prefix: string
+          logo_url: string | null
+          name: string
+          next_bill_number: number
+          next_invoice_number: number
+          next_je_number: number
+          updated_at: string
+        }
+        Insert: {
+          base_currency?: string
+          bill_prefix?: string
+          created_at?: string
+          created_by: string
+          deleted_at?: string | null
+          fiscal_year_start_month?: number
+          id?: string
+          invoice_prefix?: string
+          logo_url?: string | null
+          name: string
+          next_bill_number?: number
+          next_invoice_number?: number
+          next_je_number?: number
+          updated_at?: string
+        }
+        Update: {
+          base_currency?: string
+          bill_prefix?: string
+          created_at?: string
+          created_by?: string
+          deleted_at?: string | null
+          fiscal_year_start_month?: number
+          id?: string
+          invoice_prefix?: string
+          logo_url?: string | null
+          name?: string
+          next_bill_number?: number
+          next_invoice_number?: number
+          next_je_number?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_companies_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounting_company_memberships: {
+        Row: {
+          company_id: string
+          created_at: string
+          id: string
+          invited_by: string | null
+          role: Database["public"]["Enums"]["accounting_role"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["accounting_role"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          id?: string
+          invited_by?: string | null
+          role?: Database["public"]["Enums"]["accounting_role"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_company_memberships_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_company_memberships_invited_by_fkey"
+            columns: ["invited_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "accounting_company_memberships_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      accounting_settings: {
+        Row: {
+          company_id: string
+          created_at: string
+          default_ap_account_id: string | null
+          default_ar_account_id: string | null
+          default_cash_account_id: string | null
+          default_expense_account_id: string | null
+          default_fx_gain_loss_account_id: string | null
+          default_payment_terms: number
+          default_revenue_account_id: string | null
+          default_tax_liability_account_id: string | null
+          id: string
+          invoice_footer: string | null
+          invoice_notes: string | null
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          default_ap_account_id?: string | null
+          default_ar_account_id?: string | null
+          default_cash_account_id?: string | null
+          default_expense_account_id?: string | null
+          default_fx_gain_loss_account_id?: string | null
+          default_payment_terms?: number
+          default_revenue_account_id?: string | null
+          default_tax_liability_account_id?: string | null
+          id?: string
+          invoice_footer?: string | null
+          invoice_notes?: string | null
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          default_ap_account_id?: string | null
+          default_ar_account_id?: string | null
+          default_cash_account_id?: string | null
+          default_expense_account_id?: string | null
+          default_fx_gain_loss_account_id?: string | null
+          default_payment_terms?: number
+          default_revenue_account_id?: string | null
+          default_tax_liability_account_id?: string | null
+          id?: string
+          invoice_footer?: string | null
+          invoice_notes?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "accounting_settings_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: true
+            referencedRelation: "accounting_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       activity_log: {
         Row: {
           action: string
@@ -6078,6 +6248,50 @@ export type Database = {
           },
         ]
       }
+      tax_rates: {
+        Row: {
+          company_id: string
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          is_default: boolean
+          name: string
+          rate: number
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name: string
+          rate?: number
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          is_default?: boolean
+          name?: string
+          rate?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "tax_rates_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       telnyx_connections: {
         Row: {
           amd_enabled: boolean
@@ -6822,6 +7036,12 @@ export type Database = {
         }
         Returns: Json
       }
+      allocate_bill_number: { Args: { p_company_id: string }; Returns: string }
+      allocate_invoice_number: {
+        Args: { p_company_id: string }
+        Returns: string
+      }
+      allocate_je_number: { Args: { p_company_id: string }; Returns: number }
       archive_notifications: {
         Args: { p_notification_ids: string[] }
         Returns: number
@@ -7207,6 +7427,13 @@ export type Database = {
           subtitle: string
         }[]
       }
+      has_accounting_role: {
+        Args: {
+          company_id: string
+          required_role: Database["public"]["Enums"]["accounting_role"]
+        }
+        Returns: boolean
+      }
       has_project_role: {
         Args: {
           project_id: string
@@ -7218,6 +7445,7 @@ export type Database = {
         Args: { p_template_id: string }
         Returns: undefined
       }
+      is_accounting_member: { Args: { company_id: string }; Returns: boolean }
       is_project_member: { Args: { project_id: string }; Returns: boolean }
       log_activity: {
         Args: {
@@ -7371,6 +7599,7 @@ export type Database = {
       }
     }
     Enums: {
+      accounting_role: "owner" | "admin" | "member" | "viewer"
       entity_type: "organization" | "person" | "opportunity" | "rfp"
       field_type:
         | "text"
@@ -7541,6 +7770,7 @@ export const Constants = {
   },
   public: {
     Enums: {
+      accounting_role: ["owner", "admin", "member", "viewer"],
       entity_type: ["organization", "person", "opportunity", "rfp"],
       field_type: [
         "text",

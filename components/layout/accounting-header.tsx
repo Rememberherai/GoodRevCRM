@@ -1,19 +1,12 @@
 'use client';
 
+import { ModuleSwitcher } from '@/components/layout/module-switcher';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UserMenu } from '@/components/layout/user-menu';
-import { ModuleSwitcher } from '@/components/layout/module-switcher';
 import { NotificationBell } from '@/components/notifications/notification-bell';
-import { ProcessQueueButton } from '@/components/layout/process-queue-button';
-import { SearchTrigger } from '@/components/search';
 import { useNotifications } from '@/hooks/use-notifications';
-import type { Project } from '@/types/project';
 
-interface ProjectHeaderProps {
-  project: Project;
-}
-
-export function ProjectHeader({ project }: ProjectHeaderProps) {
+export function AccountingHeader() {
   const {
     notifications,
     onMarkAsRead,
@@ -28,11 +21,8 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
       <div className="flex items-center gap-4">
         <ModuleSwitcher />
       </div>
-      <div className="flex-1 flex justify-center px-4">
-        <SearchTrigger projectSlug={project.slug} />
-      </div>
+      <div className="flex-1" />
       <div className="flex items-center gap-4">
-        <ProcessQueueButton />
         <ThemeToggle />
         <NotificationBell
           notifications={notifications}
