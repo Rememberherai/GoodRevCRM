@@ -432,14 +432,142 @@ interface CreateConnectionDialogProps {
   onCreated: (newId?: string, serviceType?: string) => void;
 }
 
+interface ZapierApp {
+  title: string;
+  slug: string;
+  description: string;
+  image: string;
+}
+
+interface ZapierPreviewAction {
+  name: string;
+  description?: string;
+}
+
 function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps) {
   const [saving, setSaving] = useState(false);
   const [serviceType, setServiceType] = useState('zapier');
-  const [name, setName] = useState('');
+  const [name, setName] = useState('Zapier');
   const [apiKey, setApiKey] = useState('');
-  const [serverUrl, setServerUrl] = useState('');
+  const [serverUrl, setServerUrl] = useState('https://actions.zapier.com/mcp');
   const [clientSecret, setClientSecret] = useState('');
   const [headerName, setHeaderName] = useState('Authorization');
+
+  // Zapier app search state
+  const [zapierSearch, setZapierSearch] = useState('');
+  const [zapierApps, setZapierApps] = useState<ZapierApp[]>([]);
+  const [zapierAppsLoading, setZapierAppsLoading] = useState(false);
+  const [selectedApp, setSelectedApp] = useState<ZapierApp | null>(null);
+  const [zapierStep, setZapierStep] = useState<'browse' | 'connect'>('browse');
+  const searchTimeout = useState<ReturnType<typeof setTimeout> | null>(null);
+
+  // Zapier preview state
+  const [previewActions, setPreviewActions] = useState<ZapierPreviewAction[]>([]);
+  const [previewLoading, setPreviewLoading] = useState(false);
+  const [previewError, setPreviewError] = useState<string | null>(null);
+  const [previewed, setPreviewed] = useState(false);
+
+  // Fetch popular Zapier apps on mount
+  useEffect(() => {
+    if (serviceType === 'zapier' && zapierApps.length === 0 && !zapierSearch) {
+      fetchZapierApps('');
+    }
+  }, [serviceType]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  async function fetchZapierApps(query: string) {
+    setZapierAppsLoading(true);
+    try {
+      const params = new URLSearchParams({ per_page: '20' });
+      if (query) params.set('query', query);
+      const res = await fetch(`https://zapier.com/api/v4/apps?${params}`);
+      if (res.ok) {
+        const data = await res.json();
+        const apps: ZapierApp[] = (data.objects || []).map((a: Record<string, unknown>) => ({
+          title: a.title || a.name,
+          slug: a.slug,
+          description: a.description,
+          image: a.image || (a.images as Record<string, string>)?.url_64x64 || '',
+        }));
+        setZapierApps(apps);
+      }
+    } catch {
+      // Silent fail — search still works via the text input
+    } finally {
+      setZapierAppsLoading(false);
+    }
+  }
+
+  function handleZapierSearch(query: string) {
+    setZapierSearch(query);
+    if (searchTimeout[0]) clearTimeout(searchTimeout[0]);
+    searchTimeout[0] = setTimeout(() => fetchZapierApps(query), 300);
+  }
+
+  function selectZapierApp(app: ZapierApp) {
+    setSelectedApp(app);
+    setName(`Zapier — ${app.title}`);
+    setZapierStep('connect');
+  }
+
+  function handleServiceTypeChange(type: string) {
+    setServiceType(type);
+    const label = SERVICE_TYPE_CONFIG[type]?.label || 'API';
+    if (!name || name.startsWith('Zapier') || name === 'Webhook' || name === 'API Key' || name === 'OAuth 2.0' || name === 'MCP Server') {
+      setName(label);
+    }
+    if (type === 'zapier') {
+      setServerUrl('https://actions.zapier.com/mcp');
+      setZapierStep('browse');
+      setSelectedApp(null);
+    } else if (serverUrl === 'https://actions.zapier.com/mcp') {
+      setServerUrl('');
+    }
+    setPreviewActions([]);
+    setPreviewError(null);
+    setPreviewed(false);
+  }
+
+  async function handleTestZapier() {
+    if (!apiKey.trim()) {
+      toast.error('Enter your Zapier API key first');
+      return;
+    }
+    setPreviewLoading(true);
+    setPreviewError(null);
+    setPreviewActions([]);
+    try {
+      const url = serverUrl || 'https://actions.zapier.com/mcp';
+      const res = await fetch(url, {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${apiKey}`,
+        },
+        body: JSON.stringify({ jsonrpc: '2.0', id: 1, method: 'tools/list', params: {} }),
+      });
+      if (!res.ok) {
+        setPreviewError(
+          res.status === 401 || res.status === 403
+            ? 'Invalid API key. Check your key at actions.zapier.com/credentials'
+            : `Zapier returned ${res.status}. Check the MCP Server URL.`
+        );
+        setPreviewed(true);
+        return;
+      }
+      const data = await res.json();
+      const tools: ZapierPreviewAction[] = data.result?.tools || data.tools || [];
+      setPreviewActions(tools);
+      setPreviewed(true);
+      if (tools.length === 0) {
+        setPreviewError('Connected successfully, but no actions are enabled yet. Enable actions at actions.zapier.com');
+      }
+    } catch {
+      setPreviewError('Could not reach Zapier. Check the MCP Server URL and try again.');
+      setPreviewed(true);
+    } finally {
+      setPreviewLoading(false);
+    }
+  }
 
   async function handleCreate() {
     if (!name.trim()) {
@@ -447,7 +575,6 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
       return;
     }
 
-    // Per-service-type validation
     if ((serviceType === 'webhook' || serviceType === 'mcp') && !serverUrl.trim()) {
       toast.error('Server URL is required');
       return;
@@ -456,7 +583,7 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
       toast.error('Client ID and Client Secret are required');
       return;
     }
-    if (serviceType === 'api_key' && !apiKey.trim()) {
+    if ((serviceType === 'api_key' || serviceType === 'zapier') && !apiKey.trim()) {
       toast.error('API Key is required');
       return;
     }
@@ -464,11 +591,15 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
     setSaving(true);
     try {
       const config: Record<string, string> = {};
-
       switch (serviceType) {
         case 'zapier':
           config.api_key = apiKey;
           config.server_url = serverUrl || 'https://actions.zapier.com/mcp';
+          if (selectedApp) {
+            config.zapier_app_slug = selectedApp.slug;
+            config.zapier_app_name = selectedApp.title;
+            config.zapier_app_image = selectedApp.image;
+          }
           break;
         case 'webhook':
           config.url = serverUrl;
@@ -501,12 +632,18 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
         const result = await res.json();
         toast.success('Connection created');
         onCreated(result.connection?.id, serviceType);
-        setName('');
+        // Reset
+        setName('Zapier');
         setApiKey('');
-        setServerUrl('');
+        setServerUrl('https://actions.zapier.com/mcp');
         setClientSecret('');
         setHeaderName('Authorization');
         setServiceType('zapier');
+        setSelectedApp(null);
+        setZapierStep('browse');
+        setPreviewActions([]);
+        setPreviewed(false);
+        setPreviewError(null);
       } else {
         const data = await res.json();
         toast.error(data.error || 'Failed to create connection');
@@ -518,6 +655,235 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
     }
   }
 
+  // ── Zapier-specific dialog ────────────────────────────────────────────────
+  if (serviceType === 'zapier') {
+    return (
+      <DialogContent className="sm:max-w-[520px]">
+        <DialogHeader>
+          <DialogTitle className="flex items-center gap-2">
+            <Bolt className="h-5 w-5 text-orange-500" />
+            {zapierStep === 'browse' ? 'Connect a Zapier Integration' : (
+              <>
+                {selectedApp && (
+                  // eslint-disable-next-line @next/next/no-img-element
+                  <img src={selectedApp.image} alt="" className="h-5 w-5 rounded" />
+                )}
+                {selectedApp ? `Connect ${selectedApp.title}` : 'Connect to Zapier'}
+              </>
+            )}
+          </DialogTitle>
+          <DialogDescription>
+            {zapierStep === 'browse'
+              ? 'Search for an app to connect via Zapier, or skip to connect directly.'
+              : 'Enter your Zapier API key to authenticate and enable actions.'}
+          </DialogDescription>
+        </DialogHeader>
+
+        {zapierStep === 'browse' ? (
+          <div className="space-y-3 py-2">
+            {/* Search input */}
+            <div className="relative">
+              <Input
+                value={zapierSearch}
+                onChange={(e) => handleZapierSearch(e.target.value)}
+                placeholder="Search 7,000+ apps — Gmail, Slack, Notion..."
+                className="pr-8"
+                autoFocus
+              />
+              {zapierAppsLoading && (
+                <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
+              )}
+            </div>
+
+            {/* App grid */}
+            <div className="grid grid-cols-2 gap-2 max-h-[280px] overflow-y-auto">
+              {zapierApps.map((app) => (
+                <button
+                  key={app.slug}
+                  type="button"
+                  onClick={() => selectZapierApp(app)}
+                  className="flex items-center gap-2.5 rounded-lg border p-2.5 text-left hover:bg-muted/50 transition-colors"
+                >
+                  {app.image ? (
+                    // eslint-disable-next-line @next/next/no-img-element
+                    <img src={app.image} alt="" className="h-8 w-8 rounded shrink-0" />
+                  ) : (
+                    <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
+                      <Bolt className="h-4 w-4 text-orange-500" />
+                    </div>
+                  )}
+                  <div className="min-w-0">
+                    <div className="text-sm font-medium truncate">{app.title}</div>
+                    <div className="text-[10px] text-muted-foreground line-clamp-1">{app.description}</div>
+                  </div>
+                </button>
+              ))}
+              {!zapierAppsLoading && zapierApps.length === 0 && zapierSearch && (
+                <div className="col-span-2 text-center text-sm text-muted-foreground py-6">
+                  No apps found for &quot;{zapierSearch}&quot;
+                </div>
+              )}
+            </div>
+
+            {/* Skip / service type switcher */}
+            <div className="flex items-center justify-between pt-1 border-t">
+              <Button
+                type="button"
+                variant="ghost"
+                size="sm"
+                className="text-xs text-muted-foreground"
+                onClick={() => {
+                  setSelectedApp(null);
+                  setName('Zapier');
+                  setZapierStep('connect');
+                }}
+              >
+                Skip — connect without selecting an app
+              </Button>
+              <Select value={serviceType} onValueChange={handleServiceTypeChange}>
+                <SelectTrigger className="w-auto h-7 text-xs gap-1">
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SERVICE_TYPE_CONFIG).map(([key, config]) => (
+                    <SelectItem key={key} value={key}>
+                      <div className="flex items-center gap-2">
+                        {config.icon}
+                        {config.label}
+                      </div>
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          </div>
+        ) : (
+          <div className="space-y-4 py-2">
+            {/* Selected app banner */}
+            {selectedApp && (
+              <button
+                type="button"
+                onClick={() => setZapierStep('browse')}
+                className="flex items-center gap-3 w-full rounded-lg border bg-muted/30 p-3 text-left hover:bg-muted/50 transition-colors"
+              >
+                {/* eslint-disable-next-line @next/next/no-img-element */}
+                <img src={selectedApp.image} alt="" className="h-10 w-10 rounded" />
+                <div className="min-w-0 flex-1">
+                  <div className="text-sm font-medium">{selectedApp.title}</div>
+                  <div className="text-xs text-muted-foreground line-clamp-1">{selectedApp.description}</div>
+                </div>
+                <span className="text-xs text-muted-foreground shrink-0">Change</span>
+              </button>
+            )}
+
+            {/* Connection name */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Connection Name</Label>
+              <Input
+                value={name}
+                onChange={(e) => setName(e.target.value)}
+                placeholder="My Zapier connection"
+                className="h-8 text-sm"
+              />
+            </div>
+
+            {/* API Key */}
+            <div className="space-y-1.5">
+              <Label className="text-xs">Zapier API Key</Label>
+              <Input
+                type="password"
+                value={apiKey}
+                onChange={(e) => { setApiKey(e.target.value); setPreviewed(false); setPreviewError(null); }}
+                placeholder="sk-ak-..."
+                className="h-8 text-sm"
+                autoFocus={!selectedApp}
+              />
+              <p className="text-[11px] text-muted-foreground">
+                Get your key at{' '}
+                <a href="https://actions.zapier.com/credentials/" target="_blank" rel="noopener noreferrer" className="text-primary underline">
+                  actions.zapier.com/credentials
+                </a>
+                {' '}— this key authenticates both MCP actions and incoming webhooks.
+              </p>
+            </div>
+
+            {/* Test + Preview */}
+            {apiKey.trim() && (
+              <div className="space-y-2">
+                {!previewed && !previewLoading && (
+                  <Button type="button" variant="outline" className="w-full gap-2 h-9" onClick={handleTestZapier}>
+                    <Bolt className="h-4 w-4 text-orange-500" />
+                    Test Connection
+                  </Button>
+                )}
+                {previewLoading && (
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground py-3 justify-center">
+                    <Loader2 className="h-4 w-4 animate-spin" />
+                    Connecting to Zapier...
+                  </div>
+                )}
+                {previewError && (
+                  <div className="rounded-lg border border-destructive/50 bg-destructive/5 p-3 text-xs text-destructive">
+                    {previewError}
+                  </div>
+                )}
+                {previewed && previewActions.length > 0 && (
+                  <div className="rounded-lg border bg-green-500/5 border-green-500/20 p-3 space-y-2">
+                    <div className="flex items-center justify-between">
+                      <span className="text-xs font-medium text-green-600">
+                        {previewActions.length} action{previewActions.length !== 1 ? 's' : ''} available
+                      </span>
+                      <Button type="button" variant="ghost" size="sm" className="h-5 text-[10px]" onClick={handleTestZapier}>
+                        Refresh
+                      </Button>
+                    </div>
+                    <div className="space-y-1 max-h-28 overflow-y-auto">
+                      {previewActions.map((a) => (
+                        <div key={a.name} className="flex items-start gap-2 text-xs">
+                          <Bolt className="h-3 w-3 mt-0.5 text-orange-500 shrink-0" />
+                          <span className="truncate">{a.name}</span>
+                        </div>
+                      ))}
+                    </div>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Advanced */}
+            <details className="text-xs">
+              <summary className="text-muted-foreground cursor-pointer hover:text-foreground">
+                Advanced settings
+              </summary>
+              <div className="mt-2 space-y-1.5">
+                <Label className="text-[10px]">MCP Server URL</Label>
+                <Input
+                  value={serverUrl}
+                  onChange={(e) => setServerUrl(e.target.value)}
+                  placeholder="https://actions.zapier.com/mcp"
+                  className="text-xs h-7"
+                />
+              </div>
+            </details>
+          </div>
+        )}
+
+        {zapierStep === 'connect' && (
+          <DialogFooter className="gap-2">
+            <Button type="button" variant="outline" onClick={() => setZapierStep('browse')}>
+              Back
+            </Button>
+            <Button onClick={handleCreate} disabled={saving || !apiKey.trim()}>
+              {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+              Create Connection
+            </Button>
+          </DialogFooter>
+        )}
+      </DialogContent>
+    );
+  }
+
+  // ── Generic connection dialog (non-Zapier) ────────────────────────────────
   return (
     <DialogContent className="sm:max-w-[480px]">
       <DialogHeader>
@@ -530,7 +896,7 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
       <div className="space-y-4 py-2">
         <div className="space-y-2">
           <Label>Service Type</Label>
-          <Select value={serviceType} onValueChange={setServiceType}>
+          <Select value={serviceType} onValueChange={handleServiceTypeChange}>
             <SelectTrigger>
               <SelectValue />
             </SelectTrigger>
@@ -559,13 +925,13 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
           />
         </div>
 
-        {(serviceType === 'zapier' || serviceType === 'webhook' || serviceType === 'mcp') && (
+        {(serviceType === 'webhook' || serviceType === 'mcp') && (
           <div className="space-y-2">
-            <Label>{serviceType === 'zapier' ? 'MCP Server URL' : serviceType === 'mcp' ? 'Server URL' : 'Webhook URL'}</Label>
+            <Label>{serviceType === 'mcp' ? 'Server URL' : 'Webhook URL'}</Label>
             <Input
               value={serverUrl}
               onChange={(e) => setServerUrl(e.target.value)}
-              placeholder={serviceType === 'zapier' ? 'https://actions.zapier.com/mcp' : 'https://...'}
+              placeholder="https://..."
             />
           </div>
         )}
