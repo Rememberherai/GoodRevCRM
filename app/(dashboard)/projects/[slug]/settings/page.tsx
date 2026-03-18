@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug, Plug2, KeyRound } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug, Plug2, KeyRound, Clock } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
@@ -47,6 +47,7 @@ import { DuplicatesBadge } from '@/components/deduplication/duplicates-badge';
 import { McpSettingsPanel } from '@/components/settings/mcp-settings-panel';
 import { ApiConnectionsPanel } from '@/components/settings/api-connections-panel';
 import { ProjectSecretsPanel } from '@/components/settings/project-secrets-panel';
+import { SchedulerPanel } from '@/components/settings/scheduler-panel';
 import type { ProjectRole } from '@/types/user';
 
 
@@ -277,6 +278,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             <Plug2 className="h-4 w-4" />
             API Connections
           </TabsTrigger>
+          <TabsTrigger value="scheduler" className="gap-2">
+            <Clock className="h-4 w-4" />
+            Scheduler
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6 mt-6">
@@ -473,6 +478,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
 
         <TabsContent value="api-connections" className="space-y-6 mt-6">
           <ApiConnectionsPanel slug={slug} />
+        </TabsContent>
+
+        <TabsContent value="scheduler" className="space-y-6 mt-6">
+          <SchedulerPanel slug={slug} />
         </TabsContent>
 
       </Tabs>

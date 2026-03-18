@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { processSequences } from '@/lib/sequences/processor';
 import { processTimeTriggers } from '@/lib/automations/time-triggers';
+import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
 
 // Vercel Hobby max is 60s; with 3s rate limiting this processes ~20 emails per run
 export const maxDuration = 60;
@@ -34,11 +35,10 @@ async function processAll() {
 }
 
 export async function GET(request: Request) {
-  // Try CRON_SECRET auth first (for automated calls)
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
+  // Try CRON_SECRET auth first (for automated calls — supports per-project secrets)
+  const hasCronAuth = await verifyCronAuth(request);
 
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+  if (hasCronAuth) {
     try {
       const result = await processAll();
       return NextResponse.json({ success: true, ...result });

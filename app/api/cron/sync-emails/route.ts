@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { syncEmailsForConnection } from '@/lib/gmail/sync';
+import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
 
 export const maxDuration = 60;
 
@@ -20,10 +21,8 @@ function createAdminClient() {
  * Auth: CRON_SECRET bearer token
  */
 export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  const isAuthorized = await verifyCronAuth(request);
+  if (!isAuthorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

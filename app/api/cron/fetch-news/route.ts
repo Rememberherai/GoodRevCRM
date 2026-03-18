@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { fetchNewsForAllProjects } from '@/lib/newsapi/fetcher';
+import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
 
 /**
  * Fetch news articles for all projects.
@@ -9,10 +10,8 @@ import { fetchNewsForAllProjects } from '@/lib/newsapi/fetcher';
  *   2. Supabase session cookie (for manual trigger from UI)
  */
 export async function GET(request: Request) {
-  // Try CRON_SECRET auth first
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-  const hasCronAuth = cronSecret && authHeader === `Bearer ${cronSecret}`;
+  // Try CRON_SECRET auth first (supports per-project secrets)
+  const hasCronAuth = await verifyCronAuth(request);
 
   if (!hasCronAuth) {
     // Fall back to user session auth

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { processDelayedSteps, processScheduledWorkflows } from '@/lib/workflows/delay-processor';
+import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
 
 /**
  * Cron endpoint to:
@@ -10,11 +11,8 @@ import { processDelayedSteps, processScheduledWorkflows } from '@/lib/workflows/
  * Protected by CRON_SECRET header.
  */
 export async function GET(request: Request) {
-  // Verify cron secret
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-
-  if (!cronSecret || authHeader !== `Bearer ${cronSecret}`) {
+  const isAuthorized = await verifyCronAuth(request);
+  if (!isAuthorized) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 

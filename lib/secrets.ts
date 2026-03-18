@@ -30,6 +30,27 @@ export const SECRET_KEYS = {
     description: 'Growth metrics and census data enrichment',
     placeholder: 'Your Census API key',
   },
+  cronjob_org_api_key: {
+    envVar: 'CRONJOB_ORG_API_KEY',
+    label: 'cron-job.org API Key',
+    description: 'Manage scheduled cron jobs via cron-job.org REST API',
+    placeholder: 'Your cron-job.org API key',
+    hidden: true, // Managed via Scheduler settings tab
+  },
+  cron_secret: {
+    envVar: 'CRON_SECRET',
+    label: 'Cron Secret',
+    description: 'Bearer token used to authenticate cron job callbacks',
+    placeholder: 'Auto-generate or enter a secret token',
+    hidden: true, // Managed via Scheduler settings tab
+  },
+  scheduler_base_url: {
+    envVar: 'NEXT_PUBLIC_APP_URL',
+    label: 'Scheduler Base URL',
+    description: 'Public URL of this app (used as callback URL for cron jobs)',
+    placeholder: 'https://your-app.vercel.app',
+    hidden: true, // Managed via Scheduler settings tab
+  },
 } as const;
 
 export type SecretKeyName = keyof typeof SECRET_KEYS;

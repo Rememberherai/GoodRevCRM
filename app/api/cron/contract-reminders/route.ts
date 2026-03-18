@@ -4,6 +4,7 @@ import { sendEmail } from '@/lib/gmail/service';
 import { insertAuditTrail } from '@/lib/contracts/audit';
 import { handleCompletion } from '@/lib/contracts/completion';
 import { emitAutomationEvent } from '@/lib/automations/engine';
+import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
 import type { GmailConnection } from '@/types/gmail';
 
 export const maxDuration = 60;
@@ -211,10 +212,9 @@ async function processContracts() {
 }
 
 export async function GET(request: Request) {
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
+  const hasCronAuth = await verifyCronAuth(request);
 
-  if (cronSecret && authHeader === `Bearer ${cronSecret}`) {
+  if (hasCronAuth) {
     try {
       const result = await processContracts();
       return NextResponse.json({ success: true, ...result });

@@ -73,19 +73,25 @@ export async function GET(_request: Request, context: RouteContext) {
     const secrets = await listProjectSecrets(result.project.id);
 
     // Include metadata about all available keys
-    const allKeys = Object.entries(SECRET_KEYS).map(([key, meta]) => {
-      const stored = secrets.find((s) => s.key_name === key);
-      return {
-        key_name: key,
-        label: meta.label,
-        description: meta.description,
-        placeholder: meta.placeholder,
-        is_set: !!stored,
-        masked_value: stored?.masked_value || '',
-        updated_at: stored?.updated_at || null,
-        has_server_default: !!process.env[meta.envVar],
-      };
-    });
+    // The `hidden` query param controls whether to include hidden keys (used by Scheduler panel)
+    const url = new URL(_request.url);
+    const includeHidden = url.searchParams.get('include_hidden') === 'true';
+
+    const allKeys = Object.entries(SECRET_KEYS)
+      .filter(([, meta]) => includeHidden || !('hidden' in meta && meta.hidden))
+      .map(([key, meta]) => {
+        const stored = secrets.find((s) => s.key_name === key);
+        return {
+          key_name: key,
+          label: meta.label,
+          description: meta.description,
+          placeholder: meta.placeholder,
+          is_set: !!stored,
+          masked_value: stored?.masked_value || '',
+          updated_at: stored?.updated_at || null,
+          has_server_default: !!process.env[meta.envVar],
+        };
+      });
 
     return NextResponse.json({ secrets: allKeys });
   } catch (error) {
