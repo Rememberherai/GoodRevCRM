@@ -3,6 +3,8 @@
 import { useState, useEffect, useCallback } from 'react';
 import {
   Bolt,
+  ChevronDown,
+  ChevronRight,
   Globe,
   Key,
   Plug2,
@@ -14,6 +16,7 @@ import {
   AlertCircle,
   Loader2,
   Server,
+  Wrench,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -63,11 +66,16 @@ interface ApiConnectionsPanelProps {
   slug: string;
 }
 
+interface ZapierTool {
+  name: string;
+  description?: string;
+}
+
 const SERVICE_TYPE_CONFIG: Record<string, { label: string; icon: React.ReactNode; description: string }> = {
   zapier: {
     label: 'Zapier',
     icon: <Bolt className="h-4 w-4 text-orange-500" />,
-    description: 'Connect to Zapier MCP for automated workflows',
+    description: 'Connect to Zapier for automated workflows. Supports MCP actions in workflows, outgoing webhooks to Zapier triggers, and incoming webhooks from Zapier actions.',
   },
   webhook: {
     label: 'Webhook',
@@ -104,6 +112,8 @@ export function ApiConnectionsPanel({ slug }: ApiConnectionsPanelProps) {
   const [createOpen, setCreateOpen] = useState(false);
   const [deleteId, setDeleteId] = useState<string | null>(null);
   const [testingId, setTestingId] = useState<string | null>(null);
+  const [expandedId, setExpandedId] = useState<string | null>(null);
+  const [toolsMap, setToolsMap] = useState<Record<string, { tools: ZapierTool[]; loading: boolean; cached: boolean }>>({});
 
   const fetchConnections = useCallback(async () => {
     try {
@@ -158,6 +168,33 @@ export function ApiConnectionsPanel({ slug }: ApiConnectionsPanelProps) {
     }
   }
 
+  async function fetchTools(id: string, refresh = false) {
+    setToolsMap((prev) => ({ ...prev, [id]: { tools: prev[id]?.tools ?? [], loading: true, cached: false } }));
+    try {
+      const res = await fetch(`/api/projects/${slug}/api-connections/${id}/tools${refresh ? '?refresh=true' : ''}`);
+      if (res.ok) {
+        const data = await res.json();
+        setToolsMap((prev) => ({ ...prev, [id]: { tools: data.tools ?? [], loading: false, cached: !!data.cached } }));
+        return data.tools?.length ?? 0;
+      }
+    } catch {
+      // ignore
+    }
+    setToolsMap((prev) => ({ ...prev, [id]: { tools: [], loading: false, cached: false } }));
+    return 0;
+  }
+
+  function toggleExpand(conn: ApiConnection) {
+    if (expandedId === conn.id) {
+      setExpandedId(null);
+    } else {
+      setExpandedId(conn.id);
+      if (!toolsMap[conn.id]) {
+        fetchTools(conn.id);
+      }
+    }
+  }
+
   if (loading) {
     return (
       <Card>
@@ -188,9 +225,18 @@ export function ApiConnectionsPanel({ slug }: ApiConnectionsPanelProps) {
               </DialogTrigger>
               <CreateConnectionDialog
                 slug={slug}
-                onCreated={() => {
+                onCreated={(newId, serviceType) => {
                   setCreateOpen(false);
                   fetchConnections();
+                  // Auto-fetch tools for Zapier/MCP connections
+                  if (newId && (serviceType === 'zapier' || serviceType === 'mcp')) {
+                    setExpandedId(newId);
+                    fetchTools(newId).then((count) => {
+                      if (count > 0) {
+                        toast.success(`Found ${count} available action${count !== 1 ? 's' : ''}`);
+                      }
+                    });
+                  }
                 }}
               />
             </Dialog>
@@ -208,62 +254,149 @@ export function ApiConnectionsPanel({ slug }: ApiConnectionsPanelProps) {
               {connections.map((conn) => {
                 const svc = SERVICE_TYPE_CONFIG[conn.service_type] ?? SERVICE_TYPE_CONFIG['api_key']!;
                 const status = STATUS_CONFIG[conn.status] ?? STATUS_CONFIG['inactive']!;
+                const supportsTools = conn.service_type === 'zapier' || conn.service_type === 'mcp';
+                const isExpanded = expandedId === conn.id;
+                const connTools = toolsMap[conn.id];
 
                 return (
-                  <div
-                    key={conn.id}
-                    className="flex items-center justify-between rounded-lg border p-4"
-                  >
-                    <div className="flex items-center gap-3">
-                      <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
-                        {svc.icon}
+                  <div key={conn.id} className="rounded-lg border">
+                    <div className="flex items-center justify-between p-4">
+                      <div className="flex items-center gap-3">
+                        <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-muted">
+                          {svc.icon}
+                        </div>
+                        <div>
+                          <div className="flex items-center gap-2">
+                            <span className="font-medium text-sm">{conn.name}</span>
+                            <Badge variant={status.variant} className="gap-1 text-xs">
+                              {status.icon}
+                              {status.label}
+                            </Badge>
+                            <Badge variant="outline" className="text-xs">
+                              {svc.label}
+                            </Badge>
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {conn.last_used_at
+                              ? `Last used ${new Date(conn.last_used_at).toLocaleDateString()}`
+                              : 'Never used'}
+                            {' · '}
+                            Created {new Date(conn.created_at).toLocaleDateString()}
+                          </div>
+                        </div>
                       </div>
-                      <div>
-                        <div className="flex items-center gap-2">
-                          <span className="font-medium text-sm">{conn.name}</span>
-                          <Badge variant={status.variant} className="gap-1 text-xs">
-                            {status.icon}
-                            {status.label}
-                          </Badge>
-                          <Badge variant="outline" className="text-xs">
-                            {svc.label}
-                          </Badge>
-                        </div>
-                        <div className="text-xs text-muted-foreground mt-0.5">
-                          {conn.last_used_at
-                            ? `Last used ${new Date(conn.last_used_at).toLocaleDateString()}`
-                            : 'Never used'}
-                          {' · '}
-                          Created {new Date(conn.created_at).toLocaleDateString()}
-                        </div>
+
+                      <div className="flex items-center gap-1">
+                        {supportsTools && (
+                          <Button
+                            variant="ghost"
+                            size="sm"
+                            className="h-8 gap-1 text-xs"
+                            onClick={() => toggleExpand(conn)}
+                          >
+                            <Wrench className="h-3 w-3" />
+                            Actions
+                            {isExpanded ? (
+                              <ChevronDown className="h-3 w-3" />
+                            ) : (
+                              <ChevronRight className="h-3 w-3" />
+                            )}
+                          </Button>
+                        )}
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => handleTest(conn.id)}
+                          disabled={testingId === conn.id}
+                          title="Test connection"
+                        >
+                          {testingId === conn.id ? (
+                            <Loader2 className="h-4 w-4 animate-spin" />
+                          ) : (
+                            <RefreshCw className="h-4 w-4" />
+                          )}
+                        </Button>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          onClick={() => setDeleteId(conn.id)}
+                          title="Delete connection"
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
                       </div>
                     </div>
 
-                    <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => handleTest(conn.id)}
-                        disabled={testingId === conn.id}
-                        title="Test connection"
-                      >
-                        {testingId === conn.id ? (
-                          <Loader2 className="h-4 w-4 animate-spin" />
-                        ) : (
-                          <RefreshCw className="h-4 w-4" />
+                    {/* Expandable tools list */}
+                    {supportsTools && isExpanded && (
+                      <div className="border-t px-4 py-3 bg-muted/30">
+                        <div className="flex items-center justify-between mb-2">
+                          <span className="text-xs font-medium">Available Actions</span>
+                          <div className="flex items-center gap-2">
+                            {connTools && !connTools.loading && (
+                              <span className="text-[10px] text-muted-foreground">
+                                {connTools.tools.length} action{connTools.tools.length !== 1 ? 's' : ''}
+                                {connTools.cached ? ' (cached)' : ''}
+                              </span>
+                            )}
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              onClick={() => fetchTools(conn.id, true)}
+                              disabled={connTools?.loading}
+                              title="Refresh actions"
+                            >
+                              {connTools?.loading ? (
+                                <Loader2 className="h-3 w-3 animate-spin" />
+                              ) : (
+                                <RefreshCw className="h-3 w-3" />
+                              )}
+                            </Button>
+                          </div>
+                        </div>
+
+                        {connTools?.loading && connTools.tools.length === 0 ? (
+                          <div className="flex items-center gap-2 text-xs text-muted-foreground py-3">
+                            <Loader2 className="h-3 w-3 animate-spin" />
+                            Fetching available actions...
+                          </div>
+                        ) : connTools && connTools.tools.length === 0 ? (
+                          <p className="text-xs text-muted-foreground py-2">
+                            No actions found. Make sure the connection is active and has actions configured in Zapier.
+                          </p>
+                        ) : connTools ? (
+                          <div className="space-y-1 max-h-48 overflow-y-auto">
+                            {connTools.tools.map((tool) => (
+                              <div
+                                key={tool.name}
+                                className="flex items-start gap-2 rounded p-2 text-xs hover:bg-muted/50"
+                              >
+                                <Bolt className="h-3 w-3 mt-0.5 text-orange-500 shrink-0" />
+                                <div className="min-w-0">
+                                  <div className="font-medium truncate">{tool.name}</div>
+                                  {tool.description && (
+                                    <div className="text-muted-foreground line-clamp-2">{tool.description}</div>
+                                  )}
+                                </div>
+                              </div>
+                            ))}
+                          </div>
+                        ) : null}
+
+                        {/* Integration help for Zapier connections */}
+                        {conn.service_type === 'zapier' && (
+                          <div className="mt-3 pt-3 border-t space-y-1.5 text-[11px] text-muted-foreground">
+                            <p className="font-medium text-foreground text-xs">Integration options:</p>
+                            <p><strong>Workflows:</strong> Use the workflow editor to call Zapier actions on-demand via the Zapier node.</p>
+                            <p><strong>Outgoing:</strong> Create an outgoing webhook to send CRM events to a Zapier &quot;Catch Hook&quot; trigger.</p>
+                            <p><strong>Incoming:</strong> Use <code className="text-[10px] bg-muted px-1 rounded">POST /api/projects/{'{'}<em>slug</em>{'}'}/webhooks/incoming/zapier</code> with your API key as a Bearer token to push data from Zapier into the CRM.</p>
+                          </div>
                         )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
-                        onClick={() => setDeleteId(conn.id)}
-                        title="Delete connection"
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
-                    </div>
+                      </div>
+                    )}
                   </div>
                 );
               })}
@@ -296,7 +429,7 @@ export function ApiConnectionsPanel({ slug }: ApiConnectionsPanelProps) {
 
 interface CreateConnectionDialogProps {
   slug: string;
-  onCreated: () => void;
+  onCreated: (newId?: string, serviceType?: string) => void;
 }
 
 function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps) {
@@ -365,8 +498,9 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
       });
 
       if (res.ok) {
+        const result = await res.json();
         toast.success('Connection created');
-        onCreated();
+        onCreated(result.connection?.id, serviceType);
         setName('');
         setApiKey('');
         setServerUrl('');

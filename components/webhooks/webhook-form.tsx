@@ -2,6 +2,7 @@
 
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
+import { Bolt } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Switch } from '@/components/ui/switch';
@@ -87,6 +88,38 @@ export function WebhookForm({ webhook, onSubmit, onCancel, loading = false }: We
   return (
     <Form {...form}>
       <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-6">
+        {/* Quick setup presets */}
+        {!webhook && (
+          <div className="flex items-center gap-2">
+            <span className="text-xs text-muted-foreground">Quick setup:</span>
+            <Button
+              type="button"
+              variant="outline"
+              size="sm"
+              className="gap-1 text-xs"
+              onClick={() => {
+                form.setValue('name', 'Zapier Trigger');
+                form.setValue('url', '');
+                form.setValue('events', [
+                  'person.created',
+                  'person.updated',
+                  'organization.created',
+                  'opportunity.created',
+                  'opportunity.stage_changed',
+                  'opportunity.won',
+                  'opportunity.lost',
+                  'task.completed',
+                ] as WebhookEventType[]);
+                form.setValue('retry_count', 3);
+                form.setValue('timeout_ms', 30000);
+              }}
+            >
+              <Bolt className="h-3 w-3 text-orange-500" />
+              Zapier
+            </Button>
+          </div>
+        )}
+
         <FormField
           control={form.control}
           name="name"
@@ -109,9 +142,20 @@ export function WebhookForm({ webhook, onSubmit, onCancel, loading = false }: We
             <FormItem>
               <FormLabel>URL</FormLabel>
               <FormControl>
-                <Input placeholder="https://example.com/webhook" {...field} />
+                <Input
+                  placeholder={
+                    form.watch('name') === 'Zapier Trigger'
+                      ? 'Paste your Zapier Catch Hook URL here'
+                      : 'https://example.com/webhook'
+                  }
+                  {...field}
+                />
               </FormControl>
-              <FormDescription>The endpoint that will receive webhook events</FormDescription>
+              <FormDescription>
+                {form.watch('name') === 'Zapier Trigger'
+                  ? 'Create a "Webhooks by Zapier" trigger in Zapier and paste the Catch Hook URL here'
+                  : 'The endpoint that will receive webhook events'}
+              </FormDescription>
               <FormMessage />
             </FormItem>
           )}

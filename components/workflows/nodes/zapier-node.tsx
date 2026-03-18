@@ -8,6 +8,7 @@ import type { WorkflowNode } from '@/types/workflow';
 export function ZapierNode(props: NodeProps) {
   const data = props.data as WorkflowNode['data'];
   const action = (data.config?.action as string) || '';
+  const connectionName = (data.config?.connection_name as string) || '';
   const hasConnection = !!(data.config?.connection_id);
 
   return (
@@ -17,9 +18,16 @@ export function ZapierNode(props: NodeProps) {
       color="border-orange-400"
       bgColor="bg-orange-50 dark:bg-orange-950"
     >
-      <div className="text-[10px] mt-1">
+      <div className="text-[10px] mt-1 space-y-0.5">
         {hasConnection ? (
-          <span className="text-orange-600">{action || 'Connected'}</span>
+          <>
+            {connectionName && (
+              <div className="text-muted-foreground truncate">{connectionName}</div>
+            )}
+            <div className="text-orange-600 font-medium truncate">
+              {action || 'No action selected'}
+            </div>
+          </>
         ) : (
           <span className="text-muted-foreground">Not connected</span>
         )}

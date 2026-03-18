@@ -1,8 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { X } from 'lucide-react';
+import { Check, ChevronsUpDown, Loader2, RefreshCw, X } from 'lucide-react';
+import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -14,6 +15,20 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
+import { Badge } from '@/components/ui/badge';
 import { useWorkflowStore } from '@/stores/workflow-store';
 import {
   actionTypeOptions,
@@ -50,6 +65,13 @@ interface ProjectTemplate {
   name: string;
   subject: string;
   category: string;
+}
+
+interface ZapierConnection {
+  id: string;
+  name: string;
+  service_type: string;
+  status: string;
 }
 
 // Known value options for update_field action
@@ -104,16 +126,18 @@ function useProjectResources(slug: string | undefined) {
   const [tags, setTags] = useState<ProjectTag[]>([]);
   const [sequences, setSequences] = useState<ProjectSequence[]>([]);
   const [templates, setTemplates] = useState<ProjectTemplate[]>([]);
+  const [zapierConnections, setZapierConnections] = useState<ZapierConnection[]>([]);
 
   useEffect(() => {
     if (!slug) return;
 
     async function fetchResources() {
-      const [membersRes, tagsRes, sequencesRes, templatesRes] = await Promise.allSettled([
+      const [membersRes, tagsRes, sequencesRes, templatesRes, connectionsRes] = await Promise.allSettled([
         fetch(`/api/projects/${slug}/members?limit=100`),
         fetch(`/api/projects/${slug}/tags?limit=100`),
         fetch(`/api/projects/${slug}/sequences?status=active&limit=100`),
         fetch(`/api/projects/${slug}/templates?is_active=true&limit=100`),
+        fetch(`/api/projects/${slug}/api-connections`),
       ]);
 
       if (membersRes.status === 'fulfilled' && membersRes.value.ok) {
@@ -132,12 +156,19 @@ function useProjectResources(slug: string | undefined) {
         const data = await templatesRes.value.json();
         setTemplates(data.data ?? []);
       }
+      if (connectionsRes.status === 'fulfilled' && connectionsRes.value.ok) {
+        const data = await connectionsRes.value.json();
+        const conns: ZapierConnection[] = (data.connections ?? []).filter(
+          (c: ZapierConnection) => c.service_type === 'zapier' && c.status === 'active'
+        );
+        setZapierConnections(conns);
+      }
     }
 
     fetchResources();
   }, [slug]);
 
-  return { members, tags, sequences, templates };
+  return { members, tags, sequences, templates, zapierConnections };
 }
 
 function getMemberLabel(m: ProjectMember) {
@@ -169,6 +200,12 @@ export function WorkflowPropertyPanel() {
   function updateConfig(key: string, value: unknown) {
     updateNodeData(selectedNode!.id, {
       config: { ...config, [key]: value },
+    });
+  }
+
+  function batchUpdateConfig(updates: Record<string, unknown>) {
+    updateNodeData(selectedNode!.id, {
+      config: { ...config, ...updates },
     });
   }
 
@@ -211,7 +248,7 @@ export function WorkflowPropertyPanel() {
       </div>
 
       {/* Type-specific config */}
-      {renderTypeConfig(type, config, updateConfig, resources)}
+      {renderTypeConfig(type, config, updateConfig, resources, slug, batchUpdateConfig)}
 
       {/* Delete button */}
       {type !== 'start' && (
@@ -236,7 +273,9 @@ function renderTypeConfig(
   type: WorkflowNodeType,
   config: Record<string, unknown>,
   updateConfig: (key: string, value: unknown) => void,
-  resources: ReturnType<typeof useProjectResources>
+  resources: ReturnType<typeof useProjectResources>,
+  slug?: string,
+  batchUpdateConfig?: (updates: Record<string, unknown>) => void,
 ) {
   const { members, tags, sequences, templates } = resources;
 
@@ -943,26 +982,13 @@ function renderTypeConfig(
 
     case 'zapier':
       return (
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Connection</Label>
-            <Input
-              value={(config.connection_id as string) || ''}
-              onChange={(e) => updateConfig('connection_id', e.target.value)}
-              className="h-8 text-sm"
-              placeholder="API Connection ID"
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label className="text-xs">Action</Label>
-            <Input
-              value={(config.action as string) || ''}
-              onChange={(e) => updateConfig('action', e.target.value)}
-              className="h-8 text-sm"
-              placeholder="Zapier action name"
-            />
-          </div>
-        </div>
+        <ZapierConfigPanel
+          config={config}
+          updateConfig={updateConfig}
+          batchUpdateConfig={batchUpdateConfig!}
+          slug={slug ?? ''}
+          connections={resources.zapierConnections}
+        />
       );
 
     case 'sub_workflow':
@@ -1004,4 +1030,223 @@ function renderTypeConfig(
     default:
       return null;
   }
+}
+
+// ── Zapier Config Panel (extracted as component for hooks) ────────────────────
+
+interface ZapierTool {
+  name: string;
+  description?: string;
+  inputSchema?: {
+    type?: string;
+    properties?: Record<string, { type?: string; description?: string }>;
+    required?: string[];
+  };
+}
+
+interface ZapierConfigPanelProps {
+  config: Record<string, unknown>;
+  updateConfig: (key: string, value: unknown) => void;
+  batchUpdateConfig: (updates: Record<string, unknown>) => void;
+  slug: string;
+  connections: ZapierConnection[];
+}
+
+function ZapierConfigPanel({ config, updateConfig, batchUpdateConfig, slug, connections }: ZapierConfigPanelProps) {
+  const connectionId = (config.connection_id as string) || '';
+  const action = (config.action as string) || '';
+  const params = (config.params as Record<string, unknown>) || {};
+
+  const [tools, setTools] = useState<ZapierTool[]>([]);
+  const [toolsLoading, setToolsLoading] = useState(false);
+  const [actionOpen, setActionOpen] = useState(false);
+
+  const fetchTools = useCallback(async (connId: string, refresh = false) => {
+    if (!connId || !slug) return;
+    setToolsLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${slug}/api-connections/${connId}/tools${refresh ? '?refresh=true' : ''}`);
+      if (res.ok) {
+        const data = await res.json();
+        setTools(data.tools ?? []);
+      }
+    } catch {
+      setTools([]);
+    } finally {
+      setToolsLoading(false);
+    }
+  }, [slug]);
+
+  // Fetch tools when connection changes
+  useEffect(() => {
+    if (connectionId) {
+      fetchTools(connectionId);
+    } else {
+      setTools([]);
+    }
+  }, [connectionId, fetchTools]);
+
+  const selectedTool = tools.find((t) => t.name === action);
+  const schemaProps = selectedTool?.inputSchema?.properties;
+  const requiredFields = selectedTool?.inputSchema?.required ?? [];
+
+  return (
+    <div className="space-y-3">
+      {/* Connection dropdown */}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Connection</Label>
+        {connections.length === 0 ? (
+          <p className="text-xs text-muted-foreground">
+            No active Zapier connections. Add one in Settings → API Connections.
+          </p>
+        ) : (
+          <Select
+            value={connectionId}
+            onValueChange={(v) => {
+              const conn = connections.find((c) => c.id === v);
+              batchUpdateConfig({
+                connection_id: v,
+                connection_name: conn?.name ?? '',
+                action: '',
+                params: {},
+              });
+            }}
+          >
+            <SelectTrigger className="h-8 text-sm">
+              <SelectValue placeholder="Select a connection..." />
+            </SelectTrigger>
+            <SelectContent>
+              {connections.map((conn) => (
+                <SelectItem key={conn.id} value={conn.id}>
+                  <span className="flex items-center gap-2">
+                    {conn.name}
+                    <Badge variant="outline" className="text-[10px] py-0">
+                      {conn.status}
+                    </Badge>
+                  </span>
+                </SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+        )}
+      </div>
+
+      {/* Action combobox */}
+      {connectionId && (
+        <div className="space-y-1.5">
+          <div className="flex items-center justify-between">
+            <Label className="text-xs">Action</Label>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-5 w-5"
+              onClick={() => fetchTools(connectionId, true)}
+              disabled={toolsLoading}
+              title="Refresh available actions"
+            >
+              {toolsLoading ? (
+                <Loader2 className="h-3 w-3 animate-spin" />
+              ) : (
+                <RefreshCw className="h-3 w-3" />
+              )}
+            </Button>
+          </div>
+
+          {toolsLoading && tools.length === 0 ? (
+            <div className="flex items-center gap-2 text-xs text-muted-foreground py-2">
+              <Loader2 className="h-3 w-3 animate-spin" />
+              Fetching available actions...
+            </div>
+          ) : (
+            <Popover open={actionOpen} onOpenChange={setActionOpen}>
+              <PopoverTrigger asChild>
+                <Button
+                  variant="outline"
+                  role="combobox"
+                  aria-expanded={actionOpen}
+                  className="w-full h-8 justify-between text-sm font-normal"
+                >
+                  <span className="truncate">
+                    {action || 'Select an action...'}
+                  </span>
+                  <ChevronsUpDown className="h-3 w-3 shrink-0 opacity-50" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                <Command>
+                  <CommandInput placeholder="Search actions..." />
+                  <CommandList>
+                    {tools.length === 0 ? (
+                      <CommandEmpty>No actions found.</CommandEmpty>
+                    ) : (
+                      <CommandGroup>
+                        {tools.map((tool) => (
+                          <CommandItem
+                            key={tool.name}
+                            value={tool.name}
+                            onSelect={() => {
+                              batchUpdateConfig({ action: tool.name, params: {} });
+                              setActionOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-3 w-3',
+                                action === tool.name ? 'opacity-100' : 'opacity-0'
+                              )}
+                            />
+                            <div className="flex flex-col min-w-0">
+                              <span className="text-sm truncate">{tool.name}</span>
+                              {tool.description && (
+                                <span className="text-[10px] text-muted-foreground truncate">
+                                  {tool.description}
+                                </span>
+                              )}
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    )}
+                  </CommandList>
+                </Command>
+              </PopoverContent>
+            </Popover>
+          )}
+        </div>
+      )}
+
+      {/* Selected action description */}
+      {selectedTool?.description && (
+        <p className="text-xs text-muted-foreground bg-muted/50 rounded p-2">
+          {selectedTool.description}
+        </p>
+      )}
+
+      {/* Dynamic params form from inputSchema */}
+      {schemaProps && Object.keys(schemaProps).length > 0 && (
+        <div className="space-y-2 border-t pt-3">
+          <Label className="text-xs font-medium">Parameters</Label>
+          {Object.entries(schemaProps).map(([key, prop]) => (
+            <div key={key} className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">
+                {key}
+                {requiredFields.includes(key) && <span className="text-red-500 ml-0.5">*</span>}
+              </Label>
+              <Input
+                value={(params[key] as string) ?? ''}
+                onChange={(e) =>
+                  updateConfig('params', { ...params, [key]: e.target.value })
+                }
+                className="h-7 text-xs"
+                placeholder={prop.description || `{{context.${key}}}`}
+              />
+            </div>
+          ))}
+          <p className="text-[10px] text-muted-foreground">
+            Use {'{{context.field}}'} syntax for dynamic values from previous nodes.
+          </p>
+        </div>
+      )}
+    </div>
+  );
 }
