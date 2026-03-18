@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { VALID_MERGE_FIELD_KEYS } from '@/lib/contracts/merge-field-keys';
 
 // Enums
 export const contractDocumentStatuses = [
@@ -68,6 +69,9 @@ export const createContractDocumentSchema = z.object({
     .optional(),
   send_completed_copy_to_sender: z.boolean().optional(),
   send_completed_copy_to_recipients: z.boolean().optional(),
+  notify_on_view: z.boolean().optional(),
+  notify_on_sign: z.boolean().optional(),
+  notify_on_decline: z.boolean().optional(),
 });
 
 export const updateContractDocumentSchema = createContractDocumentSchema
@@ -107,11 +111,14 @@ export const contractFieldSchema = z.object({
   page_number: z.number().int().min(1),
   x: z.number().min(0).max(100),
   y: z.number().min(0).max(100),
-  width: z.number().min(0).max(100),
-  height: z.number().min(0).max(100),
+  width: z.number().min(1, 'Width must be at least 1').max(100),
+  height: z.number().min(1, 'Height must be at least 1').max(100),
   options: z.array(z.string()).nullable().optional(),
   validation_rule: z.string().max(500).nullable().optional(),
-  auto_populate_from: z.string().max(200).nullable().optional(),
+  auto_populate_from: z.string().max(200).refine(
+    (val) => VALID_MERGE_FIELD_KEYS.has(val),
+    { message: 'Invalid merge field key' }
+  ).nullable().optional(),
 });
 
 export const bulkFieldsSchema = z.object({
@@ -202,11 +209,14 @@ export const createContractTemplateSchema = z.object({
     page_number: z.number().int().min(1),
     x: z.number().min(0).max(100),
     y: z.number().min(0).max(100),
-    width: z.number().min(0).max(100),
-    height: z.number().min(0).max(100),
+    width: z.number().min(1).max(100),
+    height: z.number().min(1).max(100),
     options: z.array(z.string()).optional(),
     validation_rule: z.string().max(500).optional(),
-    auto_populate_from: z.string().max(200).optional(),
+    auto_populate_from: z.string().max(200).refine(
+      (val) => VALID_MERGE_FIELD_KEYS.has(val),
+      { message: 'Invalid merge field key' }
+    ).optional(),
   })).optional(),
   merge_fields: z.array(z.object({
     key: z.string().min(1).max(100),

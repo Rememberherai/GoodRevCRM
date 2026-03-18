@@ -3,6 +3,7 @@ import { validateSigningToken } from '@/lib/contracts/signing-token';
 import { createServiceClient } from '@/lib/supabase/server';
 import { insertAuditTrail, insertAuditTrailBatch } from '@/lib/contracts/audit';
 import { checkRateLimit } from '@/lib/contracts/rate-limit';
+import { notifyOwner } from '@/lib/contracts/notifications';
 import { submitSigningSchema } from '@/lib/validators/contract';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 
@@ -175,6 +176,9 @@ export async function POST(request: Request, context: RouteContext) {
   ];
   insertAuditTrailBatch(auditEntries);
 
+  // Fire-and-forget owner notification
+  notifyOwner(document.id, 'signed', { recipientName: recipient.name }).catch(() => {});
+
   // === CAS: Group advancement (sequential) ===
   let groupAdvanced = false;
   let nextGroupOrder: number | null = null;
@@ -234,7 +238,7 @@ export async function POST(request: Request, context: RouteContext) {
         completed_at: new Date().toISOString(),
       })
       .eq('id', document.id)
-      .neq('status', 'completed')
+      .in('status', ['sent', 'viewed', 'partially_signed'])
       .select('id')
       .single();
 

@@ -3,6 +3,7 @@ import { validateSigningToken } from '@/lib/contracts/signing-token';
 import { createServiceClient } from '@/lib/supabase/server';
 import { insertAuditTrail } from '@/lib/contracts/audit';
 import { checkRateLimit } from '@/lib/contracts/rate-limit';
+import { notifyOwner } from '@/lib/contracts/notifications';
 import { declineSchema } from '@/lib/validators/contract';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 
@@ -59,20 +60,16 @@ export async function POST(request: Request, context: RouteContext) {
   }
 
   // Update document status (CAS: only transition from active states)
-  const { data: documentUpdate } = await supabase
+  // If this CAS loses (e.g., another signer declined first), the recipient decline
+  // still succeeded above, so we proceed rather than returning an error.
+  await supabase
     .from('contract_documents')
     .update({
       status: 'declined',
       declined_at: new Date().toISOString(),
     })
     .eq('id', document.id)
-    .in('status', ['sent', 'viewed', 'partially_signed'])
-    .select('id')
-    .single();
-
-  if (!documentUpdate) {
-    return NextResponse.json({ error: 'Document status has changed' }, { status: 409 });
-  }
+    .in('status', ['sent', 'viewed', 'partially_signed']);
 
   insertAuditTrail({
     project_id: recipient.project_id,
@@ -102,6 +99,12 @@ export async function POST(request: Request, context: RouteContext) {
   } catch {
     // Non-critical
   }
+
+  // Fire-and-forget owner notification
+  notifyOwner(document.id, 'declined', {
+    recipientName: recipient.name,
+    reason: validation.success ? validation.data.reason : undefined,
+  }).catch(() => {});
 
   emitAutomationEvent({
     projectId: recipient.project_id,

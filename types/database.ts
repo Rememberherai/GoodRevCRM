@@ -776,6 +776,9 @@ export type Database = {
           gmail_connection_id: string | null
           id: string
           last_reminder_at: string | null
+          notify_on_decline: boolean
+          notify_on_sign: boolean
+          notify_on_view: boolean
           opportunity_id: string | null
           organization_id: string | null
           original_file_hash: string | null
@@ -815,6 +818,9 @@ export type Database = {
           gmail_connection_id?: string | null
           id?: string
           last_reminder_at?: string | null
+          notify_on_decline?: boolean
+          notify_on_sign?: boolean
+          notify_on_view?: boolean
           opportunity_id?: string | null
           organization_id?: string | null
           original_file_hash?: string | null
@@ -854,6 +860,9 @@ export type Database = {
           gmail_connection_id?: string | null
           id?: string
           last_reminder_at?: string | null
+          notify_on_decline?: boolean
+          notify_on_sign?: boolean
+          notify_on_view?: boolean
           opportunity_id?: string | null
           organization_id?: string | null
           original_file_hash?: string | null

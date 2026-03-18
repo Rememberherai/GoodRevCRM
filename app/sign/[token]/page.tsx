@@ -21,6 +21,8 @@ export default function SigningPage() {
   const [signatureData, setSignatureData] = useState<string | null>(null);
   const [signatureType, setSignatureType] = useState<'draw' | 'type'>('type');
   const [typedSignature, setTypedSignature] = useState('');
+  const [initialsData, setInitialsData] = useState<string | null>(null);
+  const [typedInitials, setTypedInitials] = useState('');
   const [submitting, setSubmitting] = useState(false);
   const [showDeclineDialog, setShowDeclineDialog] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
@@ -30,8 +32,10 @@ export default function SigningPage() {
   const [delegateEmail, setDelegateEmail] = useState('');
   const [currentPage, setCurrentPage] = useState(1);
   const [signatureFont, setSignatureFont] = useState<string>('Dancing Script');
-  const canvasRef = useRef<HTMLCanvasElement>(null);
-  const isDrawing = useRef(false);
+  const signatureCanvasRef = useRef<HTMLCanvasElement>(null);
+  const initialsCanvasRef = useRef<HTMLCanvasElement>(null);
+  const activeCanvasRef = useRef<'signature' | 'initials' | null>(null);
+  const hasDrawnStrokeRef = useRef(false);
 
   const SIGNATURE_FONTS = [
     { name: 'Dancing Script', label: 'Elegant' },
@@ -163,13 +167,32 @@ export default function SigningPage() {
       sigData = signatureData;
     }
 
+    // Get initials (if any initials fields exist)
+    const needsInitials = data.fields.some((f) => f.field_type === 'initials');
+    let initialsPayload: { type: string; data: string; font?: string } | null = null;
+    if (needsInitials) {
+      if (signatureType === 'type') {
+        if (!typedInitials.trim()) {
+          setError('Please provide your initials');
+          return;
+        }
+        initialsPayload = { type: 'type', data: typedInitials.trim(), font: signatureFont };
+      } else {
+        if (!initialsData) {
+          setError('Please draw your initials');
+          return;
+        }
+        initialsPayload = { type: 'draw', data: initialsData };
+      }
+    }
+
     setSubmitting(true);
     setError(null);
 
     try {
       const fieldsToSubmit = data.fields.map((f) => ({
         field_id: f.id,
-        value: f.field_type === 'signature' ? 'adopted' : (fieldValues[f.id] ?? ''),
+        value: f.field_type === 'signature' || f.field_type === 'initials' ? 'adopted' : (fieldValues[f.id] ?? ''),
       }));
 
       const res = await fetch(`/api/sign/${token}/submit`, {
@@ -182,6 +205,7 @@ export default function SigningPage() {
             data: sigData,
             ...(signatureType === 'type' ? { font: signatureFont } : {}),
           },
+          ...(initialsPayload ? { initials_data: initialsPayload } : {}),
         }),
       });
 
@@ -268,57 +292,117 @@ export default function SigningPage() {
 
   // Drawing canvas handlers
   const initCanvas = useCallback(() => {
-    const canvas = canvasRef.current;
-    if (!canvas) return;
-    const ctx = canvas.getContext('2d');
-    if (!ctx) return;
-    ctx.strokeStyle = '#1a1a1a';
-    ctx.lineWidth = 2;
-    ctx.lineCap = 'round';
-    ctx.lineJoin = 'round';
+    const initOne = (canvas: HTMLCanvasElement | null) => {
+      if (!canvas) return;
+      const ctx = canvas.getContext('2d');
+      if (!ctx) return;
+      ctx.strokeStyle = '#1a1a1a';
+      ctx.lineWidth = 2;
+      ctx.lineCap = 'round';
+      ctx.lineJoin = 'round';
+    };
+
+    initOne(signatureCanvasRef.current);
+    initOne(initialsCanvasRef.current);
   }, []);
 
   useEffect(() => {
-    if (signatureType === 'draw') initCanvas();
+    if (signatureType === 'draw') {
+      initCanvas();
+      setSignatureData(null);
+      setInitialsData(null);
+    }
   }, [signatureType, initCanvas]);
 
-  const startDrawing = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    isDrawing.current = true;
-    const canvas = canvasRef.current;
+  // Unified coordinate extraction for mouse and touch events
+  const getCanvasCoords = (
+    canvas: HTMLCanvasElement | null,
+    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
+  ) => {
+    if (!canvas) return null;
+    const rect = canvas.getBoundingClientRect();
+    const scaleX = canvas.width / rect.width;
+    const scaleY = canvas.height / rect.height;
+    if ('touches' in e) {
+      const touch = e.touches[0] ?? e.changedTouches[0];
+      if (!touch) return null;
+      return { x: (touch.clientX - rect.left) * scaleX, y: (touch.clientY - rect.top) * scaleY };
+    }
+    return { x: (e.clientX - rect.left) * scaleX, y: (e.clientY - rect.top) * scaleY };
+  };
+
+  const startDrawing = (
+    kind: 'signature' | 'initials',
+    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
+  ) => {
+    e.preventDefault();
+    activeCanvasRef.current = kind;
+    hasDrawnStrokeRef.current = false;
+    const canvas = kind === 'signature' ? signatureCanvasRef.current : initialsCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
+    const coords = getCanvasCoords(canvas, e);
+    if (!coords) return;
     ctx.beginPath();
-    ctx.moveTo(e.clientX - rect.left, e.clientY - rect.top);
+    ctx.moveTo(coords.x, coords.y);
   };
 
-  const draw = (e: React.MouseEvent<HTMLCanvasElement>) => {
-    if (!isDrawing.current) return;
-    const canvas = canvasRef.current;
+  const draw = (
+    kind: 'signature' | 'initials',
+    e: React.MouseEvent<HTMLCanvasElement> | React.TouchEvent<HTMLCanvasElement>
+  ) => {
+    e.preventDefault();
+    if (activeCanvasRef.current !== kind) return;
+    const canvas = kind === 'signature' ? signatureCanvasRef.current : initialsCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
-    const rect = canvas.getBoundingClientRect();
-    ctx.lineTo(e.clientX - rect.left, e.clientY - rect.top);
+    const coords = getCanvasCoords(canvas, e);
+    if (!coords) return;
+    ctx.lineTo(coords.x, coords.y);
     ctx.stroke();
+    hasDrawnStrokeRef.current = true;
   };
 
-  const stopDrawing = () => {
-    isDrawing.current = false;
-    const canvas = canvasRef.current;
-    if (canvas) {
-      setSignatureData(canvas.toDataURL('image/png'));
+  const stopDrawing = (kind: 'signature' | 'initials') => {
+    if (activeCanvasRef.current !== kind) return;
+    const canvas = kind === 'signature' ? signatureCanvasRef.current : initialsCanvasRef.current;
+    activeCanvasRef.current = null;
+    if (!canvas) return;
+
+    if (!hasDrawnStrokeRef.current) {
+      if (kind === 'signature') {
+        setSignatureData(null);
+      } else {
+        setInitialsData(null);
+      }
+      return;
+    }
+
+    const dataUrl = canvas.toDataURL('image/png');
+    if (kind === 'signature') {
+      setSignatureData(dataUrl);
+    } else {
+      setInitialsData(dataUrl);
     }
   };
 
-  const clearCanvas = () => {
-    const canvas = canvasRef.current;
+  const clearCanvas = (kind: 'signature' | 'initials') => {
+    const canvas = kind === 'signature' ? signatureCanvasRef.current : initialsCanvasRef.current;
     if (!canvas) return;
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, canvas.width, canvas.height);
-    setSignatureData(null);
+    if (kind === 'signature') {
+      setSignatureData(null);
+    } else {
+      setInitialsData(null);
+    }
+    if (activeCanvasRef.current === kind) {
+      activeCanvasRef.current = null;
+    }
+    hasDrawnStrokeRef.current = false;
   };
 
   const renderField = (field: SigningPageData['fields'][0]) => {
@@ -515,6 +599,12 @@ export default function SigningPage() {
               E-SIGN Act and UETA.
             </p>
           </div>
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-4 text-sm">
+              {error}
+              <button onClick={() => setError(null)} className="ml-2 underline">Dismiss</button>
+            </div>
+          )}
           <div className="flex gap-3">
             <button
               onClick={handleConsent}
@@ -556,6 +646,7 @@ export default function SigningPage() {
   }
 
   // Signing
+  const hasInitialsFields = (data?.fields ?? []).some((f) => f.field_type === 'initials');
   const nonSignatureFields = (data?.fields ?? []).filter(
     (f) => f.field_type !== 'signature' && f.field_type !== 'initials'
   );
@@ -622,7 +713,7 @@ export default function SigningPage() {
                   </div>
                 )}
               </div>
-              <div className="relative overflow-hidden" style={{ height: '700px' }}>
+              <div className="relative overflow-hidden" style={{ height: 'min(700px, 60vh)' }}>
                 {pdfUrl ? (
                   <>
                     <iframe
@@ -635,8 +726,11 @@ export default function SigningPage() {
                     {(data?.fields ?? [])
                       .filter((f) => f.page_number === currentPage)
                       .map((field) => {
-                        const isSig = field.field_type === 'signature' || field.field_type === 'initials';
-                        const isFilled = !!fieldValues[field.id] || (isSig && (typedSignature || signatureData));
+                        const isSig = field.field_type === 'signature';
+                        const isInitials = field.field_type === 'initials';
+                        const sigFilled = signatureType === 'type' ? !!typedSignature : !!signatureData;
+                        const initialsFilled = signatureType === 'type' ? !!typedInitials : !!initialsData;
+                        const isFilled = !!fieldValues[field.id] || (isSig && sigFilled) || (isInitials && initialsFilled);
                         return (
                           <div
                             key={field.id}
@@ -743,17 +837,22 @@ export default function SigningPage() {
               ) : (
                 <div>
                   <canvas
-                    ref={canvasRef}
-                    width={300}
-                    height={120}
+                    ref={signatureCanvasRef}
+                    width={600}
+                    height={240}
                     className="w-full border rounded-md bg-white cursor-crosshair"
-                    onMouseDown={startDrawing}
-                    onMouseMove={draw}
-                    onMouseUp={stopDrawing}
-                    onMouseLeave={stopDrawing}
+                    style={{ touchAction: 'none' }}
+                    onMouseDown={(e) => startDrawing('signature', e)}
+                    onMouseMove={(e) => draw('signature', e)}
+                    onMouseUp={() => stopDrawing('signature')}
+                    onMouseLeave={() => stopDrawing('signature')}
+                    onTouchStart={(e) => startDrawing('signature', e)}
+                    onTouchMove={(e) => draw('signature', e)}
+                    onTouchEnd={() => stopDrawing('signature')}
+                    onTouchCancel={() => stopDrawing('signature')}
                   />
                   <button
-                    onClick={clearCanvas}
+                    onClick={() => clearCanvas('signature')}
                     className="mt-2 text-sm text-blue-600 hover:underline"
                   >
                     Clear
@@ -761,6 +860,55 @@ export default function SigningPage() {
                 </div>
               )}
             </div>
+
+            {/* Initials (only if document has initials fields) */}
+            {hasInitialsFields && (
+              <div className="bg-white rounded-xl shadow-sm border p-4">
+                <h2 className="font-semibold mb-3 text-gray-900">Your Initials</h2>
+                {signatureType === 'type' ? (
+                  <input
+                    type="text"
+                    value={typedInitials}
+                    onChange={(e) => setTypedInitials(e.target.value)}
+                    placeholder="Type your initials"
+                    maxLength={5}
+                    className="w-full border rounded-md px-3 py-2 text-sm text-gray-900 bg-white"
+                  />
+                ) : (
+                  <div>
+                    <canvas
+                      ref={initialsCanvasRef}
+                      width={300}
+                      height={120}
+                      className="w-full border rounded-md bg-white cursor-crosshair"
+                      style={{ touchAction: 'none', maxWidth: '300px' }}
+                      onMouseDown={(e) => startDrawing('initials', e)}
+                      onMouseMove={(e) => draw('initials', e)}
+                      onMouseUp={() => stopDrawing('initials')}
+                      onMouseLeave={() => stopDrawing('initials')}
+                      onTouchStart={(e) => startDrawing('initials', e)}
+                      onTouchMove={(e) => draw('initials', e)}
+                      onTouchEnd={() => stopDrawing('initials')}
+                      onTouchCancel={() => stopDrawing('initials')}
+                    />
+                    <button
+                      onClick={() => clearCanvas('initials')}
+                      className="mt-2 text-sm text-blue-600 hover:underline"
+                    >
+                      Clear
+                    </button>
+                  </div>
+                )}
+                {signatureType === 'type' && typedInitials && (
+                  <p
+                    className="mt-2 text-xl text-gray-900"
+                    style={{ fontFamily: `'${signatureFont}', cursive` }}
+                  >
+                    {typedInitials}
+                  </p>
+                )}
+              </div>
+            )}
 
             {/* Submit */}
             <button

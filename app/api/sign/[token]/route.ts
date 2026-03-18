@@ -3,6 +3,7 @@ import { validateSigningToken } from '@/lib/contracts/signing-token';
 import { createServiceClient } from '@/lib/supabase/server';
 import { insertAuditTrail } from '@/lib/contracts/audit';
 import { checkRateLimit } from '@/lib/contracts/rate-limit';
+import { notifyOwner } from '@/lib/contracts/notifications';
 import type { ContractRecipientStatus } from '@/types/contract';
 
 interface RouteContext {
@@ -38,23 +39,24 @@ export async function GET(request: Request, context: RouteContext) {
       .select('status')
       .single();
 
-    // Update document to 'viewed' if first view
-    if (document.status === 'sent') {
-      const { data: viewedDocument } = await supabase
-        .from('contract_documents')
-        .update({ status: 'viewed' })
-        .eq('id', document.id)
-        .eq('status', 'sent')
-        .select('status')
-        .single();
-
-      if (viewedDocument?.status) {
-        effectiveDocumentStatus = viewedDocument.status;
-      }
-    }
-
     if (viewedRecipient?.status) {
-        effectiveRecipientStatus = viewedRecipient.status as ContractRecipientStatus;
+      effectiveRecipientStatus = viewedRecipient.status as ContractRecipientStatus;
+
+      // Update document to 'viewed' if first view (only after recipient CAS succeeds)
+      if (document.status === 'sent') {
+        const { data: viewedDocument } = await supabase
+          .from('contract_documents')
+          .update({ status: 'viewed' })
+          .eq('id', document.id)
+          .eq('status', 'sent')
+          .select('status')
+          .single();
+
+        if (viewedDocument?.status) {
+          effectiveDocumentStatus = viewedDocument.status;
+        }
+      }
+
       insertAuditTrail({
         project_id: recipient.project_id,
         document_id: recipient.document_id,
@@ -65,6 +67,8 @@ export async function GET(request: Request, context: RouteContext) {
         ip_address: ip,
         user_agent: request.headers.get('user-agent'),
       });
+      // Fire-and-forget owner notification
+      notifyOwner(document.id, 'viewed', { recipientName: recipient.name }).catch(() => {});
     }
   }
 

@@ -1,13 +1,13 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useSearchParams } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
 import { useEditor, EditorContent } from '@tiptap/react';
 import StarterKit from '@tiptap/starter-kit';
 import Placeholder from '@tiptap/extension-placeholder';
 import {
-  ArrowLeft, Download, Send, Ban, Bell, FileText, Clock,
+  ArrowLeft, Download, Send, Ban, Bell, FileText, Clock, Copy,
   CheckCircle2, XCircle, Eye, Shield, Loader2, Plus, Trash2, PenTool,
   Bold, Italic, List, ListOrdered, UserSearch,
 } from 'lucide-react';
@@ -109,10 +109,14 @@ interface ContractDetail {
   owner?: { id: string; full_name: string | null; email: string } | null;
   send_completed_copy_to_sender: boolean;
   send_completed_copy_to_recipients: boolean;
+  notify_on_view: boolean;
+  notify_on_sign: boolean;
+  notify_on_decline: boolean;
 }
 
 export function ContractDetailClient() {
   const params = useParams();
+  const router = useRouter();
   const searchParams = useSearchParams();
   const slug = params.slug as string;
   const id = params.id as string;
@@ -216,8 +220,8 @@ export function ContractDetailClient() {
         }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error);
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? 'Operation failed');
       }
       setShowSendDialog(false);
       setSendMessage('');
@@ -226,6 +230,25 @@ export function ContractDetailClient() {
       loadAuditTrail();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Send failed');
+    } finally {
+      setActionLoading(null);
+    }
+  };
+
+  const handleClone = async () => {
+    setActionLoading('clone');
+    try {
+      const res = await fetch(`/api/projects/${slug}/contracts/${id}/clone`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? 'Failed to clone');
+      }
+      const { id: newId } = await res.json();
+      router.push(`/projects/${slug}/contracts/${newId}`);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to clone');
     } finally {
       setActionLoading(null);
     }
@@ -240,8 +263,8 @@ export function ContractDetailClient() {
         body: JSON.stringify({}),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error);
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? 'Operation failed');
       }
       setShowVoidDialog(false);
       loadContract();
@@ -260,8 +283,8 @@ export function ContractDetailClient() {
         method: 'POST',
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error);
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? 'Operation failed');
       }
       loadContract();
     } catch (err) {
@@ -290,8 +313,8 @@ export function ContractDetailClient() {
         }),
       });
       if (!res.ok) {
-        const err = await res.json();
-        throw new Error(err.error);
+        const err = await res.json().catch(() => null);
+        throw new Error(err?.error ?? 'Operation failed');
       }
       setShowAddRecipient(false);
       setNewRecipientName('');
@@ -325,8 +348,11 @@ export function ContractDetailClient() {
   };
 
   const openAddRecipientDialog = () => {
-    const nextOrder = Math.max(0, ...contract?.recipients.map((r) => r.signing_order) ?? []) + 1;
+    const nextOrder = Math.max(0, ...(contract?.recipients?.map((r) => r.signing_order) ?? [])) + 1;
     setNewRecipientOrder(nextOrder);
+    setNewRecipientName('');
+    setNewRecipientEmail('');
+    setRecipientSearchMode(true);
     setShowAddRecipient(true);
   };
 
@@ -436,6 +462,17 @@ export function ContractDetailClient() {
                 <Ban className="mr-2 h-4 w-4" /> Void
               </Button>
             </>
+          )}
+          {!isDraft && (
+            <Button
+              variant="outline"
+              size="sm"
+              onClick={handleClone}
+              disabled={actionLoading === 'clone'}
+            >
+              {actionLoading === 'clone' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Copy className="mr-2 h-4 w-4" />}
+              Clone as New
+            </Button>
           )}
         </div>
       </div>
@@ -668,6 +705,45 @@ export function ContractDetailClient() {
             </CardContent>
           </Card>
 
+          {/* Owner Notification Settings */}
+          <Card>
+            <CardHeader>
+              <CardTitle className="text-base">Notifications</CardTitle>
+              <CardDescription>Get notified when signers interact with this document.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-3">
+              {([
+                { key: 'notify_on_view' as const, label: 'When a signer views' },
+                { key: 'notify_on_sign' as const, label: 'When a signer signs' },
+                { key: 'notify_on_decline' as const, label: 'When a signer declines' },
+              ]).map(({ key, label }) => (
+                <label key={key} className="flex items-center justify-between">
+                  <span className="text-sm">{label}</span>
+                  <input
+                    type="checkbox"
+                    checked={contract[key]}
+                    onChange={async (e) => {
+                      const val = e.target.checked;
+                      const prev = contract[key];
+                      setContract((c) => c ? { ...c, [key]: val } : c);
+                      try {
+                        const res = await fetch(`/api/projects/${slug}/contracts/${id}`, {
+                          method: 'PATCH',
+                          headers: { 'Content-Type': 'application/json' },
+                          body: JSON.stringify({ [key]: val }),
+                        });
+                        if (!res.ok) throw new Error();
+                      } catch {
+                        setContract((c) => c ? { ...c, [key]: prev } : c);
+                      }
+                    }}
+                    className="h-4 w-4 rounded border-gray-300"
+                  />
+                </label>
+              ))}
+            </CardContent>
+          </Card>
+
           {/* Signing Progress */}
           {!isDraft && signers.length > 0 && (
             <Card>
@@ -708,6 +784,7 @@ export function ContractDetailClient() {
             </Card>
           )}
           </div>{/* end sidebar */}
+          </div>{/* end grid */}
         </TabsContent>
 
         <TabsContent value="recipients" className="mt-4">

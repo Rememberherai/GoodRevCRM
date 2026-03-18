@@ -8,6 +8,7 @@ import {
   PenTool, Type, Hash, Calendar, CheckSquare, ChevronDown, Mail, Building, User,
 } from 'lucide-react';
 import { FIELD_TYPE_LABELS, type ContractFieldType } from '@/types/contract';
+import { MERGE_FIELD_OPTIONS } from '@/lib/contracts/merge-field-keys';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Label } from '@/components/ui/label';
@@ -34,6 +35,7 @@ interface Field {
   width: number;
   height: number;
   options: string[] | null;
+  auto_populate_from: string | null;
 }
 
 interface Recipient {
@@ -119,6 +121,7 @@ export function FieldEditorClient() {
         width: Number(f.width),
         height: Number(f.height),
         options: f.options as string[] | null,
+        auto_populate_from: (f.auto_populate_from as string) ?? null,
       }));
       setFields(existingFields);
 
@@ -223,7 +226,8 @@ export function FieldEditorClient() {
       y,
       width: size.w,
       height: size.h,
-      options: type === 'dropdown' ? ['Option 1', 'Option 2'] : null,
+      options: type === 'dropdown' ? [''] : null,
+      auto_populate_from: null,
     };
 
     setFields((prev) => [...prev, newField]);
@@ -261,6 +265,7 @@ export function FieldEditorClient() {
             width: f.width,
             height: f.height,
             options: f.options,
+            auto_populate_from: f.auto_populate_from,
           })),
         }),
       });
@@ -628,16 +633,67 @@ export function FieldEditorClient() {
                   />
                 </div>
 
+                {!['signature', 'initials', 'checkbox', 'dropdown'].includes(selected.field_type) && (
+                  <div>
+                    <Label className="text-xs">Auto-fill from CRM</Label>
+                    <Select
+                      value={selected.auto_populate_from ?? '_none'}
+                      onValueChange={(v) => updateField(selected.tempId, {
+                        auto_populate_from: v === '_none' ? null : v,
+                      })}
+                    >
+                      <SelectTrigger className="mt-1 h-8 text-xs">
+                        <SelectValue placeholder="None" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="_none">None</SelectItem>
+                        {MERGE_FIELD_OPTIONS.map((opt) => (
+                          <SelectItem key={opt.key} value={opt.key}>{opt.group}: {opt.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                    <p className="text-[10px] text-muted-foreground mt-1">Value is resolved and frozen when the document is sent.</p>
+                  </div>
+                )}
+
                 {selected.field_type === 'dropdown' && (
                   <div>
-                    <Label className="text-xs">Options (one per line)</Label>
-                    <textarea
-                      value={(selected.options ?? []).join('\n')}
-                      onChange={(e) => updateField(selected.tempId, {
-                        options: e.target.value.split('\n').filter(Boolean),
-                      })}
-                      className="mt-1 w-full h-20 border rounded px-2 py-1 text-xs"
-                    />
+                    <Label className="text-xs">Dropdown Options</Label>
+                    <div className="mt-1 space-y-1.5">
+                      {(selected.options as string[] ?? []).map((opt, idx) => (
+                        <div key={idx} className="flex items-center gap-1">
+                          <Input
+                            value={opt}
+                            onChange={(e) => {
+                              const newOpts = [...(selected.options as string[] ?? [])];
+                              newOpts[idx] = e.target.value;
+                              updateField(selected.tempId, { options: newOpts });
+                            }}
+                            placeholder={`Option ${idx + 1}`}
+                            className="h-7 text-xs flex-1"
+                          />
+                          <button
+                            onClick={() => {
+                              const newOpts = (selected.options as string[] ?? []).filter((_, i) => i !== idx);
+                              updateField(selected.tempId, { options: newOpts.length ? newOpts : [''] });
+                            }}
+                            className="text-muted-foreground hover:text-destructive p-0.5"
+                            title="Remove option"
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </button>
+                        </div>
+                      ))}
+                      <button
+                        onClick={() => {
+                          const newOpts = [...(selected.options as string[] ?? []), ''];
+                          updateField(selected.tempId, { options: newOpts });
+                        }}
+                        className="text-xs text-primary hover:underline mt-1"
+                      >
+                        + Add option
+                      </button>
+                    </div>
                   </div>
                 )}
               </CardContent>

@@ -111,7 +111,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   }
 
   // Settings that can be changed at any status
-  const ALWAYS_EDITABLE = ['send_completed_copy_to_sender', 'send_completed_copy_to_recipients', 'reminder_enabled', 'reminder_interval_days'];
+  const ALWAYS_EDITABLE = ['send_completed_copy_to_sender', 'send_completed_copy_to_recipients', 'reminder_enabled', 'reminder_interval_days', 'notify_on_view', 'notify_on_sign', 'notify_on_decline'];
   const editableKeys = Object.keys(result.data);
   const hasNonSettingsChanges = editableKeys.some((k) => !ALWAYS_EDITABLE.includes(k));
 

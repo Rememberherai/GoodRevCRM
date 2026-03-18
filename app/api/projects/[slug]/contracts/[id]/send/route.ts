@@ -4,6 +4,7 @@ import { sendContractSchema } from '@/lib/validators/contract';
 import { insertAuditTrail, insertAuditTrailBatch } from '@/lib/contracts/audit';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { sendEmail } from '@/lib/gmail/service';
+import { resolveMergeFields } from '@/lib/contracts/merge-fields';
 import type { GmailConnection } from '@/types/gmail';
 
 function escHtml(s: string): string {
@@ -111,7 +112,7 @@ export async function POST(request: Request, context: RouteContext) {
   // Validate each signer has at least one field
   const { data: fields } = await supabase
     .from('contract_fields')
-    .select('recipient_id, field_type')
+    .select('recipient_id, field_type, options')
     .eq('document_id', id)
     .eq('project_id', project.id);
 
@@ -139,10 +140,13 @@ export async function POST(request: Request, context: RouteContext) {
     }, { status: 400 });
   }
 
-  const hasInitialsFields = signerFields.some((f) => f.field_type === 'initials');
-  if (hasInitialsFields) {
+  // Validate dropdown fields have non-empty options
+  const invalidDropdowns = signerFields.filter(
+    (f) => f.field_type === 'dropdown' && (!f.options || !Array.isArray(f.options) || (f.options as string[]).filter((o) => o.trim()).length === 0)
+  );
+  if (invalidDropdowns.length > 0) {
     return NextResponse.json({
-      error: 'Initials fields are not supported in the current signing flow',
+      error: 'Dropdown fields must have at least one non-empty option before sending',
     }, { status: 400 });
   }
 
@@ -160,6 +164,31 @@ export async function POST(request: Request, context: RouteContext) {
 
   const adminClient = createServiceClient();
   const gmailConn = connection as GmailConnection;
+
+  // Resolve merge field values (read-only) BEFORE CAS so we don't write side effects on failure
+  let resolvedMergeValues: Record<string, string> = {};
+  const { data: allFields, error: allFieldsError } = await adminClient
+    .from('contract_fields')
+    .select('id, auto_populate_from, value')
+    .eq('document_id', id)
+    .eq('project_id', project.id)
+    .not('auto_populate_from', 'is', null);
+
+  if (allFieldsError) {
+    console.error('[CONTRACT_SEND] Failed to load merge fields:', allFieldsError);
+    return NextResponse.json({ error: 'Failed to prepare merge fields before sending' }, { status: 500 });
+  }
+
+  const mergeFields = (allFields ?? []).filter((f) => f.auto_populate_from && !f.value);
+  if (mergeFields.length > 0) {
+    const keys = [...new Set(mergeFields.map((f) => f.auto_populate_from!))];
+    resolvedMergeValues = await resolveMergeFields(keys, {
+      projectId: project.id,
+      personId: document.person_id,
+      organizationId: document.organization_id,
+      opportunityId: document.opportunity_id,
+    });
+  }
 
   // Update document status to sent (CAS: only if still draft)
   const { data: updatedDoc, error: updateError } = await adminClient
@@ -179,6 +208,23 @@ export async function POST(request: Request, context: RouteContext) {
   if (updateError || !updatedDoc) {
     console.error('[CONTRACT_SEND] Failed to update document status:', updateError);
     return NextResponse.json({ error: 'Failed to send contract — it may have already been sent' }, { status: 409 });
+  }
+
+  // Freeze merge field values now that CAS succeeded
+  if (mergeFields.length > 0) {
+    for (const field of mergeFields) {
+      const val = resolvedMergeValues[field.auto_populate_from!];
+      if (val) {
+        const { error: mergeUpdateError } = await adminClient
+          .from('contract_fields')
+          .update({ value: val, filled_at: new Date().toISOString() })
+          .eq('id', field.id);
+        if (mergeUpdateError) {
+          console.error('[CONTRACT_SEND] Failed to freeze merge field value:', mergeUpdateError);
+          return NextResponse.json({ error: 'Failed to prepare merge fields before sending' }, { status: 500 });
+        }
+      }
+    }
   }
 
   // Determine first group recipients
