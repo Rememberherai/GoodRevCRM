@@ -41,8 +41,7 @@ export class SupabaseCronProvider implements SchedulerProvider {
 
   async listJobs(): Promise<MergedJob[]> {
     const supabase = createAdminClient();
-    // RPC functions created by migration 0095 — cast until types are regenerated
-    const { data, error } = await (supabase as any).rpc('scheduler_list_jobs', {
+    const { data, error } = await supabase.rpc('scheduler_list_jobs', {
       p_prefix: this.prefix,
     });
 
@@ -50,13 +49,7 @@ export class SupabaseCronProvider implements SchedulerProvider {
       throw new Error(`Failed to list pg_cron jobs: ${error.message}`);
     }
 
-    const jobRows = (data ?? []) as Array<{
-      job_id: number;
-      job_name: string;
-      schedule: string;
-      command: string;
-      active: boolean;
-    }>;
+    const jobRows = data ?? [];
 
     return CRON_TEMPLATES.map((template) => {
       const expectedName = jobName(this.projectId, template.key);
@@ -106,7 +99,7 @@ export class SupabaseCronProvider implements SchedulerProvider {
     headers['Content-Type'] = 'application/json';
 
     const supabase = createAdminClient();
-    const { data, error } = await (supabase as any).rpc('scheduler_create_job', {
+    const { data, error } = await supabase.rpc('scheduler_create_job', {
       p_name: name,
       p_schedule: cronExpr,
       p_url: callbackUrl,
@@ -134,18 +127,11 @@ export class SupabaseCronProvider implements SchedulerProvider {
   ): Promise<void> {
     // We need the job name to call the RPC. Look it up from the job list.
     const supabase = createAdminClient();
-    const { data: jobs } = await (supabase as any).rpc('scheduler_list_jobs', {
+    const { data: jobs } = await supabase.rpc('scheduler_list_jobs', {
       p_prefix: this.prefix,
     });
 
-    const jobRows = (jobs ?? []) as Array<{
-      job_id: number;
-      job_name: string;
-      schedule: string;
-      command: string;
-      active: boolean;
-    }>;
-
+    const jobRows = jobs ?? [];
     const row = jobRows.find((j) => String(j.job_id) === jobId);
     if (!row) throw new Error(`pg_cron job not found: ${jobId}`);
 
@@ -160,7 +146,7 @@ export class SupabaseCronProvider implements SchedulerProvider {
       rpcParams.p_active = params.enabled;
     }
 
-    const { error } = await (supabase as any).rpc('scheduler_update_job', rpcParams);
+    const { error } = await supabase.rpc('scheduler_update_job', rpcParams);
     if (error) {
       throw new Error(`Failed to update pg_cron job: ${error.message}`);
     }
@@ -170,19 +156,15 @@ export class SupabaseCronProvider implements SchedulerProvider {
     const supabase = createAdminClient();
 
     // Look up job name from ID
-    const { data: jobs } = await (supabase as any).rpc('scheduler_list_jobs', {
+    const { data: jobs } = await supabase.rpc('scheduler_list_jobs', {
       p_prefix: this.prefix,
     });
 
-    const jobRows = (jobs ?? []) as Array<{
-      job_id: number;
-      job_name: string;
-    }>;
-
+    const jobRows = jobs ?? [];
     const row = jobRows.find((j) => String(j.job_id) === jobId);
     if (!row) throw new Error(`pg_cron job not found: ${jobId}`);
 
-    const { error } = await (supabase as any).rpc('scheduler_delete_job', {
+    const { error } = await supabase.rpc('scheduler_delete_job', {
       p_name: row.job_name,
     });
     if (error) {
@@ -194,19 +176,15 @@ export class SupabaseCronProvider implements SchedulerProvider {
     const supabase = createAdminClient();
 
     // Look up job name from ID
-    const { data: jobs } = await (supabase as any).rpc('scheduler_list_jobs', {
+    const { data: jobs } = await supabase.rpc('scheduler_list_jobs', {
       p_prefix: this.prefix,
     });
 
-    const jobRows = (jobs ?? []) as Array<{
-      job_id: number;
-      job_name: string;
-    }>;
-
+    const jobRows = jobs ?? [];
     const row = jobRows.find((j) => String(j.job_id) === jobId);
     if (!row) return [];
 
-    const { data, error } = await (supabase as any).rpc('scheduler_job_history', {
+    const { data, error } = await supabase.rpc('scheduler_job_history', {
       p_name: row.job_name,
     });
 
@@ -214,14 +192,7 @@ export class SupabaseCronProvider implements SchedulerProvider {
       throw new Error(`Failed to get pg_cron job history: ${error.message}`);
     }
 
-    return ((data ?? []) as Array<{
-      run_id: number;
-      job_id: number;
-      status: string;
-      return_message: string | null;
-      start_time: string;
-      end_time: string | null;
-    }>).map((h) => {
+    return (data ?? []).map((h) => {
       const startMs = new Date(h.start_time).getTime();
       const endMs = h.end_time ? new Date(h.end_time).getTime() : startMs;
       const isOk = h.status === 'succeeded';

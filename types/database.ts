@@ -7074,6 +7074,42 @@ export type Database = {
           subject: string
         }[]
       }
+      scheduler_create_job: {
+        Args: {
+          p_body?: Json
+          p_headers?: Json
+          p_name: string
+          p_schedule: string
+          p_url: string
+        }
+        Returns: number
+      }
+      scheduler_delete_job: { Args: { p_name: string }; Returns: undefined }
+      scheduler_job_history: {
+        Args: { p_limit?: number; p_name: string }
+        Returns: {
+          end_time: string
+          job_id: number
+          return_message: string
+          run_id: number
+          start_time: string
+          status: string
+        }[]
+      }
+      scheduler_list_jobs: {
+        Args: { p_prefix: string }
+        Returns: {
+          active: boolean
+          command: string
+          job_id: number
+          job_name: string
+          schedule: string
+        }[]
+      }
+      scheduler_update_job: {
+        Args: { p_active?: boolean; p_name: string; p_schedule?: string }
+        Returns: undefined
+      }
       update_member_role: {
         Args: { p_new_role: string; p_project_id: string; p_user_id: string }
         Returns: boolean
