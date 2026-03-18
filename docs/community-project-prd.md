@@ -1,6 +1,6 @@
 # Community Project Type — Product Requirements Document
 
-**Version:** 2.0
+**Version:** 2.1
 **Date:** 2026-03-17
 **Status:** Draft
 
@@ -23,6 +23,13 @@ The design is grounded in the **Community Capitals Framework (CCF)**, a widely-a
 - **Waivers** — reuse existing e-signature/contracts module for program liability waivers
 - **Geocoding Background Queue** — async geocoding with status tracking, rate-limited
 - **Unduplicated Counts** — native support for distinct-person reporting required by funders
+
+### What's New in v2.1
+
+- **Performance Indexing Strategy** — composite indexes on high-volume tables (`program_attendance`, `contributions`, `household_members`) to support batch queries and temporal lookups
+- **Infrastructure Reuse Clarifications** — explicit notes on reusing existing `lib/contracts/`, `lib/pdf/`, Telnyx, and Gmail infrastructure (no new dependencies for PDF generation or messaging)
+- **Temporal Query Patterns** — documented query approach for household member fluidity (date-range overlaps, current-member filters)
+- **Denormalized Aggregate Trigger Details** — specifics on DB triggers for `campaign.raised_amount`, `fund.balance`, and `pledge.paid_amount`
 
 ### Research Sources
 
@@ -332,6 +339,12 @@ The fundamental unit of a community project. Households group people into family
 - **start_date / end_date** — enables temporal tracking when people join or leave households (supports custody changes, divorces, moves)
 - A person can belong to multiple households (e.g., split custody)
 
+**Temporal Query Patterns:**
+- **Current members**: `WHERE end_date IS NULL OR end_date > NOW()` — active household roster
+- **Members at a point in time**: `WHERE start_date <= :date AND (end_date IS NULL OR end_date > :date)` — historical snapshots for reporting
+- **Overlapping households**: A person with overlapping date ranges in multiple households indicates shared custody or transitional housing — both are valid
+- **Index**: Composite index on `(household_id, end_date)` supports efficient current-member lookups; `(person_id, start_date, end_date)` supports per-person household history
+
 **Key views:**
 - Household list with search, filter by neighborhood/address
 - Household detail page: members (with date ranges), contribution history, program enrollments, relationships, notes, timeline, **giving tab** (if they're donors)
@@ -385,6 +398,8 @@ Tracks every type of value exchange — monetary and non-monetary. The **data mo
 - Configurable per-project in settings
 - Auto-calculates monetary equivalent for reporting
 - Specialized skills can override rate (e.g., pro bono legal at $200/hr)
+
+**Performance Note:** `contributions` is the second-highest-volume table after `program_attendance`. Composite indexes on `(project_id, capital_type)`, `(project_id, campaign_id)`, `(project_id, fund_id)`, and `(donor_person_id, date)` are critical for reporting queries and donor history lookups. See §4 Data Model for full index list.
 
 ---
 
@@ -522,10 +537,11 @@ IRS-compliant donation acknowledgment letters, auto-generated for qualifying con
 
 **Implementation:**
 - Auto-generated receipt_number on monetary and in-kind contributions
-- PDF generation via existing PDF infrastructure
+- **PDF generation reuses existing infrastructure** — `lib/contracts/certificate.ts` and `lib/pdf/` already handle dynamic PDF generation for e-signature certificates; tax receipts follow the same pattern (HTML template → PDF render → download/email). **No new PDF dependencies required.**
 - "Download Receipt" button on contribution detail page
-- "Send Receipt" button → emails receipt to donor (tracks receipt_sent_at)
+- "Send Receipt" button → emails receipt to donor via existing Gmail integration (tracks receipt_sent_at)
 - Year-end summary receipt: all contributions for a donor in a given tax year
+- Bulk receipt generation: select date range → generate receipts for all qualifying donors → bulk email send
 
 ---
 
@@ -587,6 +603,12 @@ Structured activities, services, classes, and initiatives run by the community c
 - Auto-generates attendance records (person, date, status, hours)
 - **Attendance heatmap**: color-coded grid showing attendance history (green/red/gray by date)
 - Attendance hours feed directly into funder reporting (dosage tracking)
+
+**Performance Note:** `program_attendance` is a high-volume table (programs × enrollees × sessions). Critical indexes:
+- `(program_id, date)` — batch attendance grid loads all records for a program on a given date
+- `(person_id, date)` — per-person attendance history across programs
+- `(program_id, person_id, date)` UNIQUE — prevents duplicate attendance records
+- Batch inserts use `INSERT ... ON CONFLICT (program_id, person_id, date) DO UPDATE` for idempotent saves
 
 **Key views:**
 - Program list as cards with status badges, capital type color dots, enrollment/capacity progress bar
@@ -704,7 +726,7 @@ Simplified mass communication replacing Sequences for community projects. For we
 2. Selects channel: SMS
 3. Filters recipients: all active program enrollees
 4. Previews recipient list (count + sample names)
-5. Sends → reuses existing Telnyx SMS + Gmail email infrastructure
+5. Sends → reuses existing Telnyx SMS + Gmail email infrastructure (no new messaging dependencies)
 
 ---
 
@@ -826,6 +848,37 @@ For community centers providing direct services (food bank, housing assistance, 
 | `people` | Add `latitude`, `longitude` columns |
 | `organizations` | Add `latitude`, `longitude` columns |
 
+### Denormalized Aggregates & Triggers
+
+Several tables use denormalized fields for performance. These are maintained via PostgreSQL triggers on the `contributions` table:
+
+| Parent Table | Denormalized Field | Trigger Logic |
+|-------------|-------------------|---------------|
+| `fundraising_campaigns` | `raised_amount`, `donor_count` | On contribution INSERT/UPDATE/DELETE where `campaign_id` matches, recalculate `SUM(value)` and `COUNT(DISTINCT donor_*)` |
+| `funds` | `balance` | On contribution INSERT/UPDATE/DELETE where `fund_id` matches, recalculate `SUM(value)` |
+| `pledges` | `paid_amount` | On contribution INSERT/UPDATE/DELETE where `pledge_id` matches, recalculate `SUM(value)`; auto-update status to "completed" when `paid_amount >= total_amount` |
+| `fundraising_events` | `raised_amount` | Derived from linked ticket sales + sponsorships + direct donations |
+| `sponsorship_levels` | `current_sponsors` | On sponsorship INSERT/DELETE, recalculate `COUNT(*)` |
+
+**Trigger naming convention**: `trg_{table}_{field}_on_{source}` (e.g., `trg_campaigns_raised_amount_on_contributions`)
+
+### Key Composite Indexes
+
+| Table | Index | Purpose |
+|-------|-------|---------|
+| `program_attendance` | `(program_id, date)` | Batch attendance grid queries |
+| `program_attendance` | `(person_id, date)` | Per-person attendance history |
+| `program_attendance` | `(program_id, person_id, date)` UNIQUE | Prevent duplicate records |
+| `contributions` | `(project_id, campaign_id)` | Campaign contribution lookups |
+| `contributions` | `(project_id, fund_id)` | Fund transaction lookups |
+| `contributions` | `(project_id, pledge_id)` | Pledge payment lookups |
+| `contributions` | `(project_id, capital_type)` | Capital-based reporting |
+| `contributions` | `(donor_person_id, date)` | Donor giving history |
+| `household_members` | `(household_id, end_date)` | Current member lookups |
+| `household_members` | `(person_id, start_date, end_date)` | Person household history |
+| `program_enrollments` | `(program_id, status)` | Active enrollment counts |
+| `donor_pipeline` | `(project_id, stage)` | Kanban board queries |
+
 ---
 
 ## 5. The Seven Capitals — Color & Icon System
@@ -944,10 +997,11 @@ On the project settings General tab, community projects show additional configur
 ## 9. Technical Implementation Phases
 
 ### Phase 1: Foundation (Database + Types)
-- Migration adding project_type, all new tables (19), geo columns
+- Migration adding project_type, all new tables (19), geo columns, **all composite indexes** (see §4), and **denormalized aggregate triggers** (see §4)
 - Regenerate TypeScript types
 - Zod validators for all community entities
 - Capital color/icon system utility
+- Temporal query helper functions for household member date-range lookups
 
 ### Phase 2: Project Creation + Navigation
 - Type-first selector in project creation dialog
@@ -1044,6 +1098,9 @@ On the project settings General tab, community projects show additional configur
 | Tax receipt compliance | IRS requirements built into template; org EIN required in settings |
 | Donor pipeline adoption | Kanban drag-and-drop is intuitive; lapsed donor alerts are proactive |
 | Attendance vs. enrollment confusion | Separate data model (program_attendance table); batch UI clearly distinct from enrollment list |
+| Temporal query complexity (household members) | Standard SQL date-range overlap patterns; helper functions abstract the WHERE clauses; indexed on (person_id, start_date, end_date) |
+| High-volume attendance data | Composite indexes on program_attendance; batch INSERT with ON CONFLICT for idempotency; paginated API responses |
+| Trigger cascade on contribution updates | Triggers are narrowly scoped (only fire when campaign_id/fund_id/pledge_id change); tested for concurrent write safety |
 
 ---
 
