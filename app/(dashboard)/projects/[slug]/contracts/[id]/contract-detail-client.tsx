@@ -879,9 +879,13 @@ export function ContractDetailClient() {
                           <p className="text-xs text-muted-foreground">IP: {entry.ip_address}</p>
                         )}
                         {entry.details && Object.keys(entry.details).length > 0 && (
-                          <pre className="text-xs text-muted-foreground mt-1 bg-muted p-2 rounded">
-                            {JSON.stringify(entry.details, null, 2)}
-                          </pre>
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {Object.entries(entry.details).map(([key, val]) => (
+                              <span key={key} className="inline-block mr-3">
+                                <span className="capitalize">{key.replace(/_/g, ' ')}</span>: {String(val)}
+                              </span>
+                            ))}
+                          </div>
                         )}
                       </div>
                     </div>

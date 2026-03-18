@@ -63,7 +63,7 @@ export async function PATCH(request: Request, context: RouteContext) {
   const submittedFieldIds = [...new Set(validation.data.fields.map((field) => field.field_id))];
   const { data: existingFields } = await supabase
     .from('contract_fields')
-    .select('id')
+    .select('id, field_type, label, value')
     .eq('document_id', result.recipient.document_id)
     .eq('recipient_id', result.recipient.id)
     .in('id', submittedFieldIds);
@@ -78,7 +78,15 @@ export async function PATCH(request: Request, context: RouteContext) {
     );
   }
 
+  const existingFieldMap = new Map(
+    (existingFields ?? []).map((f) => [f.id, f])
+  );
+
   for (const field of validation.data.fields) {
+    const existing = existingFieldMap.get(field.field_id);
+    // Skip audit if value hasn't changed (avoids spamming on auto-save keystrokes)
+    const valueChanged = !existing || existing.value !== field.value;
+
     const { data: updatedField } = await supabase
       .from('contract_fields')
       .update({
@@ -94,17 +102,23 @@ export async function PATCH(request: Request, context: RouteContext) {
       continue;
     }
 
-    insertAuditTrail({
-      project_id: result.recipient.project_id,
-      document_id: result.recipient.document_id,
-      recipient_id: result.recipient.id,
-      action: 'field_filled',
-      actor_type: 'signer',
-      actor_name: result.recipient.name,
-      ip_address: ip,
-      user_agent: ua,
-      details: { field_id: field.field_id },
-    });
+    if (valueChanged) {
+      insertAuditTrail({
+        project_id: result.recipient.project_id,
+        document_id: result.recipient.document_id,
+        recipient_id: result.recipient.id,
+        action: 'field_filled',
+        actor_type: 'signer',
+        actor_name: result.recipient.name,
+        ip_address: ip,
+        user_agent: ua,
+        details: {
+          field_id: field.field_id,
+          field_type: existing?.field_type,
+          label: existing?.label ?? existing?.field_type,
+        },
+      });
+    }
   }
 
   return NextResponse.json({ success: true });
