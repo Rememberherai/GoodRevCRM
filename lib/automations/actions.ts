@@ -37,8 +37,6 @@ const entityTableMap: Record<AutomationEntityType, string> = {
   person: 'people',
   opportunity: 'opportunities',
   rfp: 'rfps',
-  product: 'products',
-  quote: 'quotes',
   task: 'tasks',
   meeting: 'meetings',
   call: 'calls',

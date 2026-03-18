@@ -10,8 +10,6 @@ export type TriggerType =
   // Stage/status changes
   | 'opportunity.stage_changed'
   | 'rfp.status_changed'
-  | 'quote.status_changed'
-  | 'quote.accepted'
   // Email events
   | 'email.opened'
   | 'email.clicked'
@@ -87,8 +85,6 @@ export type AutomationEntityType =
   | 'person'
   | 'opportunity'
   | 'rfp'
-  | 'product'
-  | 'quote'
   | 'task'
   | 'meeting'
   | 'call'
@@ -199,8 +195,6 @@ export const triggerTypeGroups = {
     triggers: [
       { type: 'opportunity.stage_changed' as TriggerType, label: 'Opportunity Stage Changed', description: 'When an opportunity moves to a different stage' },
       { type: 'rfp.status_changed' as TriggerType, label: 'RFP Status Changed', description: 'When an RFP status changes' },
-      { type: 'quote.status_changed' as TriggerType, label: 'Quote Status Changed', description: 'When a quote status changes' },
-      { type: 'quote.accepted' as TriggerType, label: 'Quote Accepted', description: 'When a quote is accepted' },
     ],
   },
   email: {

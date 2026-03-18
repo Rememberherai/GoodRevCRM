@@ -14,7 +14,6 @@ export type CompanyContext = z.infer<typeof companyContextSchema>;
 export const projectSettingsSchema = z.object({
   company_context: companyContextSchema.optional(),
   customRoles: z.array(z.string().min(1).max(100)).max(50).optional(),
-  quotes_enabled: z.boolean().optional(),
 });
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;

@@ -42,9 +42,6 @@ const MUTATING_TOOLS = new Set([
   'workflows_create', 'workflows_update', 'workflows_delete', 'workflows_activate', 'workflows_execute',
   'contracts_create', 'contracts_update', 'contracts_delete', 'contracts_void',
   'contracts_add_recipient', 'contracts_add_field',
-  'products_create', 'products_update', 'products_delete',
-  'quotes_create', 'quotes_update', 'quotes_delete', 'quotes_accept', 'quotes_reject', 'quotes_set_primary',
-  'quotes_add_line_item', 'quotes_update_line_item', 'quotes_remove_line_item',
 ]);
 
 export interface PageContext {
