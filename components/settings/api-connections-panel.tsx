@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   Bolt,
   ChevronDown,
@@ -459,7 +459,7 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
   const [zapierAppsLoading, setZapierAppsLoading] = useState(false);
   const [selectedApp, setSelectedApp] = useState<ZapierApp | null>(null);
   const [zapierStep, setZapierStep] = useState<'browse' | 'connect'>('browse');
-  const searchTimeout = useState<ReturnType<typeof setTimeout> | null>(null);
+  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   // Zapier preview state
   const [previewActions, setPreviewActions] = useState<ZapierPreviewAction[]>([]);
@@ -479,7 +479,7 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
     try {
       const params = new URLSearchParams({ per_page: '20' });
       if (query) params.set('query', query);
-      const res = await fetch(`https://zapier.com/api/v4/apps?${params}`);
+      const res = await fetch(`/api/zapier-apps?${params}`);
       if (res.ok) {
         const data = await res.json();
         const apps: ZapierApp[] = (data.objects || []).map((a: Record<string, unknown>) => ({
@@ -499,8 +499,8 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
 
   function handleZapierSearch(query: string) {
     setZapierSearch(query);
-    if (searchTimeout[0]) clearTimeout(searchTimeout[0]);
-    searchTimeout[0] = setTimeout(() => fetchZapierApps(query), 300);
+    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
+    searchTimeoutRef.current = setTimeout(() => fetchZapierApps(query), 300);
   }
 
   function selectZapierApp(app: ZapierApp) {
