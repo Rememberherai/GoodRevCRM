@@ -480,18 +480,20 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
       const params = new URLSearchParams({ per_page: '20' });
       if (query) params.set('query', query);
       const res = await fetch(`/api/zapier-apps?${params}`);
-      if (res.ok) {
-        const data = await res.json();
-        const apps: ZapierApp[] = (data.objects || []).map((a: Record<string, unknown>) => ({
-          title: a.title || a.name,
-          slug: a.slug,
-          description: a.description,
-          image: a.image || (a.images as Record<string, string>)?.url_64x64 || '',
-        }));
-        setZapierApps(apps);
+      if (!res.ok) {
+        console.error('Zapier app search failed:', res.status);
+        return;
       }
-    } catch {
-      // Silent fail — search still works via the text input
+      const data = await res.json();
+      const apps: ZapierApp[] = (data.objects || []).map((a: Record<string, unknown>) => ({
+        title: a.title || a.name,
+        slug: a.slug,
+        description: a.description,
+        image: a.image || (a.images as Record<string, string>)?.url_64x64 || '',
+      }));
+      setZapierApps(apps);
+    } catch (err) {
+      console.error('Zapier app search error:', err);
     } finally {
       setZapierAppsLoading(false);
     }
