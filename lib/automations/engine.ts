@@ -70,7 +70,7 @@ function matchesTriggerConfig(
   }
 
   // Check status change config
-  if (event.triggerType === 'rfp.status_changed') {
+  if (event.triggerType === 'rfp.status_changed' || event.triggerType === 'quote.status_changed') {
     if (triggerConfig.from_status && String(event.previousData?.status) !== triggerConfig.from_status) {
       return false;
     }

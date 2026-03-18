@@ -4874,6 +4874,374 @@ defineTool({
   },
 });
 
+// ── Product Tools ──────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'products.list',
+  description: 'List products and services in the catalog with search and active filter',
+  minRole: 'viewer',
+  parameters: z.object({
+    search: z.string().optional().describe('Search by name, SKU, or description'),
+    is_active: z.boolean().optional().describe('Filter by active status'),
+    page: z.number().int().min(1).default(1),
+    limit: z.number().int().min(1).max(100).default(50),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/products/service');
+    const { search, is_active, page, limit } = params as {
+      search?: string; is_active?: boolean; page?: number; limit?: number;
+    };
+    const result = await svc.listProducts(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      { search, is_active, page, limit }
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'products.get',
+  description: 'Get a single product by ID',
+  minRole: 'viewer',
+  parameters: z.object({
+    id: z.string().uuid().describe('Product ID'),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/products/service');
+    const { id } = params as { id: string };
+    const result = await svc.getProduct(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      id
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'products.create',
+  description: 'Create a new product or service in the catalog',
+  minRole: 'member',
+  parameters: z.object({
+    name: z.string().min(1).max(200).describe('Product name'),
+    description: z.string().max(2000).optional(),
+    sku: z.string().max(50).optional(),
+    default_price: z.number().min(0).optional(),
+    unit_type: z.string().max(50).optional(),
+    is_active: z.boolean().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/products/service');
+    const { name, description, sku, default_price, unit_type, is_active } = params as {
+      name: string; description?: string; sku?: string; default_price?: number; unit_type?: string; is_active?: boolean;
+    };
+    const result = await svc.createProduct(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      { name, description, sku, default_price, unit_type, is_active }
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'products.update',
+  description: 'Update an existing product',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Product ID'),
+    name: z.string().min(1).max(200).optional(),
+    description: z.string().max(2000).optional(),
+    sku: z.string().max(50).optional(),
+    default_price: z.number().min(0).optional(),
+    unit_type: z.string().max(50).optional(),
+    is_active: z.boolean().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/products/service');
+    const { id, ...updates } = params as {
+      id: string; name?: string; description?: string; sku?: string;
+      default_price?: number; unit_type?: string; is_active?: boolean;
+    };
+    const result = await svc.updateProduct(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      id, updates
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'products.delete',
+  description: 'Soft-delete a product from the catalog',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Product ID'),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/products/service');
+    const { id } = params as { id: string };
+    await svc.deleteProduct(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      id
+    );
+    return JSON.stringify({ success: true });
+  },
+});
+
+// ── Quote Tools ───────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'quotes.list',
+  description: 'List quotes for a specific opportunity',
+  minRole: 'viewer',
+  parameters: z.object({
+    opportunity_id: z.string().uuid().describe('Opportunity ID'),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/quotes/service');
+    const { opportunity_id } = params as { opportunity_id: string };
+    const result = await svc.listQuotes(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      opportunity_id
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'quotes.get',
+  description: 'Get a quote with its line items',
+  minRole: 'viewer',
+  parameters: z.object({
+    id: z.string().uuid().describe('Quote ID'),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/quotes/service');
+    const { id } = params as { id: string };
+    const result = await svc.getQuote(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      id
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'quotes.create',
+  description: 'Create a new quote on an opportunity. Currency is inherited from the opportunity.',
+  minRole: 'member',
+  parameters: z.object({
+    opportunity_id: z.string().uuid().describe('Opportunity ID'),
+    title: z.string().min(1).max(200).describe('Quote title'),
+    quote_number: z.string().max(50).optional(),
+    valid_until: z.string().optional().describe('Expiration date (YYYY-MM-DD)'),
+    notes: z.string().max(5000).optional(),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/quotes/service');
+    const { opportunity_id, title, quote_number, valid_until, notes } = params as {
+      opportunity_id: string; title: string; quote_number?: string; valid_until?: string; notes?: string;
+    };
+    const result = await svc.createQuote(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      opportunity_id, { title, quote_number, valid_until, notes }
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'quotes.accept',
+  description: 'Accept a quote. Optionally sync the total to the opportunity deal value.',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Quote ID'),
+    sync_amount: z.boolean().optional().describe('Update opportunity amount to match quote total'),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/quotes/service');
+    const { id, sync_amount } = params as { id: string; sync_amount?: boolean };
+    const result = await svc.acceptQuote(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      id, { sync_amount: sync_amount ?? false }
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'quotes.reject',
+  description: 'Reject a quote',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Quote ID'),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/quotes/service');
+    const { id } = params as { id: string };
+    const result = await svc.rejectQuote(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      id
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'quotes.update',
+  description: 'Update quote metadata (title, quote_number, valid_until, notes, status). Status can only be set to "sent" (from draft) or "expired".',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Quote ID'),
+    title: z.string().min(1).max(200).optional(),
+    quote_number: z.string().max(50).optional(),
+    valid_until: z.string().optional(),
+    notes: z.string().max(5000).optional(),
+    status: z.enum(['sent', 'expired']).optional(),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/quotes/service');
+    const { id, ...updates } = params as {
+      id: string; title?: string; quote_number?: string; valid_until?: string; notes?: string; status?: 'sent' | 'expired';
+    };
+    const result = await svc.updateQuote(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      id, updates
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'quotes.delete',
+  description: 'Soft-delete a quote and its line items',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Quote ID'),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/quotes/service');
+    const { id } = params as { id: string };
+    await svc.deleteQuote(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      id
+    );
+    return JSON.stringify({ success: true });
+  },
+});
+
+defineTool({
+  name: 'quotes.set_primary',
+  description: 'Set a quote as the primary quote for its opportunity',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Quote ID'),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/quotes/service');
+    const { id } = params as { id: string };
+    const result = await svc.setPrimaryQuote(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      id
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'quotes.add_line_item',
+  description: 'Add a line item to a quote. Totals are recomputed automatically.',
+  minRole: 'member',
+  parameters: z.object({
+    quote_id: z.string().uuid().describe('Quote ID'),
+    product_id: z.string().uuid().optional().describe('Product catalog ID'),
+    name: z.string().min(1).max(200).describe('Line item name'),
+    description: z.string().max(2000).optional(),
+    quantity: z.number().min(0.01).max(999999).default(1),
+    unit_price: z.number().min(0).default(0),
+    discount_percent: z.number().min(0).max(100).default(0),
+    sort_order: z.number().int().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/quotes/service');
+    const { quote_id, product_id, name, description, quantity, unit_price, discount_percent, sort_order } = params as {
+      quote_id: string; product_id?: string; name: string; description?: string;
+      quantity: number; unit_price: number; discount_percent: number; sort_order?: number;
+    };
+    const result = await svc.addLineItem(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      quote_id, { product_id, name, description, quantity, unit_price, discount_percent, sort_order }
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'quotes.update_line_item',
+  description: 'Update a line item on a quote',
+  minRole: 'member',
+  parameters: z.object({
+    quote_id: z.string().uuid().describe('Quote ID'),
+    item_id: z.string().uuid().describe('Line item ID'),
+    product_id: z.string().uuid().nullable().optional(),
+    name: z.string().min(1).max(200).optional(),
+    description: z.string().max(2000).nullable().optional(),
+    quantity: z.number().min(0.01).max(999999).optional(),
+    unit_price: z.number().min(0).optional(),
+    discount_percent: z.number().min(0).max(100).optional(),
+    sort_order: z.number().int().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/quotes/service');
+    const {
+      quote_id,
+      item_id,
+      product_id,
+      name,
+      description,
+      quantity,
+      unit_price,
+      discount_percent,
+      sort_order,
+    } = params as {
+      quote_id: string;
+      item_id: string;
+      product_id?: string | null;
+      name?: string;
+      description?: string | null;
+      quantity?: number;
+      unit_price?: number;
+      discount_percent?: number;
+      sort_order?: number;
+    };
+    const result = await svc.updateLineItem(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      quote_id,
+      item_id,
+      { product_id, name, description, quantity, unit_price, discount_percent, sort_order }
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'quotes.remove_line_item',
+  description: 'Remove a line item from a quote',
+  minRole: 'member',
+  parameters: z.object({
+    quote_id: z.string().uuid().describe('Quote ID'),
+    item_id: z.string().uuid().describe('Line item ID'),
+  }),
+  handler: async (params, ctx) => {
+    const svc = await import('@/lib/quotes/service');
+    const { quote_id, item_id } = params as { quote_id: string; item_id: string };
+    await svc.deleteLineItem(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      quote_id, item_id
+    );
+    return JSON.stringify({ success: true });
+  },
+});
+
 export function getToolDefinitions(): ToolDefinition[] {
   return tools.map((tool) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod v4 type compat with zod-to-json-schema
