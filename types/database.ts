@@ -4040,6 +4040,73 @@ export type Database = {
           },
         ]
       }
+      products: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          default_price: number | null
+          deleted_at: string | null
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          project_id: string
+          sku: string | null
+          unit_type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          default_price?: number | null
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          project_id: string
+          sku?: string | null
+          unit_type?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          default_price?: number | null
+          deleted_at?: string | null
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          project_id?: string
+          sku?: string | null
+          unit_type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "products_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "products_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "products_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       project_invitations: {
         Row: {
           accepted_at: string | null
@@ -4297,6 +4364,155 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      quote_line_items: {
+        Row: {
+          created_at: string
+          description: string | null
+          discount_percent: number
+          id: string
+          line_total: number
+          name: string
+          product_id: string | null
+          quantity: number
+          quote_id: string
+          sort_order: number
+          unit_price: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          discount_percent?: number
+          id?: string
+          line_total?: number
+          name: string
+          product_id?: string | null
+          quantity?: number
+          quote_id: string
+          sort_order?: number
+          unit_price?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          discount_percent?: number
+          id?: string
+          line_total?: number
+          name?: string
+          product_id?: string | null
+          quantity?: number
+          quote_id?: string
+          sort_order?: number
+          unit_price?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "quote_line_items_product_id_fkey"
+            columns: ["product_id"]
+            isOneToOne: false
+            referencedRelation: "products"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quote_line_items_quote_id_fkey"
+            columns: ["quote_id"]
+            isOneToOne: false
+            referencedRelation: "quotes"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      quotes: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          currency: string
+          deleted_at: string | null
+          discount_total: number
+          id: string
+          is_primary: boolean
+          notes: string | null
+          opportunity_id: string
+          project_id: string
+          quote_number: string | null
+          status: Database["public"]["Enums"]["quote_status"]
+          subtotal: number
+          title: string
+          total: number
+          updated_at: string
+          valid_until: string | null
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          deleted_at?: string | null
+          discount_total?: number
+          id?: string
+          is_primary?: boolean
+          notes?: string | null
+          opportunity_id: string
+          project_id: string
+          quote_number?: string | null
+          status?: Database["public"]["Enums"]["quote_status"]
+          subtotal?: number
+          title: string
+          total?: number
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          currency?: string
+          deleted_at?: string | null
+          discount_total?: number
+          id?: string
+          is_primary?: boolean
+          notes?: string | null
+          opportunity_id?: string
+          project_id?: string
+          quote_number?: string | null
+          status?: Database["public"]["Enums"]["quote_status"]
+          subtotal?: number
+          title?: string
+          total?: number
+          updated_at?: string
+          valid_until?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "fk_quotes_opportunity_project"
+            columns: ["opportunity_id", "project_id"]
+            isOneToOne: false
+            referencedRelation: "opportunities"
+            referencedColumns: ["id", "project_id"]
+          },
+          {
+            foreignKeyName: "quotes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "quotes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "quotes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       report_definitions: {
         Row: {
@@ -6598,6 +6814,14 @@ export type Database = {
         Returns: string
       }
       accept_invitation: { Args: { p_token: string }; Returns: Json }
+      accept_quote: {
+        Args: {
+          p_project_id: string
+          p_quote_id: string
+          p_sync_amount?: boolean
+        }
+        Returns: Json
+      }
       archive_notifications: {
         Args: { p_notification_ids: string[] }
         Returns: number
@@ -7056,6 +7280,10 @@ export type Database = {
         Args: { p_event_type: string; p_payload: Json; p_webhook_id: string }
         Returns: string
       }
+      recompute_quote_totals: {
+        Args: { p_quote_id: string }
+        Returns: undefined
+      }
       remove_custom_field_data: {
         Args: {
           p_entity_type: Database["public"]["Enums"]["entity_type"]
@@ -7108,6 +7336,10 @@ export type Database = {
       }
       scheduler_update_job: {
         Args: { p_active?: boolean; p_name: string; p_schedule?: string }
+        Returns: undefined
+      }
+      set_primary_quote: {
+        Args: { p_project_id: string; p_quote_id: string }
         Returns: undefined
       }
       update_member_role: {
@@ -7164,6 +7396,7 @@ export type Database = {
         | "closed_won"
         | "closed_lost"
       project_role: "owner" | "admin" | "member" | "viewer"
+      quote_status: "draft" | "sent" | "accepted" | "rejected" | "expired"
       rfp_question_status: "unanswered" | "draft" | "review" | "approved"
       rfp_status:
         | "identified"
@@ -7335,6 +7568,7 @@ export const Constants = {
         "closed_lost",
       ],
       project_role: ["owner", "admin", "member", "viewer"],
+      quote_status: ["draft", "sent", "accepted", "rejected", "expired"],
       rfp_question_status: ["unanswered", "draft", "review", "approved"],
       rfp_status: [
         "identified",

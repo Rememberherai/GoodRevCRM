@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback, useRef } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import {
   Bolt,
   ChevronDown,
@@ -432,13 +432,6 @@ interface CreateConnectionDialogProps {
   onCreated: (newId?: string, serviceType?: string) => void;
 }
 
-interface ZapierApp {
-  title: string;
-  slug: string;
-  description: string;
-  image: string;
-}
-
 interface ZapierPreviewAction {
   name: string;
   description?: string;
@@ -453,63 +446,11 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
   const [clientSecret, setClientSecret] = useState('');
   const [headerName, setHeaderName] = useState('Authorization');
 
-  // Zapier app search state
-  const [zapierSearch, setZapierSearch] = useState('');
-  const [zapierApps, setZapierApps] = useState<ZapierApp[]>([]);
-  const [zapierAppsLoading, setZapierAppsLoading] = useState(false);
-  const [selectedApp, setSelectedApp] = useState<ZapierApp | null>(null);
-  const [zapierStep, setZapierStep] = useState<'browse' | 'connect'>('browse');
-  const searchTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-
   // Zapier preview state
   const [previewActions, setPreviewActions] = useState<ZapierPreviewAction[]>([]);
   const [previewLoading, setPreviewLoading] = useState(false);
   const [previewError, setPreviewError] = useState<string | null>(null);
   const [previewed, setPreviewed] = useState(false);
-
-  // Fetch popular Zapier apps on mount
-  useEffect(() => {
-    if (serviceType === 'zapier' && zapierApps.length === 0 && !zapierSearch) {
-      fetchZapierApps('');
-    }
-  }, [serviceType]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function fetchZapierApps(query: string) {
-    setZapierAppsLoading(true);
-    try {
-      const params = new URLSearchParams({ per_page: '20' });
-      if (query) params.set('query', query);
-      const res = await fetch(`/api/zapier-apps?${params}`);
-      if (!res.ok) {
-        console.error('Zapier app search failed:', res.status);
-        return;
-      }
-      const data = await res.json();
-      const apps: ZapierApp[] = (data.objects || []).map((a: Record<string, unknown>) => ({
-        title: a.title || a.name,
-        slug: a.slug,
-        description: a.description,
-        image: a.image || (a.images as Record<string, string>)?.url_64x64 || '',
-      }));
-      setZapierApps(apps);
-    } catch (err) {
-      console.error('Zapier app search error:', err);
-    } finally {
-      setZapierAppsLoading(false);
-    }
-  }
-
-  function handleZapierSearch(query: string) {
-    setZapierSearch(query);
-    if (searchTimeoutRef.current) clearTimeout(searchTimeoutRef.current);
-    searchTimeoutRef.current = setTimeout(() => fetchZapierApps(query), 300);
-  }
-
-  function selectZapierApp(app: ZapierApp) {
-    setSelectedApp(app);
-    setName(`Zapier — ${app.title}`);
-    setZapierStep('connect');
-  }
 
   function handleServiceTypeChange(type: string) {
     setServiceType(type);
@@ -519,8 +460,6 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
     }
     if (type === 'zapier') {
       setServerUrl('https://actions.zapier.com/mcp');
-      setZapierStep('browse');
-      setSelectedApp(null);
     } else if (serverUrl === 'https://actions.zapier.com/mcp') {
       setServerUrl('');
     }
@@ -597,11 +536,6 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
         case 'zapier':
           config.api_key = apiKey;
           config.server_url = serverUrl || 'https://actions.zapier.com/mcp';
-          if (selectedApp) {
-            config.zapier_app_slug = selectedApp.slug;
-            config.zapier_app_name = selectedApp.title;
-            config.zapier_app_image = selectedApp.image;
-          }
           break;
         case 'webhook':
           config.url = serverUrl;
@@ -641,8 +575,6 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
         setClientSecret('');
         setHeaderName('Authorization');
         setServiceType('zapier');
-        setSelectedApp(null);
-        setZapierStep('browse');
         setPreviewActions([]);
         setPreviewed(false);
         setPreviewError(null);
@@ -660,124 +592,18 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
   // ── Zapier-specific dialog ────────────────────────────────────────────────
   if (serviceType === 'zapier') {
     return (
-      <DialogContent className="sm:max-w-[520px]">
+      <DialogContent className="sm:max-w-[480px]">
         <DialogHeader>
           <DialogTitle className="flex items-center gap-2">
             <Bolt className="h-5 w-5 text-orange-500" />
-            {zapierStep === 'browse' ? 'Connect a Zapier Integration' : (
-              <>
-                {selectedApp && (
-                  // eslint-disable-next-line @next/next/no-img-element
-                  <img src={selectedApp.image} alt="" className="h-5 w-5 rounded" />
-                )}
-                {selectedApp ? `Connect ${selectedApp.title}` : 'Connect to Zapier'}
-              </>
-            )}
+            Connect to Zapier
           </DialogTitle>
           <DialogDescription>
-            {zapierStep === 'browse'
-              ? 'Search for an app to connect via Zapier, or skip to connect directly.'
-              : 'Enter your Zapier API key to authenticate and enable actions.'}
+            Enter your Zapier API key to authenticate and discover available actions.
           </DialogDescription>
         </DialogHeader>
 
-        {zapierStep === 'browse' ? (
-          <div className="space-y-3 py-2">
-            {/* Search input */}
-            <div className="relative">
-              <Input
-                value={zapierSearch}
-                onChange={(e) => handleZapierSearch(e.target.value)}
-                placeholder="Search 7,000+ apps — Gmail, Slack, Notion..."
-                className="pr-8"
-                autoFocus
-              />
-              {zapierAppsLoading && (
-                <Loader2 className="absolute right-2.5 top-2.5 h-4 w-4 animate-spin text-muted-foreground" />
-              )}
-            </div>
-
-            {/* App grid */}
-            <div className="grid grid-cols-2 gap-2 max-h-[280px] overflow-y-auto">
-              {zapierApps.map((app) => (
-                <button
-                  key={app.slug}
-                  type="button"
-                  onClick={() => selectZapierApp(app)}
-                  className="flex items-center gap-2.5 rounded-lg border p-2.5 text-left hover:bg-muted/50 transition-colors"
-                >
-                  {app.image ? (
-                    // eslint-disable-next-line @next/next/no-img-element
-                    <img src={app.image} alt="" className="h-8 w-8 rounded shrink-0" />
-                  ) : (
-                    <div className="h-8 w-8 rounded bg-muted flex items-center justify-center shrink-0">
-                      <Bolt className="h-4 w-4 text-orange-500" />
-                    </div>
-                  )}
-                  <div className="min-w-0">
-                    <div className="text-sm font-medium truncate">{app.title}</div>
-                    <div className="text-[10px] text-muted-foreground line-clamp-1">{app.description}</div>
-                  </div>
-                </button>
-              ))}
-              {!zapierAppsLoading && zapierApps.length === 0 && zapierSearch && (
-                <div className="col-span-2 text-center text-sm text-muted-foreground py-6">
-                  No apps found for &quot;{zapierSearch}&quot;
-                </div>
-              )}
-            </div>
-
-            {/* Skip / service type switcher */}
-            <div className="flex items-center justify-between pt-1 border-t">
-              <Button
-                type="button"
-                variant="ghost"
-                size="sm"
-                className="text-xs text-muted-foreground"
-                onClick={() => {
-                  setSelectedApp(null);
-                  setName('Zapier');
-                  setZapierStep('connect');
-                }}
-              >
-                Skip — connect without selecting an app
-              </Button>
-              <Select value={serviceType} onValueChange={handleServiceTypeChange}>
-                <SelectTrigger className="w-auto h-7 text-xs gap-1">
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(SERVICE_TYPE_CONFIG).map(([key, config]) => (
-                    <SelectItem key={key} value={key}>
-                      <div className="flex items-center gap-2">
-                        {config.icon}
-                        {config.label}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
-          </div>
-        ) : (
-          <div className="space-y-4 py-2">
-            {/* Selected app banner */}
-            {selectedApp && (
-              <button
-                type="button"
-                onClick={() => setZapierStep('browse')}
-                className="flex items-center gap-3 w-full rounded-lg border bg-muted/30 p-3 text-left hover:bg-muted/50 transition-colors"
-              >
-                {/* eslint-disable-next-line @next/next/no-img-element */}
-                <img src={selectedApp.image} alt="" className="h-10 w-10 rounded" />
-                <div className="min-w-0 flex-1">
-                  <div className="text-sm font-medium">{selectedApp.title}</div>
-                  <div className="text-xs text-muted-foreground line-clamp-1">{selectedApp.description}</div>
-                </div>
-                <span className="text-xs text-muted-foreground shrink-0">Change</span>
-              </button>
-            )}
-
+        <div className="space-y-4 py-2">
             {/* Connection name */}
             <div className="space-y-1.5">
               <Label className="text-xs">Connection Name</Label>
@@ -868,19 +694,13 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
               </div>
             </details>
           </div>
-        )}
 
-        {zapierStep === 'connect' && (
-          <DialogFooter className="gap-2">
-            <Button type="button" variant="outline" onClick={() => setZapierStep('browse')}>
-              Back
-            </Button>
-            <Button onClick={handleCreate} disabled={saving || !apiKey.trim()}>
-              {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
-              Create Connection
-            </Button>
-          </DialogFooter>
-        )}
+        <DialogFooter>
+          <Button onClick={handleCreate} disabled={saving || !apiKey.trim()}>
+            {saving && <Loader2 className="h-4 w-4 animate-spin mr-2" />}
+            Create Connection
+          </Button>
+        </DialogFooter>
       </DialogContent>
     );
   }
