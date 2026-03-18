@@ -1,8 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getProjectSecret } from '@/lib/secrets';
-import { updateJob, deleteJob } from '@/lib/scheduler/cronjob-org';
+import { getSchedulerProvider } from '@/lib/scheduler/provider';
 
 interface RouteContext {
   params: Promise<{ slug: string; jobId: string }>;
@@ -67,18 +66,14 @@ const updateJobSchema = z.object({
  */
 export async function PATCH(request: Request, context: RouteContext) {
   try {
-    const { slug, jobId: jobIdStr } = await context.params;
-    const jobId = parseInt(jobIdStr, 10);
-    if (isNaN(jobId)) {
-      return NextResponse.json({ error: 'Invalid job ID' }, { status: 400 });
-    }
+    const { slug, jobId } = await context.params;
 
     const result = await resolveProjectAndCheckAdmin(slug);
     if ('error' in result) return result.error;
 
-    const apiKey = await getProjectSecret(result.project.id, 'cronjob_org_api_key');
-    if (!apiKey) {
-      return NextResponse.json({ error: 'cron-job.org API key not configured' }, { status: 400 });
+    const { provider, configured } = await getSchedulerProvider(result.project.id);
+    if (!provider || !configured) {
+      return NextResponse.json({ error: 'Scheduler not configured' }, { status: 400 });
     }
 
     const body = await request.json();
@@ -90,15 +85,22 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    const updateParams: Record<string, unknown> = {};
+    const updateParams: { enabled?: boolean; schedule?: { timezone: string; hours: number[]; minutes: number[]; mdays: number[]; months: number[]; wdays: number[] } } = {};
     if (validation.data.enabled !== undefined) {
       updateParams.enabled = validation.data.enabled;
     }
     if (validation.data.schedule) {
-      updateParams.schedule = validation.data.schedule;
+      updateParams.schedule = {
+        timezone: validation.data.schedule.timezone ?? 'America/New_York',
+        hours: validation.data.schedule.hours ?? [-1],
+        minutes: validation.data.schedule.minutes ?? [-1],
+        mdays: validation.data.schedule.mdays ?? [-1],
+        months: validation.data.schedule.months ?? [-1],
+        wdays: validation.data.schedule.wdays ?? [-1],
+      };
     }
 
-    await updateJob(apiKey, jobId, updateParams);
+    await provider.updateJob(jobId, updateParams);
 
     return NextResponse.json({ success: true });
   } catch (error) {
@@ -110,25 +112,21 @@ export async function PATCH(request: Request, context: RouteContext) {
 
 /**
  * DELETE /api/projects/[slug]/scheduler/jobs/[jobId]
- * Delete a cron job from cron-job.org.
+ * Delete a cron job.
  */
 export async function DELETE(_request: Request, context: RouteContext) {
   try {
-    const { slug, jobId: jobIdStr } = await context.params;
-    const jobId = parseInt(jobIdStr, 10);
-    if (isNaN(jobId)) {
-      return NextResponse.json({ error: 'Invalid job ID' }, { status: 400 });
-    }
+    const { slug, jobId } = await context.params;
 
     const result = await resolveProjectAndCheckAdmin(slug);
     if ('error' in result) return result.error;
 
-    const apiKey = await getProjectSecret(result.project.id, 'cronjob_org_api_key');
-    if (!apiKey) {
-      return NextResponse.json({ error: 'cron-job.org API key not configured' }, { status: 400 });
+    const { provider, configured } = await getSchedulerProvider(result.project.id);
+    if (!provider || !configured) {
+      return NextResponse.json({ error: 'Scheduler not configured' }, { status: 400 });
     }
 
-    await deleteJob(apiKey, jobId);
+    await provider.deleteJob(jobId);
 
     return NextResponse.json({ success: true });
   } catch (error) {

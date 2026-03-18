@@ -51,6 +51,13 @@ export const SECRET_KEYS = {
     placeholder: 'https://your-app.vercel.app',
     hidden: true, // Managed via Scheduler settings tab
   },
+  scheduler_provider: {
+    envVar: 'SCHEDULER_PROVIDER',
+    label: 'Scheduler Provider',
+    description: 'Cron backend: cronjob_org or supabase_pgcron',
+    placeholder: 'cronjob_org',
+    hidden: true, // Managed via Scheduler settings tab
+  },
 } as const;
 
 export type SecretKeyName = keyof typeof SECRET_KEYS;

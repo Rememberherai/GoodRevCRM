@@ -1,9 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
-import { getProjectSecret } from '@/lib/secrets';
-import { listJobs, createJob } from '@/lib/scheduler/cronjob-org';
-import { CRON_TEMPLATES } from '@/lib/scheduler/templates';
+import { getSchedulerProvider } from '@/lib/scheduler/provider';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -65,7 +63,7 @@ const createJobSchema = z.object({
 
 /**
  * GET /api/projects/[slug]/scheduler/jobs
- * List cron-job.org jobs merged with templates.
+ * List cron jobs merged with templates (provider-agnostic).
  */
 export async function GET(_request: Request, context: RouteContext) {
   try {
@@ -73,39 +71,15 @@ export async function GET(_request: Request, context: RouteContext) {
     const result = await resolveProjectAndCheckAdmin(slug);
     if ('error' in result) return result.error;
 
-    const apiKey = await getProjectSecret(result.project.id, 'cronjob_org_api_key');
-    if (!apiKey) {
-      return NextResponse.json({ configured: false, jobs: [] });
+    const { provider, providerType, configured } = await getSchedulerProvider(result.project.id);
+
+    if (!provider || !configured) {
+      return NextResponse.json({ configured: false, providerType, jobs: [] });
     }
 
-    const jobs = await listJobs(apiKey);
+    const jobs = await provider.listJobs();
 
-    // Merge jobs with templates
-    const merged = CRON_TEMPLATES.map((template) => {
-      const matchedJob = jobs.find(
-        (j) =>
-          j.title === `GoodRev: ${template.title}` ||
-          j.url.includes(template.path),
-      );
-
-      return {
-        template,
-        job: matchedJob
-          ? {
-              jobId: matchedJob.jobId,
-              enabled: matchedJob.enabled,
-              url: matchedJob.url,
-              schedule: matchedJob.schedule,
-              lastStatus: matchedJob.lastStatus,
-              lastDuration: matchedJob.lastDuration,
-              lastExecution: matchedJob.lastExecution,
-              nextExecution: matchedJob.nextExecution,
-            }
-          : null,
-      };
-    });
-
-    return NextResponse.json({ configured: true, jobs: merged });
+    return NextResponse.json({ configured: true, providerType, jobs });
   } catch (error) {
     console.error('Error listing scheduler jobs:', error);
     const message = error instanceof Error ? error.message : 'Internal server error';
@@ -115,7 +89,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
 /**
  * POST /api/projects/[slug]/scheduler/jobs
- * Create a new cron job from a template.
+ * Create a new cron job from a template (provider-agnostic).
  */
 export async function POST(request: Request, context: RouteContext) {
   try {
@@ -132,53 +106,17 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    const { provider, configured } = await getSchedulerProvider(result.project.id);
+    if (!provider || !configured) {
+      return NextResponse.json({ error: 'Scheduler not configured' }, { status: 400 });
+    }
+
     const { templateKey, enabled, schedule } = validation.data;
+    const fullSchedule = schedule
+      ? { timezone: schedule.timezone ?? 'America/New_York', ...schedule }
+      : undefined;
 
-    const template = CRON_TEMPLATES.find((t) => t.key === templateKey);
-    if (!template) {
-      return NextResponse.json({ error: 'Unknown template key' }, { status: 400 });
-    }
-
-    const apiKey = await getProjectSecret(result.project.id, 'cronjob_org_api_key');
-    if (!apiKey) {
-      return NextResponse.json({ error: 'cron-job.org API key not configured' }, { status: 400 });
-    }
-
-    // Resolve base URL and cron secret
-    const baseUrl = (await getProjectSecret(result.project.id, 'scheduler_base_url'))
-      || process.env.NEXT_PUBLIC_APP_URL
-      || '';
-
-    if (!baseUrl) {
-      return NextResponse.json({ error: 'Base URL not configured' }, { status: 400 });
-    }
-
-    const cronSecret = (await getProjectSecret(result.project.id, 'cron_secret'))
-      || process.env.CRON_SECRET
-      || '';
-
-    // Build callback URL with project_id param for per-project auth
-    const callbackUrl = `${baseUrl.replace(/\/$/, '')}${template.path}?project_id=${result.project.id}`;
-
-    const jobSchedule = {
-      timezone: schedule?.timezone ?? template.defaultSchedule.timezone,
-      expiresAt: 0,
-      hours: schedule?.hours ?? template.defaultSchedule.hours,
-      minutes: schedule?.minutes ?? template.defaultSchedule.minutes,
-      mdays: schedule?.mdays ?? template.defaultSchedule.mdays,
-      months: schedule?.months ?? template.defaultSchedule.months,
-      wdays: schedule?.wdays ?? template.defaultSchedule.wdays,
-    };
-
-    const jobId = await createJob(apiKey, {
-      title: template.title,
-      url: callbackUrl,
-      enabled: enabled ?? true,
-      schedule: jobSchedule,
-      headers: cronSecret ? { Authorization: `Bearer ${cronSecret}` } : {},
-      saveResponses: true,
-      notification: { onFailure: true, onDisable: true },
-    });
+    const { jobId } = await provider.createJob(templateKey, fullSchedule, enabled);
 
     return NextResponse.json({ jobId });
   } catch (error) {

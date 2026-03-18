@@ -16,6 +16,8 @@ import {
   RefreshCw,
   Wand2,
   Info,
+  Database,
+  Globe,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -47,18 +49,19 @@ import {
   CollapsibleTrigger,
 } from '@/components/ui/collapsible';
 import { toast } from 'sonner';
-import { type CronTemplate, SCHEDULE_PRESETS, describeSchedule } from '@/lib/scheduler/templates';
-import { type CronJobOrgSchedule, JOB_STATUS_LABELS, isJobStatusOk } from '@/lib/scheduler/cronjob-org';
+import { type CronTemplate, type CronJobSchedule, SCHEDULE_PRESETS, describeSchedule } from '@/lib/scheduler/templates';
+import { isJobStatusOk } from '@/lib/scheduler/cronjob-org';
+import type { SchedulerProviderType } from '@/lib/scheduler/provider';
 
 // ---------- Types ----------
 
 interface SchedulerJob {
   template: CronTemplate;
   job: {
-    jobId: number;
+    jobId: string;
     enabled: boolean;
     url: string;
-    schedule: CronJobOrgSchedule;
+    schedule: CronJobSchedule;
     lastStatus: number;
     lastDuration: number;
     lastExecution: number;
@@ -80,9 +83,28 @@ interface SchedulerPanelProps {
   slug: string;
 }
 
+const PROVIDER_OPTIONS: { value: SchedulerProviderType; label: string; description: string; icon: typeof Globe }[] = [
+  {
+    value: 'cronjob_org',
+    label: 'cron-job.org',
+    description: 'External service, free tier (100 API calls/day)',
+    icon: Globe,
+  },
+  {
+    value: 'supabase_pgcron',
+    label: 'Supabase pg_cron',
+    description: 'Built-in database scheduler, no external service needed',
+    icon: Database,
+  },
+];
+
 // ---------- Component ----------
 
 export function SchedulerPanel({ slug }: SchedulerPanelProps) {
+  // Provider state
+  const [selectedProvider, setSelectedProvider] = useState<SchedulerProviderType>('cronjob_org');
+  const [activeProvider, setActiveProvider] = useState<SchedulerProviderType | null>(null);
+
   // Setup state
   const [configured, setConfigured] = useState<boolean | null>(null);
   const [apiKey, setApiKey] = useState('');
@@ -98,14 +120,14 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
 
   // Per-job action state
   const [creatingJob, setCreatingJob] = useState<string | null>(null);
-  const [togglingJob, setTogglingJob] = useState<number | null>(null);
-  const [deletingJob, setDeletingJob] = useState<number | null>(null);
-  const [changingSchedule, setChangingSchedule] = useState<number | null>(null);
+  const [togglingJob, setTogglingJob] = useState<string | null>(null);
+  const [deletingJob, setDeletingJob] = useState<string | null>(null);
+  const [changingSchedule, setChangingSchedule] = useState<string | null>(null);
 
   // History state
-  const [expandedJob, setExpandedJob] = useState<number | null>(null);
-  const [history, setHistory] = useState<Record<number, HistoryEntry[]>>({});
-  const [loadingHistory, setLoadingHistory] = useState<number | null>(null);
+  const [expandedJob, setExpandedJob] = useState<string | null>(null);
+  const [history, setHistory] = useState<Record<string, HistoryEntry[]>>({});
+  const [loadingHistory, setLoadingHistory] = useState<string | null>(null);
 
   // ---------- Fetch jobs ----------
 
@@ -117,6 +139,10 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
       const data = await res.json();
       setConfigured(data.configured);
       setJobs(data.jobs ?? []);
+      if (data.providerType) {
+        setActiveProvider(data.providerType);
+        setSelectedProvider(data.providerType);
+      }
       if (data.configured) setSetupOpen(false);
     } catch {
       toast.error('Failed to load scheduler jobs');
@@ -136,6 +162,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
     apiKeySet: boolean;
     cronSecretSet: boolean;
     baseUrlSet: boolean;
+    providerSet: boolean;
   } | null>(null);
 
   useEffect(() => {
@@ -149,6 +176,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
           apiKeySet: secrets.find((s) => s.key_name === 'cronjob_org_api_key')?.is_set ?? false,
           cronSecretSet: secrets.find((s) => s.key_name === 'cron_secret')?.is_set ?? false,
           baseUrlSet: secrets.find((s) => s.key_name === 'scheduler_base_url')?.is_set ?? false,
+          providerSet: secrets.find((s) => s.key_name === 'scheduler_provider')?.is_set ?? false,
         });
       } catch {
         // ignore
@@ -169,18 +197,24 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
   };
 
   const handleSaveSetup = async () => {
+    // Validate before starting any saves
+    if (selectedProvider === 'cronjob_org' && !apiKey && !existingConfig?.apiKeySet) {
+      toast.error('API key is required for cron-job.org');
+      return;
+    }
+
     setSavingSetup(true);
     try {
       const saves: Promise<void>[] = [];
-      if (apiKey) saves.push(saveSecret('cronjob_org_api_key', apiKey));
+
+      // Always save the provider choice
+      saves.push(saveSecret('scheduler_provider', selectedProvider));
+
+      if (selectedProvider === 'cronjob_org' && apiKey) {
+        saves.push(saveSecret('cronjob_org_api_key', apiKey));
+      }
       if (cronSecret) saves.push(saveSecret('cron_secret', cronSecret));
       if (baseUrl) saves.push(saveSecret('scheduler_base_url', baseUrl));
-
-      if (saves.length === 0) {
-        toast.error('Enter at least one value to save');
-        setSavingSetup(false);
-        return;
-      }
 
       await Promise.all(saves);
       toast.success('Scheduler configuration saved');
@@ -199,6 +233,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
           apiKeySet: secrets.find((s) => s.key_name === 'cronjob_org_api_key')?.is_set ?? false,
           cronSecretSet: secrets.find((s) => s.key_name === 'cron_secret')?.is_set ?? false,
           baseUrlSet: secrets.find((s) => s.key_name === 'scheduler_base_url')?.is_set ?? false,
+          providerSet: secrets.find((s) => s.key_name === 'scheduler_provider')?.is_set ?? false,
         });
       }
     } catch (err) {
@@ -238,7 +273,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
     }
   };
 
-  const handleToggleJob = async (jobId: number, enabled: boolean) => {
+  const handleToggleJob = async (jobId: string, enabled: boolean) => {
     setTogglingJob(jobId);
     try {
       const res = await fetch(`/api/projects/${slug}/scheduler/jobs/${jobId}`, {
@@ -259,7 +294,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
     }
   };
 
-  const handleDeleteJob = async (jobId: number) => {
+  const handleDeleteJob = async (jobId: string) => {
     setDeletingJob(jobId);
     try {
       const res = await fetch(`/api/projects/${slug}/scheduler/jobs/${jobId}`, {
@@ -283,7 +318,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
     }
   };
 
-  const handleChangeSchedule = async (jobId: number, presetLabel: string) => {
+  const handleChangeSchedule = async (jobId: string, presetLabel: string) => {
     const preset = SCHEDULE_PRESETS.find((p) => p.label === presetLabel);
     if (!preset) return;
 
@@ -314,7 +349,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
 
   // ---------- History ----------
 
-  const handleToggleHistory = async (jobId: number) => {
+  const handleToggleHistory = async (jobId: string) => {
     if (expandedJob === jobId) {
       setExpandedJob(null);
       return;
@@ -350,6 +385,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
   }
 
   const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
+  const providerLabel = activeProvider === 'supabase_pgcron' ? 'pg_cron' : 'cron-job.org';
 
   return (
     <div className="space-y-6">
@@ -363,13 +399,18 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
                   <CardTitle className="flex items-center gap-2">
                     <Clock className="h-5 w-5" />
                     Scheduler Configuration
+                    {activeProvider && configured && (
+                      <Badge variant="outline" className="text-xs font-normal ml-1">
+                        {providerLabel}
+                      </Badge>
+                    )}
                   </CardTitle>
                   <CardDescription>
-                    Connect to cron-job.org to manage scheduled tasks
+                    Configure a cron provider to manage scheduled tasks
                   </CardDescription>
                 </div>
                 <div className="flex items-center gap-2">
-                  {existingConfig?.apiKeySet && (
+                  {configured && (
                     <Badge variant="outline" className="text-green-600 border-green-600">
                       <CheckCircle2 className="h-3 w-3 mr-1" />
                       Connected
@@ -386,57 +427,119 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
           </CollapsibleTrigger>
           <CollapsibleContent>
             <CardContent className="space-y-6 border-t pt-6">
-              {/* Instructions */}
+              {/* Provider Selector */}
+              <div className="space-y-3">
+                <Label>Cron Provider</Label>
+                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                  {PROVIDER_OPTIONS.map((option) => {
+                    const Icon = option.icon;
+                    const isSelected = selectedProvider === option.value;
+                    return (
+                      <button
+                        key={option.value}
+                        type="button"
+                        onClick={() => setSelectedProvider(option.value)}
+                        className={`flex items-start gap-3 rounded-lg border-2 p-4 text-left transition-colors ${
+                          isSelected
+                            ? 'border-primary bg-primary/5'
+                            : 'border-muted hover:border-muted-foreground/30'
+                        }`}
+                      >
+                        <Icon className={`h-5 w-5 mt-0.5 shrink-0 ${isSelected ? 'text-primary' : 'text-muted-foreground'}`} />
+                        <div>
+                          <div className={`font-medium text-sm ${isSelected ? 'text-primary' : ''}`}>
+                            {option.label}
+                          </div>
+                          <div className="text-xs text-muted-foreground mt-0.5">
+                            {option.description}
+                          </div>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+              </div>
+
+              {/* Instructions — provider-specific */}
               <div className="rounded-lg bg-muted/50 p-4 space-y-3">
                 <div className="flex items-start gap-2">
                   <Info className="h-5 w-5 text-blue-500 mt-0.5 shrink-0" />
                   <div className="space-y-2 text-sm text-muted-foreground">
-                    <p className="font-medium text-foreground">How to set up scheduled jobs:</p>
-                    <ol className="list-decimal list-inside space-y-1.5">
-                      <li>
-                        Create a free account at{' '}
-                        <a
-                          href="https://cron-job.org"
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="text-blue-500 hover:underline inline-flex items-center gap-1"
-                        >
-                          cron-job.org <ExternalLink className="h-3 w-3" />
-                        </a>
-                      </li>
-                      <li>
-                        Go to <strong>Settings</strong> in your cron-job.org dashboard and generate an <strong>API Key</strong>
-                      </li>
-                      <li>Paste the API key below</li>
-                      <li>Set a <strong>Cron Secret</strong> — this token authenticates cron-job.org when it calls your endpoints (auto-generate one or use an existing value)</li>
-                      <li>Verify the <strong>Base URL</strong> matches your deployed app URL</li>
-                      <li>Click <strong>Save Configuration</strong>, then create your cron jobs below</li>
-                    </ol>
-                    <p className="text-xs mt-2">
-                      The free tier allows 100 management API calls/day (create, update, delete jobs).
-                      Actual cron executions are <strong>unlimited</strong> and do not count against this quota.
-                    </p>
+                    {selectedProvider === 'cronjob_org' ? (
+                      <>
+                        <p className="font-medium text-foreground">How to set up with cron-job.org:</p>
+                        <ol className="list-decimal list-inside space-y-1.5">
+                          <li>
+                            Create a free account at{' '}
+                            <a
+                              href="https://cron-job.org"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:underline inline-flex items-center gap-1"
+                            >
+                              cron-job.org <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </li>
+                          <li>
+                            Go to <strong>Settings</strong> in your cron-job.org dashboard and generate an <strong>API Key</strong>
+                          </li>
+                          <li>Paste the API key below</li>
+                          <li>Set a <strong>Cron Secret</strong> to authenticate callbacks</li>
+                          <li>Verify the <strong>Base URL</strong> matches your deployed app</li>
+                          <li>Click <strong>Save Configuration</strong>, then create your cron jobs below</li>
+                        </ol>
+                        <p className="text-xs mt-2">
+                          Free tier: 100 management API calls/day. Actual cron executions are <strong>unlimited</strong>.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium text-foreground">How to set up with Supabase pg_cron:</p>
+                        <ol className="list-decimal list-inside space-y-1.5">
+                          <li>
+                            Ensure the <strong>pg_cron</strong> and <strong>pg_net</strong> extensions are enabled in your{' '}
+                            <a
+                              href="https://supabase.com/dashboard/project/_/database/extensions"
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="text-blue-500 hover:underline inline-flex items-center gap-1"
+                            >
+                              Supabase dashboard <ExternalLink className="h-3 w-3" />
+                            </a>
+                          </li>
+                          <li>Set a <strong>Cron Secret</strong> to authenticate callbacks (or auto-generate one)</li>
+                          <li>Verify the <strong>Base URL</strong> matches your deployed app</li>
+                          <li>Click <strong>Save Configuration</strong>, then create your cron jobs below</li>
+                        </ol>
+                        <p className="text-xs mt-2">
+                          pg_cron runs inside your database. No external service or API key required.
+                          Jobs execute SQL that calls your endpoints via pg_net HTTP requests.
+                        </p>
+                      </>
+                    )}
                   </div>
                 </div>
               </div>
 
-              {/* API Key */}
-              <div className="space-y-2">
-                <Label htmlFor="cronjob-api-key">cron-job.org API Key</Label>
-                <Input
-                  id="cronjob-api-key"
-                  type="password"
-                  placeholder="Your cron-job.org API key"
-                  value={apiKey}
-                  onChange={(e) => setApiKey(e.target.value)}
-                />
-                {existingConfig?.apiKeySet && !apiKey && (
-                  <p className="text-xs text-muted-foreground">
-                    <CheckCircle2 className="h-3 w-3 inline mr-1 text-green-600" />
-                    API key is configured. Enter a new value to replace it.
-                  </p>
-                )}
-              </div>
+              {/* API Key — only for cron-job.org */}
+              {selectedProvider === 'cronjob_org' && (
+                <div className="space-y-2">
+                  <Label htmlFor="cronjob-api-key">cron-job.org API Key</Label>
+                  <Input
+                    id="cronjob-api-key"
+                    type="password"
+                    placeholder="Your cron-job.org API key"
+                    value={apiKey}
+                    onChange={(e) => setApiKey(e.target.value)}
+                  />
+                  {existingConfig?.apiKeySet && !apiKey && (
+                    <p className="text-xs text-muted-foreground">
+                      <CheckCircle2 className="h-3 w-3 inline mr-1 text-green-600" />
+                      API key is configured. Enter a new value to replace it.
+                    </p>
+                  )}
+                </div>
+              )}
 
               {/* Cron Secret */}
               <div className="space-y-2">
@@ -468,7 +571,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
                   </p>
                 )}
                 <p className="text-xs text-muted-foreground">
-                  This token is sent as a Bearer token when cron-job.org calls your endpoints to verify authenticity.
+                  This token is sent as a Bearer token when the cron provider calls your endpoints to verify authenticity.
                 </p>
               </div>
 
@@ -484,7 +587,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
                 />
                 {isLocalhost && baseUrl && (
                   <p className="text-xs text-amber-600">
-                    ⚠ Localhost URLs won&apos;t work with cron-job.org. Use your deployed app URL.
+                    Localhost URLs won&apos;t work with external cron providers. Use your deployed app URL.
                   </p>
                 )}
                 {existingConfig?.baseUrlSet && !baseUrl && (
@@ -503,7 +606,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
               {/* Save */}
               <Button
                 onClick={handleSaveSetup}
-                disabled={savingSetup || (!apiKey && !cronSecret && !baseUrl)}
+                disabled={savingSetup}
               >
                 {savingSetup && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
                 Save Configuration
@@ -541,7 +644,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
                 key={template.key}
                 template={template}
                 job={job}
-                slug={slug}
+                providerType={activeProvider}
                 isCreating={creatingJob === template.key}
                 isToggling={togglingJob === job?.jobId}
                 isDeleting={deletingJob === job?.jobId}
@@ -568,7 +671,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
 interface JobCardProps {
   template: CronTemplate;
   job: SchedulerJob['job'];
-  slug: string;
+  providerType: SchedulerProviderType | null;
   isCreating: boolean;
   isToggling: boolean | null;
   isDeleting: boolean | null;
@@ -586,6 +689,7 @@ interface JobCardProps {
 function JobCard({
   template,
   job,
+  providerType,
   isCreating,
   isToggling,
   isDeleting,
@@ -599,6 +703,8 @@ function JobCard({
   onChangeSchedule,
   onToggleHistory,
 }: JobCardProps) {
+  const providerName = providerType === 'supabase_pgcron' ? 'pg_cron' : 'cron-job.org';
+
   return (
     <div className="rounded-lg border p-4 space-y-3">
       {/* Header row */}
@@ -627,7 +733,7 @@ function JobCard({
             {job && !isJobStatusOk(job.lastStatus) && job.lastStatus !== 0 && (
               <Badge variant="destructive" className="text-xs">
                 <XCircle className="h-3 w-3 mr-1" />
-                {JOB_STATUS_LABELS[job.lastStatus] || 'Error'}
+                Error
               </Badge>
             )}
           </div>
@@ -654,7 +760,7 @@ function JobCard({
                   <AlertDialogHeader>
                     <AlertDialogTitle>Delete cron job?</AlertDialogTitle>
                     <AlertDialogDescription>
-                      This will remove the &quot;{template.title}&quot; job from cron-job.org.
+                      This will remove the &quot;{template.title}&quot; job from {providerName}.
                       You can recreate it later.
                     </AlertDialogDescription>
                   </AlertDialogHeader>

@@ -1,7 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { getProjectSecret } from '@/lib/secrets';
-import { getJobHistory, JOB_STATUS_LABELS } from '@/lib/scheduler/cronjob-org';
+import { getSchedulerProvider } from '@/lib/scheduler/provider';
 
 interface RouteContext {
   params: Promise<{ slug: string; jobId: string }>;
@@ -48,41 +47,23 @@ async function resolveProjectAndCheckAdmin(slug: string) {
 
 /**
  * GET /api/projects/[slug]/scheduler/jobs/[jobId]/history
- * Fetch execution history for a cron job.
+ * Fetch execution history for a cron job (provider-agnostic).
  */
 export async function GET(_request: Request, context: RouteContext) {
   try {
-    const { slug, jobId: jobIdStr } = await context.params;
-    const jobId = parseInt(jobIdStr, 10);
-    if (isNaN(jobId)) {
-      return NextResponse.json({ error: 'Invalid job ID' }, { status: 400 });
-    }
+    const { slug, jobId } = await context.params;
 
     const result = await resolveProjectAndCheckAdmin(slug);
     if ('error' in result) return result.error;
 
-    const apiKey = await getProjectSecret(result.project.id, 'cronjob_org_api_key');
-    if (!apiKey) {
-      return NextResponse.json({ error: 'cron-job.org API key not configured' }, { status: 400 });
+    const { provider, configured } = await getSchedulerProvider(result.project.id);
+    if (!provider || !configured) {
+      return NextResponse.json({ error: 'Scheduler not configured' }, { status: 400 });
     }
 
-    const data = await getJobHistory(apiKey, jobId);
+    const history = await provider.getJobHistory(jobId);
 
-    // Return last 10 entries with readable status
-    const history = (data.history ?? []).slice(0, 10).map((item) => ({
-      identifier: item.identifier,
-      date: item.date,
-      datePlanned: item.datePlanned,
-      duration: item.duration,
-      status: item.status,
-      statusText: item.statusText || JOB_STATUS_LABELS[item.status] || 'Unknown',
-      httpStatus: item.httpStatus,
-    }));
-
-    return NextResponse.json({
-      history,
-      predictions: data.predictions ?? [],
-    });
+    return NextResponse.json({ history, predictions: [] });
   } catch (error) {
     console.error('Error fetching job history:', error);
     const message = error instanceof Error ? error.message : 'Internal server error';
