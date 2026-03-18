@@ -624,7 +624,7 @@ function CreateConnectionDialog({ slug, onCreated }: CreateConnectionDialogProps
                 onChange={(e) => { setApiKey(e.target.value); setPreviewed(false); setPreviewError(null); }}
                 placeholder="sk-ak-..."
                 className="h-8 text-sm"
-                autoFocus={!selectedApp}
+                autoFocus
               />
               <p className="text-[11px] text-muted-foreground">
                 Get your key at{' '}
