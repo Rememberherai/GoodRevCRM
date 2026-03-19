@@ -124,8 +124,8 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
       <TableCell className="w-[100px] align-middle">
         <Input
           type="number"
-          min="0.01"
-          step="0.01"
+          min="1"
+          step="1"
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
           onFocus={handleFocus}
