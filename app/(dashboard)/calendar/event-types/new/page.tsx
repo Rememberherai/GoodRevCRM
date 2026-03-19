@@ -136,9 +136,9 @@ export default function NewEventTypePage() {
               />
             </div>
 
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-3 gap-4">
               <div className="space-y-2">
-                <Label htmlFor="duration">Duration (minutes)</Label>
+                <Label htmlFor="duration">Duration (min)</Label>
                 <Input
                   id="duration"
                   type="number"
@@ -151,40 +151,33 @@ export default function NewEventTypePage() {
                 />
               </div>
               <div className="space-y-2">
+                <Label>Location</Label>
+                <Select
+                  value={form.location_type}
+                  onValueChange={(v) => setForm((f) => ({ ...f, location_type: v as LocationType }))}
+                >
+                  <SelectTrigger>
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {Object.entries(LOCATION_TYPE_LABELS).map(([key, label]) => (
+                      <SelectItem key={key} value={key}>
+                        {label}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-2">
                 <Label htmlFor="color">Color</Label>
                 <Input
                   id="color"
                   type="color"
                   value={form.color}
                   onChange={(e) => setForm((f) => ({ ...f, color: e.target.value }))}
+                  className="h-9"
                 />
               </div>
-            </div>
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle>Location</CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            <div className="space-y-2">
-              <Label>Location Type</Label>
-              <Select
-                value={form.location_type}
-                onValueChange={(v) => setForm((f) => ({ ...f, location_type: v as LocationType }))}
-              >
-                <SelectTrigger>
-                  <SelectValue />
-                </SelectTrigger>
-                <SelectContent>
-                  {Object.entries(LOCATION_TYPE_LABELS).map(([key, label]) => (
-                    <SelectItem key={key} value={key}>
-                      {label}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
             </div>
 
             {(form.location_type === 'in_person' || form.location_type === 'custom') && (
@@ -203,12 +196,12 @@ export default function NewEventTypePage() {
 
         <Card>
           <CardHeader>
-            <CardTitle>Scheduling</CardTitle>
+            <CardTitle>Scheduling Rules</CardTitle>
           </CardHeader>
           <CardContent className="space-y-4">
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Buffer Before (min)</Label>
+            <div className="grid grid-cols-4 gap-3">
+              <div className="space-y-1">
+                <Label className="text-xs">Buffer Before</Label>
                 <Input
                   type="number"
                   min={0}
@@ -217,10 +210,11 @@ export default function NewEventTypePage() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, buffer_before_minutes: parseInt(e.target.value) || 0 }))
                   }
+                  placeholder="min"
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Buffer After (min)</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">Buffer After</Label>
                 <Input
                   type="number"
                   min={0}
@@ -229,12 +223,11 @@ export default function NewEventTypePage() {
                   onChange={(e) =>
                     setForm((f) => ({ ...f, buffer_after_minutes: parseInt(e.target.value) || 0 }))
                   }
+                  placeholder="min"
                 />
               </div>
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div className="space-y-2">
-                <Label>Min Notice (hours)</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">Min Notice (hrs)</Label>
                 <Input
                   type="number"
                   min={0}
@@ -245,8 +238,8 @@ export default function NewEventTypePage() {
                   }
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Max Days Advance</Label>
+              <div className="space-y-1">
+                <Label className="text-xs">Max Days Out</Label>
                 <Input
                   type="number"
                   min={1}
@@ -265,7 +258,7 @@ export default function NewEventTypePage() {
                   setForm((f) => ({ ...f, requires_confirmation: checked }))
                 }
               />
-              <Label>Require host confirmation before booking is finalized</Label>
+              <Label className="text-sm">Require host confirmation</Label>
             </div>
           </CardContent>
         </Card>
