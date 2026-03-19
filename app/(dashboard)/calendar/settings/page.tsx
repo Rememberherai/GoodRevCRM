@@ -1,12 +1,28 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useMemo, useState } from 'react';
+import { Check, ChevronsUpDown, Clock3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import {
+  Command,
+  CommandEmpty,
+  CommandGroup,
+  CommandInput,
+  CommandItem,
+  CommandList,
+} from '@/components/ui/command';
+import {
+  Popover,
+  PopoverContent,
+  PopoverTrigger,
+} from '@/components/ui/popover';
 import type { CalendarProfile } from '@/types/calendar';
+import { cn } from '@/lib/utils';
+import { formatTimezoneLabel, getSupportedTimezones } from '@/lib/calendar/timezones';
 
 export default function CalendarSettingsPage() {
   const [profile, setProfile] = useState<CalendarProfile | null>(null);
@@ -16,6 +32,12 @@ export default function CalendarSettingsPage() {
   const [success, setSuccess] = useState(false);
 
   const [origin, setOrigin] = useState('');
+  const [timezoneOpen, setTimezoneOpen] = useState(false);
+  const browserTimezone = useMemo(
+    () => Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/New_York',
+    []
+  );
+  const timezones = useMemo(() => getSupportedTimezones(), []);
 
   // Create form state
   const [form, setForm] = useState({
@@ -29,6 +51,12 @@ export default function CalendarSettingsPage() {
   useEffect(() => {
     setOrigin(window.location.origin);
   }, []);
+
+  useEffect(() => {
+    setForm((current) => (
+      current.timezone ? current : { ...current, timezone: browserTimezone }
+    ));
+  }, [browserTimezone]);
 
   useEffect(() => {
     let cancelled = false;
@@ -162,12 +190,60 @@ export default function CalendarSettingsPage() {
 
             <div className="space-y-2">
               <Label htmlFor="timezone">Timezone</Label>
-              <Input
-                id="timezone"
-                value={form.timezone}
-                onChange={(e) => setForm((f) => ({ ...f, timezone: e.target.value }))}
-                placeholder="America/New_York"
-              />
+              <Popover open={timezoneOpen} onOpenChange={setTimezoneOpen}>
+                <PopoverTrigger asChild>
+                  <Button
+                    id="timezone"
+                    type="button"
+                    variant="outline"
+                    role="combobox"
+                    aria-expanded={timezoneOpen}
+                    className="w-full justify-between font-normal"
+                  >
+                    <span className="flex items-center gap-2 truncate">
+                      <Clock3 className="h-4 w-4 shrink-0 text-muted-foreground" />
+                      <span className={cn('truncate', !form.timezone && 'text-muted-foreground')}>
+                        {form.timezone ? formatTimezoneLabel(form.timezone) : 'Select timezone'}
+                      </span>
+                    </span>
+                    <ChevronsUpDown className="h-4 w-4 shrink-0 opacity-50" />
+                  </Button>
+                </PopoverTrigger>
+                <PopoverContent className="w-[--radix-popover-trigger-width] p-0" align="start">
+                  <Command>
+                    <CommandInput placeholder="Search timezones..." />
+                    <CommandList>
+                      <CommandEmpty>No timezone found.</CommandEmpty>
+                      <CommandGroup>
+                        {timezones.map((timezone) => (
+                          <CommandItem
+                            key={timezone}
+                            value={`${timezone} ${formatTimezoneLabel(timezone)}`}
+                            onSelect={() => {
+                              setForm((current) => ({ ...current, timezone }));
+                              setTimezoneOpen(false);
+                            }}
+                          >
+                            <Check
+                              className={cn(
+                                'mr-2 h-4 w-4',
+                                form.timezone === timezone ? 'opacity-100' : 'opacity-0'
+                              )}
+                            />
+                            <div className="flex min-w-0 flex-col">
+                              <span className="truncate">{formatTimezoneLabel(timezone)}</span>
+                              <span className="text-xs text-muted-foreground">{timezone}</span>
+                            </div>
+                          </CommandItem>
+                        ))}
+                      </CommandGroup>
+                    </CommandList>
+                  </Command>
+                </PopoverContent>
+              </Popover>
+              <p className="text-xs text-muted-foreground">
+                Used for your default availability and public booking page times.
+              </p>
             </div>
 
             <div className="space-y-2">
