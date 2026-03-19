@@ -125,12 +125,13 @@ export async function bulkMatchEmails(
   if (projectIds.length === 0) return results;
 
   // Batch query people by email (scoped to user's projects)
+  // Use OR+ilike for case-insensitive matching since emails may be stored with mixed case
   const { data: people } = await supabase
     .from('people')
     .select('id, project_id, email')
-    .in('email', unique)
     .in('project_id', projectIds)
-    .is('deleted_at', null);
+    .is('deleted_at', null)
+    .or(unique.map(e => `email.ilike.${e}`).join(','));
 
   const personByEmail = new Map<string, { id: string; project_id: string }>();
   if (people) {
@@ -177,9 +178,9 @@ export async function bulkMatchEmails(
     const { data: orgs } = await supabase
       .from('organizations')
       .select('id, project_id, domain')
-      .in('domain', uniqueDomains)
       .in('project_id', projectIds)
-      .is('deleted_at', null);
+      .is('deleted_at', null)
+      .or(uniqueDomains.map(d => `domain.ilike.${d}`).join(','));
 
     if (orgs) {
       for (const org of orgs) {
