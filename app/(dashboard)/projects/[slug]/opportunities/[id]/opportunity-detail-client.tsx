@@ -46,6 +46,7 @@ import { EntityActivitySection } from '@/components/activity/entity-activity-sec
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 import { SendEmailModal } from '@/components/gmail';
 import { EntityCommentsFeed } from '@/components/comments';
+import { CreateInvoiceButton } from '@/components/accounting/create-invoice-button';
 
 interface OpportunityDetailClientProps {
   opportunityId: string;
@@ -170,6 +171,15 @@ export function OpportunityDetailClient({ opportunityId, currentUserId }: Opport
           </Link>
         </Button>
         <div className="flex items-center gap-2">
+          {opportunity.stage === 'closed_won' && (
+            <CreateInvoiceButton
+              type="opportunity"
+              opportunityId={opportunity.id}
+              opportunityName={opportunity.name}
+              amount={opportunity.amount}
+              currency={opportunity.currency}
+            />
+          )}
           <Button variant="outline" onClick={() => setShowSendEmail(true)}>
             <Mail className="mr-2 h-4 w-4" />
             Send Email

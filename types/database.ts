@@ -4872,20 +4872,27 @@ export type Database = {
           address_state: string | null
           address_street: string | null
           annual_revenue: number | null
+          billing_address: Json | null
+          billing_email: string | null
           created_at: string
           created_by: string | null
           custom_fields: Json
+          default_tax_rate_id: string | null
           deleted_at: string | null
           description: string | null
           domain: string | null
           employee_count: number | null
           id: string
           industry: string | null
+          is_customer: boolean
+          is_vendor: boolean
           linkedin_url: string | null
           logo_url: string | null
           name: string
+          payment_terms: number | null
           phone: string | null
           project_id: string
+          tax_id: string | null
           updated_at: string
           website: string | null
         }
@@ -4896,20 +4903,27 @@ export type Database = {
           address_state?: string | null
           address_street?: string | null
           annual_revenue?: number | null
+          billing_address?: Json | null
+          billing_email?: string | null
           created_at?: string
           created_by?: string | null
           custom_fields?: Json
+          default_tax_rate_id?: string | null
           deleted_at?: string | null
           description?: string | null
           domain?: string | null
           employee_count?: number | null
           id?: string
           industry?: string | null
+          is_customer?: boolean
+          is_vendor?: boolean
           linkedin_url?: string | null
           logo_url?: string | null
           name: string
+          payment_terms?: number | null
           phone?: string | null
           project_id: string
+          tax_id?: string | null
           updated_at?: string
           website?: string | null
         }
@@ -4920,20 +4934,27 @@ export type Database = {
           address_state?: string | null
           address_street?: string | null
           annual_revenue?: number | null
+          billing_address?: Json | null
+          billing_email?: string | null
           created_at?: string
           created_by?: string | null
           custom_fields?: Json
+          default_tax_rate_id?: string | null
           deleted_at?: string | null
           description?: string | null
           domain?: string | null
           employee_count?: number | null
           id?: string
           industry?: string | null
+          is_customer?: boolean
+          is_vendor?: boolean
           linkedin_url?: string | null
           logo_url?: string | null
           name?: string
+          payment_terms?: number | null
           phone?: string | null
           project_id?: string
+          tax_id?: string | null
           updated_at?: string
           website?: string | null
         }
@@ -8333,6 +8354,29 @@ export type Database = {
           p_invoice_date: string
           p_lines: Json
           p_notes?: string
+          p_organization_id?: string
+          p_payment_terms?: number
+          p_project_id?: string
+        }
+        Returns: string
+      }
+      create_invoice_with_links: {
+        Args: {
+          p_company_id: string
+          p_contact_id?: string
+          p_contract_id?: string
+          p_currency?: string
+          p_customer_address?: string
+          p_customer_email?: string
+          p_customer_name: string
+          p_customer_phone?: string
+          p_due_date: string
+          p_exchange_rate?: number
+          p_footer?: string
+          p_invoice_date: string
+          p_lines: Json
+          p_notes?: string
+          p_opportunity_id?: string
           p_organization_id?: string
           p_payment_terms?: number
           p_project_id?: string

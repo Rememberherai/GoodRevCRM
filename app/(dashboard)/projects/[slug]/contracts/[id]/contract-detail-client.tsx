@@ -44,6 +44,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
+import { CreateInvoiceButton } from '@/components/accounting/create-invoice-button';
 
 const STATUS_COLORS: Record<ContractDocumentStatus, string> = {
   draft: 'bg-gray-100 text-gray-800',
@@ -473,6 +474,14 @@ export function ContractDetailClient() {
               {actionLoading === 'clone' ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Copy className="mr-2 h-4 w-4" />}
               Clone as New
             </Button>
+          )}
+          {contract.status === 'completed' && (
+            <CreateInvoiceButton
+              type="contract"
+              contractId={contract.id}
+              projectSlug={slug}
+              contractTitle={contract.title}
+            />
           )}
         </div>
       </div>

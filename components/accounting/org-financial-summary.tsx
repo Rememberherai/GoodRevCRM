@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -19,6 +19,7 @@ interface Summary {
   ap_outstanding: number;
   total_payments_received: number;
   total_payments_made: number;
+  currency: string;
 }
 
 interface InvoiceRow {
@@ -59,8 +60,8 @@ interface OrgFinancialData {
   payments: PaymentRow[];
 }
 
-function fmt(n: number): string {
-  return n.toLocaleString('en-US', { style: 'currency', currency: 'USD' });
+function fmt(n: number, currency: string): string {
+  return n.toLocaleString('en-US', { style: 'currency', currency });
 }
 
 const STATUS_COLORS: Record<string, string> = {
@@ -81,9 +82,15 @@ export function OrgFinancialSummary({ organizationId }: OrgFinancialSummaryProps
   const [data, setData] = useState<OrgFinancialData | null>(null);
   const [loading, setLoading] = useState(true);
   const [hasAccounting, setHasAccounting] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   useEffect(() => {
     async function load() {
+      setLoading(true);
+      setHasAccounting(true);
+      setError(null);
+      setData(null);
+
       try {
         const res = await fetch(
           `/api/accounting/org-summary?organization_id=${organizationId}`,
@@ -92,11 +99,14 @@ export function OrgFinancialSummary({ organizationId }: OrgFinancialSummaryProps
           setHasAccounting(false);
           return;
         }
-        if (!res.ok) throw new Error('Failed');
+        if (!res.ok) {
+          const payload = await res.json().catch(() => null);
+          throw new Error(payload?.error || 'Failed to load financial summary');
+        }
         const { data } = await res.json();
         setData(data);
-      } catch {
-        setHasAccounting(false);
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to load financial summary');
       } finally {
         setLoading(false);
       }
@@ -133,7 +143,7 @@ export function OrgFinancialSummary({ organizationId }: OrgFinancialSummaryProps
   if (!data) {
     return (
       <p className="text-muted-foreground text-center py-6">
-        No financial data available.
+        {error ?? 'No financial data available.'}
       </p>
     );
   }
@@ -150,27 +160,27 @@ export function OrgFinancialSummary({ organizationId }: OrgFinancialSummaryProps
       <div className="grid grid-cols-2 md:grid-cols-3 gap-3">
         <div className="rounded-lg border bg-card p-4">
           <p className="text-xs text-muted-foreground">Total Invoiced</p>
-          <p className="text-lg font-bold mt-1 font-mono">{fmt(summary.total_invoiced)}</p>
+          <p className="text-lg font-bold mt-1 font-mono">{fmt(summary.total_invoiced, summary.currency)}</p>
         </div>
         <div className="rounded-lg border bg-card p-4">
           <p className="text-xs text-muted-foreground">AR Outstanding</p>
-          <p className="text-lg font-bold mt-1 font-mono">{fmt(summary.ar_outstanding)}</p>
+          <p className="text-lg font-bold mt-1 font-mono">{fmt(summary.ar_outstanding, summary.currency)}</p>
         </div>
         <div className="rounded-lg border bg-card p-4">
           <p className="text-xs text-muted-foreground">Payments Received</p>
-          <p className="text-lg font-bold mt-1 font-mono">{fmt(summary.total_payments_received)}</p>
+          <p className="text-lg font-bold mt-1 font-mono">{fmt(summary.total_payments_received, summary.currency)}</p>
         </div>
         <div className="rounded-lg border bg-card p-4">
           <p className="text-xs text-muted-foreground">Total Billed</p>
-          <p className="text-lg font-bold mt-1 font-mono">{fmt(summary.total_billed)}</p>
+          <p className="text-lg font-bold mt-1 font-mono">{fmt(summary.total_billed, summary.currency)}</p>
         </div>
         <div className="rounded-lg border bg-card p-4">
           <p className="text-xs text-muted-foreground">AP Outstanding</p>
-          <p className="text-lg font-bold mt-1 font-mono">{fmt(summary.ap_outstanding)}</p>
+          <p className="text-lg font-bold mt-1 font-mono">{fmt(summary.ap_outstanding, summary.currency)}</p>
         </div>
         <div className="rounded-lg border bg-card p-4">
           <p className="text-xs text-muted-foreground">Payments Made</p>
-          <p className="text-lg font-bold mt-1 font-mono">{fmt(summary.total_payments_made)}</p>
+          <p className="text-lg font-bold mt-1 font-mono">{fmt(summary.total_payments_made, summary.currency)}</p>
         </div>
       </div>
 
@@ -210,15 +220,15 @@ export function OrgFinancialSummary({ organizationId }: OrgFinancialSummaryProps
                   <TableCell className="text-sm">{inv.invoice_date}</TableCell>
                   <TableCell>
                     <Badge className={STATUS_COLORS[inv.status] ?? ''} variant="secondary">
-                      {inv.status.replace('_', ' ')}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {fmt(Number(inv.total))}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {fmt(Number(inv.balance_due))}
-                  </TableCell>
+                    {inv.status.replace('_', ' ')}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm">
+                    {fmt(Number(inv.total), summary.currency)}
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm">
+                    {fmt(Number(inv.balance_due), summary.currency)}
+                </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -256,15 +266,15 @@ export function OrgFinancialSummary({ organizationId }: OrgFinancialSummaryProps
                   <TableCell className="text-sm">{bill.bill_date}</TableCell>
                   <TableCell>
                     <Badge className={STATUS_COLORS[bill.status] ?? ''} variant="secondary">
-                      {bill.status.replace('_', ' ')}
-                    </Badge>
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {fmt(Number(bill.total))}
-                  </TableCell>
-                  <TableCell className="text-right font-mono text-sm">
-                    {fmt(Number(bill.balance_due))}
-                  </TableCell>
+                    {bill.status.replace('_', ' ')}
+                  </Badge>
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm">
+                    {fmt(Number(bill.total), summary.currency)}
+                </TableCell>
+                <TableCell className="text-right font-mono text-sm">
+                    {fmt(Number(bill.balance_due), summary.currency)}
+                </TableCell>
                 </TableRow>
               ))}
             </TableBody>
@@ -304,7 +314,7 @@ export function OrgFinancialSummary({ organizationId }: OrgFinancialSummaryProps
                     {pmt.notes || '—'}
                   </TableCell>
                   <TableCell className="text-right font-mono text-sm">
-                    {fmt(Number(pmt.amount))}
+                    {fmt(Number(pmt.amount), summary.currency)}
                   </TableCell>
                 </TableRow>
               ))}
