@@ -5,6 +5,7 @@ import {
   GMAIL_API_URL,
   createAdminClient,
 } from '@/lib/gmail/service';
+import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
 import type { GmailConnection, GmailMessage } from '@/types/gmail';
 
 export const maxDuration = 60;
@@ -19,10 +20,8 @@ export const maxDuration = 60;
  * and marks any active sequence enrollments for those recipients as bounced.
  */
 export async function POST(request: Request) {
-  // Support both session auth and CRON_SECRET bearer token
-  const authHeader = request.headers.get('authorization');
-  const cronSecret = process.env.CRON_SECRET;
-  const isCronAuth = !!(cronSecret && authHeader === `Bearer ${cronSecret}`);
+  // Support session auth, verifyCronAuth (project secret or CRON_SECRET env), or legacy CRON_SECRET
+  const isCronAuth = await verifyCronAuth(request);
 
   let userId: string | null = null;
 

@@ -137,6 +137,20 @@ export const CRON_TEMPLATES: CronTemplate[] = [
     },
   },
   {
+    key: 'bounce-scan',
+    title: 'Bounce Scan',
+    path: '/api/cron/bounce-scan',
+    description: 'Scans Gmail for bounced emails and updates delivery status',
+    defaultSchedule: {
+      timezone: 'America/New_York',
+      hours: [7, 19],
+      minutes: [0],
+      mdays: [-1],
+      months: [-1],
+      wdays: [-1],
+    },
+  },
+  {
     key: 'calendar-sync',
     title: 'Calendar Sync',
     path: '/api/cron/calendar-sync',
