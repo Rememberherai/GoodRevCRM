@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -67,8 +67,14 @@ export async function POST(request: Request) {
     const body = await request.json();
     const parsed = createCompanySchema.parse(body);
 
+    // Use service client for company creation to bypass RLS.
+    // We've already verified the user's identity via auth.getUser() above.
+    // The regular client's auth.uid() may not propagate to RLS context
+    // in all deployment environments (e.g. Vercel edge).
+    const serviceClient = createServiceClient();
+
     // Create the company (trigger auto-creates owner membership)
-    const { data: company, error: companyError } = await supabase
+    const { data: company, error: companyError } = await serviceClient
       .from('accounting_companies')
       .insert({
         name: parsed.name,
@@ -85,7 +91,7 @@ export async function POST(request: Request) {
     }
 
     // Create default accounting settings
-    const { error: settingsError } = await supabase
+    const { error: settingsError } = await serviceClient
       .from('accounting_settings')
       .insert({
         company_id: company.id,
@@ -93,18 +99,18 @@ export async function POST(request: Request) {
 
     if (settingsError) {
       console.error('Error creating accounting settings:', settingsError);
-      await supabase.from('accounting_companies').delete().eq('id', company.id);
+      await serviceClient.from('accounting_companies').delete().eq('id', company.id);
       return NextResponse.json({ error: 'Failed to initialize accounting company' }, { status: 500 });
     }
 
     // Seed default chart of accounts and update settings with default account references
-    const { error: seedError } = await supabase.rpc('seed_default_accounts', {
+    const { error: seedError } = await serviceClient.rpc('seed_default_accounts', {
       p_company_id: company.id,
     });
 
     if (seedError) {
       console.error('Error seeding default accounts:', seedError);
-      await supabase.from('accounting_companies').delete().eq('id', company.id);
+      await serviceClient.from('accounting_companies').delete().eq('id', company.id);
       return NextResponse.json({ error: 'Failed to initialize accounting company' }, { status: 500 });
     }
 
