@@ -9,6 +9,8 @@ import { registerContractTools } from './tools/contracts';
 import { registerEmailTools } from './tools/emails';
 import { registerAccountingTools } from './tools/accounting';
 import { registerCalendarTools } from './tools/calendar';
+import { registerProductTools } from './tools/products';
+import { registerQuoteTools } from './tools/quotes';
 import type { McpContext } from '@/types/mcp';
 
 const SERVER_NAME = 'goodrev-crm';
@@ -34,6 +36,8 @@ export function createMcpServer(getContext: () => McpContext): McpServer {
   registerEmailTools(server, getContext);
   registerAccountingTools(server, getContext);
   registerCalendarTools(server, getContext);
+  registerProductTools(server, getContext);
+  registerQuoteTools(server, getContext);
 
   // Register MCP resources
   registerResources(server, getContext);

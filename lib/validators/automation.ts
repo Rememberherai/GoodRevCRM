@@ -1,31 +1,77 @@
 import { z } from 'zod';
 
 export const triggerTypes = [
+  // Entity events
   'entity.created',
   'entity.updated',
   'entity.deleted',
+  'entity.merged',
   'field.changed',
+  // Pipeline events
   'opportunity.stage_changed',
   'rfp.status_changed',
+  'quote.status_changed',
+  'quote.accepted',
+  // Email events
   'email.opened',
   'email.clicked',
   'email.replied',
   'email.bounced',
+  'email.unknown_sender',
+  // SMS events
+  'sms.sent',
+  'sms.delivered',
+  'sms.failed',
+  'sms.received',
+  // Sequence events
   'sequence.completed',
   'sequence.replied',
+  // Meeting events
   'meeting.scheduled',
   'meeting.outcome',
+  // Task events
   'task.completed',
+  // Time-based
   'time.entity_inactive',
   'time.task_overdue',
   'time.close_date_approaching',
   'time.created_ago',
+  // Call events
+  'call.completed',
+  'call.missed',
+  'call.dispositioned',
+  // News events
+  'news.article_found',
+  // Workflow events
+  'workflow.completed',
+  'workflow.failed',
+  'workflow.step_failed',
+  // Document events
   'document.sent',
   'document.signed',
   'document.completed',
   'document.declined',
   'document.expired',
   'document.voided',
+  // Accounting events
+  'invoice.created',
+  'invoice.sent',
+  'invoice.paid',
+  'invoice.overdue',
+  'bill.created',
+  'bill.received',
+  'bill.paid',
+  'bill.overdue',
+  'payment.received',
+  'payment.made',
+  // Booking events
+  'booking.created',
+  'booking.confirmed',
+  'booking.cancelled',
+  'booking.rescheduled',
+  'booking.completed',
+  'booking.no_show',
+  'event_type.created',
 ] as const;
 
 export const actionTypes = [
@@ -64,11 +110,18 @@ export const automationEntityTypes = [
   'person',
   'opportunity',
   'rfp',
+  'product',
+  'quote',
   'task',
   'meeting',
   'call',
   'workflow',
   'document',
+  'invoice',
+  'bill',
+  'payment',
+  'booking',
+  'event_type',
 ] as const;
 
 const conditionValueSchema = z.union([
@@ -160,6 +213,10 @@ const triggerConfigSchema = z.object({
   direction: z.string().optional(),
   days: z.number().min(1).max(365).optional(),
   days_before: z.number().min(1).max(365).optional(),
+  document_status: z.string().optional(),
+  event_type_id: z.string().uuid().optional(),
+  booking_status: z.string().optional(),
+  cancelled_by: z.string().optional(),
 });
 
 // Create automation schema

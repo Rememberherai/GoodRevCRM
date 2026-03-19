@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug, Plug2, KeyRound, Clock } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug, Plug2, KeyRound, Clock, Package } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,7 @@ import { McpSettingsPanel } from '@/components/settings/mcp-settings-panel';
 import { ApiConnectionsPanel } from '@/components/settings/api-connections-panel';
 import { ProjectSecretsPanel } from '@/components/settings/project-secrets-panel';
 import { SchedulerPanel } from '@/components/settings/scheduler-panel';
+import { ProductsCatalogPanel } from '@/components/settings/products-catalog-panel';
 import type { ProjectRole } from '@/types/user';
 
 
@@ -69,6 +70,10 @@ interface MemberWithUser {
   last_active_at?: string | null;
 }
 
+type MemberApiRecord = MemberWithUser & {
+  joined_at?: string | null;
+};
+
 export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps) {
   const { slug } = use(params);
   const [isLoading, setIsLoading] = useState(false);
@@ -88,7 +93,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
       if (!res.ok) return;
       const data = await res.json();
       // Map joined_at from API to created_at expected by MemberList
-      const mapped = (data.members ?? []).map((m: any) => ({
+      const mapped = ((data.members ?? []) as MemberApiRecord[]).map((m) => ({
         ...m,
         created_at: m.joined_at ?? m.created_at,
       }));
@@ -282,6 +287,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             <Clock className="h-4 w-4" />
             Scheduler
           </TabsTrigger>
+          <TabsTrigger value="products" className="gap-2">
+            <Package className="h-4 w-4" />
+            Products
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="general" className="space-y-6 mt-6">
@@ -371,44 +380,46 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             </CardContent>
           </Card>
 
-          <Card className="border-destructive">
-            <CardHeader>
-              <CardTitle className="text-destructive">Danger Zone</CardTitle>
-              <CardDescription>
-                Irreversible actions for your project
-              </CardDescription>
-            </CardHeader>
-            <CardContent>
-              <AlertDialog>
-                <AlertDialogTrigger asChild>
-                  <Button variant="destructive" disabled={isDeleting}>
-                    {isDeleting ? (
-                      <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                    ) : (
-                      <Trash2 className="mr-2 h-4 w-4" />
-                    )}
-                    Delete Project
-                  </Button>
-                </AlertDialogTrigger>
-                <AlertDialogContent>
-                  <AlertDialogHeader>
-                    <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
-                    <AlertDialogDescription>
-                      This action cannot be undone. This will permanently delete your
-                      project and all associated data including organizations, people,
-                      opportunities, and RFPs.
-                    </AlertDialogDescription>
-                  </AlertDialogHeader>
-                  <AlertDialogFooter>
-                    <AlertDialogCancel>Cancel</AlertDialogCancel>
-                    <AlertDialogAction onClick={handleDelete} className="bg-destructive text-white hover:bg-destructive/90">
+          {currentUserRole === 'owner' && (
+            <Card className="border-destructive">
+              <CardHeader>
+                <CardTitle className="text-destructive">Danger Zone</CardTitle>
+                <CardDescription>
+                  Irreversible actions for your project
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <AlertDialog>
+                  <AlertDialogTrigger asChild>
+                    <Button variant="destructive" disabled={isDeleting}>
+                      {isDeleting ? (
+                        <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                      ) : (
+                        <Trash2 className="mr-2 h-4 w-4" />
+                      )}
                       Delete Project
-                    </AlertDialogAction>
-                  </AlertDialogFooter>
-                </AlertDialogContent>
-              </AlertDialog>
-            </CardContent>
-          </Card>
+                    </Button>
+                  </AlertDialogTrigger>
+                  <AlertDialogContent>
+                    <AlertDialogHeader>
+                      <AlertDialogTitle>Are you absolutely sure?</AlertDialogTitle>
+                      <AlertDialogDescription>
+                        This action cannot be undone. This will permanently delete your
+                        project and all associated data including organizations, people,
+                        opportunities, and RFPs.
+                      </AlertDialogDescription>
+                    </AlertDialogHeader>
+                    <AlertDialogFooter>
+                      <AlertDialogCancel>Cancel</AlertDialogCancel>
+                      <AlertDialogAction onClick={handleDelete} className="bg-destructive text-white hover:bg-destructive/90">
+                        Delete Project
+                      </AlertDialogAction>
+                    </AlertDialogFooter>
+                  </AlertDialogContent>
+                </AlertDialog>
+              </CardContent>
+            </Card>
+          )}
         </TabsContent>
 
         <TabsContent value="members" className="space-y-6 mt-6">
@@ -482,6 +493,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
 
         <TabsContent value="scheduler" className="space-y-6 mt-6">
           <SchedulerPanel slug={slug} />
+        </TabsContent>
+
+        <TabsContent value="products" className="space-y-6 mt-6">
+          <ProductsCatalogPanel slug={slug} currentUserRole={currentUserRole} />
         </TabsContent>
 
       </Tabs>

@@ -9741,6 +9741,10 @@ export type Database = {
           subject: string
         }[]
       }
+      replace_quote_line_items: {
+        Args: { p_items?: Json; p_project_id: string; p_quote_id: string }
+        Returns: undefined
+      }
       scheduler_create_job: {
         Args: {
           p_body?: Json

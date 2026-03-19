@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import {
@@ -47,6 +47,8 @@ import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-sec
 import { SendEmailModal } from '@/components/gmail';
 import { EntityCommentsFeed } from '@/components/comments';
 import { CreateInvoiceButton } from '@/components/accounting/create-invoice-button';
+import { QuoteList } from '@/components/quotes/quote-list';
+import { useQuotes } from '@/hooks/use-quotes';
 
 interface OpportunityDetailClientProps {
   opportunityId: string;
@@ -81,9 +83,34 @@ export function OpportunityDetailClient({ opportunityId, currentUserId }: Opport
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showSendEmail, setShowSendEmail] = useState(false);
+  const [quotesEnabled, setQuotesEnabled] = useState(false);
 
   const { opportunity, isLoading, error, refresh } = useOpportunity(opportunityId);
+  const quotesHook = useQuotes(opportunityId, { enabled: quotesEnabled });
   const removeOpportunity = useOpportunityStore((s) => s.removeOpportunity);
+
+  useEffect(() => {
+    let cancelled = false;
+
+    const loadQuotesEnabled = async () => {
+      try {
+        const res = await fetch(`/api/projects/${slug}`);
+        if (!res.ok || cancelled) return;
+        const data = await res.json();
+        if (!cancelled) {
+          setQuotesEnabled(data.project?.settings?.quotes_enabled ?? false);
+        }
+      } catch {
+        // Ignore settings fetch failures and leave quotes disabled.
+      }
+    };
+
+    void loadQuotesEnabled();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [slug]);
 
   const handleDelete = async () => {
     setIsDeleting(true);
@@ -223,6 +250,12 @@ export function OpportunityDetailClient({ opportunityId, currentUserId }: Opport
             <MessageSquare className="h-4 w-4" />
             Comments
           </TabsTrigger>
+          {quotesEnabled && (
+            <TabsTrigger value="quotes" className="gap-2">
+              <FileText className="h-4 w-4" />
+              Quotes
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Info Tab */}
@@ -526,6 +559,31 @@ export function OpportunityDetailClient({ opportunityId, currentUserId }: Opport
             currentUserId={currentUserId ?? ''}
           />
         </TabsContent>
+
+        {/* Quotes Tab */}
+        {quotesEnabled && (
+          <TabsContent value="quotes" className="space-y-6">
+            <QuoteList
+              opportunityStage={opportunity.stage}
+              quotes={quotesHook.quotes}
+              isLoading={quotesHook.isLoading}
+              error={quotesHook.error}
+              create={quotesHook.create}
+              update={quotesHook.update}
+              remove={quotesHook.remove}
+              accept={quotesHook.accept}
+              reject={quotesHook.reject}
+              setPrimary={quotesHook.setPrimary}
+              getQuote={quotesHook.getQuote}
+              addLineItem={quotesHook.addLineItem}
+              updateLineItem={quotesHook.updateLineItem}
+              deleteLineItem={quotesHook.deleteLineItem}
+              reload={async () => {
+                await Promise.all([quotesHook.reload(), refresh()]);
+              }}
+            />
+          </TabsContent>
+        )}
       </Tabs>
 
       <SendEmailModal

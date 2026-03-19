@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { updateProjectSchema } from '@/lib/validators/project';
+import { ProjectAccessError, requireProjectRole } from '@/lib/projects/permissions';
 import type { Database } from '@/types/database';
 
 type ProjectUpdate = Database['public']['Tables']['projects']['Update'];
@@ -35,8 +36,13 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    await requireProjectRole(supabase, user.id, project.id, 'viewer');
+
     return NextResponse.json({ project: project as Project });
   } catch (error) {
+    if (error instanceof ProjectAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Error in GET /api/projects/[slug]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -55,6 +61,19 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
+
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('slug', slug)
+      .is('deleted_at', null)
+      .single();
+
+    if (projectError || !project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    await requireProjectRole(supabase, user.id, project.id, 'member');
 
     const body = await request.json();
     const validationResult = updateProjectSchema.safeParse(body);
@@ -81,7 +100,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       const { data: currentProject } = await supabase
         .from('projects')
         .select('settings')
-        .eq('slug', slug)
+        .eq('id', project.id)
         .is('deleted_at', null)
         .single();
 
@@ -92,10 +111,10 @@ export async function PATCH(request: Request, context: RouteContext) {
       } as Database['public']['Tables']['projects']['Row']['settings'];
     }
 
-    const { data: project, error } = await supabase
+    const { data: updatedProject, error } = await supabase
       .from('projects')
       .update(updateData)
-      .eq('slug', slug)
+      .eq('id', project.id)
       .is('deleted_at', null)
       .select()
       .single();
@@ -114,8 +133,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to update project' }, { status: 500 });
     }
 
-    return NextResponse.json({ project: project as Project });
+    return NextResponse.json({ project: updatedProject as Project });
   } catch (error) {
+    if (error instanceof ProjectAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Error in PATCH /api/projects/[slug]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -135,11 +157,24 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
+    const { data: project, error: projectError } = await supabase
+      .from('projects')
+      .select('id')
+      .eq('slug', slug)
+      .is('deleted_at', null)
+      .single();
+
+    if (projectError || !project) {
+      return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    }
+
+    await requireProjectRole(supabase, user.id, project.id, 'owner');
+
     // Soft delete by setting deleted_at
     const { error } = await supabase
       .from('projects')
       .update({ deleted_at: new Date().toISOString() } as ProjectUpdate)
-      .eq('slug', slug)
+      .eq('id', project.id)
       .is('deleted_at', null);
 
     if (error) {
@@ -149,6 +184,9 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof ProjectAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Error in DELETE /api/projects/[slug]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

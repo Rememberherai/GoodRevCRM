@@ -2,6 +2,25 @@ import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { checkPermission } from '@/lib/mcp/auth';
 import { emitAutomationEvent } from '@/lib/automations/engine';
+import {
+  acceptQuote,
+  addLineItem as addQuoteLineItemService,
+  createQuote as createQuoteService,
+  deleteLineItem as deleteQuoteLineItemService,
+  deleteQuote as deleteQuoteService,
+  getQuote as getQuoteService,
+  listQuotes as listQuotesService,
+  rejectQuote,
+  setPrimaryQuote,
+  updateLineItem as updateQuoteLineItemService,
+  updateQuote as updateQuoteService,
+} from '@/lib/quotes/service';
+import type {
+  CreateQuoteInput,
+  LineItemInput,
+  UpdateLineItemInput,
+  UpdateQuoteInput,
+} from '@/lib/validators/quote';
 import { sendBookingCancellation } from '@/lib/calendar/notifications';
 import { removeBookingFromCalendar } from '@/lib/calendar/sync';
 import { syncBookingStatusToMeeting } from '@/lib/calendar/crm-bridge';
@@ -5567,6 +5586,385 @@ defineTool({
       .single();
     if (error) throw new Error(`Failed: ${error.message}`);
     return JSON.stringify(data);
+  },
+});
+
+// ── Product Tools ──────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'products.list',
+  description: 'List products in the catalog with search and filtering',
+  minRole: 'viewer',
+  parameters: z.object({
+    search: z.string().optional().describe('Search by name or SKU'),
+    is_active: z.boolean().optional().describe('Filter by active status'),
+    page: z.number().int().min(1).default(1).describe('Page number'),
+    limit: z.number().int().min(1).max(100).default(50).describe('Items per page'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'viewer');
+    let query = ctx.supabase
+      .from('products')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .order('name');
+    if (params.is_active !== undefined) query = query.eq('is_active', params.is_active as boolean);
+    if (params.search) query = query.or(`name.ilike.%${params.search}%,sku.ilike.%${params.search}%`);
+    const pg = params.page as number || 1;
+    const lim = params.limit as number || 50;
+    query = query.range((pg - 1) * lim, pg * lim - 1);
+    const { data, error, count } = await query;
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify({ products: data, total: count, page: pg, limit: lim });
+  },
+});
+
+defineTool({
+  name: 'products.get',
+  description: 'Get a single product by ID',
+  minRole: 'viewer',
+  parameters: z.object({
+    product_id: z.string().uuid().describe('Product ID'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'viewer');
+    const { data, error } = await ctx.supabase
+      .from('products')
+      .select('*')
+      .eq('id', params.product_id as string)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .single();
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'products.create',
+  description: 'Create a new product in the catalog',
+  minRole: 'member',
+  parameters: z.object({
+    name: z.string().max(200).describe('Product name'),
+    description: z.string().max(2000).optional().describe('Product description'),
+    sku: z.string().max(50).optional().describe('SKU identifier'),
+    default_price: z.number().min(0).optional().describe('Default price'),
+    unit_type: z.string().max(50).optional().describe('Unit type (unit, hour, month, license, seat)'),
+    is_active: z.boolean().optional().describe('Whether product is active'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'member');
+    const { data, error } = await ctx.supabase
+      .from('products')
+      .insert({
+        name: params.name as string,
+        description: (params.description as string) || null,
+        sku: (params.sku as string) || null,
+        default_price: params.default_price != null ? (params.default_price as number) : null,
+        unit_type: (params.unit_type as string) || 'unit',
+        is_active: params.is_active != null ? (params.is_active as boolean) : true,
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(`Failed: ${error.message}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.created',
+      entityType: 'product',
+      entityId: data.id,
+      data: data as unknown as Record<string, unknown>,
+    });
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'products.update',
+  description: 'Update an existing product',
+  minRole: 'member',
+  parameters: z.object({
+    product_id: z.string().uuid().describe('Product ID'),
+    name: z.string().max(200).optional().describe('Product name'),
+    description: z.string().max(2000).optional().describe('Product description'),
+    sku: z.string().max(50).optional().describe('SKU identifier'),
+    default_price: z.number().min(0).optional().describe('Default price'),
+    unit_type: z.string().max(50).optional().describe('Unit type'),
+    is_active: z.boolean().optional().describe('Whether product is active'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'member');
+    const { product_id, ...updates } = params;
+    const { data, error } = await ctx.supabase
+      .from('products')
+      .update(updates)
+      .eq('id', product_id as string)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed: ${error.message}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'product',
+      entityId: data.id,
+      data: data as unknown as Record<string, unknown>,
+    });
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'products.delete',
+  description: 'Soft-delete a product from the catalog',
+  minRole: 'member',
+  parameters: z.object({
+    product_id: z.string().uuid().describe('Product ID'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'member');
+    const { error } = await ctx.supabase
+      .from('products')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', params.product_id as string)
+      .eq('project_id', ctx.projectId);
+    if (error) throw new Error(`Failed: ${error.message}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.deleted',
+      entityType: 'product',
+      entityId: params.product_id as string,
+      data: {},
+    });
+    return JSON.stringify({ success: true });
+  },
+});
+
+// ── Quote Tools ────────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'quotes.list',
+  description: 'List quotes for an opportunity',
+  minRole: 'viewer',
+  parameters: z.object({
+    opportunity_id: z.string().uuid().describe('Opportunity ID'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'viewer');
+    const quotes = await listQuotesService(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      params.opportunity_id as string
+    );
+    return JSON.stringify({ quotes });
+  },
+});
+
+defineTool({
+  name: 'quotes.get',
+  description: 'Get a quote with its line items',
+  minRole: 'viewer',
+  parameters: z.object({
+    quote_id: z.string().uuid().describe('Quote ID'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'viewer');
+    const quote = await getQuoteService(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      params.quote_id as string
+    );
+    return JSON.stringify(quote);
+  },
+});
+
+defineTool({
+  name: 'quotes.create',
+  description: 'Create a new quote on an opportunity',
+  minRole: 'member',
+  parameters: z.object({
+    opportunity_id: z.string().uuid().describe('Opportunity ID'),
+    title: z.string().max(200).describe('Quote title'),
+    quote_number: z.string().max(50).optional().describe('User-facing quote number'),
+    valid_until: z.string().optional().describe('Expiration date (YYYY-MM-DD)'),
+    notes: z.string().max(5000).optional().describe('Notes'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'member');
+    const { opportunity_id, ...data } = params;
+    const quote = await createQuoteService(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      opportunity_id as string,
+      data as CreateQuoteInput
+    );
+    return JSON.stringify(quote);
+  },
+});
+
+defineTool({
+  name: 'quotes.update',
+  description: 'Update a quote (title, quote_number, valid_until, notes)',
+  minRole: 'member',
+  parameters: z.object({
+    quote_id: z.string().uuid().describe('Quote ID'),
+    title: z.string().max(200).optional().describe('Quote title'),
+    quote_number: z.string().max(50).optional().describe('Quote number'),
+    valid_until: z.string().optional().describe('Expiration date (YYYY-MM-DD)'),
+    notes: z.string().max(5000).optional().describe('Notes'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'member');
+    const { quote_id, ...updates } = params;
+    const quote = await updateQuoteService(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      quote_id as string,
+      updates as UpdateQuoteInput
+    );
+    return JSON.stringify(quote);
+  },
+});
+
+defineTool({
+  name: 'quotes.delete',
+  description: 'Soft-delete a quote',
+  minRole: 'member',
+  parameters: z.object({
+    quote_id: z.string().uuid().describe('Quote ID'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'member');
+    await deleteQuoteService(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      params.quote_id as string
+    );
+    return JSON.stringify({ success: true });
+  },
+});
+
+defineTool({
+  name: 'quotes.accept',
+  description: 'Accept a quote (auto-rejects previously accepted, sets as primary). Optionally sync amount to opportunity.',
+  minRole: 'member',
+  parameters: z.object({
+    quote_id: z.string().uuid().describe('Quote ID'),
+    sync_amount: z.boolean().optional().describe('Update opportunity amount to match quote total'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'member');
+    const result = await acceptQuote(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      params.quote_id as string,
+      { sync_amount: (params.sync_amount as boolean) || false },
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'quotes.reject',
+  description: 'Reject a quote',
+  minRole: 'member',
+  parameters: z.object({
+    quote_id: z.string().uuid().describe('Quote ID'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'member');
+    const result = await rejectQuote(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      params.quote_id as string,
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'quotes.set_primary',
+  description: 'Set a quote as the primary quote for its opportunity',
+  minRole: 'member',
+  parameters: z.object({
+    quote_id: z.string().uuid().describe('Quote ID'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'member');
+    const result = await setPrimaryQuote(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      params.quote_id as string,
+    );
+    return JSON.stringify(result);
+  },
+});
+
+defineTool({
+  name: 'quotes.add_line_item',
+  description: 'Add a line item to a quote',
+  minRole: 'member',
+  parameters: z.object({
+    quote_id: z.string().uuid().describe('Quote ID'),
+    product_id: z.string().uuid().optional().describe('Product ID from catalog'),
+    name: z.string().max(200).describe('Line item name'),
+    description: z.string().max(2000).optional().describe('Line item description'),
+    quantity: z.number().min(0.01).max(999999).default(1).describe('Quantity'),
+    unit_price: z.number().min(0).describe('Unit price'),
+    discount_percent: z.number().min(0).max(100).default(0).describe('Discount percentage'),
+    sort_order: z.number().int().optional().describe('Sort order'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'member');
+    const { quote_id, ...data } = params;
+    const lineItem = await addQuoteLineItemService(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      quote_id as string,
+      data as LineItemInput
+    );
+    return JSON.stringify(lineItem);
+  },
+});
+
+defineTool({
+  name: 'quotes.update_line_item',
+  description: 'Update a line item on a quote',
+  minRole: 'member',
+  parameters: z.object({
+    quote_id: z.string().uuid().describe('Quote ID'),
+    item_id: z.string().uuid().describe('Line item ID'),
+    product_id: z.string().uuid().nullable().optional().describe('Product ID from catalog'),
+    name: z.string().max(200).optional().describe('Line item name'),
+    description: z.string().max(2000).nullable().optional().describe('Line item description'),
+    quantity: z.number().min(0.01).max(999999).optional().describe('Quantity'),
+    unit_price: z.number().min(0).optional().describe('Unit price'),
+    discount_percent: z.number().min(0).max(100).optional().describe('Discount percentage'),
+    sort_order: z.number().int().optional().describe('Sort order'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'member');
+    const { quote_id, item_id, ...updates } = params;
+    const lineItem = await updateQuoteLineItemService(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      quote_id as string,
+      item_id as string,
+      updates as UpdateLineItemInput
+    );
+    return JSON.stringify(lineItem);
+  },
+});
+
+defineTool({
+  name: 'quotes.remove_line_item',
+  description: 'Remove a line item from a quote',
+  minRole: 'member',
+  parameters: z.object({
+    quote_id: z.string().uuid().describe('Quote ID'),
+    item_id: z.string().uuid().describe('Line item ID'),
+  }),
+  handler: async (params, ctx) => {
+    checkPermission(ctx.role, 'member');
+    await deleteQuoteLineItemService(
+      { supabase: ctx.supabase, projectId: ctx.projectId, userId: ctx.userId },
+      params.quote_id as string,
+      params.item_id as string
+    );
+    return JSON.stringify({ success: true });
   },
 });
 

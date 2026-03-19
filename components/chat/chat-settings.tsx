@@ -109,6 +109,8 @@ export function ChatSettings({ onBack }: ChatSettingsProps) {
             <ToolGroup name="RFP Stats" tools={['stats']} />
             <ToolGroup name="Workflows" tools={['list', 'get', 'create', 'update', 'delete', 'activate', 'execute', 'executions', 'validate']} />
             <ToolGroup name="Contracts" tools={['list', 'get', 'create', 'void', 'add_recipient', 'add_field', 'audit_trail', 'templates_list']} />
+            <ToolGroup name="Products" tools={['list', 'get', 'create', 'update', 'delete']} />
+            <ToolGroup name="Quotes" tools={['list', 'get', 'create', 'update', 'delete', 'accept', 'reject', 'set_primary', 'add_line_item', 'update_line_item', 'remove_line_item']} />
             <ToolGroup name="Accounting" tools={['list_invoices', 'get_invoice', 'list_bills', 'list_accounts', 'list_journal_entries', 'list_recurring', 'record_payment']} />
             <ToolGroup name="Calendar" tools={['list_event_types', 'get_event_type', 'create_event_type', 'update_event_type', 'delete_event_type', 'list_bookings', 'get_booking', 'cancel_booking', 'update_profile', 'get_booking_link', 'list_availability_schedules', 'update_availability', 'list_event_type_members', 'add_event_type_member', 'remove_event_type_member', 'get_round_robin_stats']} />
           </div>
