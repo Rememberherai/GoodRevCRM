@@ -309,10 +309,10 @@ export async function confirmBooking(
 ): Promise<{ success: boolean; error?: string }> {
   const supabase = createServiceClient();
 
-  // Load and verify booking
+  // Load and verify booking with event type for scheduling_type
   const { data: booking, error: loadError } = await supabase
     .from('bookings')
-    .select('id, status, host_user_id, project_id')
+    .select('id, status, host_user_id, project_id, event_type_id, event_types(scheduling_type)')
     .eq('id', bookingId)
     .single();
 
@@ -358,9 +358,25 @@ export async function confirmBooking(
   );
 
   // Push to Google Calendar (fire-and-forget)
-  pushBookingToCalendar(bookingId).catch((e: unknown) =>
-    console.error('Failed to push booking to Google Calendar:', e)
-  );
+  const schedulingType = (booking.event_types as { scheduling_type: string | null } | null)?.scheduling_type;
+  if (schedulingType === 'collective') {
+    // Load team members and push to all their calendars
+    const { data: members } = await supabase
+      .from('event_type_members')
+      .select('user_id')
+      .eq('event_type_id', booking.event_type_id)
+      .eq('is_active', true);
+    const memberIds = members && members.length > 0
+      ? members.map((m) => m.user_id)
+      : [booking.host_user_id];
+    pushBookingToTeamCalendars(bookingId, memberIds).catch((e: unknown) =>
+      console.error('Failed to push booking to team calendars:', e)
+    );
+  } else {
+    pushBookingToCalendar(bookingId).catch((e: unknown) =>
+      console.error('Failed to push booking to Google Calendar:', e)
+    );
+  }
 
   return { success: true };
 }

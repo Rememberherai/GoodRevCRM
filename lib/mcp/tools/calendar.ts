@@ -134,6 +134,8 @@ export function registerCalendarTools(server: McpServer, getContext: () => McpCo
       min_notice_hours: z.number().int().min(0).optional().describe('Min notice hours'),
       max_days_in_advance: z.number().int().min(1).optional().describe('Max days in advance'),
       requires_confirmation: z.boolean().optional().describe('Require host confirmation'),
+      scheduling_type: z.enum(['one_on_one', 'group', 'round_robin', 'collective']).optional().describe('Scheduling type'),
+      max_attendees: z.number().int().min(1).max(100).optional().describe('Max attendees for group events'),
     },
     async (params) => {
       const ctx = getContext();
@@ -404,14 +406,7 @@ export function registerCalendarTools(server: McpServer, getContext: () => McpCo
       const ctx = getContext();
       checkPermission(ctx.role, 'viewer');
 
-      const { data, error } = await ctx.supabase
-        .from('event_type_members')
-        .select('*, users(id, display_name, email)')
-        .eq('event_type_id', params.event_type_id);
-
-      if (error) throw new Error(`Failed to list event type members: ${error.message}`);
-
-      // Verify the event type belongs to this project
+      // Verify the event type belongs to this project FIRST
       const { error: etError } = await ctx.supabase
         .from('event_types')
         .select('id')
@@ -420,6 +415,13 @@ export function registerCalendarTools(server: McpServer, getContext: () => McpCo
         .single();
 
       if (etError) throw new Error(`Event type not found: ${etError.message}`);
+
+      const { data, error } = await ctx.supabase
+        .from('event_type_members')
+        .select('*, users(id, full_name, email)')
+        .eq('event_type_id', params.event_type_id);
+
+      if (error) throw new Error(`Failed to list event type members: ${error.message}`);
 
       return { content: [{ type: 'text' as const, text: JSON.stringify({ members: data }) }] };
     }
@@ -448,6 +450,16 @@ export function registerCalendarTools(server: McpServer, getContext: () => McpCo
 
       if (etError) throw new Error(`Event type not found: ${etError.message}`);
 
+      // Verify user is a project member
+      const { error: membershipError } = await ctx.supabase
+        .from('project_memberships')
+        .select('id')
+        .eq('project_id', ctx.projectId)
+        .eq('user_id', params.user_id)
+        .single();
+
+      if (membershipError) throw new Error('User is not a member of this project');
+
       const { data, error } = await ctx.supabase
         .from('event_type_members')
         .insert({
@@ -455,7 +467,7 @@ export function registerCalendarTools(server: McpServer, getContext: () => McpCo
           user_id: params.user_id,
           priority: params.priority,
         })
-        .select('*, users(id, display_name, email)')
+        .select('*, users(id, full_name, email)')
         .single();
 
       if (error) throw new Error(`Failed to add member: ${error.message}`);
@@ -523,9 +535,12 @@ export function registerCalendarTools(server: McpServer, getContext: () => McpCo
         .from('round_robin_state')
         .select('*')
         .eq('event_type_id', params.event_type_id)
-        .single();
+        .maybeSingle();
 
-      if (error) throw new Error(`Round robin stats not found: ${error.message}`);
+      if (error) throw new Error(`Failed to fetch round robin stats: ${error.message}`);
+      if (!data) {
+        return { content: [{ type: 'text' as const, text: JSON.stringify({ assignment_count: {}, last_assigned_user_id: null, message: 'No bookings have been made for this event type yet' }) }] };
+      }
 
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }

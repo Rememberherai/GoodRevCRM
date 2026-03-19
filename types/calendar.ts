@@ -263,7 +263,7 @@ export interface EventTypeMember {
 export interface EventTypeMemberWithUser extends EventTypeMember {
   user: {
     id: string;
-    display_name: string;
+    full_name: string;
     email: string;
     avatar_url: string | null;
   };

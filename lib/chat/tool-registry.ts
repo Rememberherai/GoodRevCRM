@@ -5380,7 +5380,7 @@ defineTool({
     if (etError) throw new Error(`Event type not found: ${etError.message}`);
     const { data, error } = await ctx.supabase
       .from('event_type_members')
-      .select('*, users(id, display_name, email)')
+      .select('*, users(id, full_name, email)')
       .eq('event_type_id', event_type_id);
     if (error) throw new Error(`Failed: ${error.message}`);
     return JSON.stringify({ members: data });
@@ -5406,10 +5406,18 @@ defineTool({
       .eq('project_id', ctx.projectId)
       .single();
     if (etError) throw new Error(`Event type not found: ${etError.message}`);
+    // Verify user is a project member
+    const { error: membershipError } = await ctx.supabase
+      .from('project_memberships')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('user_id', user_id)
+      .single();
+    if (membershipError) throw new Error('User is not a member of this project');
     const { data, error } = await ctx.supabase
       .from('event_type_members')
       .insert({ event_type_id, user_id, priority })
-      .select('*, users(id, display_name, email)')
+      .select('*, users(id, full_name, email)')
       .single();
     if (error) throw new Error(`Failed: ${error.message}`);
     return JSON.stringify(data);
@@ -5465,8 +5473,9 @@ defineTool({
       .from('round_robin_state')
       .select('*')
       .eq('event_type_id', event_type_id)
-      .single();
+      .maybeSingle();
     if (error) throw new Error(`Failed: ${error.message}`);
+    if (!data) return JSON.stringify({ assignment_count: {}, last_assigned_user_id: null, message: 'No bookings have been made yet' });
     return JSON.stringify(data);
   },
 });

@@ -228,16 +228,16 @@ export async function pushBookingToCalendar(bookingId: string): Promise<string |
   const eventType = booking.event_types as { title: string; user_id: string } | null;
   if (!eventType) return null;
 
-  // Find the user's connected calendar integration
+  // Push to the booking's host (= assigned member for round-robin, owner for 1:1)
   const { data: integration } = await supabase
     .from('calendar_integrations')
     .select('id, calendar_id')
-    .eq('user_id', eventType.user_id)
+    .eq('user_id', booking.host_user_id)
     .eq('status', 'connected')
     .eq('push_enabled', true)
     .order('is_primary', { ascending: false })
     .limit(1)
-    .single();
+    .maybeSingle();
 
   if (!integration) return null; // No connected calendar — skip silently
 
@@ -263,7 +263,7 @@ export async function pushBookingToCalendar(bookingId: string): Promise<string |
     await supabase.from('synced_events').upsert(
       {
         integration_id: integration.id,
-        user_id: eventType.user_id,
+        user_id: booking.host_user_id,
         external_id: calEvent.id,
         title: `${eventType.title} with ${booking.invitee_name}`,
         start_at: booking.start_at,
@@ -284,43 +284,47 @@ export async function pushBookingToCalendar(bookingId: string): Promise<string |
 }
 
 /**
- * Delete a booking's event from Google Calendar (on cancellation).
- * Looks up the external event ID from synced_events via the booking reference.
+ * Delete a booking's event(s) from Google Calendar (on cancellation).
+ * Handles both single-host and team bookings (multiple synced_events rows).
  */
 export async function removeBookingFromCalendar(bookingId: string): Promise<void> {
   const supabase = createServiceClient();
 
-  // Look up the synced_events row that was created when the booking was pushed
-  const { data: syncedEvent } = await supabase
+  // Look up ALL synced_events rows for this booking (team bookings have one per member)
+  const { data: syncedEvents } = await supabase
     .from('synced_events')
-    .select('external_id, integration_id')
-    .eq('source_calendar', `booking:${bookingId}`)
-    .single();
+    .select('id, external_id, integration_id')
+    .eq('source_calendar', `booking:${bookingId}`);
 
-  if (!syncedEvent) return; // Booking was never pushed to calendar — nothing to remove
+  if (!syncedEvents || syncedEvents.length === 0) return; // Never pushed — nothing to remove
 
-  const { data: integration } = await supabase
-    .from('calendar_integrations')
-    .select('id, calendar_id')
-    .eq('id', syncedEvent.integration_id)
-    .eq('status', 'connected')
-    .single();
+  // Remove each calendar event in parallel (fire-and-forget per member)
+  const removals = syncedEvents.map(async (syncedEvent) => {
+    try {
+      const { data: integration } = await supabase
+        .from('calendar_integrations')
+        .select('id, calendar_id')
+        .eq('id', syncedEvent.integration_id)
+        .eq('status', 'connected')
+        .maybeSingle();
 
-  if (!integration) return;
+      if (!integration) return;
 
-  try {
-    const accessToken = await ensureFreshToken(integration.id);
-    const calendarId = integration.calendar_id || 'primary';
-    await deleteEvent(accessToken, calendarId, syncedEvent.external_id);
+      const accessToken = await ensureFreshToken(integration.id);
+      const calendarId = integration.calendar_id || 'primary';
+      await deleteEvent(accessToken, calendarId, syncedEvent.external_id);
+    } catch (err) {
+      console.error(`Failed to remove calendar event ${syncedEvent.external_id}:`, err);
+    }
+  });
 
-    // Clean up the tracking row
-    await supabase
-      .from('synced_events')
-      .delete()
-      .eq('source_calendar', `booking:${bookingId}`);
-  } catch (err) {
-    console.error('Failed to remove booking from calendar:', err);
-  }
+  await Promise.allSettled(removals);
+
+  // Clean up all tracking rows
+  await supabase
+    .from('synced_events')
+    .delete()
+    .eq('source_calendar', `booking:${bookingId}`);
 }
 
 /**
@@ -349,7 +353,8 @@ export async function pushBookingToTeamCalendars(
   const eventType = booking.event_types as { title: string } | null;
   if (!eventType) return;
 
-  for (const userId of memberUserIds) {
+  // Push to all members in parallel (fire-and-forget per member)
+  const pushes = memberUserIds.map(async (userId) => {
     // Find each member's connected calendar integration
     const { data: integration } = await supabase
       .from('calendar_integrations')
@@ -359,9 +364,9 @@ export async function pushBookingToTeamCalendars(
       .eq('push_enabled', true)
       .order('is_primary', { ascending: false })
       .limit(1)
-      .single();
+      .maybeSingle();
 
-    if (!integration) continue; // Member has no connected calendar
+    if (!integration) return; // Member has no connected calendar
 
     try {
       const accessToken = await ensureFreshToken(integration.id);
@@ -399,5 +404,7 @@ export async function pushBookingToTeamCalendars(
     } catch (err) {
       console.error(`Failed to push booking to calendar for user ${userId}:`, err);
     }
-  }
+  });
+
+  await Promise.allSettled(pushes);
 }

@@ -293,11 +293,16 @@ export async function getAvailableSlots(config: SlotConfig): Promise<AvailableDa
         // Check overlap based on scheduling type
         let slotAvailable: boolean;
 
-        if (schedulingType === 'round_robin') {
-          // At least one member must be free
+        if (schedulingType === 'round_robin' && memberWindowSets) {
+          // At least one member must be free AND within their own availability window
           slotAvailable = false;
-          for (const userData of userDataMap.values()) {
-            if (!hasOverlap(blockStart, blockEnd, userData.bookings, userData.syncedEvents)) {
+          for (const [userId, userData] of userDataMap) {
+            // Check the member's own availability windows for this day
+            const memberWindows = memberWindowSets.get(userId) || [];
+            const slotInWindow = memberWindows.some(
+              (w) => slotStartMin >= w.start && slotStartMin + duration <= w.end
+            );
+            if (slotInWindow && !hasOverlap(blockStart, blockEnd, userData.bookings, userData.syncedEvents)) {
               slotAvailable = true;
               break;
             }
@@ -400,9 +405,10 @@ function intersectWindows(a: TimeWindow[], b: TimeWindow[]): TimeWindow[] {
     if (start < end) {
       result.push({ start, end });
     }
-    // Advance the window that ends first
+    // Advance the window that ends first; advance both if equal
     if (aWindow.end < bWindow.end) i++;
-    else j++;
+    else if (aWindow.end > bWindow.end) j++;
+    else { i++; j++; }
   }
   return result;
 }
