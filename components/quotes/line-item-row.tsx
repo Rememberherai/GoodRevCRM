@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useRef, useEffect } from 'react';
 import { Trash2, GripVertical } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -23,10 +23,22 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
   const [unitPrice, setUnitPrice] = useState(String(item.unit_price));
   const [discountPercent, setDiscountPercent] = useState(String(item.discount_percent));
   const [isDeleting, setIsDeleting] = useState(false);
+  const focusedRef = useRef(false);
+
+  // Sync from server props when not actively editing
+  useEffect(() => {
+    if (focusedRef.current) return;
+    setName(item.name);
+    setQuantity(String(item.quantity));
+    setUnitPrice(String(item.unit_price));
+    setDiscountPercent(String(item.discount_percent));
+  }, [item.name, item.quantity, item.unit_price, item.discount_percent]);
 
   const lineTotal = Number(quantity) * Number(unitPrice) * (1 - Number(discountPercent) / 100);
 
+  const handleFocus = () => { focusedRef.current = true; };
   const handleBlur = () => {
+    focusedRef.current = false;
     const changes: Record<string, unknown> = {};
     if (name !== item.name) changes.name = name;
     if (Number(quantity) !== Number(item.quantity)) changes.quantity = Number(quantity);
@@ -81,6 +93,7 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
           <Input
             value={name}
             onChange={(e) => setName(e.target.value)}
+            onFocus={handleFocus}
             onBlur={handleBlur}
             disabled={disabled}
             placeholder="Item name"
@@ -95,6 +108,7 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
           step="0.01"
           value={quantity}
           onChange={(e) => setQuantity(e.target.value)}
+          onFocus={handleFocus}
           onBlur={handleBlur}
           disabled={disabled}
           className="h-8 text-sm"
@@ -107,6 +121,7 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
           step="0.01"
           value={unitPrice}
           onChange={(e) => setUnitPrice(e.target.value)}
+          onFocus={handleFocus}
           onBlur={handleBlur}
           disabled={disabled}
           className="h-8 text-sm"
@@ -120,6 +135,7 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
           step="0.01"
           value={discountPercent}
           onChange={(e) => setDiscountPercent(e.target.value)}
+          onFocus={handleFocus}
           onBlur={handleBlur}
           disabled={disabled}
           className="h-8 text-sm"

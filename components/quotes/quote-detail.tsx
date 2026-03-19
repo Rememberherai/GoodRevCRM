@@ -105,16 +105,22 @@ export function QuoteDetail({
   };
 
   const handleAddLineItem = async () => {
-    await handleAction('add item', () =>
-      addLineItem(quoteId, { name: 'New item', quantity: 1, unit_price: 0, discount_percent: 0 })
-    );
+    setActionLoading('add item');
+    try {
+      await addLineItem(quoteId, { name: 'Untitled item', quantity: 1, unit_price: 0, discount_percent: 0 });
+      await loadQuote();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add line item');
+    } finally {
+      setActionLoading(null);
+    }
   };
 
   const handleUpdateLineItem = async (itemId: string, data: Record<string, unknown>) => {
     try {
       await updateLineItem(quoteId, itemId, data);
+      // Reload quote to get recomputed totals, but don't reload the full list
       await loadQuote();
-      await onQuoteChanged();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update line item');
     }
@@ -254,7 +260,7 @@ export function QuoteDetail({
               <TableBody>
                 {quote.line_items.map((item) => (
                   <LineItemRow
-                    key={`${item.id}:${item.updated_at}`}
+                    key={item.id}
                     item={item}
                     currency={quote.currency}
                     disabled={isReadOnly}

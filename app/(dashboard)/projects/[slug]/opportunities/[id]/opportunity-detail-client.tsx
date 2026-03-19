@@ -578,9 +578,7 @@ export function OpportunityDetailClient({ opportunityId, currentUserId }: Opport
               addLineItem={quotesHook.addLineItem}
               updateLineItem={quotesHook.updateLineItem}
               deleteLineItem={quotesHook.deleteLineItem}
-              reload={async () => {
-                await Promise.all([quotesHook.reload(), refresh()]);
-              }}
+              reload={quotesHook.reload}
             />
           </TabsContent>
         )}
