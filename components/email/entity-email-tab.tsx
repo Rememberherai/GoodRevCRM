@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import {
   ArrowDownLeft,
   ArrowUpRight,
@@ -45,7 +45,7 @@ function formatDate(dateString: string): string {
 export function EntityEmailTab({ projectSlug, personId, organizationId }: EntityEmailTabProps) {
   const [threads, setThreads] = useState<ThreadSummary[]>([]);
   const [loading, setLoading] = useState(true);
-  const [expandedThread, setExpandedThread] = useState<string | null>(null);
+  const [expandedThreads, setExpandedThreads] = useState<Set<string>>(new Set());
   const [threadMessages, setThreadMessages] = useState<Record<string, SyncedEmail[]>>({});
   const [loadingThread, setLoadingThread] = useState<string | null>(null);
 
@@ -107,10 +107,30 @@ export function EntityEmailTab({ projectSlug, personId, organizationId }: Entity
     loadEmails();
   }, [loadEmails]);
 
+  // Auto-expand all threads when there are 5 or fewer
+  const autoExpandedRef = useRef(false);
+  useEffect(() => {
+    if (!loading && threads.length > 0 && threads.length <= 5 && !autoExpandedRef.current) {
+      autoExpandedRef.current = true;
+      for (const thread of threads) {
+        loadThreadMessages(thread.thread_id);
+      }
+    }
+  }, [loading, threads]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const toggleThread = (threadId: string) => {
+    setExpandedThreads(prev => {
+      const next = new Set(prev);
+      if (next.has(threadId)) next.delete(threadId);
+      else next.add(threadId);
+      return next;
+    });
+  };
+
   const loadThreadMessages = async (threadId: string) => {
     if (threadMessages[threadId]) {
-      // Already loaded
-      setExpandedThread(expandedThread === threadId ? null : threadId);
+      // Already loaded — toggle
+      toggleThread(threadId);
       return;
     }
 
@@ -123,7 +143,7 @@ export function EntityEmailTab({ projectSlug, personId, organizationId }: Entity
 
       const data = await response.json();
       setThreadMessages(prev => ({ ...prev, [threadId]: data.messages }));
-      setExpandedThread(threadId);
+      setExpandedThreads(prev => new Set(prev).add(threadId));
     } catch (err) {
       console.error('Error loading thread:', err);
     } finally {
@@ -160,7 +180,7 @@ export function EntityEmailTab({ projectSlug, personId, organizationId }: Entity
     <div className="space-y-1">
       <div className="flex items-center justify-between mb-3">
         <p className="text-sm text-muted-foreground">
-          {threads.length} conversation{threads.length !== 1 ? 's' : ''}
+          {threads.length} thread{threads.length !== 1 ? 's' : ''}
         </p>
         <Button variant="ghost" size="sm" onClick={loadEmails}>
           <RefreshCw className="h-3 w-3 mr-1.5" />
@@ -215,7 +235,7 @@ export function EntityEmailTab({ projectSlug, personId, organizationId }: Entity
           </button>
 
           {/* Expanded thread */}
-          {expandedThread === thread.thread_id && threadMessages[thread.thread_id] && (
+          {expandedThreads.has(thread.thread_id) && threadMessages[thread.thread_id] && (
             <div className="ml-7 mt-1 mb-3">
               <EmailThreadViewer
                 messages={threadMessages[thread.thread_id] ?? []}
