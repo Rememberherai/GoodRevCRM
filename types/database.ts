@@ -2825,6 +2825,276 @@ export type Database = {
           },
         ]
       }
+      invoice_line_items: {
+        Row: {
+          account_id: string
+          amount: number
+          created_at: string
+          description: string
+          id: string
+          invoice_id: string
+          quantity: number
+          sort_order: number
+          tax_amount: number
+          tax_rate_id: string | null
+          unit_price: number
+        }
+        Insert: {
+          account_id: string
+          amount?: number
+          created_at?: string
+          description: string
+          id?: string
+          invoice_id: string
+          quantity?: number
+          sort_order?: number
+          tax_amount?: number
+          tax_rate_id?: string | null
+          unit_price: number
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          created_at?: string
+          description?: string
+          id?: string
+          invoice_id?: string
+          quantity?: number
+          sort_order?: number
+          tax_amount?: number
+          tax_rate_id?: string | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_line_items_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_line_items_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_line_items_tax_rate_id_fkey"
+            columns: ["tax_rate_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoice_tax_summary: {
+        Row: {
+          created_at: string
+          id: string
+          invoice_id: string
+          tax_amount: number
+          tax_name: string
+          tax_rate: number
+          tax_rate_id: string
+          taxable_amount: number
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          invoice_id: string
+          tax_amount: number
+          tax_name: string
+          tax_rate: number
+          tax_rate_id: string
+          taxable_amount: number
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          invoice_id?: string
+          tax_amount?: number
+          tax_name?: string
+          tax_rate?: number
+          tax_rate_id?: string
+          taxable_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoice_tax_summary_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoice_tax_summary_tax_rate_id_fkey"
+            columns: ["tax_rate_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      invoices: {
+        Row: {
+          amount_paid: number
+          balance_due: number
+          company_id: string
+          contact_id: string | null
+          contract_id: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          customer_address: string | null
+          customer_email: string | null
+          customer_name: string
+          customer_phone: string | null
+          deleted_at: string | null
+          due_date: string
+          exchange_rate: number
+          footer: string | null
+          id: string
+          invoice_date: string
+          invoice_number: string
+          journal_entry_id: string | null
+          notes: string | null
+          opportunity_id: string | null
+          organization_id: string | null
+          paid_at: string | null
+          payment_terms: number | null
+          project_id: string | null
+          sent_at: string | null
+          status: string
+          subtotal: number
+          tax_total: number
+          total: number
+          updated_at: string
+          voided_at: string | null
+        }
+        Insert: {
+          amount_paid?: number
+          balance_due?: number
+          company_id: string
+          contact_id?: string | null
+          contract_id?: string | null
+          created_at?: string
+          created_by: string
+          currency?: string
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_name: string
+          customer_phone?: string | null
+          deleted_at?: string | null
+          due_date: string
+          exchange_rate?: number
+          footer?: string | null
+          id?: string
+          invoice_date: string
+          invoice_number: string
+          journal_entry_id?: string | null
+          notes?: string | null
+          opportunity_id?: string | null
+          organization_id?: string | null
+          paid_at?: string | null
+          payment_terms?: number | null
+          project_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subtotal?: number
+          tax_total?: number
+          total?: number
+          updated_at?: string
+          voided_at?: string | null
+        }
+        Update: {
+          amount_paid?: number
+          balance_due?: number
+          company_id?: string
+          contact_id?: string | null
+          contract_id?: string | null
+          created_at?: string
+          created_by?: string
+          currency?: string
+          customer_address?: string | null
+          customer_email?: string | null
+          customer_name?: string
+          customer_phone?: string | null
+          deleted_at?: string | null
+          due_date?: string
+          exchange_rate?: number
+          footer?: string | null
+          id?: string
+          invoice_date?: string
+          invoice_number?: string
+          journal_entry_id?: string | null
+          notes?: string | null
+          opportunity_id?: string | null
+          organization_id?: string | null
+          paid_at?: string | null
+          payment_terms?: number | null
+          project_id?: string | null
+          sent_at?: string | null
+          status?: string
+          subtotal?: number
+          tax_total?: number
+          total?: number
+          updated_at?: string
+          voided_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "invoices_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "invoices_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       journal_entries: {
         Row: {
           company_id: string
@@ -4271,6 +4541,122 @@ export type Database = {
           },
           {
             foreignKeyName: "organizations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      payments: {
+        Row: {
+          account_id: string
+          amount: number
+          company_id: string
+          created_at: string
+          created_by: string
+          currency: string
+          deleted_at: string | null
+          exchange_rate: number
+          id: string
+          invoice_id: string | null
+          journal_entry_id: string | null
+          notes: string | null
+          organization_id: string | null
+          payment_date: string
+          payment_method: string | null
+          payment_type: string
+          project_id: string | null
+          reference: string | null
+          updated_at: string
+        }
+        Insert: {
+          account_id: string
+          amount: number
+          company_id: string
+          created_at?: string
+          created_by: string
+          currency?: string
+          deleted_at?: string | null
+          exchange_rate?: number
+          id?: string
+          invoice_id?: string | null
+          journal_entry_id?: string | null
+          notes?: string | null
+          organization_id?: string | null
+          payment_date: string
+          payment_method?: string | null
+          payment_type?: string
+          project_id?: string | null
+          reference?: string | null
+          updated_at?: string
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          company_id?: string
+          created_at?: string
+          created_by?: string
+          currency?: string
+          deleted_at?: string | null
+          exchange_rate?: number
+          id?: string
+          invoice_id?: string | null
+          journal_entry_id?: string | null
+          notes?: string | null
+          organization_id?: string | null
+          payment_date?: string
+          payment_method?: string | null
+          payment_type?: string
+          project_id?: string | null
+          reference?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "payments_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_invoice_id_fkey"
+            columns: ["invoice_id"]
+            isOneToOne: false
+            referencedRelation: "invoices"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "payments_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -7386,6 +7772,27 @@ export type Database = {
         Args: { p_days_old?: number }
         Returns: number
       }
+      create_invoice: {
+        Args: {
+          p_company_id: string
+          p_contact_id?: string
+          p_currency?: string
+          p_customer_address?: string
+          p_customer_email?: string
+          p_customer_name: string
+          p_customer_phone?: string
+          p_due_date: string
+          p_exchange_rate?: number
+          p_footer?: string
+          p_invoice_date: string
+          p_lines: Json
+          p_notes?: string
+          p_organization_id?: string
+          p_payment_terms?: number
+          p_project_id?: string
+        }
+        Returns: string
+      }
       create_journal_entry: {
         Args: {
           p_company_id: string
@@ -7800,6 +8207,18 @@ export type Database = {
         Args: { p_quote_id: string }
         Returns: undefined
       }
+      record_invoice_payment: {
+        Args: {
+          p_account_id: string
+          p_amount: number
+          p_invoice_id: string
+          p_notes?: string
+          p_payment_date: string
+          p_payment_method?: string
+          p_reference?: string
+        }
+        Returns: string
+      }
       remove_custom_field_data: {
         Args: {
           p_entity_type: Database["public"]["Enums"]["entity_type"]
@@ -7858,9 +8277,14 @@ export type Database = {
         Args: { p_company_id: string }
         Returns: undefined
       }
+      send_invoice: { Args: { p_invoice_id: string }; Returns: string }
       set_primary_quote: {
         Args: { p_project_id: string; p_quote_id: string }
         Returns: undefined
+      }
+      update_draft_invoice: {
+        Args: { p_invoice_id: string; p_lines?: Json; p_patch?: Json }
+        Returns: string
       }
       update_draft_journal_entry: {
         Args: { p_entry_id: string; p_lines?: Json; p_patch?: Json }
@@ -7893,6 +8317,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      void_invoice: { Args: { p_invoice_id: string }; Returns: string }
       void_journal_entry: { Args: { p_entry_id: string }; Returns: string }
     }
     Enums: {

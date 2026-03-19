@@ -32,7 +32,7 @@ const navItems = [
     title: 'Invoices',
     href: '/invoices',
     icon: Receipt,
-    disabled: true,
+    disabled: false,
   },
   {
     title: 'Bills',
