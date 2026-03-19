@@ -942,7 +942,8 @@ export async function checkForSequenceReplies(): Promise<number> {
   let repliesDetected = 0;
 
   for (const enrollment of enrollments) {
-    const threadId = enrollment.sent_emails?.thread_id;
+    const sentEmails = Array.isArray(enrollment.sent_emails) ? enrollment.sent_emails : [];
+    const threadId = sentEmails[0]?.thread_id;
     if (!threadId) continue;
 
     // Check for inbound replies in this thread
@@ -959,6 +960,40 @@ export async function checkForSequenceReplies(): Promise<number> {
         .from('sequence_enrollments')
         .update({ status: 'replied' })
         .eq('id', enrollment.id);
+
+      // Create reply event for the sent email if one doesn't already exist
+      const sentEmailRecord = Array.isArray(enrollment.sent_emails)
+        ? enrollment.sent_emails[0]
+        : enrollment.sent_emails;
+      if (sentEmailRecord?.message_id) {
+        const { data: sentEmail } = await supabaseAny
+          .from('sent_emails')
+          .select('id')
+          .eq('message_id', sentEmailRecord.message_id)
+          .limit(1)
+          .maybeSingle();
+
+        if (sentEmail) {
+          const { data: existingEvent } = await supabaseAny
+            .from('email_events')
+            .select('id')
+            .eq('sent_email_id', sentEmail.id)
+            .eq('event_type', 'reply')
+            .limit(1)
+            .maybeSingle();
+
+          if (!existingEvent) {
+            await supabaseAny
+              .from('email_events')
+              .insert({
+                sent_email_id: sentEmail.id,
+                event_type: 'reply',
+                occurred_at: new Date().toISOString(),
+                metadata: { detection_method: 'sequence_reply_check' },
+              });
+          }
+        }
+      }
 
       repliesDetected++;
     }

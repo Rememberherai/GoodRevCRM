@@ -77,7 +77,7 @@ export function ChatSettings({ onBack }: ChatSettingsProps) {
             <ToolGroup name="Sequences" tools={['list', 'get', 'create', 'update', 'enroll', 'unenroll']} />
             <ToolGroup name="Meetings" tools={['list', 'create', 'update', 'delete']} />
             <ToolGroup name="Calls" tools={['list', 'get']} />
-            <ToolGroup name="Email" tools={['send', 'history', 'inbox']} />
+            <ToolGroup name="Email" tools={['send', 'history', 'inbox', 'unknown_senders', 'create_contact_from_sender']} />
             <ToolGroup name="Drafts" tools={['list', 'get', 'create', 'update', 'delete']} />
             <ToolGroup name="Templates" tools={['list', 'get', 'create', 'update', 'delete']} />
             <ToolGroup name="Tags" tools={['list', 'create', 'assign', 'get_entity_tags']} />

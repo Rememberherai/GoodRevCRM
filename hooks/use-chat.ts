@@ -42,6 +42,7 @@ const MUTATING_TOOLS = new Set([
   'workflows_create', 'workflows_update', 'workflows_delete', 'workflows_activate', 'workflows_execute',
   'contracts_create', 'contracts_update', 'contracts_delete', 'contracts_void',
   'contracts_add_recipient', 'contracts_add_field',
+  'emails_create_contact_from_sender',
 ]);
 
 export interface PageContext {

@@ -1,11 +1,109 @@
 import { getValidAccessToken, GMAIL_API_URL, createAdminClient, GmailServiceError } from './service';
 import { matchEmailAddress, bulkMatchEmails, type MatchResult } from './contact-matcher';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 import type { GmailConnection, GmailMessage, GmailMessagePart } from '@/types/gmail';
 
 const MAX_CONSECUTIVE_ERRORS = 5;
 const BATCH_SIZE = 10;
 const INITIAL_SYNC_DAYS = 30;
 const MAX_INITIAL_MESSAGES = 500;
+
+// ─── Post-Sync Person Backfill ───────────────────────────────────────
+
+/**
+ * For domain-matched emails with no person, check if a person now exists
+ * (may have been created after the email was originally stored).
+ * If found, link the email to the person.
+ */
+async function tryBackfillPerson(
+  supabase: ReturnType<typeof createAdminClient>,
+  email: ReturnType<typeof parseGmailMessage>,
+  match: { person_id: string | null; organization_id: string | null; project_id: string | null },
+  gmailConnectionId: string
+): Promise<void> {
+  // Only for org-only matches (person_id is null)
+  if (match.person_id || !match.organization_id || !match.project_id) return;
+
+  try {
+    const { data: person } = await supabase
+      .from('people')
+      .select('id')
+      .ilike('email', email.from_email.toLowerCase())
+      .eq('project_id', match.project_id)
+      .is('deleted_at', null)
+      .limit(1)
+      .maybeSingle();
+
+    if (person) {
+      await supabase
+        .from('emails')
+        .update({ person_id: person.id })
+        .eq('gmail_connection_id', gmailConnectionId)
+        .eq('gmail_message_id', email.gmail_message_id);
+    }
+  } catch (err) {
+    // Non-blocking
+    console.error('[Person Backfill] Error:', err);
+  }
+}
+
+// ─── Reply Detection ─────────────────────────────────────────────────
+
+/**
+ * Check if an inbound email is a reply to a sent email (by thread matching)
+ * and create a reply event if so. Works for both person-matched and org-only
+ * domain-matched emails — a reply from anyone at the company counts.
+ */
+async function detectAndRecordReply(
+  supabase: ReturnType<typeof createAdminClient>,
+  email: ReturnType<typeof parseGmailMessage>,
+  projectId: string
+): Promise<void> {
+  if (email.direction !== 'inbound' || !email.gmail_thread_id) return;
+
+  try {
+    // Find the sent email that started this thread
+    const { data: sentEmail } = await supabase
+      .from('sent_emails')
+      .select('id')
+      .eq('thread_id', email.gmail_thread_id)
+      .eq('project_id', projectId)
+      .limit(1)
+      .maybeSingle();
+
+    if (!sentEmail) return;
+
+    // Check if we already recorded a reply event for this sender on this sent email
+    const { data: existing } = await supabase
+      .from('email_events')
+      .select('id')
+      .eq('sent_email_id', sentEmail.id)
+      .eq('event_type', 'reply')
+      .filter('metadata->>from_email', 'eq', email.from_email.toLowerCase())
+      .limit(1)
+      .maybeSingle();
+
+    if (existing) return;
+
+    // Create reply event
+    await supabase
+      .from('email_events')
+      .insert({
+        sent_email_id: sentEmail.id,
+        event_type: 'reply',
+        occurred_at: email.email_date || new Date().toISOString(),
+        metadata: {
+          from_email: email.from_email.toLowerCase(),
+          from_name: email.from_name,
+          gmail_message_id: email.gmail_message_id,
+          detection_method: 'thread_match',
+        },
+      });
+  } catch (err) {
+    // Non-blocking — don't fail sync over reply detection
+    console.error('[Reply Detection] Error recording reply event:', err);
+  }
+}
 
 // ─── Bounce Detection ────────────────────────────────────────────────
 
@@ -674,6 +772,29 @@ async function performInitialSync(
         if (email.direction === 'inbound' && match.project_id && match.person_id) {
           await logEmailActivity(supabase, connection, email, match);
         }
+
+        // Detect replies by thread matching (works for person and org-only matches)
+        if (email.direction === 'inbound' && match.project_id) {
+          await detectAndRecordReply(supabase, email, match.project_id);
+        }
+
+        // For domain-only matches, check if a person was recently created for this email
+        // and emit automation event for unknown sender
+        if (!match.person_id && email.direction === 'inbound' && match.project_id && match.organization_id) {
+          await tryBackfillPerson(supabase, email, match, connection.id);
+          emitAutomationEvent({
+            projectId: match.project_id,
+            triggerType: 'email.unknown_sender',
+            entityType: 'organization',
+            entityId: match.organization_id,
+            data: {
+              from_email: email.from_email,
+              from_name: email.from_name,
+              gmail_message_id: email.gmail_message_id,
+              subject: email.subject,
+            },
+          });
+        }
       }
     }
   }
@@ -842,6 +963,29 @@ async function performIncrementalSync(
       // (domain-only org matches would create noise from system emails)
       if (parsed.direction === 'inbound' && match.project_id && match.person_id) {
         await logEmailActivity(supabase, connection, parsed, match);
+      }
+
+      // Detect replies by thread matching (works for person and org-only matches)
+      if (parsed.direction === 'inbound' && match.project_id) {
+        await detectAndRecordReply(supabase, parsed, match.project_id);
+      }
+
+      // For domain-only matches, check if a person was recently created for this email
+      // and emit automation event for unknown sender
+      if (!match.person_id && parsed.direction === 'inbound' && match.project_id && match.organization_id) {
+        await tryBackfillPerson(supabase, parsed, match, connection.id);
+        emitAutomationEvent({
+          projectId: match.project_id,
+          triggerType: 'email.unknown_sender',
+          entityType: 'organization',
+          entityId: match.organization_id,
+          data: {
+            from_email: parsed.from_email,
+            from_name: parsed.from_name,
+            gmail_message_id: parsed.gmail_message_id,
+            subject: parsed.subject,
+          },
+        });
       }
     }
   }

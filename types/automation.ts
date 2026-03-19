@@ -15,6 +15,7 @@ export type TriggerType =
   | 'email.clicked'
   | 'email.replied'
   | 'email.bounced'
+  | 'email.unknown_sender'
   // SMS events
   | 'sms.sent'
   | 'sms.delivered'

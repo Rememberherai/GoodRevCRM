@@ -4874,6 +4874,92 @@ defineTool({
   },
 });
 
+// ── Email Unknown Senders Tools ─────────────────────────────────────────────
+
+defineTool({
+  name: 'emails.unknown_senders',
+  description: 'List inbound emails from unknown senders at known organizations. These are people who emailed from a known company domain but are not yet in the CRM.',
+  minRole: 'viewer',
+  parameters: z.object({
+    organizationId: z.string().uuid().optional().describe('Filter by organization ID'),
+    limit: z.number().int().min(1).max(100).default(50).describe('Max results'),
+  }),
+  handler: async (params, ctx) => {
+    const { organizationId, limit = 50 } = params as { organizationId?: string; limit?: number };
+
+    let query = ctx.supabase
+      .from('emails')
+      .select('from_email, from_name, organization_id, email_date')
+      .eq('project_id', ctx.projectId)
+      .is('person_id', null)
+      .not('organization_id', 'is', null)
+      .eq('direction', 'inbound')
+      .order('email_date', { ascending: false });
+
+    if (organizationId) query = query.eq('organization_id', organizationId);
+
+    const { data: emails, error } = await query;
+    if (error) throw new Error(`Failed to fetch: ${error.message}`);
+
+    const senderMap = new Map<string, { from_email: string; from_name: string; organization_id: string; email_count: number; latest: string }>();
+    for (const e of emails ?? []) {
+      const key = `${e.from_email?.toLowerCase()}|${e.organization_id}`;
+      const ex = senderMap.get(key);
+      if (ex) { ex.email_count++; if (e.email_date > ex.latest) { ex.latest = e.email_date; if (e.from_name) ex.from_name = e.from_name; } }
+      else senderMap.set(key, { from_email: e.from_email?.toLowerCase() ?? '', from_name: e.from_name ?? '', organization_id: e.organization_id!, email_count: 1, latest: e.email_date });
+    }
+
+    const senders = [...senderMap.values()].sort((a, b) => b.latest.localeCompare(a.latest)).slice(0, limit);
+    const orgIds = [...new Set(senders.map(s => s.organization_id))];
+    const orgMap = new Map<string, string>();
+    if (orgIds.length > 0) {
+      const { data: orgs } = await ctx.supabase.from('organizations').select('id, name').in('id', orgIds);
+      for (const o of orgs ?? []) orgMap.set(o.id, o.name);
+    }
+
+    return JSON.stringify({ senders: senders.map(s => ({ ...s, organization_name: orgMap.get(s.organization_id) ?? 'Unknown' })), total: senderMap.size });
+  },
+});
+
+defineTool({
+  name: 'emails.create_contact_from_sender',
+  description: 'Create a CRM contact from an unknown email sender and automatically link their historical emails to the new contact.',
+  minRole: 'member',
+  parameters: z.object({
+    from_email: z.string().email().describe('The sender email address'),
+    organization_id: z.string().uuid().describe('The organization to link the contact to'),
+    first_name: z.string().optional().describe('First name (auto-parsed if omitted)'),
+    last_name: z.string().optional().describe('Last name (auto-parsed if omitted)'),
+    job_title: z.string().optional().describe('Job title'),
+  }),
+  handler: async (params, ctx) => {
+    const normalizedEmail = (params as { from_email: string }).from_email.toLowerCase().trim();
+    const { organization_id, job_title } = params as { organization_id: string; job_title?: string };
+    let first_name = (params as { first_name?: string }).first_name;
+    let last_name = (params as { last_name?: string }).last_name;
+
+    const { data: existing } = await ctx.supabase.from('people').select('id').ilike('email', normalizedEmail).eq('project_id', ctx.projectId).is('deleted_at', null).limit(1).maybeSingle();
+    if (existing) return JSON.stringify({ error: 'Contact already exists', person_id: existing.id });
+
+    if (!first_name && !last_name) {
+      const { data: recent } = await ctx.supabase.from('emails').select('from_name').ilike('from_email', normalizedEmail).eq('organization_id', organization_id).eq('project_id', ctx.projectId).not('from_name', 'is', null).order('email_date', { ascending: false }).limit(1).maybeSingle();
+      if (recent?.from_name) { const parts = recent.from_name.trim().split(/\s+/); first_name = parts[0] ?? ''; last_name = parts.slice(1).join(' ') || ''; }
+    }
+    if (!first_name) { first_name = normalizedEmail.split('@')[0] ?? 'Unknown'; last_name = last_name || ''; }
+
+    const { data: person, error } = await ctx.supabase.from('people').insert({ first_name, last_name: last_name || '', email: normalizedEmail, job_title: job_title || null, project_id: ctx.projectId, created_by: ctx.userId }).select().single();
+    if (error) throw new Error(`Failed to create: ${error.message}`);
+
+    await ctx.supabase.from('person_organizations').insert({ person_id: person.id, organization_id, project_id: ctx.projectId, is_primary: true, is_current: true });
+
+    const { count } = await ctx.supabase.from('emails').update({ person_id: person.id }, { count: 'exact' }).ilike('from_email', normalizedEmail).eq('organization_id', organization_id).eq('project_id', ctx.projectId).is('person_id', null);
+
+    emitAutomationEvent({ projectId: ctx.projectId, triggerType: 'entity.created', entityType: 'person', entityId: person.id, data: { ...person, source: 'unknown_sender_chat', emails_linked: count ?? 0 } });
+
+    return JSON.stringify({ person, emails_linked: count ?? 0 });
+  },
+});
+
 export function getToolDefinitions(): ToolDefinition[] {
   return tools.map((tool) => {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod v4 type compat with zod-to-json-schema

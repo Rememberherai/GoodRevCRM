@@ -49,6 +49,7 @@ const TOOL_COLORS: Record<string, { bg: string; border: string; icon: string; ba
   secrets: { bg: 'bg-yellow-50 dark:bg-yellow-950/30', border: 'border-yellow-200 dark:border-yellow-800', icon: 'text-yellow-600 dark:text-yellow-400', badge: 'bg-yellow-100 dark:bg-yellow-900/50 text-yellow-700 dark:text-yellow-300' },
   workflows: { bg: 'bg-slate-50 dark:bg-slate-950/30', border: 'border-slate-200 dark:border-slate-800', icon: 'text-slate-600 dark:text-slate-400', badge: 'bg-slate-100 dark:bg-slate-900/50 text-slate-700 dark:text-slate-300' },
   contracts: { bg: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-800', icon: 'text-amber-600 dark:text-amber-400', badge: 'bg-amber-100 dark:bg-amber-900/50 text-amber-700 dark:text-amber-300' },
+  emails: { bg: 'bg-orange-50 dark:bg-orange-950/30', border: 'border-orange-200 dark:border-orange-800', icon: 'text-orange-600 dark:text-orange-400', badge: 'bg-orange-100 dark:bg-orange-900/50 text-orange-700 dark:text-orange-300' },
 };
 
 const DEFAULT_COLORS = { bg: 'bg-gray-50 dark:bg-gray-950/30', border: 'border-gray-200 dark:border-gray-800', icon: 'text-gray-600 dark:text-gray-400', badge: 'bg-gray-100 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300' };

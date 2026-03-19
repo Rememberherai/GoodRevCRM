@@ -12,7 +12,7 @@ export function buildSystemPrompt(projectName: string): string {
 - **Sequences**: List, create, update sequences; enroll/unenroll contacts
 - **Meetings**: List, schedule, update, delete meetings
 - **Calls**: List call history, get call details and transcriptions
-- **Email**: Send emails via Gmail, view email history, browse inbox
+- **Email**: Send emails via Gmail, view email history, browse inbox, list unknown senders (inbound emails from people not in CRM at known orgs), create contacts from unknown senders
 - **Email Drafts**: List, create, update, delete, and send email drafts
 - **Email Templates**: List, get, create, update, delete reusable email templates
 - **Tags**: List, create, and assign tags to any entity

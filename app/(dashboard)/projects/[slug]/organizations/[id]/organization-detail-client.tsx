@@ -63,6 +63,7 @@ import { OrgSequencesTab } from '@/components/organizations/org-sequences-tab';
 import { EntityActivitySection } from '@/components/activity/entity-activity-section';
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 import { EntityEmailTab } from '@/components/email/entity-email-tab';
+import { UnknownSendersPanel } from '@/components/email/unknown-senders-panel';
 import { SendEmailModal } from '@/components/gmail';
 import { EntityCommentsFeed } from '@/components/comments';
 import { BulkActionsBar } from '@/components/bulk/bulk-actions-bar';
@@ -75,6 +76,7 @@ import { ClickToDialButton } from '@/components/calls/click-to-dial-button';
 import { CallLogTable } from '@/components/calls/call-log-table';
 import { SmsConversation } from '@/components/sms/sms-conversation';
 import { PhoneCall, MessageSquareText } from 'lucide-react';
+import { OrgFinancialSummary } from '@/components/accounting/org-financial-summary';
 import { LogoUpload } from '@/components/ui/logo-upload';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
@@ -574,6 +576,10 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
           <TabsTrigger value="sms" className="gap-2">
             <MessageSquareText className="h-4 w-4" />
             SMS
+          </TabsTrigger>
+          <TabsTrigger value="financial" className="gap-2">
+            <DollarSign className="h-4 w-4" />
+            Financial
           </TabsTrigger>
           <TabsTrigger value="comments" className="gap-2">
             <MessageSquare className="h-4 w-4" />
@@ -1164,6 +1170,11 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
 
         {/* Emails Tab */}
         <TabsContent value="emails" className="space-y-6">
+          <UnknownSendersPanel
+            projectSlug={slug}
+            organizationId={organizationId}
+            compact
+          />
           <EntityEmailTab
             projectSlug={slug}
             organizationId={organizationId}
@@ -1229,6 +1240,10 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
         </TabsContent>
 
         {/* Comments Tab */}
+        <TabsContent value="financial" className="space-y-6">
+          <OrgFinancialSummary organizationId={organization.id} />
+        </TabsContent>
+
         <TabsContent value="comments" className="space-y-6">
           <EntityCommentsFeed
             entityType="organization"
