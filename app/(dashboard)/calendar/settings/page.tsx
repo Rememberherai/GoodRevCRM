@@ -24,6 +24,56 @@ import type { CalendarProfile } from '@/types/calendar';
 import { cn } from '@/lib/utils';
 import { formatTimezoneLabel, getSupportedTimezones } from '@/lib/calendar/timezones';
 
+function normalizeSlug(value: string): string {
+  return value
+    .trim()
+    .toLowerCase()
+    .replace(/\s+/g, '-')
+    .replace(/[^a-z0-9-]/g, '')
+    .replace(/-+/g, '-');
+}
+
+function extractErrorMessage(payload: unknown): string {
+  if (typeof payload === 'string' && payload) {
+    return payload;
+  }
+
+  if (!payload || typeof payload !== 'object') {
+    return 'Failed to save';
+  }
+
+  const data = payload as {
+    error?: unknown;
+    details?: {
+      formErrors?: string[];
+      fieldErrors?: Record<string, string[] | undefined>;
+    };
+  };
+
+  if (typeof data.error === 'string' && data.error !== 'Validation failed') {
+    return data.error;
+  }
+
+  const formError = data.details?.formErrors?.find(Boolean);
+  if (formError) {
+    return formError;
+  }
+
+  const fieldErrors = data.details?.fieldErrors ?? {};
+  for (const messages of Object.values(fieldErrors)) {
+    const firstMessage = messages?.find(Boolean);
+    if (firstMessage) {
+      return firstMessage;
+    }
+  }
+
+  if (typeof data.error === 'string' && data.error) {
+    return data.error;
+  }
+
+  return 'Failed to save';
+}
+
 export default function CalendarSettingsPage() {
   const [profile, setProfile] = useState<CalendarProfile | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,22 +151,25 @@ export default function CalendarSettingsPage() {
     setSuccess(false);
 
     try {
+      const normalizedSlug = normalizeSlug(form.slug);
       const method = profile ? 'PUT' : 'POST';
       const body = profile
         ? {
-            slug: form.slug,
-            display_name: form.display_name,
-            bio: form.bio || null,
-            timezone: form.timezone,
-            welcome_message: form.welcome_message || null,
+            slug: normalizedSlug,
+            display_name: form.display_name.trim(),
+            bio: form.bio.trim() || null,
+            timezone: form.timezone.trim(),
+            welcome_message: form.welcome_message.trim() || null,
           }
         : {
-            slug: form.slug,
-            display_name: form.display_name,
-            bio: form.bio || null,
-            timezone: form.timezone || Intl.DateTimeFormat().resolvedOptions().timeZone,
-            welcome_message: form.welcome_message || null,
+            slug: normalizedSlug,
+            display_name: form.display_name.trim(),
+            bio: form.bio.trim() || null,
+            timezone: form.timezone.trim() || Intl.DateTimeFormat().resolvedOptions().timeZone,
+            welcome_message: form.welcome_message.trim() || null,
           };
+
+      setForm((current) => ({ ...current, slug: normalizedSlug }));
 
       const res = await fetch('/api/calendar/profile', {
         method,
@@ -124,14 +177,21 @@ export default function CalendarSettingsPage() {
         body: JSON.stringify(body),
       });
 
+      const data = await res.json().catch(() => null);
+
       if (!res.ok) {
-        const data = await res.json();
-        setError(data.error?.toString() || 'Failed to save');
+        setError(extractErrorMessage(data));
         return;
       }
 
-      const data = await res.json();
       setProfile(data.profile);
+      setForm({
+        slug: data.profile.slug || normalizedSlug,
+        display_name: data.profile.display_name || body.display_name,
+        bio: data.profile.bio || '',
+        timezone: data.profile.timezone || body.timezone,
+        welcome_message: data.profile.welcome_message || '',
+      });
       setSuccess(true);
     } catch {
       setError('An error occurred');
@@ -157,7 +217,7 @@ export default function CalendarSettingsPage() {
               <Input
                 id="slug"
                 value={form.slug}
-                onChange={(e) => setForm((f) => ({ ...f, slug: e.target.value }))}
+                onChange={(e) => setForm((f) => ({ ...f, slug: normalizeSlug(e.target.value) }))}
                 placeholder="john-doe"
                 required
               />

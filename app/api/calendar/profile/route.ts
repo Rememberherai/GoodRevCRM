@@ -6,6 +6,32 @@ import {
   updateCalendarProfileSchema,
 } from '@/lib/validators/calendar';
 
+function normalizeProfilePayload(body: Record<string, unknown>) {
+  const normalized = { ...body };
+
+  if (typeof normalized.slug === 'string') {
+    normalized.slug = normalized.slug.trim().toLowerCase();
+  }
+
+  if (typeof normalized.display_name === 'string') {
+    normalized.display_name = normalized.display_name.trim();
+  }
+
+  if (typeof normalized.timezone === 'string') {
+    normalized.timezone = normalized.timezone.trim();
+  }
+
+  if (typeof normalized.bio === 'string') {
+    normalized.bio = normalized.bio.trim();
+  }
+
+  if (typeof normalized.welcome_message === 'string') {
+    normalized.welcome_message = normalized.welcome_message.trim();
+  }
+
+  return normalized;
+}
+
 // GET /api/calendar/profile — Get current user's calendar profile
 export async function GET() {
   try {
@@ -33,10 +59,13 @@ export async function POST(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const body = await request.json();
+    const body = normalizeProfilePayload(await request.json());
     const result = createCalendarProfileSchema.safeParse(body);
     if (!result.success) {
-      return NextResponse.json({ error: result.error.flatten() }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Validation failed', details: result.error.flatten() },
+        { status: 400 }
+      );
     }
 
     const insertData = {
@@ -71,10 +100,13 @@ export async function PUT(request: Request) {
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
-    const body = await request.json();
+    const body = normalizeProfilePayload(await request.json());
     const result = updateCalendarProfileSchema.safeParse(body);
     if (!result.success) {
-      return NextResponse.json({ error: result.error.flatten() }, { status: 400 });
+      return NextResponse.json(
+        { error: 'Validation failed', details: result.error.flatten() },
+        { status: 400 }
+      );
     }
 
     const updateData = result.data as Record<string, unknown>;
