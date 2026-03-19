@@ -111,6 +111,19 @@ function matchesTriggerConfig(
     }
   }
 
+  // Check booking-specific filters
+  if (event.triggerType.startsWith('booking.')) {
+    if (triggerConfig.event_type_id && event.data.event_type_id !== triggerConfig.event_type_id) {
+      return false;
+    }
+    if (triggerConfig.booking_status && event.data.status !== triggerConfig.booking_status) {
+      return false;
+    }
+    if (triggerConfig.cancelled_by && event.data.cancelled_by !== triggerConfig.cancelled_by) {
+      return false;
+    }
+  }
+
   return true;
 }
 
@@ -321,6 +334,11 @@ export async function dryRunAutomation(
     call: 'calls',
     document: 'contract_documents',
     workflow: 'workflows',
+    invoice: 'invoices',
+    bill: 'bills',
+    payment: 'payments',
+    event_type: 'event_types',
+    booking: 'bookings',
   };
 
   const tableName = entityTableMap[entityType];

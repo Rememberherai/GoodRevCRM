@@ -100,6 +100,14 @@ export const createAvailabilityOverrideSchema = z.object({
     return true;
   },
   { message: 'start_time and end_time are required when is_available is true' }
+).refine(
+  (data) => {
+    if (data.is_available && data.start_time && data.end_time) {
+      return data.start_time < data.end_time;
+    }
+    return true;
+  },
+  { message: 'start_time must be before end_time' }
 );
 
 export type CreateAvailabilityOverrideInput = z.infer<typeof createAvailabilityOverrideSchema>;

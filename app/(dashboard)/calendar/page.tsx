@@ -1,9 +1,9 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useMemo } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
-import { CalendarDays, Clock, Users, Plus } from 'lucide-react';
+import { CalendarDays, Clock, XCircle, AlertCircle, Plus } from 'lucide-react';
 import Link from 'next/link';
 import { BOOKING_STATUS_COLORS, BOOKING_STATUS_LABELS } from '@/types/calendar';
 import type { BookingStatus } from '@/types/calendar';
@@ -20,7 +20,7 @@ interface BookingItem {
 }
 
 export default function CalendarDashboardPage() {
-  const [upcomingBookings, setUpcomingBookings] = useState<BookingItem[]>([]);
+  const [allBookings, setAllBookings] = useState<BookingItem[]>([]);
   const [loading, setLoading] = useState(true);
   const { selectedProjectId } = useCalendarContext();
 
@@ -29,12 +29,13 @@ export default function CalendarDashboardPage() {
     async function loadBookings() {
       setLoading(true);
       try {
-        const params = new URLSearchParams({ status: 'confirmed', limit: '10' });
+        // Fetch all bookings (no status filter) to compute stats
+        const params = new URLSearchParams({ limit: '100' });
         if (selectedProjectId) params.set('project_id', selectedProjectId);
         const res = await fetch(`/api/calendar/bookings?${params}`);
         if (res.ok && !cancelled) {
           const data = await res.json();
-          setUpcomingBookings(data.bookings || []);
+          setAllBookings(data.bookings || []);
         }
       } catch {
         // Silently fail
@@ -46,58 +47,105 @@ export default function CalendarDashboardPage() {
     return () => { cancelled = true; };
   }, [selectedProjectId]);
 
+  const stats = useMemo(() => {
+    const now = new Date();
+    const monthStart = new Date(now.getFullYear(), now.getMonth(), 1);
+
+    const upcoming = allBookings.filter(
+      (b) => b.status === 'confirmed' && new Date(b.start_at) > now
+    );
+
+    const thisMonthBookings = allBookings.filter(
+      (b) => new Date(b.start_at) >= monthStart
+    );
+
+    const completedThisMonth = thisMonthBookings.filter(
+      (b) => b.status === 'completed'
+    ).length;
+
+    const cancelledThisMonth = thisMonthBookings.filter(
+      (b) => b.status === 'cancelled'
+    ).length;
+
+    const confirmedThisMonth = thisMonthBookings.filter(
+      (b) => b.status === 'confirmed'
+    ).length;
+
+    const denominator = cancelledThisMonth + completedThisMonth + confirmedThisMonth;
+    const cancellationRate = denominator > 0
+      ? Math.round((cancelledThisMonth / denominator) * 100)
+      : 0;
+
+    const pending = allBookings.filter((b) => b.status === 'pending');
+
+    return {
+      upcomingCount: upcoming.length,
+      completedThisMonth,
+      cancellationRate,
+      pendingCount: pending.length,
+    };
+  }, [allBookings]);
+
+  const upcomingBookings = useMemo(() => {
+    const now = new Date();
+    return allBookings
+      .filter((b) => b.status === 'confirmed' && new Date(b.start_at) > now)
+      .sort((a, b) => new Date(a.start_at).getTime() - new Date(b.start_at).getTime())
+      .slice(0, 10);
+  }, [allBookings]);
+
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Calendar</h1>
-        <Link href="/calendar/event-types/new">
-          <Button>
+        <Button asChild>
+          <Link href="/calendar/event-types/new">
             <Plus className="h-4 w-4 mr-2" />
             New Event Type
-          </Button>
-        </Link>
+          </Link>
+        </Button>
       </div>
 
-      {/* Quick stats */}
-      <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+      {/* Stats cards */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-4">
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Upcoming Bookings</CardTitle>
+            <CardTitle className="text-sm font-medium">Upcoming</CardTitle>
             <CalendarDays className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">{upcomingBookings.length}</div>
+            <div className="text-2xl font-bold">{loading ? '\u2014' : stats.upcomingCount}</div>
+            <p className="text-xs text-muted-foreground">confirmed &amp; future</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">Today</CardTitle>
+            <CardTitle className="text-sm font-medium">Completed This Month</CardTitle>
             <Clock className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {upcomingBookings.filter((b) => {
-                const today = new Date().toDateString();
-                return new Date(b.start_at).toDateString() === today;
-              }).length}
-            </div>
+            <div className="text-2xl font-bold">{loading ? '\u2014' : stats.completedThisMonth}</div>
+            <p className="text-xs text-muted-foreground">bookings completed</p>
           </CardContent>
         </Card>
         <Card>
           <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-            <CardTitle className="text-sm font-medium">This Week</CardTitle>
-            <Users className="h-4 w-4 text-muted-foreground" />
+            <CardTitle className="text-sm font-medium">Cancellation Rate</CardTitle>
+            <XCircle className="h-4 w-4 text-muted-foreground" />
           </CardHeader>
           <CardContent>
-            <div className="text-2xl font-bold">
-              {upcomingBookings.filter((b) => {
-                const now = new Date();
-                const weekEnd = new Date(now);
-                weekEnd.setDate(now.getDate() + 7);
-                const bookingDate = new Date(b.start_at);
-                return bookingDate >= now && bookingDate <= weekEnd;
-              }).length}
-            </div>
+            <div className="text-2xl font-bold">{loading ? '\u2014' : `${stats.cancellationRate}%`}</div>
+            <p className="text-xs text-muted-foreground">this month</p>
+          </CardContent>
+        </Card>
+        <Card>
+          <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
+            <CardTitle className="text-sm font-medium">Pending Confirmation</CardTitle>
+            <AlertCircle className="h-4 w-4 text-muted-foreground" />
+          </CardHeader>
+          <CardContent>
+            <div className="text-2xl font-bold">{loading ? '\u2014' : stats.pendingCount}</div>
+            <p className="text-xs text-muted-foreground">awaiting confirmation</p>
           </CardContent>
         </Card>
       </div>

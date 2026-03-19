@@ -18,7 +18,8 @@ function escapeHtml(text: string): string {
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
-    .replace(/"/g, '&quot;');
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;');
 }
 
 function formatDateTime(isoDate: string, timezone?: string | null): string {
@@ -133,6 +134,10 @@ export async function sendBookingConfirmation(bookingId: string): Promise<void> 
     const dateTimeStr = formatDateTime(booking.start_at, inviteeTz);
     const status = booking.status === 'pending' ? 'Pending Confirmation' : 'Confirmed';
 
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const cancelUrl = booking.cancel_token ? `${baseUrl}/book/cancel/${booking.cancel_token}` : null;
+    const rescheduleUrl = booking.reschedule_token ? `${baseUrl}/book/reschedule/${booking.reschedule_token}` : null;
+
     // Build confirmation email HTML
     const html = `
       <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
@@ -148,9 +153,13 @@ export async function sendBookingConfirmation(bookingId: string): Promise<void> 
           ${booking.meeting_url ? `<p style="margin: 8px 0;"><strong>Meeting URL:</strong> <a href="${escapeHtml(booking.meeting_url)}">${escapeHtml(booking.meeting_url)}</a></p>` : ''}
         </div>
         ${eventType?.confirmation_message ? `<p style="color: #666;">${escapeHtml(eventType.confirmation_message)}</p>` : ''}
+        ${cancelUrl || rescheduleUrl ? `
         <p style="color: #666; font-size: 14px;">
-          Need to make changes? Use the links in this email to cancel or reschedule.
-        </p>
+          Need to make changes?
+          ${rescheduleUrl ? `<a href="${escapeHtml(rescheduleUrl)}" style="color: #3b82f6;">Reschedule</a>` : ''}
+          ${rescheduleUrl && cancelUrl ? ' | ' : ''}
+          ${cancelUrl ? `<a href="${escapeHtml(cancelUrl)}" style="color: #dc2626;">Cancel</a>` : ''}
+        </p>` : ''}
       </div>
     `;
 
@@ -183,6 +192,84 @@ export async function sendBookingConfirmation(bookingId: string): Promise<void> 
     });
   } catch (err) {
     console.error('Error sending booking confirmation:', err);
+  }
+}
+
+// ============================================================
+// Booking confirmed by host
+// ============================================================
+
+export async function sendBookingConfirmedNotification(bookingId: string): Promise<void> {
+  try {
+    const data = await loadBookingForNotification(bookingId);
+    if (!data) return;
+
+    const { booking, eventType, hostProfile, hostUser, gmailConnection } = data;
+    if (!gmailConnection || !hostUser) return;
+
+    const hostName = hostProfile?.display_name || hostUser.full_name || 'Your host';
+    const inviteeTz = booking.invitee_timezone || hostProfile?.timezone || 'America/New_York';
+
+    // Generate .ics attachment content
+    const icsContent = generateIcs({
+      uid: booking.id,
+      summary: `${eventType?.title || 'Meeting'} with ${hostName}`,
+      description: eventType?.description || undefined,
+      location: booking.location || booking.meeting_url || undefined,
+      startAt: booking.start_at,
+      endAt: booking.end_at,
+      organizerName: hostName,
+      organizerEmail: hostUser.email,
+      attendeeName: booking.invitee_name,
+      attendeeEmail: booking.invitee_email,
+      url: booking.meeting_url || undefined,
+    });
+
+    const dateTimeStr = formatDateTime(booking.start_at, inviteeTz);
+
+    const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    const cancelUrl = booking.cancel_token ? `${baseUrl}/book/cancel/${booking.cancel_token}` : null;
+    const rescheduleUrl = booking.reschedule_token ? `${baseUrl}/book/reschedule/${booking.reschedule_token}` : null;
+
+    const html = `
+      <div style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; max-width: 600px; margin: 0 auto;">
+        <h2 style="color: #16a34a;">Your Booking Has Been Confirmed</h2>
+        <p>Hi ${escapeHtml(booking.invitee_name)},</p>
+        <p>Great news! ${escapeHtml(hostName)} has confirmed your booking.</p>
+        <div style="background: #f8f9fa; border-radius: 8px; padding: 20px; margin: 20px 0;">
+          <h3 style="margin-top: 0; color: #1a1a1a;">${escapeHtml(eventType?.title || 'Meeting')}</h3>
+          <p style="margin: 8px 0;"><strong>When:</strong> ${dateTimeStr}</p>
+          <p style="margin: 8px 0;"><strong>Duration:</strong> ${eventType?.duration_minutes || 30} minutes</p>
+          <p style="margin: 8px 0;"><strong>Host:</strong> ${escapeHtml(hostName)}</p>
+          ${booking.location ? `<p style="margin: 8px 0;"><strong>Location:</strong> ${escapeHtml(booking.location)}</p>` : ''}
+          ${booking.meeting_url ? `<p style="margin: 8px 0;"><strong>Meeting URL:</strong> <a href="${escapeHtml(booking.meeting_url)}">${escapeHtml(booking.meeting_url)}</a></p>` : ''}
+        </div>
+        ${eventType?.confirmation_message ? `<p style="color: #666;">${escapeHtml(eventType.confirmation_message)}</p>` : ''}
+        ${cancelUrl || rescheduleUrl ? `
+        <p style="color: #666; font-size: 14px;">
+          Need to make changes?
+          ${rescheduleUrl ? `<a href="${escapeHtml(rescheduleUrl)}" style="color: #3b82f6;">Reschedule</a>` : ''}
+          ${rescheduleUrl && cancelUrl ? ' | ' : ''}
+          ${cancelUrl ? `<a href="${escapeHtml(cancelUrl)}" style="color: #dc2626;">Cancel</a>` : ''}
+        </p>` : ''}
+      </div>
+    `;
+
+    const { sendEmail } = await import('@/lib/gmail/service');
+    await sendEmail(
+      gmailConnection,
+      {
+        to: booking.invitee_email,
+        subject: `Confirmed: ${eventType?.title || 'Meeting'} - ${formatTime(booking.start_at, inviteeTz)}`,
+        body_html: html,
+        attachments: [buildIcsAttachment(icsContent)],
+      },
+      booking.host_user_id,
+      booking.project_id,
+      hostName
+    );
+  } catch (err) {
+    console.error('Error sending booking confirmed notification:', err);
   }
 }
 

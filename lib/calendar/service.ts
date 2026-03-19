@@ -10,8 +10,9 @@
 
 import { createServiceClient } from '@/lib/supabase/server';
 import type { Database } from '@/types/database';
-import { sendBookingConfirmation, sendBookingCancellation } from './notifications';
+import { sendBookingConfirmation, sendBookingCancellation, sendBookingConfirmedNotification } from './notifications';
 import { emitAutomationEvent } from '@/lib/automations/engine';
+import { linkBookingToCrm, syncBookingStatusToMeeting } from '@/lib/calendar/crm-bridge';
 
 // ============================================================
 // Rate limiting
@@ -161,23 +162,96 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
     return { success: false, error: msg };
   }
 
-  // Send confirmation email (fire-and-forget)
-  if (bookingId) {
-    sendBookingConfirmation(bookingId as string).catch((err) =>
-      console.error('Failed to send booking confirmation:', err)
-    );
-
-    // Emit automation event (fire-and-forget)
-    emitAutomationEvent({
-      projectId: eventType.project_id,
-      triggerType: 'booking.created',
-      entityType: 'booking',
-      entityId: bookingId as string,
-      data: { booking_id: bookingId },
-    }).catch((err) => console.error('Failed to emit booking.created event:', err));
+  if (!bookingId) {
+    return { success: false, error: 'Booking creation returned no ID' };
   }
 
-  return { success: true, bookingId: bookingId as string };
+  const newBookingId = bookingId as string;
+
+  // Send confirmation email (fire-and-forget)
+  sendBookingConfirmation(newBookingId).catch((err) =>
+    console.error('Failed to send booking confirmation:', err)
+  );
+
+  // Emit automation event (fire-and-forget)
+  emitAutomationEvent({
+    projectId: eventType.project_id,
+    triggerType: 'booking.created',
+    entityType: 'booking',
+    entityId: newBookingId,
+    data: { booking_id: newBookingId },
+  }).catch((err) => console.error('Failed to emit booking.created event:', err));
+
+  // Link booking to CRM entities only if not pending confirmation
+  // (pending bookings get linked when the host confirms them)
+  if (!eventType.requires_confirmation) {
+    linkBookingToCrm(newBookingId).catch((e: unknown) =>
+      console.error('Failed to link booking to CRM:', e)
+    );
+  }
+
+  return { success: true, bookingId: newBookingId };
+}
+
+// ============================================================
+// Confirm booking (host confirms a pending booking)
+// ============================================================
+
+export async function confirmBooking(
+  bookingId: string,
+  hostUserId: string
+): Promise<{ success: boolean; error?: string }> {
+  const supabase = createServiceClient();
+
+  // Load and verify booking
+  const { data: booking, error: loadError } = await supabase
+    .from('bookings')
+    .select('id, status, host_user_id, project_id')
+    .eq('id', bookingId)
+    .single();
+
+  if (loadError || !booking) {
+    return { success: false, error: 'Booking not found' };
+  }
+
+  if (booking.host_user_id !== hostUserId) {
+    return { success: false, error: 'Not authorized to confirm this booking' };
+  }
+
+  if (booking.status !== 'pending') {
+    return { success: false, error: `Booking cannot be confirmed from status "${booking.status}"` };
+  }
+
+  // Update status
+  const { error: updateError } = await supabase
+    .from('bookings')
+    .update({ status: 'confirmed' })
+    .eq('id', bookingId);
+
+  if (updateError) {
+    return { success: false, error: 'Failed to update booking status' };
+  }
+
+  // Send confirmed notification to invitee (fire-and-forget)
+  sendBookingConfirmedNotification(bookingId).catch((err) =>
+    console.error('Failed to send booking confirmed notification:', err)
+  );
+
+  // Emit automation event (fire-and-forget)
+  emitAutomationEvent({
+    projectId: booking.project_id,
+    triggerType: 'booking.confirmed',
+    entityType: 'booking',
+    entityId: bookingId,
+    data: { booking_id: bookingId },
+  }).catch((err) => console.error('Failed to emit booking.confirmed event:', err));
+
+  // Link booking to CRM (fire-and-forget)
+  linkBookingToCrm(bookingId).catch((e: unknown) =>
+    console.error('Failed to link booking to CRM:', e)
+  );
+
+  return { success: true };
 }
 
 // ============================================================
@@ -240,6 +314,11 @@ export async function cancelBookingByToken(
     data: { booking_id: booking.id, cancelled_by: 'invitee' },
   }).catch((err) => console.error('Failed to emit booking.cancelled event:', err));
 
+  // Sync cancellation to CRM meeting (fire-and-forget)
+  syncBookingStatusToMeeting(booking.id, 'cancelled').catch((err) =>
+    console.error('Failed to sync booking cancellation to CRM meeting:', err)
+  );
+
   return { success: true };
 }
 
@@ -279,6 +358,11 @@ export async function cancelBookingByHost(
     entityId: bookingId,
     data: { booking_id: bookingId, cancelled_by: 'host' },
   }).catch((err) => console.error('Failed to emit booking.cancelled event:', err));
+
+  // Sync cancellation to CRM meeting (fire-and-forget)
+  syncBookingStatusToMeeting(bookingId, 'cancelled').catch((err) =>
+    console.error('Failed to sync booking cancellation to CRM meeting:', err)
+  );
 
   return { success: true };
 }
@@ -321,10 +405,14 @@ export async function rescheduleBookingByToken(
 
   // Mark original as rescheduled BEFORE creating the new booking
   // so the old booking doesn't count toward daily/weekly limits
-  await supabase
+  const { error: markError } = await supabase
     .from('bookings')
     .update({ status: 'rescheduled' })
     .eq('id', original.id);
+
+  if (markError) {
+    return { success: false, error: 'Failed to update original booking status' };
+  }
 
   // Create new booking via the standard flow (preserves buffers from same event type)
   const result = await createBooking({
@@ -369,6 +457,11 @@ export async function rescheduleBookingByToken(
       new_booking_id: result.bookingId,
     },
   }).catch((err) => console.error('Failed to emit booking.rescheduled event:', err));
+
+  // Sync rescheduled status to CRM meeting (fire-and-forget)
+  syncBookingStatusToMeeting(original.id, 'rescheduled').catch((e: unknown) =>
+    console.error('Failed to sync booking reschedule to CRM meeting:', e)
+  );
 
   return { success: true, newBookingId: result.bookingId };
 }

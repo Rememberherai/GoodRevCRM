@@ -1,7 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { updateBookingStatusSchema } from '@/lib/validators/calendar';
-import { cancelBookingByHost } from '@/lib/calendar/service';
+import { cancelBookingByHost, confirmBooking } from '@/lib/calendar/service';
+import { emitAutomationEvent } from '@/lib/automations/engine';
+import { syncBookingStatusToMeeting } from '@/lib/calendar/crm-bridge';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -51,10 +53,17 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ success: true });
     }
 
+    if (result.data.status === 'confirmed') {
+      const confirmResult = await confirmBooking(id, user.id);
+      if (!confirmResult.success) {
+        return NextResponse.json({ error: confirmResult.error }, { status: 400 });
+      }
+      return NextResponse.json({ success: true });
+    }
+
     // Only allow status transitions from active states
     // Prevent reviving cancelled/rescheduled bookings
     const allowedFromStatuses = {
-      confirmed: ['pending'],
       completed: ['confirmed'],
       no_show: ['confirmed'],
     } as Record<string, string[]>;
@@ -71,6 +80,35 @@ export async function PATCH(request: Request, context: RouteContext) {
       .single();
 
     if (error || !updated) return NextResponse.json({ error: 'Booking not found or update failed' }, { status: 404 });
+
+    // Emit automation events based on status transition (fire-and-forget)
+    const newStatus = result.data.status;
+    if (newStatus === 'completed') {
+      emitAutomationEvent({
+        projectId: updated.project_id,
+        triggerType: 'booking.completed',
+        entityType: 'booking',
+        entityId: updated.id,
+        data: { booking_id: updated.id },
+      }).catch((err) => console.error('Failed to emit booking.completed event:', err));
+
+      syncBookingStatusToMeeting(updated.id, 'completed').catch((e: unknown) =>
+        console.error('Failed to sync booking completed status to meeting:', e)
+      );
+    } else if (newStatus === 'no_show') {
+      emitAutomationEvent({
+        projectId: updated.project_id,
+        triggerType: 'booking.no_show',
+        entityType: 'booking',
+        entityId: updated.id,
+        data: { booking_id: updated.id },
+      }).catch((err) => console.error('Failed to emit booking.no_show event:', err));
+
+      syncBookingStatusToMeeting(updated.id, 'no_show').catch((e: unknown) =>
+        console.error('Failed to sync booking no_show status to meeting:', e)
+      );
+    }
+
     return NextResponse.json({ booking: updated });
   } catch {
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });

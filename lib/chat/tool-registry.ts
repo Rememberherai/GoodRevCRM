@@ -5092,6 +5092,7 @@ defineTool({
       p_payment_date: params.payment_date as string,
       p_payment_method: (params.payment_method as string) ?? 'other',
       p_reference: (params.reference as string) ?? '',
+      p_notes: '',
     });
     if (error) throw new Error(`Failed: ${error.message}`);
     return JSON.stringify({ success: true, payment_id: data });

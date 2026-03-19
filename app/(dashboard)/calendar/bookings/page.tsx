@@ -3,13 +3,7 @@
 import { useEffect, useState } from 'react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from '@/components/ui/select';
+import { Button } from '@/components/ui/button';
 import Link from 'next/link';
 import { BOOKING_STATUS_LABELS, BOOKING_STATUS_COLORS } from '@/types/calendar';
 import type { BookingStatus } from '@/types/calendar';
@@ -25,10 +19,20 @@ interface BookingItem {
   event_types: { title: string; color: string } | null;
 }
 
+type FilterTab = 'all' | 'upcoming' | 'pending' | 'completed' | 'cancelled';
+
+const FILTER_TABS: { key: FilterTab; label: string }[] = [
+  { key: 'all', label: 'All' },
+  { key: 'upcoming', label: 'Upcoming' },
+  { key: 'pending', label: 'Pending' },
+  { key: 'completed', label: 'Completed' },
+  { key: 'cancelled', label: 'Cancelled' },
+];
+
 export default function BookingsPage() {
   const [bookings, setBookings] = useState<BookingItem[]>([]);
   const [loading, setLoading] = useState(true);
-  const [statusFilter, setStatusFilter] = useState<string>('all');
+  const [activeFilter, setActiveFilter] = useState<FilterTab>('all');
   const { selectedProjectId } = useCalendarContext();
 
   useEffect(() => {
@@ -37,13 +41,28 @@ export default function BookingsPage() {
       setLoading(true);
       try {
         const params = new URLSearchParams({ limit: '50' });
-        if (statusFilter !== 'all') params.set('status', statusFilter);
+
+        // For 'upcoming', we fetch confirmed bookings; for specific statuses, filter by status
+        if (activeFilter === 'upcoming') {
+          params.set('status', 'confirmed');
+        } else if (activeFilter !== 'all') {
+          params.set('status', activeFilter);
+        }
+
         if (selectedProjectId) params.set('project_id', selectedProjectId);
 
         const res = await fetch(`/api/calendar/bookings?${params}`);
         if (res.ok && !cancelled) {
           const data = await res.json();
-          setBookings(data.bookings || []);
+          let results: BookingItem[] = data.bookings || [];
+
+          // For 'upcoming', further filter to only future bookings
+          if (activeFilter === 'upcoming') {
+            const now = new Date();
+            results = results.filter((b) => new Date(b.start_at) > now);
+          }
+
+          setBookings(results);
         }
       } catch {
         // Silently fail
@@ -54,32 +73,38 @@ export default function BookingsPage() {
 
     void loadBookings();
     return () => { cancelled = true; };
-  }, [statusFilter, selectedProjectId]);
+  }, [activeFilter, selectedProjectId]);
+
+  const filterTitle = activeFilter === 'all'
+    ? 'All Bookings'
+    : activeFilter === 'upcoming'
+    ? 'Upcoming Bookings'
+    : BOOKING_STATUS_LABELS[activeFilter as BookingStatus] || activeFilter;
 
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
         <h1 className="text-2xl font-bold">Bookings</h1>
-        <Select value={statusFilter} onValueChange={setStatusFilter}>
-          <SelectTrigger className="w-[180px]">
-            <SelectValue placeholder="Filter by status" />
-          </SelectTrigger>
-          <SelectContent>
-            <SelectItem value="all">All Statuses</SelectItem>
-            {Object.entries(BOOKING_STATUS_LABELS).map(([key, label]) => (
-              <SelectItem key={key} value={key}>
-                {label}
-              </SelectItem>
-            ))}
-          </SelectContent>
-        </Select>
+      </div>
+
+      {/* Filter tabs */}
+      <div className="flex flex-wrap gap-2">
+        {FILTER_TABS.map((tab) => (
+          <Button
+            key={tab.key}
+            type="button"
+            variant={activeFilter === tab.key ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => setActiveFilter(tab.key)}
+          >
+            {tab.label}
+          </Button>
+        ))}
       </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>
-            {statusFilter === 'all' ? 'All Bookings' : BOOKING_STATUS_LABELS[statusFilter as BookingStatus]}
-          </CardTitle>
+          <CardTitle>{filterTitle}</CardTitle>
         </CardHeader>
         <CardContent>
           {loading ? (
