@@ -5199,6 +5199,8 @@ defineTool({
     is_active: z.boolean().optional().describe('Active'),
     location_type: z.enum(['video', 'phone', 'in_person', 'custom', 'ask_invitee']).optional().describe('Location type'),
     requires_confirmation: z.boolean().optional().describe('Require confirmation'),
+    scheduling_type: z.enum(['one_on_one', 'group', 'round_robin', 'collective']).optional().describe('Scheduling type'),
+    max_attendees: z.number().int().min(1).max(100).optional().describe('Max attendees for group events'),
   }),
   handler: async (params, ctx) => {
     const { id, ...updates } = params as { id: string; [key: string]: unknown };
