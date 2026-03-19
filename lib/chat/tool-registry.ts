@@ -3,6 +3,8 @@ import { zodToJsonSchema } from 'zod-to-json-schema';
 import { checkPermission } from '@/lib/mcp/auth';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { sendBookingCancellation } from '@/lib/calendar/notifications';
+import { removeBookingFromCalendar } from '@/lib/calendar/sync';
+import { syncBookingStatusToMeeting } from '@/lib/calendar/crm-bridge';
 import type { Json } from '@/types/database';
 import type { McpContext } from '@/types/mcp';
 
@@ -5310,6 +5312,8 @@ defineTool({
       metadata: { userId: ctx.userId },
     }).catch(() => {});
     sendBookingCancellation(data.id).catch(() => {});
+    removeBookingFromCalendar(data.id).catch(() => {});
+    syncBookingStatusToMeeting(data.id, 'cancelled').catch(() => {});
     return JSON.stringify(data);
   },
 });

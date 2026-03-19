@@ -3,6 +3,8 @@ import { z } from 'zod';
 import { checkPermission } from '../auth';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { sendBookingCancellation } from '@/lib/calendar/notifications';
+import { removeBookingFromCalendar } from '@/lib/calendar/sync';
+import { syncBookingStatusToMeeting } from '@/lib/calendar/crm-bridge';
 import type { McpContext } from '@/types/mcp';
 
 export function registerCalendarTools(server: McpServer, getContext: () => McpContext) {
@@ -267,6 +269,8 @@ export function registerCalendarTools(server: McpServer, getContext: () => McpCo
       }).catch(() => {});
 
       sendBookingCancellation(data.id).catch(() => {});
+      removeBookingFromCalendar(data.id).catch(() => {});
+      syncBookingStatusToMeeting(data.id, 'cancelled').catch(() => {});
 
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
