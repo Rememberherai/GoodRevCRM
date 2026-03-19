@@ -222,7 +222,40 @@ export async function processBounce(
     .single();
 
   if (!person) {
-    console.log(`[BounceDetect] No person found for bounced email: ${bouncedEmail}`);
+    console.log(`[BounceDetect] No person found for bounced email: ${bouncedEmail}, looking up sent_email by recipient`);
+    // Still record the bounce event even without a person match
+    const { data: sentEmailForUnknown } = await supabase
+      .from('sent_emails')
+      .select('id')
+      .ilike('recipient_email', bouncedEmail)
+      .order('sent_at', { ascending: false })
+      .limit(1)
+      .maybeSingle();
+
+    if (sentEmailForUnknown) {
+      const { data: existingBounce } = await supabase
+        .from('email_events')
+        .select('id')
+        .eq('sent_email_id', sentEmailForUnknown.id)
+        .eq('event_type', 'bounce')
+        .limit(1)
+        .maybeSingle();
+
+      if (!existingBounce) {
+        await supabase.from('email_events').insert({
+          sent_email_id: sentEmailForUnknown.id,
+          event_type: 'bounce',
+          occurred_at: new Date().toISOString(),
+          metadata: {
+            bounced_email: bouncedEmail,
+            gmail_message_id: gmailMessageId,
+            detection_method: 'inbound_ndr',
+            no_person: true,
+          },
+        });
+      }
+    }
+
     return { enrollmentId: null, personId: null };
   }
 
@@ -395,7 +428,64 @@ export async function processBounce(
     return { enrollmentId: enrollment.id, personId: person.id };
   }
 
-  console.log(`[BounceDetect] No active enrollment for bounced person ${person.id} (${bouncedEmail})`);
+  // No active enrollment — still record the bounce event against the most recent sent email
+  console.log(`[BounceDetect] No active enrollment for bounced person ${person.id} (${bouncedEmail}), looking up sent_email by recipient`);
+  const { data: sentEmailByRecipient } = await supabase
+    .from('sent_emails')
+    .select('id, project_id, created_by')
+    .ilike('recipient_email', bouncedEmail)
+    .order('sent_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  if (sentEmailByRecipient) {
+    // Check for existing bounce event to avoid duplicates
+    const { data: existingBounce } = await supabase
+      .from('email_events')
+      .select('id')
+      .eq('sent_email_id', sentEmailByRecipient.id)
+      .eq('event_type', 'bounce')
+      .limit(1)
+      .maybeSingle();
+
+    if (!existingBounce) {
+      await supabase.from('email_events').insert({
+        sent_email_id: sentEmailByRecipient.id,
+        event_type: 'bounce',
+        occurred_at: new Date().toISOString(),
+        metadata: {
+          bounced_email: bouncedEmail,
+          gmail_message_id: gmailMessageId,
+          detection_method: 'inbound_ndr',
+          no_enrollment: true,
+        },
+      });
+    }
+
+    // Log activity on the person's timeline
+    try {
+      await supabase.from('activity_log').insert({
+        project_id: sentEmailByRecipient.project_id,
+        user_id: sentEmailByRecipient.created_by,
+        entity_type: 'person',
+        entity_id: person.id,
+        action: 'bounced',
+        activity_type: 'email',
+        outcome: 'email_bounced',
+        direction: 'inbound',
+        subject: `Email bounced`,
+        notes: `Delivery to ${bouncedEmail} failed.`,
+        person_id: person.id,
+        metadata: {
+          bounced_email: bouncedEmail,
+          gmail_message_id: gmailMessageId,
+        },
+      });
+    } catch (actErr) {
+      console.error('[BounceDetect] Failed to log no-enrollment activity:', actErr);
+    }
+  }
+
   return { enrollmentId: null, personId: person.id };
 }
 

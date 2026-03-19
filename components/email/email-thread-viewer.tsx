@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import {
+  AlertTriangle,
   ArrowDownLeft,
   ArrowUpRight,
   ChevronDown,
@@ -15,6 +16,7 @@ interface EmailMessage extends SyncedEmail {
   tracking?: {
     opens: number;
     clicks: number;
+    bounces: number;
     first_open_at: string | null;
   } | null;
 }
@@ -89,6 +91,12 @@ function EmailMessageItem({ message, defaultExpanded }: { message: EmailMessage;
         <div className="flex items-center gap-2 flex-shrink-0">
           {message.attachments && message.attachments.length > 0 && (
             <Paperclip className="h-3 w-3 text-muted-foreground" />
+          )}
+          {message.tracking && message.tracking.bounces > 0 && (
+            <Badge variant="destructive" className="text-xs">
+              <AlertTriangle className="h-3 w-3 mr-1" />
+              Bounced
+            </Badge>
           )}
           {message.tracking && message.tracking.opens > 0 && (
             <Badge variant="secondary" className="text-xs">
@@ -167,6 +175,9 @@ function EmailMessageItem({ message, defaultExpanded }: { message: EmailMessage;
           {/* Tracking stats for outbound */}
           {message.tracking && (
             <div className="mt-3 pt-3 border-t flex gap-4 text-xs text-muted-foreground">
+              {message.tracking.bounces > 0 && (
+                <span className="text-destructive font-medium">Bounced</span>
+              )}
               <span>{message.tracking.opens} open{message.tracking.opens !== 1 ? 's' : ''}</span>
               <span>{message.tracking.clicks} click{message.tracking.clicks !== 1 ? 's' : ''}</span>
               {message.tracking.first_open_at && (
