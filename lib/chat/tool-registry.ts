@@ -5335,8 +5335,9 @@ defineTool({
       .update(params as any)
       .eq('user_id', ctx.userId)
       .select()
-      .single();
+      .maybeSingle();
     if (error) throw new Error(`Failed: ${error.message}`);
+    if (!data) throw new Error('Calendar profile not found. Create one first via Calendar settings.');
     return JSON.stringify(data);
   },
 });
@@ -5361,8 +5362,9 @@ defineTool({
       .from('calendar_profiles')
       .select('slug')
       .eq('user_id', et.user_id)
-      .single();
+      .maybeSingle();
     if (profileError) throw new Error(`Calendar profile not found: ${profileError.message}`);
+    if (!profile) throw new Error('Event type owner has no calendar profile.');
     return JSON.stringify({ url: `/book/${profile.slug}/${et.slug}` });
   },
 });
@@ -5541,10 +5543,11 @@ defineTool({
       if (error) throw new Error(`Failed: ${error.message}`);
     }
     if (rules) {
-      await ctx.supabase
+      const { error: deleteError } = await ctx.supabase
         .from('availability_rules')
         .delete()
         .eq('schedule_id', schedule_id);
+      if (deleteError) throw new Error(`Failed to delete existing rules: ${deleteError.message}`);
       if (rules.length > 0) {
         const { error } = await ctx.supabase
           .from('availability_rules')

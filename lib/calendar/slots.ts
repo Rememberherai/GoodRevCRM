@@ -79,7 +79,7 @@ export async function getAvailableSlots(config: SlotConfig): Promise<AvailableDa
       .from('availability_schedules')
       .select('timezone')
       .eq('id', scheduleId)
-      .single();
+      .maybeSingle();
 
     if (schedule) baseScheduleTz = schedule.timezone;
 

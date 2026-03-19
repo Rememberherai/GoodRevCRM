@@ -46,7 +46,7 @@ export async function GET(request: Request) {
         .from('calendar_profiles')
         .select('display_name')
         .eq('user_id', et.user_id)
-        .single();
+        .maybeSingle();
       hostName = profile?.display_name || '';
     }
 

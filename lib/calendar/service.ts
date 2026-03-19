@@ -104,14 +104,14 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
       .from('availability_schedules')
       .select('timezone')
       .eq('id', eventType.schedule_id)
-      .single();
+      .maybeSingle();
     if (schedule) hostTimezone = schedule.timezone;
   } else {
     const { data: profile } = await supabase
       .from('calendar_profiles')
       .select('timezone')
       .eq('user_id', eventType.user_id)
-      .single();
+      .maybeSingle();
     if (profile) hostTimezone = profile.timezone;
   }
 

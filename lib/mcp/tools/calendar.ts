@@ -296,9 +296,10 @@ export function registerCalendarTools(server: McpServer, getContext: () => McpCo
         .update(params)
         .eq('user_id', ctx.userId)
         .select()
-        .single();
+        .maybeSingle();
 
       if (error) throw new Error(`Failed to update profile: ${error.message}`);
+      if (!data) throw new Error('Calendar profile not found. Create one first via the Calendar settings page.');
       return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
     }
   );
@@ -367,10 +368,12 @@ export function registerCalendarTools(server: McpServer, getContext: () => McpCo
       // Replace rules if provided
       if (params.rules) {
         // Delete existing rules
-        await ctx.supabase
+        const { error: deleteError } = await ctx.supabase
           .from('availability_rules')
           .delete()
           .eq('schedule_id', params.schedule_id);
+
+        if (deleteError) throw new Error(`Failed to delete existing rules: ${deleteError.message}`);
 
         // Insert new rules
         if (params.rules.length > 0) {
@@ -576,9 +579,10 @@ export function registerCalendarTools(server: McpServer, getContext: () => McpCo
         .from('calendar_profiles')
         .select('slug')
         .eq('user_id', et.user_id)
-        .single();
+        .maybeSingle();
 
       if (profileError) throw new Error(`Calendar profile not found: ${profileError.message}`);
+      if (!profile) throw new Error('Event type owner has no calendar profile. Set one up in Calendar settings.');
 
       const bookingUrl = `/book/${profile.slug}/${et.slug}`;
 

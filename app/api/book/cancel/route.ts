@@ -22,7 +22,7 @@ export async function POST(request: Request) {
 
     if (!cancelResult.success) {
       const status = cancelResult.error?.includes('expired') ? 410 : 400;
-      return NextResponse.json({ error: cancelResult.error }, { status });
+      return NextResponse.json({ error: cancelResult.error || 'Cancellation failed' }, { status });
     }
 
     return NextResponse.json({ success: true });

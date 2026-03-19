@@ -122,7 +122,7 @@ async function processEvents(
       continue;
     }
 
-    seenExternalIds.add(event.id);
+    if (event.id) seenExternalIds.add(event.id);
 
     // Upsert event — cast raw_data for Json compatibility.
     // Omit source_calendar so pull sync doesn't overwrite booking references
