@@ -1,0 +1,25 @@
+import { BillForm } from '@/components/accounting/bill-form';
+import { createClient } from '@/lib/supabase/server';
+import { redirect } from 'next/navigation';
+
+export default async function NewBillPage() {
+  const supabase = await createClient();
+  const {
+    data: { user },
+  } = await supabase.auth.getUser();
+
+  const { data: membership } = user
+    ? await supabase
+        .from('accounting_company_memberships')
+        .select('role')
+        .eq('user_id', user.id)
+        .limit(1)
+        .maybeSingle()
+    : { data: null };
+
+  if (!membership || membership.role === 'viewer') {
+    redirect('/accounting/bills');
+  }
+
+  return <BillForm />;
+}

@@ -38,7 +38,7 @@ const navItems = [
     title: 'Bills',
     href: '/bills',
     icon: FileText,
-    disabled: true,
+    disabled: false,
   },
   {
     title: 'Journal Entries',

@@ -758,6 +758,270 @@ export type Database = {
           },
         ]
       }
+      bill_line_items: {
+        Row: {
+          account_id: string
+          amount: number
+          bill_id: string
+          created_at: string
+          description: string
+          id: string
+          quantity: number
+          sort_order: number
+          tax_amount: number
+          tax_rate_id: string | null
+          unit_price: number
+        }
+        Insert: {
+          account_id: string
+          amount?: number
+          bill_id: string
+          created_at?: string
+          description: string
+          id?: string
+          quantity?: number
+          sort_order?: number
+          tax_amount?: number
+          tax_rate_id?: string | null
+          unit_price: number
+        }
+        Update: {
+          account_id?: string
+          amount?: number
+          bill_id?: string
+          created_at?: string
+          description?: string
+          id?: string
+          quantity?: number
+          sort_order?: number
+          tax_amount?: number
+          tax_rate_id?: string | null
+          unit_price?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_line_items_account_id_fkey"
+            columns: ["account_id"]
+            isOneToOne: false
+            referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_line_items_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_line_items_tax_rate_id_fkey"
+            columns: ["tax_rate_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bill_tax_summary: {
+        Row: {
+          bill_id: string
+          created_at: string
+          id: string
+          tax_amount: number
+          tax_name: string
+          tax_rate: number
+          tax_rate_id: string
+          taxable_amount: number
+        }
+        Insert: {
+          bill_id: string
+          created_at?: string
+          id?: string
+          tax_amount: number
+          tax_name: string
+          tax_rate: number
+          tax_rate_id: string
+          taxable_amount: number
+        }
+        Update: {
+          bill_id?: string
+          created_at?: string
+          id?: string
+          tax_amount?: number
+          tax_name?: string
+          tax_rate?: number
+          tax_rate_id?: string
+          taxable_amount?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bill_tax_summary_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bill_tax_summary_tax_rate_id_fkey"
+            columns: ["tax_rate_id"]
+            isOneToOne: false
+            referencedRelation: "tax_rates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      bills: {
+        Row: {
+          amount_paid: number
+          balance_due: number
+          bill_date: string
+          bill_number: string
+          company_id: string
+          contact_id: string | null
+          created_at: string
+          created_by: string
+          currency: string
+          deleted_at: string | null
+          discount_amount: number
+          due_date: string
+          exchange_rate: number
+          id: string
+          journal_entry_id: string | null
+          notes: string | null
+          organization_id: string | null
+          paid_at: string | null
+          payment_terms: number | null
+          project_id: string | null
+          received_at: string | null
+          status: string
+          subtotal: number
+          tax_total: number
+          total: number
+          updated_at: string
+          vendor_address: string | null
+          vendor_email: string | null
+          vendor_name: string
+          vendor_phone: string | null
+          voided_at: string | null
+        }
+        Insert: {
+          amount_paid?: number
+          balance_due?: number
+          bill_date: string
+          bill_number: string
+          company_id: string
+          contact_id?: string | null
+          created_at?: string
+          created_by: string
+          currency?: string
+          deleted_at?: string | null
+          discount_amount?: number
+          due_date: string
+          exchange_rate?: number
+          id?: string
+          journal_entry_id?: string | null
+          notes?: string | null
+          organization_id?: string | null
+          paid_at?: string | null
+          payment_terms?: number | null
+          project_id?: string | null
+          received_at?: string | null
+          status?: string
+          subtotal?: number
+          tax_total?: number
+          total?: number
+          updated_at?: string
+          vendor_address?: string | null
+          vendor_email?: string | null
+          vendor_name: string
+          vendor_phone?: string | null
+          voided_at?: string | null
+        }
+        Update: {
+          amount_paid?: number
+          balance_due?: number
+          bill_date?: string
+          bill_number?: string
+          company_id?: string
+          contact_id?: string | null
+          created_at?: string
+          created_by?: string
+          currency?: string
+          deleted_at?: string | null
+          discount_amount?: number
+          due_date?: string
+          exchange_rate?: number
+          id?: string
+          journal_entry_id?: string | null
+          notes?: string | null
+          organization_id?: string | null
+          paid_at?: string | null
+          payment_terms?: number | null
+          project_id?: string | null
+          received_at?: string | null
+          status?: string
+          subtotal?: number
+          tax_total?: number
+          total?: number
+          updated_at?: string
+          vendor_address?: string | null
+          vendor_email?: string | null
+          vendor_name?: string
+          vendor_phone?: string | null
+          voided_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bills_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_contact_id_fkey"
+            columns: ["contact_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_journal_entry_id_fkey"
+            columns: ["journal_entry_id"]
+            isOneToOne: false
+            referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bills_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "bills_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calls: {
         Row: {
           amd_result: string | null
@@ -4701,6 +4965,7 @@ export type Database = {
         Row: {
           account_id: string
           amount: number
+          bill_id: string | null
           company_id: string
           created_at: string
           created_by: string
@@ -4722,6 +4987,7 @@ export type Database = {
         Insert: {
           account_id: string
           amount: number
+          bill_id?: string | null
           company_id: string
           created_at?: string
           created_by: string
@@ -4743,6 +5009,7 @@ export type Database = {
         Update: {
           account_id?: string
           amount?: number
+          bill_id?: string | null
           company_id?: string
           created_at?: string
           created_by?: string
@@ -4767,6 +5034,13 @@ export type Database = {
             columns: ["account_id"]
             isOneToOne: false
             referencedRelation: "chart_of_accounts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "payments_bill_id_fkey"
+            columns: ["bill_id"]
+            isOneToOne: false
+            referencedRelation: "bills"
             referencedColumns: ["id"]
           },
           {
@@ -8024,6 +8298,26 @@ export type Database = {
         Args: { p_reconciliation_id: string }
         Returns: string
       }
+      create_bill: {
+        Args: {
+          p_bill_date: string
+          p_company_id: string
+          p_contact_id?: string
+          p_currency?: string
+          p_due_date: string
+          p_exchange_rate?: number
+          p_lines: Json
+          p_notes?: string
+          p_organization_id?: string
+          p_payment_terms?: number
+          p_project_id?: string
+          p_vendor_address?: string
+          p_vendor_email?: string
+          p_vendor_name: string
+          p_vendor_phone?: string
+        }
+        Returns: string
+      }
       create_invoice: {
         Args: {
           p_company_id: string
@@ -8455,9 +8749,22 @@ export type Database = {
         Args: { p_event_type: string; p_payload: Json; p_webhook_id: string }
         Returns: string
       }
+      receive_bill: { Args: { p_bill_id: string }; Returns: string }
       recompute_quote_totals: {
         Args: { p_quote_id: string }
         Returns: undefined
+      }
+      record_bill_payment: {
+        Args: {
+          p_account_id: string
+          p_amount: number
+          p_bill_id: string
+          p_notes?: string
+          p_payment_date: string
+          p_payment_method?: string
+          p_reference?: string
+        }
+        Returns: string
       }
       record_invoice_payment: {
         Args: {
@@ -8534,6 +8841,10 @@ export type Database = {
         Args: { p_project_id: string; p_quote_id: string }
         Returns: undefined
       }
+      update_draft_bill: {
+        Args: { p_bill_id: string; p_lines?: Json; p_patch?: Json }
+        Returns: string
+      }
       update_draft_invoice: {
         Args: { p_invoice_id: string; p_lines?: Json; p_patch?: Json }
         Returns: string
@@ -8569,6 +8880,7 @@ export type Database = {
         }
         Returns: boolean
       }
+      void_bill: { Args: { p_bill_id: string }; Returns: string }
       void_invoice: { Args: { p_invoice_id: string }; Returns: string }
       void_journal_entry: { Args: { p_entry_id: string }; Returns: string }
     }
