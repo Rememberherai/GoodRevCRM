@@ -146,16 +146,66 @@ export async function POST(request: Request) {
 
     console.log(`[BounceScan] Extracted ${bouncedEmails.size} unique bounced email addresses`);
 
-    // Batch lookup: find all people by email in one query
+    // ── Step 1: Create email_events for ALL bounced emails by matching sent_emails ──
+    // This catches bounces regardless of enrollment status
     const bouncedEmailList = [...bouncedEmails.keys()];
+    let eventsCreated = 0;
+
+    for (let i = 0; i < bouncedEmailList.length; i += 50) {
+      const batch = bouncedEmailList.slice(i, i + 50);
+      // Case-insensitive match against sent_emails.recipient_email
+      const orFilter = batch.map(e => `recipient_email.ilike.${e}`).join(',');
+      const { data: sentEmails } = await admin
+        .from('sent_emails')
+        .select('id, recipient_email')
+        .or(orFilter);
+
+      if (sentEmails && !dryRun) {
+        for (const se of sentEmails) {
+          const bouncedEmail = se.recipient_email?.toLowerCase();
+          if (!bouncedEmail) continue;
+          const bounceInfo = bouncedEmails.get(bouncedEmail);
+          if (!bounceInfo) continue;
+
+          // Dedup: skip if bounce event already exists for this sent_email
+          const { data: existing } = await admin
+            .from('email_events')
+            .select('id')
+            .eq('sent_email_id', se.id)
+            .eq('event_type', 'bounce')
+            .limit(1);
+
+          if (existing && existing.length > 0) continue;
+
+          await admin.from('email_events').insert({
+            sent_email_id: se.id,
+            event_type: 'bounce',
+            occurred_at: bounceInfo.date,
+            metadata: {
+              bounced_email: bouncedEmail,
+              gmail_message_id: bounceInfo.gmailMessageId,
+              bounce_subject: bounceInfo.subject,
+              detection_method: 'bounce_scan',
+            },
+          });
+          eventsCreated++;
+        }
+      }
+    }
+
+    console.log(`[BounceScan] Created ${eventsCreated} bounce email_events`);
+
+    // ── Step 2: Batch lookup people for enrollment processing ──
     const personMap = new Map<string, { id: string; first_name: string | null; last_name: string | null }>();
 
     for (let i = 0; i < bouncedEmailList.length; i += 50) {
       const batch = bouncedEmailList.slice(i, i + 50);
+      // Case-insensitive match
+      const orFilter = batch.map(e => `email.ilike.${e}`).join(',');
       const { data: people } = await admin
         .from('people')
         .select('id, first_name, last_name, email')
-        .in('email', batch);
+        .or(orFilter);
       for (const p of (people ?? []) as { id: string; first_name: string | null; last_name: string | null; email: string }[]) {
         personMap.set(p.email.toLowerCase(), p);
       }
@@ -423,6 +473,7 @@ export async function POST(request: Request) {
       dry_run: dryRun,
       bounce_messages_found: allMessageIds.size,
       unique_bounced_emails: bouncedEmails.size,
+      bounce_events_created: eventsCreated,
       enrollments_marked: dryRun ? 0 : bouncedCount,
       enrollments_would_mark: dryRun ? wouldBounceCount : undefined,
       co_recipients_removed: dryRun ? 0 : removedFromGroupCount,
