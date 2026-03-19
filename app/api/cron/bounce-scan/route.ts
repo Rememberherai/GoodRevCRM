@@ -37,14 +37,17 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, message: 'No active connections', scanned: 0 });
     }
 
-    // Forward auth header so bounce-scan endpoint accepts the request
+    // Forward auth header + project_id so bounce-scan endpoint accepts the request
     const authHeader = request.headers.get('authorization') ?? '';
-    const baseUrl = new URL(request.url).origin;
+    const url = new URL(request.url);
+    const baseUrl = url.origin;
+    const projectId = url.searchParams.get('project_id') ?? '';
     const results = [];
 
     for (const conn of connections) {
       try {
-        const response = await fetch(`${baseUrl}/api/gmail/bounce-scan`, {
+        const scanUrl = `${baseUrl}/api/gmail/bounce-scan${projectId ? `?project_id=${projectId}` : ''}`;
+        const response = await fetch(scanUrl, {
           method: 'POST',
           headers: {
             'Content-Type': 'application/json',
