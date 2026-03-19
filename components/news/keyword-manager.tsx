@@ -7,6 +7,7 @@ import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { ScrollArea } from '@/components/ui/scroll-area';
+import { Checkbox } from '@/components/ui/checkbox';
 import { cn } from '@/lib/utils';
 import { useNewsKeywords } from '@/hooks/use-news-keywords';
 import { NewsTokenUsage } from './news-token-usage';
@@ -38,14 +39,16 @@ export function KeywordManager({ projectSlug, onFetchComplete }: KeywordManagerP
   const manualKeywords = keywords.filter(k => k.source === 'manual');
   const orgKeywords = keywords.filter(k => k.source === 'organization');
 
+  const activeOrgKeywords = useMemo(() => orgKeywords.filter(k => k.is_active), [orgKeywords]);
+
   const filteredOrgKeywords = useMemo(() => {
     if (!orgSearch.trim()) return orgKeywords;
     const search = orgSearch.toLowerCase();
     return orgKeywords.filter(kw => kw.keyword.toLowerCase().includes(search));
   }, [orgKeywords, orgSearch]);
 
-  const activeOrgCount = orgKeywords.filter(k => k.is_active).length;
-  const COLLAPSED_LIMIT = 12;
+  const activeOrgCount = activeOrgKeywords.length;
+  const COLLAPSED_CHIP_LIMIT = 10;
 
   const handleAdd = async () => {
     const trimmed = newKeyword.trim();
@@ -164,71 +167,81 @@ export function KeywordManager({ projectSlug, onFetchComplete }: KeywordManagerP
                     ({activeOrgCount} of {orgKeywords.length} active)
                   </span>
                 </p>
-                {orgKeywords.length > COLLAPSED_LIMIT && (
-                  <Button
-                    variant="ghost"
-                    size="sm"
-                    className="h-6 text-xs px-2"
-                    onClick={() => setShowAllOrgs(!showAllOrgs)}
-                  >
-                    {showAllOrgs ? 'Show less' : `Show all ${orgKeywords.length}`}
-                  </Button>
-                )}
+                <Button
+                  variant="ghost"
+                  size="sm"
+                  className="h-6 text-xs px-2"
+                  onClick={() => setShowAllOrgs(!showAllOrgs)}
+                >
+                  {showAllOrgs ? 'Show less' : 'Manage'}
+                </Button>
               </div>
 
-              {/* Search input for many organizations */}
-              {orgKeywords.length > COLLAPSED_LIMIT && showAllOrgs && (
-                <div className="relative">
-                  <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <Input
-                    placeholder="Search organizations..."
-                    value={orgSearch}
-                    onChange={(e) => setOrgSearch(e.target.value)}
-                    className="h-8 pl-8 text-sm"
-                  />
-                </div>
-              )}
-
-              {/* Organization badges grid */}
-              <ScrollArea className={cn(
-                showAllOrgs && orgKeywords.length > COLLAPSED_LIMIT ? 'h-[200px]' : ''
-              )}>
+              {!showAllOrgs ? (
+                /* Collapsed: show active org keywords as chips */
                 <div className="flex flex-wrap gap-1.5">
-                  {(showAllOrgs ? filteredOrgKeywords : orgKeywords.slice(0, COLLAPSED_LIMIT)).map((kw) => (
-                    <button
+                  {activeOrgKeywords.slice(0, COLLAPSED_CHIP_LIMIT).map((kw) => (
+                    <span
                       key={kw.id}
-                      onClick={() => toggleKeyword(kw.id, kw.is_active)}
-                      className={cn(
-                        "inline-flex items-center gap-1.5 px-2.5 py-1 rounded-md text-xs font-medium transition-colors",
-                        "border hover:bg-accent",
-                        kw.is_active
-                          ? "bg-primary/10 border-primary/30 text-primary"
-                          : "bg-muted/50 border-transparent text-muted-foreground"
-                      )}
+                      className="inline-flex items-center gap-1 px-2.5 py-1 rounded-md text-xs font-medium bg-primary/10 border border-primary/30 text-primary"
                     >
-                      {kw.is_active ? (
-                        <Check className="h-3 w-3" />
-                      ) : (
-                        <Building2 className="h-3 w-3" />
-                      )}
+                      <Check className="h-3 w-3" />
                       {kw.keyword}
-                    </button>
+                    </span>
                   ))}
-                  {!showAllOrgs && orgKeywords.length > COLLAPSED_LIMIT && (
-                    <button
-                      onClick={() => setShowAllOrgs(true)}
-                      className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium text-muted-foreground hover:text-foreground hover:bg-accent border border-dashed"
-                    >
-                      +{orgKeywords.length - COLLAPSED_LIMIT} more
-                    </button>
+                  {activeOrgCount > COLLAPSED_CHIP_LIMIT && (
+                    <span className="inline-flex items-center px-2.5 py-1 rounded-md text-xs font-medium text-muted-foreground bg-muted/50">
+                      +{activeOrgCount - COLLAPSED_CHIP_LIMIT} more active
+                    </span>
+                  )}
+                  {activeOrgCount === 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      No organizations active. Click &ldquo;Manage&rdquo; to enable.
+                    </p>
                   )}
                 </div>
-              </ScrollArea>
+              ) : (
+                /* Expanded: searchable list with checkboxes */
+                <div className="space-y-2">
+                  <div className="relative">
+                    <Search className="absolute left-2.5 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <Input
+                      placeholder="Search organizations..."
+                      value={orgSearch}
+                      onChange={(e) => setOrgSearch(e.target.value)}
+                      className="h-8 pl-8 text-sm"
+                    />
+                  </div>
 
-              {showAllOrgs && orgSearch && filteredOrgKeywords.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-2">
-                  No organizations match &ldquo;{orgSearch}&rdquo;
-                </p>
+                  <ScrollArea className="h-[280px] border rounded-md">
+                    <div className="divide-y">
+                      {filteredOrgKeywords.map((kw) => (
+                        <label
+                          key={kw.id}
+                          className="flex items-center gap-3 px-3 py-2 hover:bg-accent/50 cursor-pointer text-sm"
+                        >
+                          <Checkbox
+                            checked={kw.is_active}
+                            onCheckedChange={() => toggleKeyword(kw.id, kw.is_active)}
+                          />
+                          <Building2 className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                          <span className={cn(
+                            "truncate",
+                            !kw.is_active && "text-muted-foreground"
+                          )}>
+                            {kw.keyword}
+                          </span>
+                        </label>
+                      ))}
+                    </div>
+                  </ScrollArea>
+
+                  {orgSearch && filteredOrgKeywords.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-2">
+                      No organizations match &ldquo;{orgSearch}&rdquo;
+                    </p>
+                  )}
+                </div>
               )}
             </div>
           )}
