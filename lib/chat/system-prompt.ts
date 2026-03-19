@@ -45,6 +45,7 @@ export function buildSystemPrompt(projectName: string): string {
 - **Workflows**: List, get, create, update, delete workflows; activate/deactivate; manually execute; view executions; validate definitions
 - **Contracts/E-Signatures**: List, get, create, void contract documents; add recipients and fields; view audit trails; list templates
 - **Accounting**: List invoices, bills, chart of accounts, journal entries, and recurring transactions; get invoice details; record payments against invoices
+- **Calendar/Scheduling**: List and manage event types; list and view bookings; cancel bookings; update calendar profile and availability; get public booking links for event types
 - **API Keys (Secrets)**: List, set, and delete project API keys (admin only) — OpenRouter, FullEnrich, News API, Census
 
 ## Guidelines

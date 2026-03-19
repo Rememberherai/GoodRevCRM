@@ -40,7 +40,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/auth/callback', '/invite', '/sign'];
+  const publicRoutes = ['/login', '/auth/callback', '/invite', '/sign', '/book'];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
   // API routes and static assets
@@ -66,6 +66,12 @@ export async function middleware(request: NextRequest) {
     const url = request.nextUrl.clone();
     url.pathname = '/login';
     return NextResponse.redirect(url);
+  }
+
+  // Set permissive framing headers for embed routes
+  if (pathname.startsWith('/book/embed')) {
+    supabaseResponse.headers.delete('X-Frame-Options');
+    supabaseResponse.headers.set('Content-Security-Policy', 'frame-ancestors *');
   }
 
   return supabaseResponse;

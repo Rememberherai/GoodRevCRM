@@ -2,6 +2,7 @@ import { z } from 'zod';
 import { zodToJsonSchema } from 'zod-to-json-schema';
 import { checkPermission } from '@/lib/mcp/auth';
 import { emitAutomationEvent } from '@/lib/automations/engine';
+import { sendBookingCancellation } from '@/lib/calendar/notifications';
 import type { Json } from '@/types/database';
 import type { McpContext } from '@/types/mcp';
 
@@ -5094,6 +5095,348 @@ defineTool({
     });
     if (error) throw new Error(`Failed: ${error.message}`);
     return JSON.stringify({ success: true, payment_id: data });
+  },
+});
+
+// ── Calendar Tools ──────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'calendar.list_event_types',
+  description: 'List calendar event types for the current project',
+  minRole: 'viewer',
+  parameters: z.object({
+    active_only: z.boolean().default(true).describe('Only return active event types'),
+  }),
+  handler: async (params, ctx) => {
+    const { active_only } = params as { active_only: boolean };
+    let query = ctx.supabase
+      .from('event_types')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: false });
+    if (active_only) query = query.eq('is_active', true);
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify({ event_types: data });
+  },
+});
+
+defineTool({
+  name: 'calendar.get_event_type',
+  description: 'Get a calendar event type by ID',
+  minRole: 'viewer',
+  parameters: z.object({
+    id: z.string().uuid().describe('Event type ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { id } = params as { id: string };
+    const { data, error } = await ctx.supabase
+      .from('event_types')
+      .select('*')
+      .eq('id', id)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'calendar.create_event_type',
+  description: 'Create a new calendar event type for booking',
+  minRole: 'member',
+  parameters: z.object({
+    title: z.string().min(1).max(500).describe('Event type title'),
+    slug: z.string().min(2).max(100).regex(/^[a-z0-9-]+$/).describe('URL slug'),
+    description: z.string().max(2000).optional().describe('Description'),
+    duration_minutes: z.number().int().min(5).max(480).default(30).describe('Duration in minutes'),
+    color: z.string().default('#3b82f6').describe('Color hex code'),
+    location_type: z.enum(['video', 'phone', 'in_person', 'custom', 'ask_invitee']).default('video').describe('Location type'),
+    buffer_before_minutes: z.number().int().min(0).default(0).describe('Buffer before'),
+    buffer_after_minutes: z.number().int().min(0).default(0).describe('Buffer after'),
+    min_notice_hours: z.number().int().min(0).default(24).describe('Min notice hours'),
+    max_days_in_advance: z.number().int().min(1).default(60).describe('Max advance days'),
+    requires_confirmation: z.boolean().default(false).describe('Require host confirmation'),
+  }),
+  handler: async (params, ctx) => {
+    const p = params as Record<string, unknown>;
+    const { data, error } = await ctx.supabase
+      .from('event_types')
+      .insert({
+        user_id: ctx.userId,
+        project_id: ctx.projectId,
+        ...(p as any),
+        description: (p.description as string) || null,
+      })
+      .select()
+      .single();
+    if (error) throw new Error(`Failed: ${error.message}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'event_type.created',
+      entityType: 'event_type',
+      entityId: data.id,
+      data: { event_type: data },
+      metadata: { userId: ctx.userId },
+    }).catch(() => {});
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'calendar.update_event_type',
+  description: 'Update a calendar event type',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Event type ID'),
+    title: z.string().min(1).max(500).optional().describe('Title'),
+    slug: z.string().min(2).max(100).regex(/^[a-z0-9-]+$/).optional().describe('URL slug'),
+    description: z.string().max(2000).nullable().optional().describe('Description'),
+    duration_minutes: z.number().int().min(5).max(480).optional().describe('Duration'),
+    color: z.string().optional().describe('Color'),
+    is_active: z.boolean().optional().describe('Active'),
+    location_type: z.enum(['video', 'phone', 'in_person', 'custom', 'ask_invitee']).optional().describe('Location type'),
+    requires_confirmation: z.boolean().optional().describe('Require confirmation'),
+  }),
+  handler: async (params, ctx) => {
+    const { id, ...updates } = params as { id: string; [key: string]: unknown };
+    const { data, error } = await ctx.supabase
+      .from('event_types')
+      .update(updates as any)
+      .eq('id', id)
+      .eq('project_id', ctx.projectId)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'calendar.delete_event_type',
+  description: 'Delete a calendar event type',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Event type ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { id } = params as { id: string };
+    const { error } = await ctx.supabase
+      .from('event_types')
+      .delete()
+      .eq('id', id)
+      .eq('project_id', ctx.projectId);
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify({ deleted: true });
+  },
+});
+
+defineTool({
+  name: 'calendar.list_bookings',
+  description: 'List bookings for the current project with optional status filter',
+  minRole: 'viewer',
+  parameters: z.object({
+    status: z.enum(['pending', 'confirmed', 'cancelled', 'rescheduled', 'completed', 'no_show']).optional().describe('Filter by status'),
+    limit: z.number().int().min(1).max(100).default(50).describe('Max results'),
+  }),
+  handler: async (params, ctx) => {
+    const { status, limit } = params as { status?: string; limit: number };
+    let query = ctx.supabase
+      .from('bookings')
+      .select('*, event_types(title, color, duration_minutes)')
+      .eq('project_id', ctx.projectId)
+      .order('start_at', { ascending: false })
+      .limit(limit);
+    if (status) query = query.eq('status', status);
+    const { data, error } = await query;
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify({ bookings: data });
+  },
+});
+
+defineTool({
+  name: 'calendar.get_booking',
+  description: 'Get a single booking by ID',
+  minRole: 'viewer',
+  parameters: z.object({
+    id: z.string().uuid().describe('Booking ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { id } = params as { id: string };
+    const { data, error } = await ctx.supabase
+      .from('bookings')
+      .select('*, event_types(title, color, duration_minutes, location_type)')
+      .eq('id', id)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'calendar.cancel_booking',
+  description: 'Cancel a booking (host action)',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Booking ID'),
+    reason: z.string().max(2000).optional().describe('Cancellation reason'),
+  }),
+  handler: async (params, ctx) => {
+    const { id, reason } = params as { id: string; reason?: string };
+    const { data, error } = await ctx.supabase
+      .from('bookings')
+      .update({
+        status: 'cancelled',
+        cancelled_by: 'host',
+        cancellation_reason: reason || null,
+      })
+      .eq('id', id)
+      .eq('project_id', ctx.projectId)
+      .in('status', ['confirmed', 'pending'])
+      .select()
+      .single();
+    if (error) throw new Error(`Failed: ${error.message}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'booking.cancelled',
+      entityType: 'booking',
+      entityId: data.id,
+      data: { booking: data, cancelled_by: 'host' },
+      metadata: { userId: ctx.userId },
+    }).catch(() => {});
+    sendBookingCancellation(data.id).catch(() => {});
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'calendar.update_profile',
+  description: 'Update the current user\'s calendar booking profile',
+  minRole: 'member',
+  parameters: z.object({
+    slug: z.string().min(2).max(100).regex(/^[a-z0-9-]+$/).optional().describe('URL slug'),
+    display_name: z.string().min(1).max(200).optional().describe('Display name'),
+    bio: z.string().max(2000).nullable().optional().describe('Bio'),
+    timezone: z.string().max(100).optional().describe('Timezone'),
+    welcome_message: z.string().max(2000).nullable().optional().describe('Welcome message'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('calendar_profiles')
+      .update(params as any)
+      .eq('user_id', ctx.userId)
+      .select()
+      .single();
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'calendar.get_booking_link',
+  description: 'Get the public booking URL for an event type',
+  minRole: 'viewer',
+  parameters: z.object({
+    event_type_id: z.string().uuid().describe('Event type ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { event_type_id } = params as { event_type_id: string };
+    const { data: et, error: etError } = await ctx.supabase
+      .from('event_types')
+      .select('slug, user_id')
+      .eq('id', event_type_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (etError) throw new Error(`Event type not found: ${etError.message}`);
+    const { data: profile, error: profileError } = await ctx.supabase
+      .from('calendar_profiles')
+      .select('slug')
+      .eq('user_id', et.user_id)
+      .single();
+    if (profileError) throw new Error(`Calendar profile not found: ${profileError.message}`);
+    return JSON.stringify({ url: `/book/${profile.slug}/${et.slug}` });
+  },
+});
+
+defineTool({
+  name: 'calendar.list_availability_schedules',
+  description: 'List the current user\'s availability schedules with rules',
+  minRole: 'viewer',
+  parameters: z.object({}),
+  handler: async (_params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('availability_schedules')
+      .select('*, availability_rules(*)')
+      .eq('user_id', ctx.userId);
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify({ schedules: data });
+  },
+});
+
+defineTool({
+  name: 'calendar.update_availability',
+  description: 'Update an availability schedule and its rules',
+  minRole: 'member',
+  parameters: z.object({
+    schedule_id: z.string().uuid().describe('Schedule ID'),
+    name: z.string().min(1).max(200).optional().describe('Schedule name'),
+    timezone: z.string().max(100).optional().describe('Timezone'),
+    rules: z.array(z.object({
+      day_of_week: z.number().int().min(0).max(6).describe('0=Sun, 6=Sat'),
+      start_time: z.string().regex(/^\d{2}:\d{2}$/).describe('Start HH:MM'),
+      end_time: z.string().regex(/^\d{2}:\d{2}$/).describe('End HH:MM'),
+    })).optional().describe('Replacement rules'),
+  }),
+  handler: async (params, ctx) => {
+    const { schedule_id, name, timezone, rules } = params as {
+      schedule_id: string; name?: string; timezone?: string;
+      rules?: { day_of_week: number; start_time: string; end_time: string }[];
+    };
+    // Verify schedule ownership
+    const { data: schedule, error: schedError } = await ctx.supabase
+      .from('availability_schedules')
+      .select('id')
+      .eq('id', schedule_id)
+      .eq('user_id', ctx.userId)
+      .single();
+    if (schedError || !schedule) throw new Error('Schedule not found or access denied');
+
+    if (name || timezone) {
+      const updates: Record<string, string> = {};
+      if (name) updates.name = name;
+      if (timezone) updates.timezone = timezone;
+      const { error } = await ctx.supabase
+        .from('availability_schedules')
+        .update(updates)
+        .eq('id', schedule_id)
+        .eq('user_id', ctx.userId);
+      if (error) throw new Error(`Failed: ${error.message}`);
+    }
+    if (rules) {
+      await ctx.supabase
+        .from('availability_rules')
+        .delete()
+        .eq('schedule_id', schedule_id);
+      if (rules.length > 0) {
+        const { error } = await ctx.supabase
+          .from('availability_rules')
+          .insert(rules.map((r) => ({
+            schedule_id,
+            day_of_week: r.day_of_week,
+            start_time: r.start_time,
+            end_time: r.end_time,
+          })));
+        if (error) throw new Error(`Failed: ${error.message}`);
+      }
+    }
+    const { data, error } = await ctx.supabase
+      .from('availability_schedules')
+      .select('*, availability_rules(*)')
+      .eq('id', schedule_id)
+      .single();
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify(data);
   },
 });
 

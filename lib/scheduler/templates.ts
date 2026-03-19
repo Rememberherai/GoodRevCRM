@@ -122,6 +122,20 @@ export const CRON_TEMPLATES: CronTemplate[] = [
       wdays: [-1],
     },
   },
+  {
+    key: 'booking-reminders',
+    title: 'Booking Reminders',
+    path: '/api/cron/booking-reminders',
+    description: 'Sends 24h and 1h reminders for upcoming bookings',
+    defaultSchedule: {
+      timezone: 'America/New_York',
+      hours: [-1],
+      minutes: [0, 30],
+      mdays: [-1],
+      months: [-1],
+      wdays: [-1],
+    },
+  },
 ];
 
 /** Human-readable description of a cron-job.org schedule */

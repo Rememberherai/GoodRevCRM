@@ -61,7 +61,16 @@ export type TriggerType =
   | 'bill.paid'
   | 'bill.overdue'
   | 'payment.received'
-  | 'payment.made';
+  | 'payment.made'
+  // Booking events
+  | 'booking.created'
+  | 'booking.confirmed'
+  | 'booking.cancelled'
+  | 'booking.rescheduled'
+  | 'booking.completed'
+  | 'booking.no_show'
+  // Event type events
+  | 'event_type.created';
 
 export type ActionType =
   | 'create_task'
@@ -104,7 +113,9 @@ export type AutomationEntityType =
   | 'document'
   | 'invoice'
   | 'bill'
-  | 'payment';
+  | 'payment'
+  | 'booking'
+  | 'event_type';
 
 export type ExecutionStatus =
   | 'success'
@@ -140,6 +151,9 @@ export interface TriggerConfig {
   days?: number;
   days_before?: number;
   document_status?: string;
+  event_type_id?: string;
+  booking_status?: string;
+  cancelled_by?: string;
 }
 
 export interface Automation {
@@ -297,6 +311,18 @@ export const triggerTypeGroups = {
       { type: 'bill.overdue' as TriggerType, label: 'Bill Overdue', description: 'When a bill passes its due date' },
       { type: 'payment.received' as TriggerType, label: 'Payment Received', description: 'When a customer payment is recorded' },
       { type: 'payment.made' as TriggerType, label: 'Payment Made', description: 'When a vendor payment is recorded' },
+    ],
+  },
+  booking: {
+    label: 'Booking Events',
+    triggers: [
+      { type: 'event_type.created' as TriggerType, label: 'Event Type Created', description: 'When a new event type is created' },
+      { type: 'booking.created' as TriggerType, label: 'Booking Created', description: 'When a new booking is created via the public booking page' },
+      { type: 'booking.confirmed' as TriggerType, label: 'Booking Confirmed', description: 'When a pending booking is confirmed by the host' },
+      { type: 'booking.cancelled' as TriggerType, label: 'Booking Cancelled', description: 'When a booking is cancelled by host or invitee' },
+      { type: 'booking.rescheduled' as TriggerType, label: 'Booking Rescheduled', description: 'When a booking is rescheduled to a new time' },
+      { type: 'booking.completed' as TriggerType, label: 'Booking Completed', description: 'When a booking is marked as completed' },
+      { type: 'booking.no_show' as TriggerType, label: 'Booking No-Show', description: 'When an invitee is marked as a no-show' },
     ],
   },
 };

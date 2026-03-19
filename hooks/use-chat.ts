@@ -44,6 +44,8 @@ const MUTATING_TOOLS = new Set([
   'contracts_add_recipient', 'contracts_add_field',
   'emails_create_contact_from_sender',
   'accounting_record_payment',
+  'calendar_create_event_type', 'calendar_update_event_type', 'calendar_delete_event_type',
+  'calendar_cancel_booking', 'calendar_update_profile', 'calendar_update_availability',
 ]);
 
 export interface PageContext {

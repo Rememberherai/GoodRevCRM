@@ -609,6 +609,117 @@ export type Database = {
           },
         ]
       }
+      availability_overrides: {
+        Row: {
+          created_at: string | null
+          date: string
+          end_time: string | null
+          id: string
+          is_available: boolean
+          reason: string | null
+          start_time: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          date: string
+          end_time?: string | null
+          id?: string
+          is_available?: boolean
+          reason?: string | null
+          start_time?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          date?: string
+          end_time?: string | null
+          id?: string
+          is_available?: boolean
+          reason?: string | null
+          start_time?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_overrides_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      availability_rules: {
+        Row: {
+          day_of_week: number
+          end_time: string
+          id: string
+          schedule_id: string
+          start_time: string
+        }
+        Insert: {
+          day_of_week: number
+          end_time: string
+          id?: string
+          schedule_id: string
+          start_time: string
+        }
+        Update: {
+          day_of_week?: number
+          end_time?: string
+          id?: string
+          schedule_id?: string
+          start_time?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_rules_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "availability_schedules"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      availability_schedules: {
+        Row: {
+          created_at: string | null
+          id: string
+          is_default: boolean | null
+          name: string
+          timezone: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          timezone?: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          is_default?: boolean | null
+          name?: string
+          timezone?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "availability_schedules_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bank_accounts: {
         Row: {
           account_id: string | null
@@ -1018,6 +1129,227 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      booking_rate_limits: {
+        Row: {
+          attempt_count: number | null
+          id: string
+          key: string
+          window_start: string
+        }
+        Insert: {
+          attempt_count?: number | null
+          id?: string
+          key: string
+          window_start: string
+        }
+        Update: {
+          attempt_count?: number | null
+          id?: string
+          key?: string
+          window_start?: string
+        }
+        Relationships: []
+      }
+      bookings: {
+        Row: {
+          buffer_after_minutes: number
+          buffer_before_minutes: number
+          cancel_token: string | null
+          cancellation_reason: string | null
+          cancelled_by: string | null
+          created_at: string | null
+          effective_block: unknown
+          effective_block_end: string
+          effective_block_start: string
+          end_at: string
+          event_type_id: string
+          host_user_id: string
+          ics_token: string | null
+          id: string
+          invitee_email: string
+          invitee_name: string
+          invitee_notes: string | null
+          invitee_phone: string | null
+          invitee_timezone: string | null
+          location: string | null
+          meeting_id: string | null
+          meeting_url: string | null
+          organization_id: string | null
+          person_id: string | null
+          project_id: string
+          reminder_sent_1h: boolean | null
+          reminder_sent_24h: boolean | null
+          reschedule_token: string | null
+          rescheduled_from_id: string | null
+          responses: Json | null
+          start_at: string
+          status: string
+          token_expires_at: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          buffer_after_minutes?: number
+          buffer_before_minutes?: number
+          cancel_token?: string | null
+          cancellation_reason?: string | null
+          cancelled_by?: string | null
+          created_at?: string | null
+          effective_block?: unknown
+          effective_block_end: string
+          effective_block_start: string
+          end_at: string
+          event_type_id: string
+          host_user_id: string
+          ics_token?: string | null
+          id?: string
+          invitee_email: string
+          invitee_name: string
+          invitee_notes?: string | null
+          invitee_phone?: string | null
+          invitee_timezone?: string | null
+          location?: string | null
+          meeting_id?: string | null
+          meeting_url?: string | null
+          organization_id?: string | null
+          person_id?: string | null
+          project_id: string
+          reminder_sent_1h?: boolean | null
+          reminder_sent_24h?: boolean | null
+          reschedule_token?: string | null
+          rescheduled_from_id?: string | null
+          responses?: Json | null
+          start_at: string
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          buffer_after_minutes?: number
+          buffer_before_minutes?: number
+          cancel_token?: string | null
+          cancellation_reason?: string | null
+          cancelled_by?: string | null
+          created_at?: string | null
+          effective_block?: unknown
+          effective_block_end?: string
+          effective_block_start?: string
+          end_at?: string
+          event_type_id?: string
+          host_user_id?: string
+          ics_token?: string | null
+          id?: string
+          invitee_email?: string
+          invitee_name?: string
+          invitee_notes?: string | null
+          invitee_phone?: string | null
+          invitee_timezone?: string | null
+          location?: string | null
+          meeting_id?: string | null
+          meeting_url?: string | null
+          organization_id?: string | null
+          person_id?: string | null
+          project_id?: string
+          reminder_sent_1h?: boolean | null
+          reminder_sent_24h?: boolean | null
+          reschedule_token?: string | null
+          rescheduled_from_id?: string | null
+          responses?: Json | null
+          start_at?: string
+          status?: string
+          token_expires_at?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bookings_event_type_id_fkey"
+            columns: ["event_type_id"]
+            isOneToOne: false
+            referencedRelation: "event_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_host_user_id_fkey"
+            columns: ["host_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "bookings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bookings_rescheduled_from_id_fkey"
+            columns: ["rescheduled_from_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      calendar_profiles: {
+        Row: {
+          avatar_url: string | null
+          bio: string | null
+          booking_page_theme: Json | null
+          created_at: string | null
+          display_name: string
+          id: string
+          is_active: boolean | null
+          slug: string
+          timezone: string
+          updated_at: string | null
+          user_id: string
+          welcome_message: string | null
+        }
+        Insert: {
+          avatar_url?: string | null
+          bio?: string | null
+          booking_page_theme?: Json | null
+          created_at?: string | null
+          display_name: string
+          id?: string
+          is_active?: boolean | null
+          slug: string
+          timezone?: string
+          updated_at?: string | null
+          user_id: string
+          welcome_message?: string | null
+        }
+        Update: {
+          avatar_url?: string | null
+          bio?: string | null
+          booking_page_theme?: Json | null
+          created_at?: string | null
+          display_name?: string
+          id?: string
+          is_active?: boolean | null
+          slug?: string
+          timezone?: string
+          updated_at?: string | null
+          user_id?: string
+          welcome_message?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_profiles_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: true
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -2985,6 +3317,131 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_types: {
+        Row: {
+          buffer_after_minutes: number | null
+          buffer_before_minutes: number | null
+          cancellation_policy: string | null
+          color: string | null
+          confirmation_message: string | null
+          created_at: string | null
+          custom_questions: Json | null
+          daily_limit: number | null
+          default_meeting_type: string | null
+          description: string | null
+          duration_minutes: number
+          id: string
+          is_active: boolean | null
+          location_type: string
+          location_value: string | null
+          max_attendees: number | null
+          max_days_in_advance: number | null
+          min_notice_hours: number | null
+          project_id: string
+          redirect_url: string | null
+          requires_confirmation: boolean | null
+          schedule_id: string | null
+          scheduling_type: string | null
+          slot_interval_minutes: number | null
+          slug: string
+          title: string
+          updated_at: string | null
+          user_id: string
+          weekly_limit: number | null
+        }
+        Insert: {
+          buffer_after_minutes?: number | null
+          buffer_before_minutes?: number | null
+          cancellation_policy?: string | null
+          color?: string | null
+          confirmation_message?: string | null
+          created_at?: string | null
+          custom_questions?: Json | null
+          daily_limit?: number | null
+          default_meeting_type?: string | null
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean | null
+          location_type?: string
+          location_value?: string | null
+          max_attendees?: number | null
+          max_days_in_advance?: number | null
+          min_notice_hours?: number | null
+          project_id: string
+          redirect_url?: string | null
+          requires_confirmation?: boolean | null
+          schedule_id?: string | null
+          scheduling_type?: string | null
+          slot_interval_minutes?: number | null
+          slug: string
+          title: string
+          updated_at?: string | null
+          user_id: string
+          weekly_limit?: number | null
+        }
+        Update: {
+          buffer_after_minutes?: number | null
+          buffer_before_minutes?: number | null
+          cancellation_policy?: string | null
+          color?: string | null
+          confirmation_message?: string | null
+          created_at?: string | null
+          custom_questions?: Json | null
+          daily_limit?: number | null
+          default_meeting_type?: string | null
+          description?: string | null
+          duration_minutes?: number
+          id?: string
+          is_active?: boolean | null
+          location_type?: string
+          location_value?: string | null
+          max_attendees?: number | null
+          max_days_in_advance?: number | null
+          min_notice_hours?: number | null
+          project_id?: string
+          redirect_url?: string | null
+          requires_confirmation?: boolean | null
+          schedule_id?: string | null
+          scheduling_type?: string | null
+          slot_interval_minutes?: number | null
+          slug?: string
+          title?: string
+          updated_at?: string | null
+          user_id?: string
+          weekly_limit?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_types_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "event_types_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_types_schedule_id_fkey"
+            columns: ["schedule_id"]
+            isOneToOne: false
+            referencedRelation: "availability_schedules"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_types_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -8441,6 +8898,56 @@ export type Database = {
         }
         Returns: string
       }
+      create_booking_if_available:
+        | {
+            Args: {
+              p_buffer_after: string
+              p_buffer_before: string
+              p_daily_limit: number
+              p_end_at: string
+              p_event_type_id: string
+              p_host_timezone: string
+              p_host_user_id: string
+              p_invitee_email: string
+              p_invitee_name: string
+              p_invitee_notes: string
+              p_invitee_phone: string
+              p_invitee_timezone: string
+              p_location: string
+              p_meeting_url: string
+              p_project_id: string
+              p_requires_confirmation: boolean
+              p_responses: Json
+              p_start_at: string
+              p_weekly_limit: number
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_buffer_after: string
+              p_buffer_before: string
+              p_daily_limit: number
+              p_end_at: string
+              p_event_type_id: string
+              p_exclude_booking_id?: string
+              p_host_timezone: string
+              p_host_user_id: string
+              p_invitee_email: string
+              p_invitee_name: string
+              p_invitee_notes: string
+              p_invitee_phone: string
+              p_invitee_timezone: string
+              p_location: string
+              p_meeting_url: string
+              p_project_id: string
+              p_requires_confirmation: boolean
+              p_responses: Json
+              p_start_at: string
+              p_weekly_limit: number
+            }
+            Returns: string
+          }
       create_invoice: {
         Args: {
           p_company_id: string
@@ -8693,6 +9200,33 @@ export type Database = {
           last_active_at: string
           role: Database["public"]["Enums"]["project_role"]
           user_id: string
+        }[]
+      }
+      get_public_calendar_profile: {
+        Args: { p_slug: string }
+        Returns: {
+          avatar_url: string
+          bio: string
+          booking_page_theme: Json
+          display_name: string
+          timezone: string
+          welcome_message: string
+        }[]
+      }
+      get_public_event_types: {
+        Args: { p_slug: string }
+        Returns: {
+          cancellation_policy: string
+          color: string
+          confirmation_message: string
+          custom_questions: Json
+          description: string
+          duration_minutes: number
+          id: string
+          location_type: string
+          location_value: string
+          slug: string
+          title: string
         }[]
       }
       get_revenue_metrics:
@@ -9018,6 +9552,10 @@ export type Database = {
           p_url: string
         }
         Returns: string
+      }
+      upsert_rate_limit: {
+        Args: { p_key: string; p_window_start: string }
+        Returns: number
       }
       validate_custom_field: {
         Args: {
