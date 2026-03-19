@@ -136,6 +136,20 @@ export const CRON_TEMPLATES: CronTemplate[] = [
       wdays: [-1],
     },
   },
+  {
+    key: 'calendar-sync',
+    title: 'Calendar Sync',
+    path: '/api/cron/calendar-sync',
+    description: 'Syncs Google Calendar events for busy-time blocking',
+    defaultSchedule: {
+      timezone: 'America/New_York',
+      hours: [-1],
+      minutes: [0, 15, 30, 45],
+      mdays: [-1],
+      months: [-1],
+      wdays: [-1],
+    },
+  },
 ];
 
 /** Human-readable description of a cron-job.org schedule */

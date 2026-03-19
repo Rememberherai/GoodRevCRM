@@ -13,6 +13,7 @@ import type { Database } from '@/types/database';
 import { sendBookingConfirmation, sendBookingCancellation, sendBookingConfirmedNotification } from './notifications';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { linkBookingToCrm, syncBookingStatusToMeeting } from '@/lib/calendar/crm-bridge';
+import { pushBookingToCalendar, removeBookingFromCalendar } from '@/lib/calendar/sync';
 
 // ============================================================
 // Rate limiting
@@ -188,6 +189,11 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
     linkBookingToCrm(newBookingId).catch((e: unknown) =>
       console.error('Failed to link booking to CRM:', e)
     );
+
+    // Push to Google Calendar (fire-and-forget)
+    pushBookingToCalendar(newBookingId).catch((e: unknown) =>
+      console.error('Failed to push booking to Google Calendar:', e)
+    );
   }
 
   return { success: true, bookingId: newBookingId };
@@ -251,6 +257,11 @@ export async function confirmBooking(
     console.error('Failed to link booking to CRM:', e)
   );
 
+  // Push to Google Calendar (fire-and-forget)
+  pushBookingToCalendar(bookingId).catch((e: unknown) =>
+    console.error('Failed to push booking to Google Calendar:', e)
+  );
+
   return { success: true };
 }
 
@@ -305,6 +316,11 @@ export async function cancelBookingByToken(
     console.error('Failed to send cancellation notification:', err)
   );
 
+  // Remove from Google Calendar (fire-and-forget)
+  removeBookingFromCalendar(booking.id).catch((err) =>
+    console.error('Failed to remove booking from Google Calendar:', err)
+  );
+
   // Emit automation event (fire-and-forget)
   emitAutomationEvent({
     projectId: booking.project_id,
@@ -348,6 +364,11 @@ export async function cancelBookingByHost(
 
   sendBookingCancellation(bookingId).catch((err) =>
     console.error('Failed to send cancellation notification:', err)
+  );
+
+  // Remove from Google Calendar (fire-and-forget)
+  removeBookingFromCalendar(bookingId).catch((err) =>
+    console.error('Failed to remove booking from Google Calendar:', err)
   );
 
   // Emit automation event (fire-and-forget)
@@ -445,6 +466,11 @@ export async function rescheduleBookingByToken(
       .update({ rescheduled_from_id: original.id })
       .eq('id', result.bookingId);
   }
+
+  // Remove old booking from Google Calendar and push new one (fire-and-forget)
+  removeBookingFromCalendar(original.id).catch((e: unknown) =>
+    console.error('Failed to remove rescheduled booking from Google Calendar:', e)
+  );
 
   // Emit automation event (fire-and-forget)
   emitAutomationEvent({

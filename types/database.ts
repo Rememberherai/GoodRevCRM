@@ -1301,6 +1301,93 @@ export type Database = {
           },
         ]
       }
+      calendar_integrations: {
+        Row: {
+          access_token: string
+          calendar_id: string | null
+          created_at: string | null
+          email: string
+          gmail_connection_id: string | null
+          granted_scopes: string[] | null
+          id: string
+          initial_sync_done: boolean | null
+          is_primary: boolean | null
+          last_sync_error: string | null
+          last_synced_at: string | null
+          provider: string
+          push_enabled: boolean | null
+          refresh_token: string | null
+          status: string
+          sync_enabled: boolean | null
+          sync_errors_count: number | null
+          sync_token: string | null
+          token_expires_at: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          access_token: string
+          calendar_id?: string | null
+          created_at?: string | null
+          email: string
+          gmail_connection_id?: string | null
+          granted_scopes?: string[] | null
+          id?: string
+          initial_sync_done?: boolean | null
+          is_primary?: boolean | null
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          provider?: string
+          push_enabled?: boolean | null
+          refresh_token?: string | null
+          status?: string
+          sync_enabled?: boolean | null
+          sync_errors_count?: number | null
+          sync_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          access_token?: string
+          calendar_id?: string | null
+          created_at?: string | null
+          email?: string
+          gmail_connection_id?: string | null
+          granted_scopes?: string[] | null
+          id?: string
+          initial_sync_done?: boolean | null
+          is_primary?: boolean | null
+          last_sync_error?: string | null
+          last_synced_at?: string | null
+          provider?: string
+          push_enabled?: boolean | null
+          refresh_token?: string | null
+          status?: string
+          sync_enabled?: boolean | null
+          sync_errors_count?: number | null
+          sync_token?: string | null
+          token_expires_at?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "calendar_integrations_gmail_connection_id_fkey"
+            columns: ["gmail_connection_id"]
+            isOneToOne: false
+            referencedRelation: "gmail_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "calendar_integrations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calendar_profiles: {
         Row: {
           avatar_url: string | null
@@ -6432,6 +6519,13 @@ export type Database = {
             referencedRelation: "accounting_companies"
             referencedColumns: ["id"]
           },
+          {
+            foreignKeyName: "recurring_transactions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
         ]
       }
       report_definitions: {
@@ -7822,6 +7916,69 @@ export type Database = {
           },
         ]
       }
+      synced_events: {
+        Row: {
+          created_at: string | null
+          end_at: string
+          external_id: string
+          id: string
+          integration_id: string
+          is_all_day: boolean | null
+          raw_data: Json | null
+          source_calendar: string | null
+          start_at: string
+          status: string | null
+          title: string | null
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          end_at: string
+          external_id: string
+          id?: string
+          integration_id: string
+          is_all_day?: boolean | null
+          raw_data?: Json | null
+          source_calendar?: string | null
+          start_at: string
+          status?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          end_at?: string
+          external_id?: string
+          id?: string
+          integration_id?: string
+          is_all_day?: boolean | null
+          raw_data?: Json | null
+          source_calendar?: string | null
+          start_at?: string
+          status?: string | null
+          title?: string | null
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "synced_events_integration_id_fkey"
+            columns: ["integration_id"]
+            isOneToOne: false
+            referencedRelation: "calendar_integrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "synced_events_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       table_column_preferences: {
         Row: {
           columns: Json
@@ -8898,56 +9055,31 @@ export type Database = {
         }
         Returns: string
       }
-      create_booking_if_available:
-        | {
-            Args: {
-              p_buffer_after: string
-              p_buffer_before: string
-              p_daily_limit: number
-              p_end_at: string
-              p_event_type_id: string
-              p_host_timezone: string
-              p_host_user_id: string
-              p_invitee_email: string
-              p_invitee_name: string
-              p_invitee_notes: string
-              p_invitee_phone: string
-              p_invitee_timezone: string
-              p_location: string
-              p_meeting_url: string
-              p_project_id: string
-              p_requires_confirmation: boolean
-              p_responses: Json
-              p_start_at: string
-              p_weekly_limit: number
-            }
-            Returns: string
-          }
-        | {
-            Args: {
-              p_buffer_after: string
-              p_buffer_before: string
-              p_daily_limit: number
-              p_end_at: string
-              p_event_type_id: string
-              p_exclude_booking_id?: string
-              p_host_timezone: string
-              p_host_user_id: string
-              p_invitee_email: string
-              p_invitee_name: string
-              p_invitee_notes: string
-              p_invitee_phone: string
-              p_invitee_timezone: string
-              p_location: string
-              p_meeting_url: string
-              p_project_id: string
-              p_requires_confirmation: boolean
-              p_responses: Json
-              p_start_at: string
-              p_weekly_limit: number
-            }
-            Returns: string
-          }
+      create_booking_if_available: {
+        Args: {
+          p_buffer_after: string
+          p_buffer_before: string
+          p_daily_limit: number
+          p_end_at: string
+          p_event_type_id: string
+          p_exclude_booking_id?: string
+          p_host_timezone: string
+          p_host_user_id: string
+          p_invitee_email: string
+          p_invitee_name: string
+          p_invitee_notes: string
+          p_invitee_phone: string
+          p_invitee_timezone: string
+          p_location: string
+          p_meeting_url: string
+          p_project_id: string
+          p_requires_confirmation: boolean
+          p_responses: Json
+          p_start_at: string
+          p_weekly_limit: number
+        }
+        Returns: string
+      }
       create_invoice: {
         Args: {
           p_company_id: string

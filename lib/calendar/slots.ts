@@ -112,6 +112,15 @@ export async function getAvailableSlots(config: SlotConfig): Promise<AvailableDa
     .lte('effective_block_start', rangeEnd.toISOString())
     .gte('effective_block_end', rangeStart.toISOString());
 
+  // 4b. Load synced external calendar events (busy/out_of_office only)
+  const { data: syncedEvents } = await supabase
+    .from('synced_events')
+    .select('start_at, end_at')
+    .eq('user_id', eventType.user_id)
+    .in('status', ['busy', 'out_of_office'])
+    .lte('start_at', rangeEnd.toISOString())
+    .gte('end_at', rangeStart.toISOString());
+
   // Count bookings per day and per week for limits
   const dailyCounts = new Map<string, number>();
   const weeklyCounts = new Map<string, number>();
@@ -209,6 +218,18 @@ export async function getAvailableSlots(config: SlotConfig): Promise<AvailableDa
             const bStart = new Date(b.effective_block_start).getTime();
             const bEnd = new Date(b.effective_block_end).getTime();
             if (blockStart.getTime() < bEnd && blockEnd.getTime() > bStart) {
+              overlaps = true;
+              break;
+            }
+          }
+        }
+
+        // Check overlap with synced external calendar events (respect buffers)
+        if (!overlaps && syncedEvents) {
+          for (const se of syncedEvents) {
+            const seStart = new Date(se.start_at).getTime();
+            const seEnd = new Date(se.end_at).getTime();
+            if (blockStart.getTime() < seEnd && blockEnd.getTime() > seStart) {
               overlaps = true;
               break;
             }

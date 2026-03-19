@@ -9,7 +9,19 @@
  * Returns true if the request is authorized.
  */
 
+import crypto from 'crypto';
 import { getProjectSecret } from '@/lib/secrets';
+
+/** Constant-time string comparison to prevent timing attacks.
+ *  Uses HMAC to normalize both inputs to the same length, avoiding
+ *  length-leaking early returns.
+ */
+function safeCompare(a: string, b: string): boolean {
+  const key = crypto.randomBytes(32);
+  const hmacA = crypto.createHmac('sha256', key).update(a).digest();
+  const hmacB = crypto.createHmac('sha256', key).update(b).digest();
+  return crypto.timingSafeEqual(hmacA, hmacB);
+}
 
 export async function verifyCronAuth(request: Request): Promise<boolean> {
   const authHeader = request.headers.get('authorization');
@@ -25,7 +37,7 @@ export async function verifyCronAuth(request: Request): Promise<boolean> {
   if (projectId) {
     try {
       const projectSecret = await getProjectSecret(projectId, 'cron_secret');
-      if (projectSecret && projectSecret === token) return true;
+      if (projectSecret && safeCompare(projectSecret, token)) return true;
     } catch {
       // Fall through to global check
     }
@@ -33,7 +45,7 @@ export async function verifyCronAuth(request: Request): Promise<boolean> {
 
   // Global fallback
   const globalSecret = process.env.CRON_SECRET;
-  if (globalSecret && globalSecret === token) return true;
+  if (globalSecret && safeCompare(globalSecret, token)) return true;
 
   return false;
 }

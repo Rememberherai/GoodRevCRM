@@ -43,7 +43,7 @@ const navItems = [
     title: 'Integrations',
     href: '/integrations',
     icon: LinkIcon,
-    disabled: true,
+    disabled: false,
   },
 ];
 

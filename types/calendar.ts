@@ -210,6 +210,45 @@ export const LOCATION_TYPE_LABELS: Record<LocationType, string> = {
   ask_invitee: 'Ask Invitee',
 };
 
+// Calendar integration — Google Calendar OAuth connection
+export type CalendarIntegrationStatus = 'connected' | 'disconnected' | 'expired' | 'error';
+export type SyncedEventStatus = 'busy' | 'free' | 'tentative' | 'out_of_office';
+
+export interface CalendarIntegration {
+  id: string;
+  user_id: string;
+  provider: string;
+  email: string;
+  gmail_connection_id: string | null;
+  calendar_id: string | null;
+  is_primary: boolean | null;
+  sync_enabled: boolean | null;
+  push_enabled: boolean | null;
+  last_synced_at: string | null;
+  sync_token: string | null;
+  initial_sync_done: boolean | null;
+  sync_errors_count: number | null;
+  last_sync_error: string | null;
+  status: string;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
+export interface SyncedEvent {
+  id: string;
+  integration_id: string;
+  user_id: string;
+  external_id: string;
+  title: string | null;
+  start_at: string;
+  end_at: string;
+  is_all_day: boolean | null;
+  status: string | null;
+  source_calendar: string | null;
+  created_at: string | null;
+  updated_at: string | null;
+}
+
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   text: 'Short Text',
   textarea: 'Long Text',
