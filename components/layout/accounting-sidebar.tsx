@@ -56,7 +56,7 @@ const navItems = [
     title: 'Reports',
     href: '/reports',
     icon: PieChart,
-    disabled: true,
+    disabled: false,
   },
 ];
 

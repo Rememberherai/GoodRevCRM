@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getAccountingContext } from '@/lib/accounting/helpers';
+import { asOfDateQuerySchema, getLocalTodayString, parseQuery } from '@/lib/accounting/report-query';
+import { z } from 'zod';
 
 // GET /api/accounting/trial-balance
 export async function GET(request: Request) {
@@ -13,8 +15,10 @@ export async function GET(request: Request) {
     }
 
     const { searchParams } = new URL(request.url);
-    const asOfDate = searchParams.get('as_of_date');
-    const projectId = searchParams.get('project_id');
+    const { as_of_date: asOfDate, project_id: projectId } = parseQuery(
+      searchParams,
+      asOfDateQuerySchema,
+    );
 
     // Fetch all lines joined to their parent journal entries in a single query.
     // Filter to posted entries for this company, optionally by date and project.
@@ -38,7 +42,7 @@ export async function GET(request: Request) {
     // balances still appear after an account is retired.
     const { data: accounts, error: accountsError } = await supabase
       .from('chart_of_accounts')
-      .select('id, account_code, name, account_type, normal_balance')
+      .select('id, account_code, name, account_type, account_subtype, normal_balance')
       .eq('company_id', ctx.companyId)
       .order('account_code');
 
@@ -69,6 +73,7 @@ export async function GET(request: Request) {
         account_code: a.account_code,
         account_name: a.name,
         account_type: a.account_type,
+        account_subtype: a.account_subtype,
         normal_balance: a.normal_balance,
         total_debit: totals.debitCents / 100,
         total_credit: totals.creditCents / 100,
@@ -78,13 +83,16 @@ export async function GET(request: Request) {
 
     return NextResponse.json({
       data: trialBalance,
-      as_of_date: asOfDate ?? new Date().toISOString().split('T')[0],
+      as_of_date: asOfDate ?? getLocalTodayString(),
       totals: {
         total_debit: totalDebitCents / 100,
         total_credit: totalCreditCents / 100,
       },
     });
   } catch (error) {
+    if (error instanceof z.ZodError) {
+      return NextResponse.json({ error: 'Invalid query parameters', details: error.issues }, { status: 400 });
+    }
     console.error('Error generating trial balance:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
