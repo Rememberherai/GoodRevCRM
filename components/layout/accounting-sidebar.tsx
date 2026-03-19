@@ -50,7 +50,7 @@ const navItems = [
     title: 'Bank Accounts',
     href: '/bank-accounts',
     icon: Landmark,
-    disabled: true,
+    disabled: false,
   },
   {
     title: 'Reports',
