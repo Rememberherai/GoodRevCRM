@@ -24,12 +24,14 @@ interface ProductPickerProps {
   value: string | null;
   onSelect: (product: Product | null) => void;
   disabled?: boolean;
+  autoOpen?: boolean;
+  onClose?: () => void;
 }
 
-export function ProductPicker({ value, onSelect, disabled }: ProductPickerProps) {
+export function ProductPicker({ value, onSelect, disabled, autoOpen, onClose }: ProductPickerProps) {
   const params = useParams();
   const slug = params.slug as string;
-  const [open, setOpen] = useState(false);
+  const [open, setOpen] = useState(autoOpen ?? false);
   const [products, setProducts] = useState<Product[]>([]);
   const [selectedProduct, setSelectedProduct] = useState<Product | null>(null);
   const [loading, setLoading] = useState(false);
@@ -70,6 +72,13 @@ export function ProductPicker({ value, onSelect, disabled }: ProductPickerProps)
     void loadSelectedProduct(value);
   }, [loadSelectedProduct, products, value]);
 
+  // Auto-load products when autoOpen
+  useEffect(() => {
+    if (autoOpen) {
+      void loadProducts();
+    }
+  }, [autoOpen, loadProducts]);
+
   const selected = value
     ? products.find((product) => product.id === value) ?? selectedProduct
     : null;
@@ -81,6 +90,8 @@ export function ProductPicker({ value, onSelect, disabled }: ProductPickerProps)
         setOpen(nextOpen);
         if (nextOpen) {
           void loadProducts();
+        } else {
+          onClose?.();
         }
       }}
     >
@@ -89,7 +100,7 @@ export function ProductPicker({ value, onSelect, disabled }: ProductPickerProps)
           variant="outline"
           role="combobox"
           aria-expanded={open}
-          className="w-full justify-between font-normal"
+          className="w-full justify-between font-normal h-8 text-sm"
           disabled={disabled}
         >
           {selected ? selected.name : 'Select product...'}

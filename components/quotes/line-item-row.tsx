@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
-import { Trash2, GripVertical } from 'lucide-react';
+import { Trash2, GripVertical, Package } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { TableCell, TableRow } from '@/components/ui/table';
@@ -23,6 +23,7 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
   const [unitPrice, setUnitPrice] = useState(String(item.unit_price));
   const [discountPercent, setDiscountPercent] = useState(String(item.discount_percent));
   const [isDeleting, setIsDeleting] = useState(false);
+  const [showProductPicker, setShowProductPicker] = useState(false);
   const focusedRef = useRef(false);
 
   // Sync from server props when not actively editing
@@ -51,6 +52,7 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
   };
 
   const handleProductSelect = (product: Product | null) => {
+    setShowProductPicker(false);
     if (product) {
       setName(product.name);
       if (product.default_price !== null) {
@@ -62,7 +64,9 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
         unit_price: product.default_price ?? Number(unitPrice),
       });
     } else {
-      onUpdate(item.id, { product_id: null });
+      // Manual entry — clear product link, let user type name
+      setName('');
+      onUpdate(item.id, { product_id: null, name: 'Untitled item' });
     }
   };
 
@@ -80,28 +84,44 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
 
   return (
     <TableRow>
-      <TableCell className="w-8">
+      <TableCell className="w-8 align-middle">
         <GripVertical className="h-4 w-4 text-muted-foreground" />
       </TableCell>
-      <TableCell className="min-w-[200px]">
-        <div className="space-y-1">
+      <TableCell className="min-w-[200px] align-middle">
+        {showProductPicker ? (
           <ProductPicker
             value={item.product_id}
             onSelect={handleProductSelect}
             disabled={disabled}
+            autoOpen
+            onClose={() => setShowProductPicker(false)}
           />
-          <Input
-            value={name}
-            onChange={(e) => setName(e.target.value)}
-            onFocus={handleFocus}
-            onBlur={handleBlur}
-            disabled={disabled}
-            placeholder="Item name"
-            className="h-8 text-sm"
-          />
-        </div>
+        ) : (
+          <div className="flex items-center gap-1">
+            <Input
+              value={name}
+              onChange={(e) => setName(e.target.value)}
+              onFocus={handleFocus}
+              onBlur={handleBlur}
+              disabled={disabled}
+              placeholder="Item name"
+              className="h-8 text-sm flex-1"
+            />
+            {!disabled && (
+              <Button
+                variant="ghost"
+                size="icon"
+                className="h-8 w-8 shrink-0"
+                onClick={() => setShowProductPicker(true)}
+                title="Pick from product catalog"
+              >
+                <Package className="h-3.5 w-3.5 text-muted-foreground" />
+              </Button>
+            )}
+          </div>
+        )}
       </TableCell>
-      <TableCell className="w-[100px]">
+      <TableCell className="w-[100px] align-middle">
         <Input
           type="number"
           min="0.01"
@@ -114,7 +134,7 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
           className="h-8 text-sm"
         />
       </TableCell>
-      <TableCell className="w-[120px]">
+      <TableCell className="w-[120px] align-middle">
         <Input
           type="number"
           min="0"
@@ -127,7 +147,7 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
           className="h-8 text-sm"
         />
       </TableCell>
-      <TableCell className="w-[90px]">
+      <TableCell className="w-[90px] align-middle">
         <Input
           type="number"
           min="0"
@@ -141,10 +161,10 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
           className="h-8 text-sm"
         />
       </TableCell>
-      <TableCell className="w-[120px] text-right font-medium">
+      <TableCell className="w-[120px] text-right font-medium align-middle">
         {formatCurrency(lineTotal)}
       </TableCell>
-      <TableCell className="w-[40px]">
+      <TableCell className="w-[40px] align-middle">
         {!disabled && (
           <Button
             variant="ghost"
