@@ -1,6 +1,7 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { usePathname, useRouter } from 'next/navigation';
 import { CalendarSidebar } from '@/components/layout/calendar-sidebar';
 import { CalendarHeader } from '@/components/layout/calendar-header';
 import { CalendarProvider } from './calendar-context';
@@ -13,6 +14,8 @@ interface CalendarShellProps {
 }
 
 export function CalendarShell({ profile, projects, children }: CalendarShellProps) {
+  const router = useRouter();
+  const pathname = usePathname();
   const [selectedProjectId, setSelectedProjectId] = useState<string | null>(
     projects[0]?.id ?? null
   );
@@ -25,8 +28,15 @@ export function CalendarShell({ profile, projects, children }: CalendarShellProp
     </CalendarProvider>
   );
 
-  // If no profile exists, show onboarding (the page.tsx handles this)
+  useEffect(() => {
+    if (!profile && pathname !== '/calendar/settings') {
+      router.replace('/calendar/settings');
+    }
+  }, [pathname, profile, router]);
+
   if (!profile) {
+    const isSettingsPage = pathname === '/calendar/settings';
+
     return (
       <div className="flex h-screen bg-background">
         <div className="flex flex-col flex-1 overflow-hidden">
@@ -35,7 +45,11 @@ export function CalendarShell({ profile, projects, children }: CalendarShellProp
             selectedProjectId={selectedProjectId}
             onProjectChange={setSelectedProjectId}
           />
-          <main className="flex-1 overflow-auto p-6">{wrappedChildren}</main>
+          <main className="flex-1 overflow-auto p-6">
+            {isSettingsPage ? wrappedChildren : (
+              <div className="p-6 text-muted-foreground">Redirecting to calendar settings...</div>
+            )}
+          </main>
         </div>
       </div>
     );

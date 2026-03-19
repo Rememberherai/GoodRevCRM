@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState, useRef } from 'react';
+import { useRouter } from 'next/navigation';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -11,6 +12,7 @@ import type { EventType, LocationType } from '@/types/calendar';
 import { useCalendarContext } from '../calendar-context';
 
 export default function EventTypesPage() {
+  const router = useRouter();
   const [eventTypes, setEventTypes] = useState<EventType[]>([]);
   const [loading, setLoading] = useState(true);
   const [copiedSlug, setCopiedSlug] = useState<string | null>(null);
@@ -48,7 +50,7 @@ export default function EventTypesPage() {
 
   const copyBookingLink = async (slug: string) => {
     if (!profileSlug) {
-      alert('Please set up your calendar profile first.');
+      router.push('/calendar/settings');
       return;
     }
     const url = `${window.location.origin}/book/${profileSlug}/${slug}`;
