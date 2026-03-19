@@ -26,9 +26,7 @@ import { FilterBuilder } from './filter-builder';
 import { GroupAggregate } from './group-aggregate';
 import { ChartConfigPanel } from './chart-config';
 import { ReportPreview } from './report-preview';
-import { TemplatePicker } from './template-picker';
 import type { ReportColumn } from '@/lib/reports/types';
-import type { ReportTemplate } from '@/lib/reports/report-templates';
 
 interface ReportBuilderProps {
   projectSlug: string;
@@ -46,8 +44,6 @@ const STEPS = [
 export function ReportBuilder({ projectSlug, editReportId }: ReportBuilderProps) {
   const router = useRouter();
   const { data: schema, isLoading: schemaLoading } = useReportSchema(projectSlug);
-
-  const [showTemplates, setShowTemplates] = React.useState(!editReportId);
 
   const store = useReportBuilderStore();
   const {
@@ -166,22 +162,9 @@ export function ReportBuilder({ projectSlug, editReportId }: ReportBuilderProps)
     );
     if (existing >= 0) {
       store.removeColumn(existing);
-      // Also remove any orphaned aggregation for this field
-      store.removeFieldAggregation(column.objectName, column.fieldName);
     } else {
       store.addColumn(column);
     }
-  };
-
-  const handleSelectTemplate = (template: ReportTemplate) => {
-    store.setSkipDefaults(false);
-    store.loadFromConfig(template.config, template.name, '');
-    setShowTemplates(false);
-  };
-
-  const handleStartFromScratch = () => {
-    store.setSkipDefaults(true);
-    setShowTemplates(false);
   };
 
   if (schemaLoading || !schema) {
@@ -227,13 +210,6 @@ export function ReportBuilder({ projectSlug, editReportId }: ReportBuilderProps)
         </Button>
       </div>
 
-      {showTemplates ? (
-        <TemplatePicker
-          onSelectTemplate={handleSelectTemplate}
-          onStartFromScratch={handleStartFromScratch}
-        />
-      ) : (
-      <>
       {/* Step indicators */}
       <div className="flex items-center gap-1 overflow-x-auto pb-2">
         {STEPS.map((s, i) => (
@@ -262,10 +238,7 @@ export function ReportBuilder({ projectSlug, editReportId }: ReportBuilderProps)
             <ObjectPicker
               objects={schema.objects}
               selectedObject={primaryObject}
-              onSelect={(obj) => {
-                store.setPrimaryObject(obj);
-                if (schema) store.applySmartDefaults(obj, schema);
-              }}
+              onSelect={(obj) => store.setPrimaryObject(obj)}
             />
           )}
 
@@ -275,9 +248,6 @@ export function ReportBuilder({ projectSlug, editReportId }: ReportBuilderProps)
               allObjects={schema.objects}
               selectedColumns={columns}
               onToggleColumn={handleToggleColumn}
-              aggregations={groupBy.length > 0 ? aggregations : undefined}
-              onSetFieldAggregation={groupBy.length > 0 ? store.setFieldAggregation : undefined}
-              onRemoveFieldAggregation={groupBy.length > 0 ? store.removeFieldAggregation : undefined}
             />
           )}
 
@@ -405,13 +375,10 @@ export function ReportBuilder({ projectSlug, editReportId }: ReportBuilderProps)
             error={previewError}
             chartType={chartType}
             chartConfig={chartConfig}
-            aggregations={aggregations}
             onRefresh={runPreview}
           />
         </div>
       </div>
-      </>
-      )}
     </div>
   );
 }

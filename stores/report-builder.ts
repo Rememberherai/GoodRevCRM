@@ -8,10 +8,7 @@ import type {
   CustomChartType,
   ChartConfig,
   CustomReportResult,
-  ReportSchema,
-  AggregationFunction,
 } from '@/lib/reports/types';
-import { getSmartDefaults } from '@/lib/reports/report-templates';
 
 // ── Store Types ─────────────────────────────────────────────────────────────
 
@@ -43,9 +40,6 @@ interface ReportBuilderState {
   // Saving state
   saving: boolean;
   savedReportId: string | null;
-
-  // Internal flags
-  _skipDefaults: boolean;
 
   // Actions
   setStep: (step: number) => void;
@@ -94,12 +88,6 @@ interface ReportBuilderState {
   // Load from existing report
   loadFromConfig: (config: CustomReportConfig, name?: string, description?: string) => void;
 
-  // Smart defaults & inline aggregation
-  applySmartDefaults: (objectName: string, schema: ReportSchema) => void;
-  setSkipDefaults: (skip: boolean) => void;
-  setFieldAggregation: (objectName: string, fieldName: string, fn: AggregationFunction) => void;
-  removeFieldAggregation: (objectName: string, fieldName: string) => void;
-
   // Reset everything
   reset: () => void;
 }
@@ -125,7 +113,6 @@ const initialState = {
   previewError: null as string | null,
   saving: false,
   savedReportId: null as string | null,
-  _skipDefaults: false,
 };
 
 // ── Store ────────────────────────────────────────────────────────────────────
@@ -185,30 +172,13 @@ export const useReportBuilderStore = create<ReportBuilderState>((set, get) => ({
   // Group by
   setGroupBy: (groupBy) => set({ groupBy }),
   addGroupBy: (field) =>
-    set((s) => {
-      if (s.groupBy.includes(field)) return s;
-      const newGroupBy = [...s.groupBy, field];
-      const hasCount = s.aggregations.some((a) => a.function === 'count');
-      if (hasCount || !s.primaryObject) {
-        return { groupBy: newGroupBy };
-      }
-      return {
-        groupBy: newGroupBy,
-        aggregations: [
-          ...s.aggregations,
-          { objectName: s.primaryObject, fieldName: 'id', function: 'count' as const, alias: 'record_count' },
-        ],
-      };
-    }),
+    set((s) =>
+      s.groupBy.includes(field)
+        ? s
+        : { groupBy: [...s.groupBy, field] }
+    ),
   removeGroupBy: (field) =>
-    set((s) => {
-      const newGroupBy = s.groupBy.filter((f) => f !== field);
-      // Clear aggregations when last groupBy is removed (aggregations without groupBy are invalid)
-      if (newGroupBy.length === 0) {
-        return { groupBy: newGroupBy, aggregations: [] };
-      }
-      return { groupBy: newGroupBy };
-    }),
+    set((s) => ({ groupBy: s.groupBy.filter((f) => f !== field) })),
 
   // Aggregations
   addAggregation: (agg) =>
@@ -276,49 +246,6 @@ export const useReportBuilderStore = create<ReportBuilderState>((set, get) => ({
       previewResult: null,
       previewError: null,
     }),
-
-  // Smart defaults
-  applySmartDefaults: (objectName, schema) => {
-    const s = get();
-    if (s._skipDefaults) return;
-    const defaults = getSmartDefaults(objectName, schema);
-    set({
-      columns: defaults.columns,
-      groupBy: defaults.groupBy,
-      aggregations: defaults.aggregations,
-      chartType: defaults.chartType,
-    });
-  },
-
-  setSkipDefaults: (skip) => set({ _skipDefaults: skip }),
-
-  // Inline field aggregation
-  setFieldAggregation: (objectName, fieldName, fn) =>
-    set((s) => {
-      const idx = s.aggregations.findIndex(
-        (a) => a.objectName === objectName && a.fieldName === fieldName
-      );
-      const alias = `${fn}_${fieldName}`;
-      if (idx >= 0) {
-        const updated = [...s.aggregations];
-        updated[idx] = { ...updated[idx]!, function: fn, alias };
-        return { aggregations: updated };
-      }
-      return {
-        aggregations: [
-          ...s.aggregations,
-          { objectName, fieldName, function: fn, alias },
-        ],
-      };
-    }),
-
-  removeFieldAggregation: (objectName, fieldName) =>
-    set((s) => ({
-      // Remove ALL aggregations for this field (user is unchecking the field entirely)
-      aggregations: s.aggregations.filter(
-        (a) => !(a.objectName === objectName && a.fieldName === fieldName)
-      ),
-    })),
 
   // Reset
   reset: () => set(initialState),

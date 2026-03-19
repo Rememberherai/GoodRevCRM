@@ -19,7 +19,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import type { CustomReportResult, CustomChartType, ChartConfig, ReportAggregation } from '@/lib/reports/types';
+import type { CustomReportResult, CustomChartType, ChartConfig } from '@/lib/reports/types';
 
 interface ReportPreviewProps {
   result: CustomReportResult | null;
@@ -27,7 +27,6 @@ interface ReportPreviewProps {
   error: string | null;
   chartType: CustomChartType;
   chartConfig: ChartConfig;
-  aggregations?: ReportAggregation[];
   onRefresh: () => void;
 }
 
@@ -85,27 +84,7 @@ function formatCellValue(value: unknown): string {
   return String(value);
 }
 
-function formatColumnHeader(rawKey: string, aggregations?: ReportAggregation[]): string {
-  if (aggregations) {
-    const agg = aggregations.find((a) => a.alias === rawKey);
-    if (agg) {
-      const fieldLabel = agg.fieldName.replace(/_/g, ' ');
-      switch (agg.function) {
-        case 'sum': return `Total ${fieldLabel}`;
-        case 'avg': return `Avg ${fieldLabel}`;
-        case 'count': return agg.fieldName === 'id' ? 'Record Count' : `Count of ${fieldLabel}`;
-        case 'min': return `Min ${fieldLabel}`;
-        case 'max': return `Max ${fieldLabel}`;
-        case 'count_distinct': return `Unique ${fieldLabel}`;
-      }
-    }
-  }
-  return rawKey
-    .replace(/_/g, ' ')
-    .replace(/\b\w/g, (c) => c.toUpperCase());
-}
-
-function DataTable({ result, aggregations }: { result: CustomReportResult; aggregations?: ReportAggregation[] }) {
+function DataTable({ result }: { result: CustomReportResult }) {
   if (result.rows.length === 0) {
     return (
       <div className="text-center py-12 text-muted-foreground">
@@ -130,7 +109,7 @@ function DataTable({ result, aggregations }: { result: CustomReportResult; aggre
                   key={h}
                   className="text-left py-2.5 px-3 font-medium text-xs uppercase tracking-wider whitespace-nowrap"
                 >
-                  {formatColumnHeader(h, aggregations)}
+                  {h.replace(/_/g, ' ')}
                 </th>
               ))}
             </tr>
@@ -303,7 +282,7 @@ function ChartView({
     );
   }
 
-  return <DataTable result={result} aggregations={[]} />;
+  return <DataTable result={result} />;
 }
 
 export function ReportPreview({
@@ -312,7 +291,6 @@ export function ReportPreview({
   error,
   chartType,
   chartConfig,
-  aggregations,
   onRefresh,
 }: ReportPreviewProps) {
   const [viewMode, setViewMode] = React.useState<'chart' | 'table'>(
@@ -407,7 +385,7 @@ export function ReportPreview({
             <ChartView result={result} chartType={chartType} chartConfig={chartConfig} />
           </div>
         ) : (
-          <DataTable result={result} aggregations={aggregations} />
+          <DataTable result={result} />
         )
       )}
     </div>

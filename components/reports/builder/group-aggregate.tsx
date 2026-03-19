@@ -275,20 +275,10 @@ export function GroupAggregate({
           </div>
         )}
 
-        <Button
-          variant="outline"
-          size="sm"
-          onClick={handleAddAggregation}
-          disabled={groupBy.length === 0}
-        >
+        <Button variant="outline" size="sm" onClick={handleAddAggregation}>
           <Plus className="h-4 w-4 mr-1.5" />
           Add Aggregation
         </Button>
-        {groupBy.length === 0 && (
-          <p className="text-xs text-muted-foreground">
-            Add at least one group-by field before adding aggregations.
-          </p>
-        )}
       </div>
     </div>
   );
