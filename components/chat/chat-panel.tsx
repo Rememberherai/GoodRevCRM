@@ -96,7 +96,7 @@ export function ChatPanel({ projectSlug }: ChatPanelProps) {
     return (
       <div
         className={cn(
-          'fixed inset-y-0 right-0 z-40 flex animate-in slide-in-from-right duration-300',
+          'fixed inset-y-0 right-0 z-50 flex animate-in slide-in-from-right duration-300',
           isResizing && 'select-none'
         )}
         style={{ width: panelWidth }}
@@ -116,7 +116,7 @@ export function ChatPanel({ projectSlug }: ChatPanelProps) {
   return (
     <div
       className={cn(
-        'fixed inset-y-0 right-0 z-40 flex animate-in slide-in-from-right duration-300',
+        'fixed inset-y-0 right-0 z-50 flex animate-in slide-in-from-right duration-300',
         isResizing && 'select-none'
       )}
       style={{ width: panelWidth }}
