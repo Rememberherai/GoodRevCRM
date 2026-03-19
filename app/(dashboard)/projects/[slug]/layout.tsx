@@ -4,6 +4,7 @@ import { ProjectSidebar } from '@/components/layout/project-sidebar';
 import { ProjectHeader } from '@/components/layout/project-header';
 import { CallClientWrapper } from '@/components/calls/call-client-wrapper';
 import { ChatPanel } from '@/components/chat/chat-panel';
+import { LastProjectTracker } from '@/components/projects/last-project-tracker';
 import type { Database } from '@/types/database';
 
 type Project = Database['public']['Tables']['projects']['Row'];
@@ -40,6 +41,7 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
   return (
     <CallClientWrapper>
       <div className="flex h-screen bg-background">
+        <LastProjectTracker projectSlug={project.slug} />
         <ProjectSidebar project={project as Project} />
         <div className="flex flex-col flex-1 overflow-hidden">
           <ProjectHeader project={project as Project} />

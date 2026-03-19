@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
+import { ModuleSwitcher } from '@/components/layout/module-switcher';
 import { NewProjectDialog } from '@/components/projects/new-project-dialog';
 import type { Database } from '@/types/database';
 
@@ -26,7 +27,7 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
       {/* Header */}
       <header className="border-b">
         <div className="container mx-auto px-4 py-4 flex items-center justify-between">
-          <h1 className="text-xl font-bold">GoodRev CRM</h1>
+          <ModuleSwitcher />
           <div className="flex items-center gap-4">
             <ThemeToggle />
             <UserMenu />

@@ -9,6 +9,10 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Button } from '@/components/ui/button';
+import {
+  getProjectHref,
+  LAST_PROJECT_SLUG_STORAGE_KEY,
+} from '@/lib/project-navigation';
 
 const modules = [
   {
@@ -37,10 +41,19 @@ const modules = [
 export function ModuleSwitcher() {
   const router = useRouter();
   const pathname = usePathname();
-
   const activeModule = modules.find((m) => pathname.startsWith(m.matchPrefix)) ?? modules[0];
   const ActiveIcon = activeModule?.icon ?? LayoutGrid;
   const activeLabel = activeModule?.label ?? 'CRM';
+
+  function handleModuleSelect(moduleId: (typeof modules)[number]['id'], href: string) {
+    if (moduleId !== 'crm') {
+      router.push(href);
+      return;
+    }
+
+    const lastProjectSlug = localStorage.getItem(LAST_PROJECT_SLUG_STORAGE_KEY);
+    router.push(getProjectHref(lastProjectSlug));
+  }
 
   return (
     <DropdownMenu>
@@ -55,7 +68,7 @@ export function ModuleSwitcher() {
         {modules.map((mod) => (
           <DropdownMenuItem
             key={mod.id}
-            onClick={() => router.push(mod.href)}
+            onClick={() => handleModuleSelect(mod.id, mod.href)}
             className="gap-2"
           >
             <mod.icon className="h-4 w-4" />
