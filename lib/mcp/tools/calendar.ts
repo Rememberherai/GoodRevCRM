@@ -393,6 +393,144 @@ export function registerCalendarTools(server: McpServer, getContext: () => McpCo
     }
   );
 
+  // calendar.list_event_type_members
+  server.tool(
+    'calendar.list_event_type_members',
+    'List team members assigned to an event type',
+    {
+      event_type_id: z.string().uuid().describe('Event type ID'),
+    },
+    async (params) => {
+      const ctx = getContext();
+      checkPermission(ctx.role, 'viewer');
+
+      const { data, error } = await ctx.supabase
+        .from('event_type_members')
+        .select('*, users(id, display_name, email)')
+        .eq('event_type_id', params.event_type_id);
+
+      if (error) throw new Error(`Failed to list event type members: ${error.message}`);
+
+      // Verify the event type belongs to this project
+      const { error: etError } = await ctx.supabase
+        .from('event_types')
+        .select('id')
+        .eq('id', params.event_type_id)
+        .eq('project_id', ctx.projectId)
+        .single();
+
+      if (etError) throw new Error(`Event type not found: ${etError.message}`);
+
+      return { content: [{ type: 'text' as const, text: JSON.stringify({ members: data }) }] };
+    }
+  );
+
+  // calendar.add_event_type_member
+  server.tool(
+    'calendar.add_event_type_member',
+    'Add a team member to an event type',
+    {
+      event_type_id: z.string().uuid().describe('Event type ID'),
+      user_id: z.string().uuid().describe('User ID to add'),
+      priority: z.number().int().min(0).default(0).describe('Priority (0=default)'),
+    },
+    async (params) => {
+      const ctx = getContext();
+      checkPermission(ctx.role, 'member');
+
+      // Verify event type belongs to this project
+      const { error: etError } = await ctx.supabase
+        .from('event_types')
+        .select('id')
+        .eq('id', params.event_type_id)
+        .eq('project_id', ctx.projectId)
+        .single();
+
+      if (etError) throw new Error(`Event type not found: ${etError.message}`);
+
+      const { data, error } = await ctx.supabase
+        .from('event_type_members')
+        .insert({
+          event_type_id: params.event_type_id,
+          user_id: params.user_id,
+          priority: params.priority,
+        })
+        .select('*, users(id, display_name, email)')
+        .single();
+
+      if (error) throw new Error(`Failed to add member: ${error.message}`);
+
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
+  // calendar.remove_event_type_member
+  server.tool(
+    'calendar.remove_event_type_member',
+    'Remove a team member from an event type',
+    {
+      event_type_id: z.string().uuid().describe('Event type ID'),
+      user_id: z.string().uuid().describe('User ID to remove'),
+    },
+    async (params) => {
+      const ctx = getContext();
+      checkPermission(ctx.role, 'member');
+
+      // Verify event type belongs to this project
+      const { error: etError } = await ctx.supabase
+        .from('event_types')
+        .select('id')
+        .eq('id', params.event_type_id)
+        .eq('project_id', ctx.projectId)
+        .single();
+
+      if (etError) throw new Error(`Event type not found: ${etError.message}`);
+
+      const { error } = await ctx.supabase
+        .from('event_type_members')
+        .delete()
+        .eq('event_type_id', params.event_type_id)
+        .eq('user_id', params.user_id);
+
+      if (error) throw new Error(`Failed to remove member: ${error.message}`);
+
+      return { content: [{ type: 'text' as const, text: JSON.stringify({ removed: true }) }] };
+    }
+  );
+
+  // calendar.get_round_robin_stats
+  server.tool(
+    'calendar.get_round_robin_stats',
+    'Get round robin assignment statistics for an event type',
+    {
+      event_type_id: z.string().uuid().describe('Event type ID'),
+    },
+    async (params) => {
+      const ctx = getContext();
+      checkPermission(ctx.role, 'viewer');
+
+      // Verify event type belongs to this project
+      const { error: etError } = await ctx.supabase
+        .from('event_types')
+        .select('id')
+        .eq('id', params.event_type_id)
+        .eq('project_id', ctx.projectId)
+        .single();
+
+      if (etError) throw new Error(`Event type not found: ${etError.message}`);
+
+      const { data, error } = await ctx.supabase
+        .from('round_robin_state')
+        .select('*')
+        .eq('event_type_id', params.event_type_id)
+        .single();
+
+      if (error) throw new Error(`Round robin stats not found: ${error.message}`);
+
+      return { content: [{ type: 'text' as const, text: JSON.stringify(data) }] };
+    }
+  );
+
   // calendar.get_booking_link
   server.tool(
     'calendar.get_booking_link',

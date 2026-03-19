@@ -13,7 +13,7 @@ import type { Database } from '@/types/database';
 import { sendBookingConfirmation, sendBookingCancellation, sendBookingConfirmedNotification } from './notifications';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { linkBookingToCrm, syncBookingStatusToMeeting } from '@/lib/calendar/crm-bridge';
-import { pushBookingToCalendar, removeBookingFromCalendar } from '@/lib/calendar/sync';
+import { pushBookingToCalendar, pushBookingToTeamCalendars, removeBookingFromCalendar } from '@/lib/calendar/sync';
 
 // ============================================================
 // Rate limiting
@@ -120,54 +120,148 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
   const endAt = new Date(startAt.getTime() + eventType.duration_minutes * 60 * 1000);
   const bufferBefore = `${eventType.buffer_before_minutes || 0} minutes`;
   const bufferAfter = `${eventType.buffer_after_minutes || 0} minutes`;
-  const rpcArgs = {
-    p_event_type_id: eventType.id,
-    p_host_user_id: eventType.user_id,
-    p_project_id: eventType.project_id,
-    p_start_at: startAt.toISOString(),
-    p_end_at: endAt.toISOString(),
-    p_buffer_before: bufferBefore,
-    p_buffer_after: bufferAfter,
-    p_host_timezone: hostTimezone,
-    p_daily_limit: eventType.daily_limit ?? null,
-    p_weekly_limit: eventType.weekly_limit ?? null,
-    p_invitee_name: input.inviteeName,
-    p_invitee_email: input.inviteeEmail,
-    p_invitee_phone: input.inviteePhone ?? null,
-    p_invitee_timezone: input.inviteeTimezone ?? null,
-    p_invitee_notes: input.inviteeNotes ?? null,
-    p_location: input.location ?? eventType.location_value ?? null,
-    p_meeting_url: input.meetingUrl ?? null,
-    p_responses: input.responses ?? {},
-    p_requires_confirmation: eventType.requires_confirmation ?? false,
-    p_exclude_booking_id: input.excludeBookingId ?? null,
-  } as unknown as Database['public']['Functions']['create_booking_if_available']['Args'];
+  const schedulingType = eventType.scheduling_type || 'one_on_one';
 
-  // Call the anti-overbooking RPC
-  const { data: bookingId, error: rpcError } = await supabase.rpc(
-    'create_booking_if_available',
-    rpcArgs
-  );
+  let newBookingId: string;
+  let assignedUserId: string | null = null;
+  let teamMemberIds: string[] = [];
 
-  if (rpcError) {
-    const msg = rpcError.message || '';
-    if (msg.includes('SLOT_TAKEN')) {
-      return { success: false, error: 'This time slot is no longer available', errorCode: 'SLOT_TAKEN' };
+  if (schedulingType === 'round_robin') {
+    // Load active team members
+    const { data: members } = await supabase
+      .from('event_type_members')
+      .select('user_id')
+      .eq('event_type_id', eventType.id)
+      .eq('is_active', true);
+
+    const candidateIds = members && members.length > 0
+      ? members.map((m) => m.user_id)
+      : [eventType.user_id];
+
+    const { data: rrResult, error: rrError } = await supabase.rpc(
+      'create_round_robin_booking',
+      {
+        p_event_type_id: eventType.id,
+        p_project_id: eventType.project_id,
+        p_candidate_user_ids: candidateIds,
+        p_start_at: startAt.toISOString(),
+        p_end_at: endAt.toISOString(),
+        p_buffer_before: bufferBefore,
+        p_buffer_after: bufferAfter,
+        p_host_timezone: hostTimezone,
+        p_daily_limit: eventType.daily_limit ?? null,
+        p_weekly_limit: eventType.weekly_limit ?? null,
+        p_invitee_name: input.inviteeName,
+        p_invitee_email: input.inviteeEmail,
+        p_invitee_phone: input.inviteePhone ?? null,
+        p_invitee_timezone: input.inviteeTimezone ?? null,
+        p_invitee_notes: input.inviteeNotes ?? null,
+        p_location: input.location ?? eventType.location_value ?? null,
+        p_meeting_url: input.meetingUrl ?? null,
+        p_responses: input.responses ?? {},
+        p_requires_confirmation: eventType.requires_confirmation ?? false,
+      } as unknown as Database['public']['Functions']['create_round_robin_booking']['Args']
+    );
+
+    if (rrError) {
+      return handleRpcError(rrError);
     }
-    if (msg.includes('DAILY_LIMIT')) {
-      return { success: false, error: 'Daily booking limit reached', errorCode: 'DAILY_LIMIT' };
+
+    // RPC returns a table with booking_id and assigned_user_id
+    const resultRow = Array.isArray(rrResult) ? rrResult[0] : rrResult;
+    if (!resultRow?.booking_id) {
+      return { success: false, error: 'Booking creation returned no ID' };
     }
-    if (msg.includes('WEEKLY_LIMIT')) {
-      return { success: false, error: 'Weekly booking limit reached', errorCode: 'WEEKLY_LIMIT' };
+
+    newBookingId = resultRow.booking_id as string;
+    assignedUserId = resultRow.assigned_user_id as string;
+  } else if (schedulingType === 'collective') {
+    // Load active team members
+    const { data: members } = await supabase
+      .from('event_type_members')
+      .select('user_id')
+      .eq('event_type_id', eventType.id)
+      .eq('is_active', true);
+
+    teamMemberIds = members && members.length > 0
+      ? members.map((m) => m.user_id)
+      : [eventType.user_id];
+
+    const { data: collectiveId, error: collectiveError } = await supabase.rpc(
+      'create_collective_booking',
+      {
+        p_event_type_id: eventType.id,
+        p_host_user_id: eventType.user_id,
+        p_member_user_ids: teamMemberIds,
+        p_project_id: eventType.project_id,
+        p_start_at: startAt.toISOString(),
+        p_end_at: endAt.toISOString(),
+        p_buffer_before: bufferBefore,
+        p_buffer_after: bufferAfter,
+        p_host_timezone: hostTimezone,
+        p_daily_limit: eventType.daily_limit ?? null,
+        p_weekly_limit: eventType.weekly_limit ?? null,
+        p_invitee_name: input.inviteeName,
+        p_invitee_email: input.inviteeEmail,
+        p_invitee_phone: input.inviteePhone ?? null,
+        p_invitee_timezone: input.inviteeTimezone ?? null,
+        p_invitee_notes: input.inviteeNotes ?? null,
+        p_location: input.location ?? eventType.location_value ?? null,
+        p_meeting_url: input.meetingUrl ?? null,
+        p_responses: input.responses ?? {},
+        p_requires_confirmation: eventType.requires_confirmation ?? false,
+      } as unknown as Database['public']['Functions']['create_collective_booking']['Args']
+    );
+
+    if (collectiveError) {
+      return handleRpcError(collectiveError);
     }
-    return { success: false, error: msg };
+
+    if (!collectiveId) {
+      return { success: false, error: 'Booking creation returned no ID' };
+    }
+
+    newBookingId = collectiveId as string;
+  } else {
+    // one_on_one / group — standard flow
+    const rpcArgs = {
+      p_event_type_id: eventType.id,
+      p_host_user_id: eventType.user_id,
+      p_project_id: eventType.project_id,
+      p_start_at: startAt.toISOString(),
+      p_end_at: endAt.toISOString(),
+      p_buffer_before: bufferBefore,
+      p_buffer_after: bufferAfter,
+      p_host_timezone: hostTimezone,
+      p_daily_limit: eventType.daily_limit ?? null,
+      p_weekly_limit: eventType.weekly_limit ?? null,
+      p_invitee_name: input.inviteeName,
+      p_invitee_email: input.inviteeEmail,
+      p_invitee_phone: input.inviteePhone ?? null,
+      p_invitee_timezone: input.inviteeTimezone ?? null,
+      p_invitee_notes: input.inviteeNotes ?? null,
+      p_location: input.location ?? eventType.location_value ?? null,
+      p_meeting_url: input.meetingUrl ?? null,
+      p_responses: input.responses ?? {},
+      p_requires_confirmation: eventType.requires_confirmation ?? false,
+      p_exclude_booking_id: input.excludeBookingId ?? null,
+    } as unknown as Database['public']['Functions']['create_booking_if_available']['Args'];
+
+    const { data: bookingId, error: rpcError } = await supabase.rpc(
+      'create_booking_if_available',
+      rpcArgs
+    );
+
+    if (rpcError) {
+      return handleRpcError(rpcError);
+    }
+
+    if (!bookingId) {
+      return { success: false, error: 'Booking creation returned no ID' };
+    }
+
+    newBookingId = bookingId as string;
   }
-
-  if (!bookingId) {
-    return { success: false, error: 'Booking creation returned no ID' };
-  }
-
-  const newBookingId = bookingId as string;
 
   // Send confirmation email (fire-and-forget)
   sendBookingConfirmation(newBookingId).catch((err) =>
@@ -180,20 +274,26 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
     triggerType: 'booking.created',
     entityType: 'booking',
     entityId: newBookingId,
-    data: { booking_id: newBookingId },
+    data: { booking_id: newBookingId, assigned_user_id: assignedUserId },
   }).catch((err) => console.error('Failed to emit booking.created event:', err));
 
   // Link booking to CRM entities only if not pending confirmation
-  // (pending bookings get linked when the host confirms them)
   if (!eventType.requires_confirmation) {
     linkBookingToCrm(newBookingId).catch((e: unknown) =>
       console.error('Failed to link booking to CRM:', e)
     );
 
     // Push to Google Calendar (fire-and-forget)
-    pushBookingToCalendar(newBookingId).catch((e: unknown) =>
-      console.error('Failed to push booking to Google Calendar:', e)
-    );
+    if (schedulingType === 'collective' && teamMemberIds.length > 0) {
+      // Push to all team members' calendars
+      pushBookingToTeamCalendars(newBookingId, teamMemberIds).catch((e: unknown) =>
+        console.error('Failed to push booking to team calendars:', e)
+      );
+    } else {
+      pushBookingToCalendar(newBookingId).catch((e: unknown) =>
+        console.error('Failed to push booking to Google Calendar:', e)
+      );
+    }
   }
 
   return { success: true, bookingId: newBookingId };
@@ -490,4 +590,22 @@ export async function rescheduleBookingByToken(
   );
 
   return { success: true, newBookingId: result.bookingId };
+}
+
+// ============================================================
+// Helpers
+// ============================================================
+
+function handleRpcError(rpcError: { message?: string }): CreateBookingResult {
+  const msg = rpcError.message || '';
+  if (msg.includes('SLOT_TAKEN')) {
+    return { success: false, error: 'This time slot is no longer available', errorCode: 'SLOT_TAKEN' };
+  }
+  if (msg.includes('DAILY_LIMIT')) {
+    return { success: false, error: 'Daily booking limit reached', errorCode: 'DAILY_LIMIT' };
+  }
+  if (msg.includes('WEEKLY_LIMIT')) {
+    return { success: false, error: 'Weekly booking limit reached', errorCode: 'WEEKLY_LIMIT' };
+  }
+  return { success: false, error: msg };
 }

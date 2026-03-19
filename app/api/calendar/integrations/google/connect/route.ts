@@ -2,19 +2,20 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { CALENDAR_SCOPES } from '@/lib/calendar/google-calendar';
 import { signOAuthState } from '@/lib/calendar/oauth-state';
+import { getPublicAppUrl } from '@/lib/url/get-public-url';
 import crypto from 'crypto';
 
 const GOOGLE_AUTH_URL = 'https://accounts.google.com/o/oauth2/v2/auth';
 
 // GET /api/calendar/integrations/google/connect — Initiate Google Calendar OAuth
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient();
     const { data: { user } } = await supabase.auth.getUser();
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const clientId = process.env.GOOGLE_CLIENT_ID;
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL;
+    const appUrl = getPublicAppUrl(request);
     if (!clientId || !appUrl) {
       return NextResponse.json({ error: 'Google OAuth not configured' }, { status: 500 });
     }

@@ -3408,6 +3408,48 @@ export type Database = {
           },
         ]
       }
+      event_type_members: {
+        Row: {
+          created_at: string | null
+          event_type_id: string
+          id: string
+          is_active: boolean | null
+          priority: number | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          event_type_id: string
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          event_type_id?: string
+          id?: string
+          is_active?: boolean | null
+          priority?: number | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_type_members_event_type_id_fkey"
+            columns: ["event_type_id"]
+            isOneToOne: false
+            referencedRelation: "event_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_type_members_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_types: {
         Row: {
           buffer_after_minutes: number | null
@@ -7331,6 +7373,45 @@ export type Database = {
           },
         ]
       }
+      round_robin_state: {
+        Row: {
+          assignment_count: Json | null
+          event_type_id: string
+          id: string
+          last_assigned_user_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          assignment_count?: Json | null
+          event_type_id: string
+          id?: string
+          last_assigned_user_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          assignment_count?: Json | null
+          event_type_id?: string
+          id?: string
+          last_assigned_user_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "round_robin_state_event_type_id_fkey"
+            columns: ["event_type_id"]
+            isOneToOne: true
+            referencedRelation: "event_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "round_robin_state_last_assigned_user_id_fkey"
+            columns: ["last_assigned_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       schema_audit_log: {
         Row: {
           change_type: Database["public"]["Enums"]["schema_change_type"]
@@ -9080,6 +9161,31 @@ export type Database = {
         }
         Returns: string
       }
+      create_collective_booking: {
+        Args: {
+          p_buffer_after: string
+          p_buffer_before: string
+          p_daily_limit: number
+          p_end_at: string
+          p_event_type_id: string
+          p_host_timezone: string
+          p_host_user_id: string
+          p_invitee_email: string
+          p_invitee_name: string
+          p_invitee_notes: string
+          p_invitee_phone: string
+          p_invitee_timezone: string
+          p_location: string
+          p_meeting_url: string
+          p_member_user_ids: string[]
+          p_project_id: string
+          p_requires_confirmation: boolean
+          p_responses: Json
+          p_start_at: string
+          p_weekly_limit: number
+        }
+        Returns: string
+      }
       create_invoice: {
         Args: {
           p_company_id: string
@@ -9151,6 +9257,33 @@ export type Database = {
           p_user_id: string
         }
         Returns: string
+      }
+      create_round_robin_booking: {
+        Args: {
+          p_buffer_after: string
+          p_buffer_before: string
+          p_candidate_user_ids: string[]
+          p_daily_limit: number
+          p_end_at: string
+          p_event_type_id: string
+          p_host_timezone: string
+          p_invitee_email: string
+          p_invitee_name: string
+          p_invitee_notes: string
+          p_invitee_phone: string
+          p_invitee_timezone: string
+          p_location: string
+          p_meeting_url: string
+          p_project_id: string
+          p_requires_confirmation: boolean
+          p_responses: Json
+          p_start_at: string
+          p_weekly_limit: number
+        }
+        Returns: {
+          assigned_user_id: string
+          booking_id: string
+        }[]
       }
       execute_custom_report: {
         Args: { p_config: Json; p_project_id: string }

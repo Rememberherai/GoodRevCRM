@@ -136,6 +136,8 @@ export const createEventTypeSchema = z.object({
   custom_questions: z.array(customQuestionSchema).optional().default([]),
   confirmation_message: z.string().max(5000).nullable().optional(),
   cancellation_policy: z.string().max(5000).nullable().optional(),
+  scheduling_type: z.enum(schedulingTypeValues).optional().default('one_on_one'),
+  max_attendees: z.number().int().min(1).max(100).optional().default(1),
   default_meeting_type: z.string().max(100).optional().default('general'),
   redirect_url: z.string().url().max(2000).nullable().optional(),
 });
@@ -163,11 +165,30 @@ export const updateEventTypeSchema = z.object({
   custom_questions: z.array(customQuestionSchema).optional(),
   confirmation_message: z.string().max(5000).nullable().optional(),
   cancellation_policy: z.string().max(5000).nullable().optional(),
+  scheduling_type: z.enum(schedulingTypeValues).optional(),
+  max_attendees: z.number().int().min(1).max(100).optional(),
   default_meeting_type: z.string().max(100).optional(),
   redirect_url: z.string().url().max(2000).nullable().optional(),
 });
 
 export type UpdateEventTypeInput = z.infer<typeof updateEventTypeSchema>;
+
+// ============================================================
+// Event Type Members (team scheduling)
+// ============================================================
+export const addEventTypeMemberSchema = z.object({
+  user_id: z.string().uuid(),
+  priority: z.number().int().min(0).max(100).optional().default(0),
+});
+
+export type AddEventTypeMemberInput = z.infer<typeof addEventTypeMemberSchema>;
+
+export const updateEventTypeMemberSchema = z.object({
+  is_active: z.boolean().optional(),
+  priority: z.number().int().min(0).max(100).optional(),
+});
+
+export type UpdateEventTypeMemberInput = z.infer<typeof updateEventTypeMemberSchema>;
 
 // ============================================================
 // Booking (public booking creation)

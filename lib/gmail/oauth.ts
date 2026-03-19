@@ -45,23 +45,27 @@ export class GmailOAuthError extends Error {
 /**
  * Get OAuth configuration from environment
  */
-function getOAuthConfig() {
+function getOAuthConfig(redirectUri?: string) {
   const clientId = process.env.GOOGLE_CLIENT_ID;
   const clientSecret = process.env.GOOGLE_CLIENT_SECRET;
-  const redirectUri = `${process.env.NEXT_PUBLIC_APP_URL}/api/gmail/callback`;
+  const resolvedRedirectUri = redirectUri
+    ?? `${process.env.NEXT_PUBLIC_APP_URL}/api/gmail/callback`;
 
   if (!clientId || !clientSecret) {
     throw new GmailOAuthError('Google OAuth credentials not configured');
   }
 
-  return { clientId, clientSecret, redirectUri };
+  return { clientId, clientSecret, redirectUri: resolvedRedirectUri };
 }
 
 /**
  * Generate the authorization URL for Gmail OAuth.
  */
-export function getAuthorizationUrl(state: string): string {
-  const { clientId, redirectUri } = getOAuthConfig();
+export function getAuthorizationUrl(
+  state: string,
+  options?: { redirectUri?: string }
+): string {
+  const { clientId, redirectUri } = getOAuthConfig(options?.redirectUri);
 
   const params = new URLSearchParams({
     client_id: clientId,
@@ -79,8 +83,11 @@ export function getAuthorizationUrl(state: string): string {
 /**
  * Exchange authorization code for tokens
  */
-export async function exchangeCodeForTokens(code: string): Promise<GoogleOAuthTokens> {
-  const { clientId, clientSecret, redirectUri } = getOAuthConfig();
+export async function exchangeCodeForTokens(
+  code: string,
+  options?: { redirectUri?: string }
+): Promise<GoogleOAuthTokens> {
+  const { clientId, clientSecret, redirectUri } = getOAuthConfig(options?.redirectUri);
 
   const response = await fetch(GOOGLE_TOKEN_URL, {
     method: 'POST',

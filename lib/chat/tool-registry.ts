@@ -5362,6 +5362,116 @@ defineTool({
 });
 
 defineTool({
+  name: 'calendar.list_event_type_members',
+  description: 'List team members assigned to an event type',
+  minRole: 'viewer',
+  parameters: z.object({
+    event_type_id: z.string().uuid().describe('Event type ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { event_type_id } = params as { event_type_id: string };
+    // Verify event type belongs to this project
+    const { error: etError } = await ctx.supabase
+      .from('event_types')
+      .select('id')
+      .eq('id', event_type_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (etError) throw new Error(`Event type not found: ${etError.message}`);
+    const { data, error } = await ctx.supabase
+      .from('event_type_members')
+      .select('*, users(id, display_name, email)')
+      .eq('event_type_id', event_type_id);
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify({ members: data });
+  },
+});
+
+defineTool({
+  name: 'calendar.add_event_type_member',
+  description: 'Add a team member to an event type',
+  minRole: 'member',
+  parameters: z.object({
+    event_type_id: z.string().uuid().describe('Event type ID'),
+    user_id: z.string().uuid().describe('User ID to add'),
+    priority: z.number().int().min(0).default(0).describe('Priority (0=default)'),
+  }),
+  handler: async (params, ctx) => {
+    const { event_type_id, user_id, priority } = params as { event_type_id: string; user_id: string; priority: number };
+    // Verify event type belongs to this project
+    const { error: etError } = await ctx.supabase
+      .from('event_types')
+      .select('id')
+      .eq('id', event_type_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (etError) throw new Error(`Event type not found: ${etError.message}`);
+    const { data, error } = await ctx.supabase
+      .from('event_type_members')
+      .insert({ event_type_id, user_id, priority })
+      .select('*, users(id, display_name, email)')
+      .single();
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'calendar.remove_event_type_member',
+  description: 'Remove a team member from an event type',
+  minRole: 'member',
+  parameters: z.object({
+    event_type_id: z.string().uuid().describe('Event type ID'),
+    user_id: z.string().uuid().describe('User ID to remove'),
+  }),
+  handler: async (params, ctx) => {
+    const { event_type_id, user_id } = params as { event_type_id: string; user_id: string };
+    // Verify event type belongs to this project
+    const { error: etError } = await ctx.supabase
+      .from('event_types')
+      .select('id')
+      .eq('id', event_type_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (etError) throw new Error(`Event type not found: ${etError.message}`);
+    const { error } = await ctx.supabase
+      .from('event_type_members')
+      .delete()
+      .eq('event_type_id', event_type_id)
+      .eq('user_id', user_id);
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify({ removed: true });
+  },
+});
+
+defineTool({
+  name: 'calendar.get_round_robin_stats',
+  description: 'Get round robin assignment statistics for an event type',
+  minRole: 'viewer',
+  parameters: z.object({
+    event_type_id: z.string().uuid().describe('Event type ID'),
+  }),
+  handler: async (params, ctx) => {
+    const { event_type_id } = params as { event_type_id: string };
+    // Verify event type belongs to this project
+    const { error: etError } = await ctx.supabase
+      .from('event_types')
+      .select('id')
+      .eq('id', event_type_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (etError) throw new Error(`Event type not found: ${etError.message}`);
+    const { data, error } = await ctx.supabase
+      .from('round_robin_state')
+      .select('*')
+      .eq('event_type_id', event_type_id)
+      .single();
+    if (error) throw new Error(`Failed: ${error.message}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
   name: 'calendar.list_availability_schedules',
   description: 'List the current user\'s availability schedules with rules',
   minRole: 'viewer',

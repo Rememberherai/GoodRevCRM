@@ -1,6 +1,7 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { startTransition, useEffect, useMemo, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Check, ChevronsUpDown, Clock3 } from 'lucide-react';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
@@ -75,6 +76,7 @@ function extractErrorMessage(payload: unknown): string {
 }
 
 export default function CalendarSettingsPage() {
+  const router = useRouter();
   const [profile, setProfile] = useState<CalendarProfile | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
@@ -151,6 +153,7 @@ export default function CalendarSettingsPage() {
     setSuccess(false);
 
     try {
+      const isCreatingProfile = !profile;
       const normalizedSlug = normalizeSlug(form.slug);
       const method = profile ? 'PUT' : 'POST';
       const body = profile
@@ -192,6 +195,15 @@ export default function CalendarSettingsPage() {
         timezone: data.profile.timezone || body.timezone,
         welcome_message: data.profile.welcome_message || '',
       });
+
+      if (isCreatingProfile) {
+        startTransition(() => {
+          router.replace('/calendar');
+          router.refresh();
+        });
+        return;
+      }
+
       setSuccess(true);
     } catch {
       setError('An error occurred');

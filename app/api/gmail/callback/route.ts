@@ -6,6 +6,7 @@ import {
   calculateTokenExpiry,
   GmailOAuthError,
 } from '@/lib/gmail/oauth';
+import { getPublicAppUrl } from '@/lib/url/get-public-url';
 
 interface OAuthState {
   user_id: string;
@@ -24,7 +25,7 @@ export async function GET(request: Request) {
     const error = searchParams.get('error');
 
     // Get base URL for redirects
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    const appUrl = getPublicAppUrl(request);
     const redirectPath = '/settings';
 
     // Handle OAuth errors from Google
@@ -68,7 +69,9 @@ export async function GET(request: Request) {
 
     try {
       // Exchange code for tokens
-      const tokens = await exchangeCodeForTokens(code);
+      const tokens = await exchangeCodeForTokens(code, {
+        redirectUri: `${appUrl}/api/gmail/callback`,
+      });
 
       // Get user profile from Google
       const profile = await getUserProfile(tokens.access_token);
@@ -119,7 +122,7 @@ export async function GET(request: Request) {
     }
   } catch (error) {
     console.error('Error in GET /api/gmail/callback:', error);
-    const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+    const appUrl = getPublicAppUrl(request);
     return NextResponse.redirect(`${appUrl}/settings?gmail_error=internal_error`);
   }
 }

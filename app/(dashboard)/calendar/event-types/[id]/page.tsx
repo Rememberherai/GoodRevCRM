@@ -15,8 +15,9 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
-import { LOCATION_TYPE_LABELS } from '@/types/calendar';
-import type { EventType, LocationType } from '@/types/calendar';
+import { LOCATION_TYPE_LABELS, SCHEDULING_TYPE_LABELS } from '@/types/calendar';
+import type { EventType, LocationType, SchedulingType } from '@/types/calendar';
+import { TeamMembersEditor } from '@/components/calendar/team-members-editor';
 
 export default function EditEventTypePage() {
   const params = useParams();
@@ -69,6 +70,8 @@ export default function EditEventTypePage() {
           min_notice_hours: eventType.min_notice_hours,
           max_days_in_advance: eventType.max_days_in_advance,
           requires_confirmation: eventType.requires_confirmation,
+          scheduling_type: eventType.scheduling_type,
+          max_attendees: eventType.max_attendees,
         }),
       });
 
@@ -247,6 +250,38 @@ export default function EditEventTypePage() {
               />
               <Label>Require host confirmation</Label>
             </div>
+            <div className="space-y-2">
+              <Label>Scheduling Type</Label>
+              <Select
+                value={eventType.scheduling_type || 'one_on_one'}
+                onValueChange={(v) => update({ scheduling_type: v as SchedulingType })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {Object.entries(SCHEDULING_TYPE_LABELS).map(([key, label]) => (
+                    <SelectItem key={key} value={key}>
+                      {label}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            {eventType.scheduling_type === 'group' && (
+              <div className="space-y-2">
+                <Label>Max Attendees</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={100}
+                  value={eventType.max_attendees ?? 1}
+                  onChange={(e) =>
+                    update({ max_attendees: parseInt(e.target.value) || 1 })
+                  }
+                />
+              </div>
+            )}
           </CardContent>
         </Card>
 
@@ -261,6 +296,15 @@ export default function EditEventTypePage() {
           </Button>
         </div>
       </form>
+
+      {(eventType.scheduling_type === 'round_robin' || eventType.scheduling_type === 'collective') && (
+        <div className="mt-6">
+          <TeamMembersEditor
+            eventTypeId={params.id as string}
+            schedulingType={eventType.scheduling_type}
+          />
+        </div>
+      )}
     </div>
   );
 }

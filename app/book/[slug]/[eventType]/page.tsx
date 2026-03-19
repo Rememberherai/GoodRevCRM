@@ -261,6 +261,12 @@ export default function PublicBookingFlowPage() {
           <span>&middot;</span>
           <span>{LOCATION_TYPE_LABELS[eventType.location_type as LocationType]}</span>
         </div>
+        {eventType.scheduling_type === 'round_robin' && (
+          <p className="text-xs text-muted-foreground">You&apos;ll be matched with an available team member</p>
+        )}
+        {eventType.scheduling_type === 'collective' && (
+          <p className="text-xs text-muted-foreground">You&apos;ll meet with the full team</p>
+        )}
       </div>
 
       {error && step !== 'date' && (

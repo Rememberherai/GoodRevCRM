@@ -208,6 +208,12 @@ export default function EmbedBookingPage() {
         <p className="text-xs text-gray-500">
           {eventType.duration_minutes} min &middot; {LOCATION_TYPE_LABELS[eventType.location_type as LocationType]}
         </p>
+        {eventType.scheduling_type === 'round_robin' && (
+          <p className="text-xs text-gray-400">You&apos;ll be matched with an available team member</p>
+        )}
+        {eventType.scheduling_type === 'collective' && (
+          <p className="text-xs text-gray-400">You&apos;ll meet with the full team</p>
+        )}
       </div>
 
       {error && (

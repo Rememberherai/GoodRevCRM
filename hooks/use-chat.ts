@@ -46,6 +46,7 @@ const MUTATING_TOOLS = new Set([
   'accounting_record_payment',
   'calendar_create_event_type', 'calendar_update_event_type', 'calendar_delete_event_type',
   'calendar_cancel_booking', 'calendar_update_profile', 'calendar_update_availability',
+  'calendar_add_event_type_member', 'calendar_remove_event_type_member',
 ]);
 
 export interface PageContext {

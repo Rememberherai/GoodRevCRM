@@ -181,6 +181,7 @@ export interface PublicEventType {
   custom_questions: CustomQuestion[];
   confirmation_message: string | null;
   cancellation_policy: string | null;
+  scheduling_type?: 'one_on_one' | 'group' | 'round_robin' | 'collective';
 }
 
 // Labels and constants
@@ -248,6 +249,40 @@ export interface SyncedEvent {
   created_at: string | null;
   updated_at: string | null;
 }
+
+// Team scheduling — event type members and round-robin state
+export interface EventTypeMember {
+  id: string;
+  event_type_id: string;
+  user_id: string;
+  is_active: boolean | null;
+  priority: number | null;
+  created_at: string | null;
+}
+
+export interface EventTypeMemberWithUser extends EventTypeMember {
+  user: {
+    id: string;
+    display_name: string;
+    email: string;
+    avatar_url: string | null;
+  };
+}
+
+export interface RoundRobinState {
+  id: string;
+  event_type_id: string;
+  last_assigned_user_id: string | null;
+  assignment_count: Record<string, number>;
+  updated_at: string | null;
+}
+
+export const SCHEDULING_TYPE_LABELS: Record<SchedulingType, string> = {
+  one_on_one: 'One-on-One',
+  group: 'Group',
+  round_robin: 'Round Robin',
+  collective: 'Collective',
+};
 
 export const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
   text: 'Short Text',

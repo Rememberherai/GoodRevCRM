@@ -322,3 +322,82 @@ export async function removeBookingFromCalendar(bookingId: string): Promise<void
     console.error('Failed to remove booking from calendar:', err);
   }
 }
+
+/**
+ * Push a booking to multiple team members' Google Calendars (for collective events).
+ * Each member's calendar gets its own event. Failures for individual members don't
+ * block others (fire-and-forget per member).
+ */
+export async function pushBookingToTeamCalendars(
+  bookingId: string,
+  memberUserIds: string[]
+): Promise<void> {
+  const supabase = createServiceClient();
+
+  // Load booking with event type
+  const { data: booking, error: bookingError } = await supabase
+    .from('bookings')
+    .select('*, event_types(title)')
+    .eq('id', bookingId)
+    .single();
+
+  if (bookingError || !booking) {
+    console.error('Failed to load booking for team calendar push:', bookingError?.message);
+    return;
+  }
+
+  const eventType = booking.event_types as { title: string } | null;
+  if (!eventType) return;
+
+  for (const userId of memberUserIds) {
+    // Find each member's connected calendar integration
+    const { data: integration } = await supabase
+      .from('calendar_integrations')
+      .select('id, calendar_id')
+      .eq('user_id', userId)
+      .eq('status', 'connected')
+      .eq('push_enabled', true)
+      .order('is_primary', { ascending: false })
+      .limit(1)
+      .single();
+
+    if (!integration) continue; // Member has no connected calendar
+
+    try {
+      const accessToken = await ensureFreshToken(integration.id);
+      const calendarId = integration.calendar_id || 'primary';
+
+      const calEvent = await createEvent(accessToken, calendarId, {
+        summary: `${eventType.title} with ${booking.invitee_name}`,
+        description: [
+          `Invitee: ${booking.invitee_name} (${booking.invitee_email})`,
+          booking.invitee_phone ? `Phone: ${booking.invitee_phone}` : '',
+          booking.invitee_notes ? `Notes: ${booking.invitee_notes}` : '',
+        ].filter(Boolean).join('\n'),
+        start: { dateTime: booking.start_at },
+        end: { dateTime: booking.end_at },
+        attendees: [{ email: booking.invitee_email }],
+        location: booking.location || undefined,
+      });
+
+      // Track the pushed event
+      await supabase.from('synced_events').upsert(
+        {
+          integration_id: integration.id,
+          user_id: userId,
+          external_id: calEvent.id,
+          title: `${eventType.title} with ${booking.invitee_name}`,
+          start_at: booking.start_at,
+          end_at: booking.end_at,
+          is_all_day: false,
+          status: 'busy',
+          source_calendar: `booking:${bookingId}`,
+          raw_data: calEvent as unknown as Json,
+        },
+        { onConflict: 'integration_id,external_id' }
+      );
+    } catch (err) {
+      console.error(`Failed to push booking to calendar for user ${userId}:`, err);
+    }
+  }
+}

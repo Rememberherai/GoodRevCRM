@@ -1,10 +1,11 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getAuthorizationUrl } from '@/lib/gmail/oauth';
+import { getPublicAppUrl } from '@/lib/url/get-public-url';
 import crypto from 'crypto';
 
 // GET /api/gmail/connect - Initiate Gmail OAuth flow
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient();
 
@@ -30,7 +31,10 @@ export async function GET() {
     // For now, we'll verify the timestamp on callback
 
     // Generate authorization URL
-    const authUrl = getAuthorizationUrl(state);
+    const appUrl = getPublicAppUrl(request);
+    const authUrl = getAuthorizationUrl(state, {
+      redirectUri: `${appUrl}/api/gmail/callback`,
+    });
 
     // Redirect to Google OAuth
     return NextResponse.redirect(authUrl);

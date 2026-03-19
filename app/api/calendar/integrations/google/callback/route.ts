@@ -3,6 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getUserProfile, calculateTokenExpiry } from '@/lib/gmail/oauth';
 import { verifyOAuthState } from '@/lib/calendar/oauth-state';
+import { getPublicAppUrl } from '@/lib/url/get-public-url';
 import { z } from 'zod';
 
 const GOOGLE_TOKEN_URL = 'https://oauth2.googleapis.com/token';
@@ -17,7 +18,7 @@ const tokenResponseSchema = z.object({
 
 // GET /api/calendar/integrations/google/callback
 export async function GET(request: Request) {
-  const appUrl = process.env.NEXT_PUBLIC_APP_URL ?? 'http://localhost:3000';
+  const appUrl = getPublicAppUrl(request);
   const redirectPath = '/calendar/integrations';
 
   try {
