@@ -23,7 +23,7 @@ export function LineItemRow({ item, currency, disabled, onUpdate, onDelete }: Li
   const [unitPrice, setUnitPrice] = useState(String(item.unit_price));
   const [discountPercent, setDiscountPercent] = useState(String(item.discount_percent));
   const [isDeleting, setIsDeleting] = useState(false);
-  const [showProductPicker, setShowProductPicker] = useState(false);
+  const [showProductPicker, setShowProductPicker] = useState(item.name === 'Untitled item' && !item.product_id);
   const focusedRef = useRef(false);
 
   // Sync from server props when not actively editing
