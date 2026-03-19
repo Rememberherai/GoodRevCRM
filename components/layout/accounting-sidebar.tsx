@@ -11,6 +11,7 @@ import {
   PieChart,
   Settings,
   MessageSquare,
+  Repeat,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { useChatStore } from '@/stores/chat';
@@ -50,6 +51,12 @@ const navItems = [
     title: 'Bank Accounts',
     href: '/bank-accounts',
     icon: Landmark,
+    disabled: false,
+  },
+  {
+    title: 'Recurring',
+    href: '/recurring',
+    icon: Repeat,
     disabled: false,
   },
   {

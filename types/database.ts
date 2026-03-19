@@ -5879,6 +5879,104 @@ export type Database = {
           },
         ]
       }
+      recurring_transactions: {
+        Row: {
+          company_id: string
+          contact_id: string | null
+          counterparty_address: string | null
+          counterparty_email: string | null
+          counterparty_name: string
+          created_at: string
+          created_by: string
+          currency: string
+          deleted_at: string | null
+          description: string | null
+          end_date: string | null
+          footer: string | null
+          frequency: string
+          id: string
+          is_active: boolean
+          last_generated_at: string | null
+          line_items: Json
+          name: string
+          next_date: string
+          notes: string | null
+          occurrences_remaining: number | null
+          organization_id: string | null
+          project_id: string | null
+          start_date: string
+          total_generated: number
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          company_id: string
+          contact_id?: string | null
+          counterparty_address?: string | null
+          counterparty_email?: string | null
+          counterparty_name: string
+          created_at?: string
+          created_by: string
+          currency?: string
+          deleted_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          footer?: string | null
+          frequency: string
+          id?: string
+          is_active?: boolean
+          last_generated_at?: string | null
+          line_items?: Json
+          name: string
+          next_date: string
+          notes?: string | null
+          occurrences_remaining?: number | null
+          organization_id?: string | null
+          project_id?: string | null
+          start_date: string
+          total_generated?: number
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          company_id?: string
+          contact_id?: string | null
+          counterparty_address?: string | null
+          counterparty_email?: string | null
+          counterparty_name?: string
+          created_at?: string
+          created_by?: string
+          currency?: string
+          deleted_at?: string | null
+          description?: string | null
+          end_date?: string | null
+          footer?: string | null
+          frequency?: string
+          id?: string
+          is_active?: boolean
+          last_generated_at?: string | null
+          line_items?: Json
+          name?: string
+          next_date?: string
+          notes?: string | null
+          occurrences_remaining?: number | null
+          organization_id?: string | null
+          project_id?: string | null
+          start_date?: string
+          total_generated?: number
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "recurring_transactions_company_id_fkey"
+            columns: ["company_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_companies"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       report_definitions: {
         Row: {
           config: Json
@@ -8230,6 +8328,10 @@ export type Database = {
           p_sync_amount?: boolean
         }
         Returns: Json
+      }
+      advance_recurring_date: {
+        Args: { p_current_date: string; p_frequency: string }
+        Returns: string
       }
       allocate_bill_number: { Args: { p_company_id: string }; Returns: string }
       allocate_invoice_number: {

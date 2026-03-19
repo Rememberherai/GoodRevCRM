@@ -94,6 +94,34 @@ export const CRON_TEMPLATES: CronTemplate[] = [
       wdays: [-1],
     },
   },
+  {
+    key: 'recurring-transactions',
+    title: 'Recurring Transactions',
+    path: '/api/cron/recurring-transactions',
+    description: 'Creates scheduled invoices and bills from recurring templates',
+    defaultSchedule: {
+      timezone: 'America/New_York',
+      hours: [6],
+      minutes: [0],
+      mdays: [-1],
+      months: [-1],
+      wdays: [-1],
+    },
+  },
+  {
+    key: 'payment-reminders',
+    title: 'Payment Reminders',
+    path: '/api/cron/payment-reminders',
+    description: 'Marks overdue invoices/bills and creates payment reminders',
+    defaultSchedule: {
+      timezone: 'America/New_York',
+      hours: [8],
+      minutes: [0],
+      mdays: [-1],
+      months: [-1],
+      wdays: [-1],
+    },
+  },
 ];
 
 /** Human-readable description of a cron-job.org schedule */

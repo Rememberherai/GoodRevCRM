@@ -1,0 +1,184 @@
+import { SupabaseClient } from '@supabase/supabase-js';
+import type { Database } from '@/types/database';
+
+
+interface ProcessResult {
+  processed: number;
+  errors: number;
+  details: Array<{ id: string; type: string; name: string; error?: string }>;
+}
+
+/**
+ * Calculate the next recurrence date given the current date and frequency.
+ */
+export function advanceDate(current: Date, frequency: string): Date {
+  const next = new Date(current);
+  switch (frequency) {
+    case 'weekly':
+      next.setDate(next.getDate() + 7);
+      break;
+    case 'biweekly':
+      next.setDate(next.getDate() + 14);
+      break;
+    case 'monthly':
+      next.setMonth(next.getMonth() + 1);
+      break;
+    case 'quarterly':
+      next.setMonth(next.getMonth() + 3);
+      break;
+    case 'annually':
+      next.setFullYear(next.getFullYear() + 1);
+      break;
+    default:
+      next.setMonth(next.getMonth() + 1);
+  }
+  return next;
+}
+
+function toDateStr(d: Date): string {
+  const year = d.getFullYear();
+  const month = String(d.getMonth() + 1).padStart(2, '0');
+  const day = String(d.getDate()).padStart(2, '0');
+  return `${year}-${month}-${day}`;
+}
+
+/**
+ * Process all due recurring transactions.
+ * Creates invoices or bills from templates, then advances the schedule.
+ */
+export async function processRecurringTransactions(
+  supabase: SupabaseClient<Database>,
+): Promise<ProcessResult> {
+  const today = toDateStr(new Date());
+  const result: ProcessResult = { processed: 0, errors: 0, details: [] };
+
+  // Fetch all due recurring transactions
+  const { data: recurrings, error } = await supabase
+    .from('recurring_transactions')
+    .select('*')
+    .eq('is_active', true)
+    .is('deleted_at', null)
+    .lte('next_date', today);
+
+  if (error || !recurrings) {
+    console.error('Error fetching recurring transactions:', error);
+    return result;
+  }
+
+  for (const rec of recurrings) {
+    try {
+      // Get accounting settings for defaults
+      const { data: settings } = await supabase
+        .from('accounting_settings')
+        .select('default_payment_terms, default_revenue_account_id, default_expense_account_id')
+        .eq('company_id', rec.company_id)
+        .single();
+
+      const paymentTerms = settings?.default_payment_terms ?? 30;
+      const invoiceDate = rec.next_date;
+      const dueDate = toDateStr(
+        new Date(new Date(rec.next_date).getTime() + paymentTerms * 86400000),
+      );
+
+      // Build line items from template
+      const fallbackAccountId =
+        rec.type === 'invoice'
+          ? settings?.default_revenue_account_id
+          : settings?.default_expense_account_id;
+      const rawLineItems = Array.isArray(rec.line_items) ? rec.line_items : [];
+      const lineItems = rawLineItems.map((item) => {
+        const line = typeof item === 'object' && item !== null ? item as Record<string, unknown> : {};
+        return {
+          ...line,
+          account_id: line.account_id ?? fallbackAccountId ?? null,
+        };
+      });
+
+      if (lineItems.length === 0) {
+        throw new Error('Recurring template has no line items');
+      }
+
+      if (lineItems.some((item) => !item.account_id)) {
+        throw new Error(
+          rec.type === 'invoice'
+            ? 'Missing revenue account on recurring invoice template'
+            : 'Missing expense account on recurring bill template',
+        );
+      }
+
+      if (rec.type === 'invoice') {
+        // Create invoice via RPC
+        const { error: createErr } = await supabase.rpc('create_invoice', {
+          p_company_id: rec.company_id,
+          p_customer_name: rec.counterparty_name,
+          p_customer_email: rec.counterparty_email ?? undefined,
+          p_customer_address: rec.counterparty_address ?? undefined,
+          p_invoice_date: invoiceDate,
+          p_due_date: dueDate,
+          p_payment_terms: paymentTerms,
+          p_currency: rec.currency,
+          p_notes: rec.notes ?? undefined,
+          p_footer: rec.footer ?? undefined,
+          p_organization_id: rec.organization_id ?? undefined,
+          p_contact_id: rec.contact_id ?? undefined,
+          p_project_id: rec.project_id ?? undefined,
+          p_lines: JSON.stringify(lineItems),
+        });
+
+        if (createErr) throw new Error(createErr.message);
+      } else {
+        // Use create_bill RPC which handles bill + line items atomically
+        const { error: billErr } = await supabase.rpc('create_bill', {
+          p_company_id: rec.company_id,
+          p_vendor_name: rec.counterparty_name,
+          p_vendor_email: rec.counterparty_email ?? undefined,
+          p_vendor_address: rec.counterparty_address ?? undefined,
+          p_bill_date: invoiceDate,
+          p_due_date: dueDate,
+          p_payment_terms: paymentTerms,
+          p_currency: rec.currency,
+          p_notes: rec.notes ?? undefined,
+          p_organization_id: rec.organization_id ?? undefined,
+          p_contact_id: rec.contact_id ?? undefined,
+          p_project_id: rec.project_id ?? undefined,
+          p_lines: JSON.stringify(lineItems),
+        });
+
+        if (billErr) throw new Error(billErr.message);
+      }
+
+      // Advance schedule
+      const nextDate = advanceDate(new Date(rec.next_date), rec.frequency);
+      const remaining =
+        rec.occurrences_remaining != null ? rec.occurrences_remaining - 1 : null;
+      const shouldDeactivate =
+        (remaining != null && remaining <= 0) ||
+        (rec.end_date && toDateStr(nextDate) > rec.end_date);
+
+      const { error: updateError } = await supabase
+        .from('recurring_transactions')
+        .update({
+          next_date: toDateStr(nextDate),
+          last_generated_at: new Date().toISOString(),
+          total_generated: rec.total_generated + 1,
+          occurrences_remaining: remaining,
+          is_active: shouldDeactivate ? false : true,
+        })
+        .eq('id', rec.id);
+
+      if (updateError) {
+        throw new Error(`Failed to update recurring schedule: ${updateError.message}`);
+      }
+
+      result.processed++;
+      result.details.push({ id: rec.id, type: rec.type, name: rec.name });
+    } catch (err) {
+      result.errors++;
+      const message = err instanceof Error ? err.message : 'Unknown error';
+      console.error(`Error processing recurring transaction ${rec.id}:`, message);
+      result.details.push({ id: rec.id, type: rec.type, name: rec.name, error: message });
+    }
+  }
+
+  return result;
+}

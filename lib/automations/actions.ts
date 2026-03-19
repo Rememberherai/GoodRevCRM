@@ -42,6 +42,9 @@ const entityTableMap: Record<AutomationEntityType, string> = {
   call: 'calls',
   workflow: 'workflows',
   document: 'contract_documents',
+  invoice: 'invoices',
+  bill: 'bills',
+  payment: 'payments',
 };
 
 /**

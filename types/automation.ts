@@ -50,7 +50,18 @@ export type TriggerType =
   | 'document.completed'
   | 'document.declined'
   | 'document.expired'
-  | 'document.voided';
+  | 'document.voided'
+  // Accounting events
+  | 'invoice.created'
+  | 'invoice.sent'
+  | 'invoice.paid'
+  | 'invoice.overdue'
+  | 'bill.created'
+  | 'bill.received'
+  | 'bill.paid'
+  | 'bill.overdue'
+  | 'payment.received'
+  | 'payment.made';
 
 export type ActionType =
   | 'create_task'
@@ -90,7 +101,10 @@ export type AutomationEntityType =
   | 'meeting'
   | 'call'
   | 'workflow'
-  | 'document';
+  | 'document'
+  | 'invoice'
+  | 'bill'
+  | 'payment';
 
 export type ExecutionStatus =
   | 'success'
@@ -268,6 +282,21 @@ export const triggerTypeGroups = {
       { type: 'document.declined' as TriggerType, label: 'Document Declined', description: 'When a signer declines to sign' },
       { type: 'document.expired' as TriggerType, label: 'Document Expired', description: 'When a document expires' },
       { type: 'document.voided' as TriggerType, label: 'Document Voided', description: 'When a document is voided by the owner' },
+    ],
+  },
+  accounting: {
+    label: 'Accounting Events',
+    triggers: [
+      { type: 'invoice.created' as TriggerType, label: 'Invoice Created', description: 'When a new invoice is created' },
+      { type: 'invoice.sent' as TriggerType, label: 'Invoice Sent', description: 'When an invoice is finalized and sent' },
+      { type: 'invoice.paid' as TriggerType, label: 'Invoice Paid', description: 'When an invoice is fully paid' },
+      { type: 'invoice.overdue' as TriggerType, label: 'Invoice Overdue', description: 'When an invoice passes its due date' },
+      { type: 'bill.created' as TriggerType, label: 'Bill Created', description: 'When a new bill is created' },
+      { type: 'bill.received' as TriggerType, label: 'Bill Received', description: 'When a bill is marked received' },
+      { type: 'bill.paid' as TriggerType, label: 'Bill Paid', description: 'When a bill is fully paid' },
+      { type: 'bill.overdue' as TriggerType, label: 'Bill Overdue', description: 'When a bill passes its due date' },
+      { type: 'payment.received' as TriggerType, label: 'Payment Received', description: 'When a customer payment is recorded' },
+      { type: 'payment.made' as TriggerType, label: 'Payment Made', description: 'When a vendor payment is recorded' },
     ],
   },
 };

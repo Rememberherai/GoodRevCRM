@@ -43,6 +43,7 @@ const MUTATING_TOOLS = new Set([
   'contracts_create', 'contracts_update', 'contracts_delete', 'contracts_void',
   'contracts_add_recipient', 'contracts_add_field',
   'emails_create_contact_from_sender',
+  'accounting_record_payment',
 ]);
 
 export interface PageContext {
