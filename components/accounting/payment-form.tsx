@@ -21,6 +21,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import type { Database } from '@/types/database';
+import { toLocalDateString } from '@/lib/accounting/date';
 
 type Account = Database['public']['Tables']['chart_of_accounts']['Row'];
 
@@ -37,8 +38,9 @@ interface PaymentFormProps {
 export function PaymentForm({ invoiceId, invoiceNumber, balanceDue, currency, open, onClose, onSuccess }: PaymentFormProps) {
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
 
-  const [paymentDate, setPaymentDate] = useState(() => new Date().toISOString().split('T')[0] ?? '');
+  const [paymentDate, setPaymentDate] = useState(() => toLocalDateString(new Date()));
   const [amount, setAmount] = useState(balanceDue.toFixed(2));
   const [paymentMethod, setPaymentMethod] = useState('__none__');
   const [accountId, setAccountId] = useState('');
@@ -48,11 +50,17 @@ export function PaymentForm({ invoiceId, invoiceNumber, balanceDue, currency, op
   const fetchAccounts = useCallback(async () => {
     try {
       const response = await fetch('/api/accounting/accounts?active=true');
-      if (!response.ok) return;
+      if (!response.ok) {
+        setAccounts([]);
+        setAccountsError('Failed to load payment accounts');
+        return;
+      }
       const { data } = await response.json();
       setAccounts(data);
+      setAccountsError(null);
     } catch {
-      // ignore
+      setAccounts([]);
+      setAccountsError('Failed to load payment accounts');
     }
   }, []);
 
@@ -62,7 +70,7 @@ export function PaymentForm({ invoiceId, invoiceNumber, balanceDue, currency, op
 
   useEffect(() => {
     if (!open) return;
-    setPaymentDate(new Date().toISOString().split('T')[0] ?? '');
+    setPaymentDate(toLocalDateString(new Date()));
     setAmount(balanceDue.toFixed(2));
     setPaymentMethod('__none__');
     setAccountId('');
@@ -87,6 +95,11 @@ export function PaymentForm({ invoiceId, invoiceNumber, balanceDue, currency, op
 
     if (parsedAmount > balanceDue) {
       toast.error(`Amount cannot exceed balance due (${formatCurrency(balanceDue)})`);
+      return;
+    }
+
+    if (accountsError) {
+      toast.error(accountsError);
       return;
     }
 
@@ -137,6 +150,12 @@ export function PaymentForm({ invoiceId, invoiceNumber, balanceDue, currency, op
           <div className="text-sm text-muted-foreground">
             Balance due: <span className="font-mono font-medium">{formatCurrency(balanceDue)}</span>
           </div>
+
+          {accountsError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {accountsError}
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">

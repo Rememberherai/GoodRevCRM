@@ -42,19 +42,25 @@ interface BankAccountListProps {
 export function BankAccountList({ canManage }: BankAccountListProps) {
   const router = useRouter();
   const [accounts, setAccounts] = useState<BankAccount[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [showForm, setShowForm] = useState(false);
 
   const fetchAccounts = useCallback(async () => {
+    setLoadError(null);
     try {
       const response = await fetch('/api/accounting/bank-accounts');
       if (!response.ok) {
+        setAccounts([]);
+        setLoadError('Failed to load bank accounts');
         toast.error('Failed to load bank accounts');
         return;
       }
       const { data } = await response.json();
       setAccounts(data);
     } catch {
+      setAccounts([]);
+      setLoadError('Failed to load bank accounts');
       toast.error('Failed to load bank accounts');
     } finally {
       setIsLoading(false);
@@ -79,6 +85,12 @@ export function BankAccountList({ canManage }: BankAccountListProps) {
           </Button>
         ) : null}
       </div>
+
+      {loadError ? (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
 
       <div className="rounded-md border">
         <Table>

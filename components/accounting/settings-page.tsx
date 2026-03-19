@@ -69,7 +69,7 @@ export function SettingsPage() {
       const [settingsRes, accountsRes, taxRes] = await Promise.all([
         fetch('/api/accounting/settings'),
         fetch('/api/accounting/accounts?active=all'),
-        fetch('/api/accounting/tax-rates'),
+        fetch('/api/accounting/tax-rates?active=all'),
       ]);
 
       if (settingsRes.ok) {

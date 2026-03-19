@@ -19,6 +19,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { toast } from 'sonner';
+import { toLocalDateString } from '@/lib/accounting/date';
 
 interface BankTransactionFormProps {
   bankAccountId: string;
@@ -38,7 +39,7 @@ export function BankTransactionForm({ bankAccountId, currency, open, onClose, on
 
   useEffect(() => {
     if (open) {
-      setDate(new Date().toISOString().split('T')[0] ?? '');
+      setDate(toLocalDateString(new Date()));
       setDescription('');
       setAmount('');
       setType('deposit');

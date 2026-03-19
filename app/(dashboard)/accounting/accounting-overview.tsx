@@ -46,10 +46,12 @@ export function AccountingOverview({ company }: AccountingOverviewProps) {
     apBalance: null,
     netIncome: null,
   });
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
 
   useEffect(() => {
     async function loadOverview() {
+      setLoadError(null);
       try {
         const today = new Date();
         const yearStart = `${today.getFullYear()}-01-01`;
@@ -107,6 +109,7 @@ export function AccountingOverview({ company }: AccountingOverviewProps) {
           apBalance: null,
           netIncome: null,
         });
+        setLoadError('Failed to load accounting overview');
       } finally {
         setLoading(false);
       }
@@ -145,6 +148,12 @@ export function AccountingOverview({ company }: AccountingOverviewProps) {
           {company.name} &middot; {company.base_currency}
         </p>
       </div>
+
+      {loadError ? (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
 
       <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-4">
         {cards.map((card) => (

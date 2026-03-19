@@ -15,6 +15,7 @@ export default async function GeneralLedgerPage() {
         .from('accounting_company_memberships')
         .select('company_id')
         .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle()
     : { data: null };

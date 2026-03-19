@@ -19,6 +19,7 @@ export default async function BillPage({ params }: BillPageProps) {
         .from('accounting_company_memberships')
         .select('role')
         .eq('user_id', user.id)
+        .order('created_at', { ascending: true })
         .limit(1)
         .maybeSingle()
     : { data: null };

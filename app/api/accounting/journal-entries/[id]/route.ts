@@ -113,6 +113,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       .select('status')
       .eq('id', id)
       .eq('company_id', ctx.companyId)
+      .is('deleted_at', null)
       .single();
 
     if (!existing) {

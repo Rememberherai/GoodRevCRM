@@ -16,6 +16,7 @@ import {
   TableRow,
 } from '@/components/ui/table';
 import { toast } from 'sonner';
+import { toLocalDateString } from '@/lib/accounting/date';
 
 interface ReconciliationWizardProps {
   bankAccountId: string;
@@ -46,10 +47,11 @@ interface ReconciliationData {
 export function ReconciliationWizard({ bankAccountId }: ReconciliationWizardProps) {
   const router = useRouter();
   const [step, setStep] = useState<'setup' | 'match'>('setup');
-  const [statementDate, setStatementDate] = useState(new Date().toISOString().split('T')[0] ?? '');
+  const [statementDate, setStatementDate] = useState(toLocalDateString(new Date()));
   const [statementBalance, setStatementBalance] = useState('');
   const [reconciliationId, setReconciliationId] = useState<string | null>(null);
   const [data, setData] = useState<ReconciliationData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
   const [isCompleting, setIsCompleting] = useState(false);
 
@@ -58,7 +60,10 @@ export function ReconciliationWizard({ bankAccountId }: ReconciliationWizardProp
     const checkExisting = async () => {
       try {
         const response = await fetch(`/api/accounting/bank-accounts/${bankAccountId}/reconciliations`);
-        if (!response.ok) return;
+        if (!response.ok) {
+          setLoadError('Failed to load reconciliation status');
+          return;
+        }
         const { data: recons } = await response.json();
         const inProgress = recons?.find((r: { status: string }) => r.status === 'in_progress');
         if (inProgress) {
@@ -68,7 +73,7 @@ export function ReconciliationWizard({ bankAccountId }: ReconciliationWizardProp
           setStep('match');
         }
       } catch {
-        // ignore
+        setLoadError('Failed to load reconciliation status');
       }
     };
     checkExisting();
@@ -77,15 +82,20 @@ export function ReconciliationWizard({ bankAccountId }: ReconciliationWizardProp
   const fetchReconciliationData = useCallback(async () => {
     if (!reconciliationId) return;
     setIsLoading(true);
+    setLoadError(null);
     try {
       const response = await fetch(`/api/accounting/reconciliations/${reconciliationId}/items`);
       if (!response.ok) {
+        setData(null);
+        setLoadError('Failed to load reconciliation data');
         toast.error('Failed to load reconciliation data');
         return;
       }
       const { data: reconData } = await response.json();
       setData(reconData);
     } catch {
+      setData(null);
+      setLoadError('Failed to load reconciliation data');
       toast.error('Failed to load reconciliation data');
     } finally {
       setIsLoading(false);
@@ -197,6 +207,11 @@ export function ReconciliationWizard({ bankAccountId }: ReconciliationWizardProp
         </div>
 
         <div className="max-w-md space-y-4">
+          {loadError ? (
+            <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {loadError}
+            </div>
+          ) : null}
           <div className="space-y-2">
             <Label htmlFor="stmt-date">Statement Date</Label>
             <Input
@@ -235,6 +250,11 @@ export function ReconciliationWizard({ bankAccountId }: ReconciliationWizardProp
 
   return (
     <div className="space-y-4">
+      {loadError ? (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
       {/* Header */}
       <div className="flex items-center justify-between">
         <div className="flex items-center gap-4">

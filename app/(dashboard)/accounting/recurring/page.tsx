@@ -1,5 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
-import { getAccountingContext } from '@/lib/accounting/helpers';
+import { getAccountingContext, hasMinRole } from '@/lib/accounting/helpers';
 import { redirect } from 'next/navigation';
 import { RecurringTransactionList } from '@/components/accounting/recurring-transaction-list';
 
@@ -11,9 +11,12 @@ export default async function RecurringTransactionsPage() {
     redirect('/accounting');
   }
 
+  const canManage = hasMinRole(ctx.role, 'member');
+  const canDelete = hasMinRole(ctx.role, 'admin');
+
   return (
     <div className="p-6">
-      <RecurringTransactionList />
+      <RecurringTransactionList canManage={canManage} canDelete={canDelete} />
     </div>
   );
 }

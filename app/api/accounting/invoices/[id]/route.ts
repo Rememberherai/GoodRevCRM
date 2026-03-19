@@ -40,6 +40,7 @@ export async function GET(_request: Request, context: RouteContext) {
       .from('payments')
       .select('*')
       .eq('invoice_id', id)
+      .eq('company_id', ctx.companyId)
       .is('deleted_at', null)
       .order('payment_date', { ascending: false });
 

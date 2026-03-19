@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createPaymentSchema } from '@/lib/validators/invoice';
 import { getAccountingContext, hasMinRole } from '@/lib/accounting/helpers';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 // GET /api/accounting/payments
 export async function GET(request: Request) {
@@ -97,6 +98,53 @@ export async function POST(request: Request) {
 
     if (fetchError || !payment) {
       return NextResponse.json({ error: 'Payment recorded but could not be loaded' }, { status: 500 });
+    }
+
+    // Emit automation event if payment is linked to a project via invoice/bill
+    const linkedInvoiceId = payment.invoice_id;
+    const linkedBillId = payment.bill_id;
+    if (linkedInvoiceId) {
+      const { data: inv } = await supabase
+        .from('invoices')
+        .select('project_id, invoice_number, customer_name, total, balance_due, status')
+        .eq('id', linkedInvoiceId)
+        .eq('company_id', ctx.companyId)
+        .maybeSingle();
+      if (inv?.project_id) {
+        emitAutomationEvent({
+          projectId: inv.project_id,
+          triggerType: 'payment.received' as never,
+          entityType: 'payment' as never,
+          entityId: payment.id,
+          data: { amount: payment.amount, invoice_id: linkedInvoiceId },
+        });
+
+        if (Number(inv.balance_due ?? 0) <= 0.005 && inv.status === 'paid') {
+          emitAutomationEvent({
+            projectId: inv.project_id,
+            triggerType: 'invoice.paid' as never,
+            entityType: 'invoice' as never,
+            entityId: linkedInvoiceId,
+            data: {
+              invoice_number: inv.invoice_number,
+              customer_name: inv.customer_name,
+              total: inv.total,
+              balance_due: inv.balance_due,
+            },
+          });
+        }
+      }
+    } else if (linkedBillId) {
+      const { data: bill } = await supabase.from('bills').select('project_id').eq('id', linkedBillId).maybeSingle();
+      if (bill?.project_id) {
+        emitAutomationEvent({
+          projectId: bill.project_id,
+          triggerType: 'payment.made' as never,
+          entityType: 'payment' as never,
+          entityId: payment.id,
+          data: { amount: payment.amount, bill_id: linkedBillId },
+        });
+      }
     }
 
     return NextResponse.json({ data: payment }, { status: 201 });

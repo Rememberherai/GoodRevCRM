@@ -1,6 +1,6 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { getAccountingContext } from '@/lib/accounting/helpers';
+import { getAccountingContext, getSignedBalance } from '@/lib/accounting/helpers';
 import { asOfDateQuerySchema, getLocalTodayString, parseQuery } from '@/lib/accounting/report-query';
 import { z } from 'zod';
 
@@ -77,7 +77,11 @@ export async function GET(request: Request) {
         normal_balance: a.normal_balance,
         total_debit: totals.debitCents / 100,
         total_credit: totals.creditCents / 100,
-        balance: (totals.debitCents - totals.creditCents) / 100,
+        balance: getSignedBalance(
+          a.normal_balance,
+          totals.debitCents / 100,
+          totals.creditCents / 100,
+        ),
       };
     }).filter((row) => row.total_debit !== 0 || row.total_credit !== 0);
 

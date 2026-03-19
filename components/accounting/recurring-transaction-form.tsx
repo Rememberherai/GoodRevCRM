@@ -45,7 +45,7 @@ export function RecurringTransactionForm() {
   const [endDate, setEndDate] = useState('');
   const [notes, setNotes] = useState('');
   const [lineItems, setLineItems] = useState<LineItem[]>([
-    { description: '', quantity: 1, unit_price: 0 },
+    { description: '', quantity: 1, unit_price: 0.01 },
   ]);
 
   useEffect(() => {

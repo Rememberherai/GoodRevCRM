@@ -5,7 +5,7 @@ import { createTaxRateSchema } from '@/lib/validators/accounting';
 import { getAccountingContext, hasMinRole } from '@/lib/accounting/helpers';
 
 // GET /api/accounting/tax-rates
-export async function GET() {
+export async function GET(request: Request) {
   try {
     const supabase = await createClient();
     const ctx = await getAccountingContext(supabase);
@@ -14,11 +14,20 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data, error } = await supabase
+    const { searchParams } = new URL(request.url);
+    const activeFilter = searchParams.get('active') ?? 'active';
+
+    let query = supabase
       .from('tax_rates')
       .select('*')
       .eq('company_id', ctx.companyId)
       .order('name');
+
+    if (activeFilter !== 'all') {
+      query = query.eq('is_active', true);
+    }
+
+    const { data, error } = await query;
 
     if (error) {
       console.error('Error fetching tax rates:', error);

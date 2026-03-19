@@ -2,6 +2,13 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 
 
+/**
+ * Return the number of days in a given month (0-indexed).
+ */
+function daysInMonth(year: number, month: number): number {
+  return new Date(year, month + 1, 0).getDate();
+}
+
 interface ProcessResult {
   processed: number;
   errors: number;
@@ -13,6 +20,7 @@ interface ProcessResult {
  */
 export function advanceDate(current: Date, frequency: string): Date {
   const next = new Date(current);
+  const originalDay = current.getDate();
   switch (frequency) {
     case 'weekly':
       next.setDate(next.getDate() + 7);
@@ -21,16 +29,24 @@ export function advanceDate(current: Date, frequency: string): Date {
       next.setDate(next.getDate() + 14);
       break;
     case 'monthly':
+      next.setDate(1);
       next.setMonth(next.getMonth() + 1);
+      next.setDate(Math.min(originalDay, daysInMonth(next.getFullYear(), next.getMonth())));
       break;
     case 'quarterly':
+      next.setDate(1);
       next.setMonth(next.getMonth() + 3);
+      next.setDate(Math.min(originalDay, daysInMonth(next.getFullYear(), next.getMonth())));
       break;
     case 'annually':
+      next.setDate(1);
       next.setFullYear(next.getFullYear() + 1);
+      next.setDate(Math.min(originalDay, daysInMonth(next.getFullYear(), next.getMonth())));
       break;
     default:
+      next.setDate(1);
       next.setMonth(next.getMonth() + 1);
+      next.setDate(Math.min(originalDay, daysInMonth(next.getFullYear(), next.getMonth())));
   }
   return next;
 }
@@ -88,9 +104,15 @@ export async function processRecurringTransactions(
       const rawLineItems = Array.isArray(rec.line_items) ? rec.line_items : [];
       const lineItems = rawLineItems.map((item) => {
         const line = typeof item === 'object' && item !== null ? item as Record<string, unknown> : {};
+        const quantityValue = typeof line.quantity === 'number' ? line.quantity : Number(line.quantity ?? 1);
+        const unitPriceValue = typeof line.unit_price === 'number' ? line.unit_price : Number(line.unit_price ?? 0);
+
         return {
-          ...line,
-          account_id: line.account_id ?? fallbackAccountId ?? null,
+          description: typeof line.description === 'string' ? line.description : '',
+          quantity: Number.isFinite(quantityValue) ? quantityValue : 1,
+          unit_price: Number.isFinite(unitPriceValue) ? unitPriceValue : 0,
+          account_id: typeof line.account_id === 'string' ? line.account_id : fallbackAccountId ?? null,
+          tax_rate_id: typeof line.tax_rate_id === 'string' ? line.tax_rate_id : null,
         };
       });
 
@@ -122,7 +144,7 @@ export async function processRecurringTransactions(
           p_organization_id: rec.organization_id ?? undefined,
           p_contact_id: rec.contact_id ?? undefined,
           p_project_id: rec.project_id ?? undefined,
-          p_lines: JSON.stringify(lineItems),
+          p_lines: lineItems,
         });
 
         if (createErr) throw new Error(createErr.message);
@@ -141,7 +163,7 @@ export async function processRecurringTransactions(
           p_organization_id: rec.organization_id ?? undefined,
           p_contact_id: rec.contact_id ?? undefined,
           p_project_id: rec.project_id ?? undefined,
-          p_lines: JSON.stringify(lineItems),
+          p_lines: lineItems,
         });
 
         if (billErr) throw new Error(billErr.message);

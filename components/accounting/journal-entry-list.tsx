@@ -64,6 +64,7 @@ const STATUS_COLORS: Record<string, string> = {
 export function JournalEntryList() {
   const router = useRouter();
   const [entries, setEntries] = useState<JournalEntry[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [isFormOpen, setIsFormOpen] = useState(false);
   const [statusFilter, setStatusFilter] = useState<string>('all');
@@ -72,6 +73,7 @@ export function JournalEntryList() {
   const [pagination, setPagination] = useState({ page: 1, total: 0, totalPages: 0 });
 
   const fetchEntries = useCallback(async () => {
+    setLoadError(null);
     try {
       const params = new URLSearchParams({ page: String(pagination.page), limit: '50' });
       if (statusFilter !== 'all') params.set('status', statusFilter);
@@ -84,6 +86,9 @@ export function JournalEntryList() {
       setEntries(result.data);
       setPagination((p) => ({ ...p, total: result.pagination.total, totalPages: result.pagination.totalPages }));
     } catch {
+      setEntries([]);
+      setPagination((p) => ({ ...p, total: 0, totalPages: 0 }));
+      setLoadError('Failed to load journal entries');
       toast.error('Failed to load journal entries');
     } finally {
       setIsLoading(false);
@@ -115,6 +120,12 @@ export function JournalEntryList() {
           New Entry
         </Button>
       </div>
+
+      {loadError ? (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
 
       {/* Filters */}
       <div className="flex items-center gap-4">

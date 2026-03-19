@@ -19,6 +19,7 @@ export default async function AccountingPage() {
     .from('accounting_company_memberships')
     .select('company_id, role, accounting_companies(*)')
     .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
 

@@ -36,10 +36,12 @@ export function TrialBalanceReportView() {
   const today = getTodayDateInputValue();
   const [asOfDate, setAsOfDate] = useState(today);
   const [report, setReport] = useState<TrialBalanceData | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (asOfDate) params.set('as_of_date', asOfDate);
@@ -48,8 +50,8 @@ export function TrialBalanceReportView() {
       const data = await res.json();
       setReport(data);
     } catch {
-      console.error('Failed to load trial balance');
       setReport(null);
+      setLoadError('Failed to load trial balance report');
     } finally {
       setLoading(false);
     }
@@ -83,6 +85,12 @@ export function TrialBalanceReportView() {
         loading={loading}
         onExportCSV={report ? handleExport : undefined}
       />
+
+      {loadError ? (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
 
       {report && (
         <div className="rounded-lg border bg-card">

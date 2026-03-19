@@ -40,6 +40,7 @@ export function GeneralLedgerReportView() {
   const [accountId, setAccountId] = useState<string>('all');
   const [accounts, setAccounts] = useState<Account[]>([]);
   const [report, setReport] = useState<GeneralLedgerReport | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   // Load accounts for the filter dropdown
@@ -56,6 +57,7 @@ export function GeneralLedgerReportView() {
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (startDate) params.set('start_date', startDate);
@@ -66,8 +68,8 @@ export function GeneralLedgerReportView() {
       const { data } = await res.json();
       setReport(data);
     } catch {
-      console.error('Failed to load general ledger');
       setReport(null);
+      setLoadError('Failed to load general ledger report');
     } finally {
       setLoading(false);
     }
@@ -137,6 +139,12 @@ export function GeneralLedgerReportView() {
           />
         </div>
       </div>
+
+      {loadError ? (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
 
       {report && report.accounts.length === 0 && (
         <p className="text-muted-foreground text-sm">No transactions found for the selected period.</p>

@@ -68,8 +68,12 @@ export async function PATCH(request: Request, context: RouteContext) {
     const supabase = await createClient();
     const ctx = await getAccountingContext(supabase);
 
-    if (!ctx || !hasMinRole(ctx.role, 'member')) {
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!hasMinRole(ctx.role, 'member')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const body = await request.json();
@@ -126,8 +130,12 @@ export async function DELETE(_request: Request, context: RouteContext) {
     const supabase = await createClient();
     const ctx = await getAccountingContext(supabase);
 
-    if (!ctx || !hasMinRole(ctx.role, 'member')) {
+    if (!ctx) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!hasMinRole(ctx.role, 'admin')) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
     }
 
     const { error } = await supabase

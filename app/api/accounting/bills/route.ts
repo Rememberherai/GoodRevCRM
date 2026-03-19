@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createBillSchema } from '@/lib/validators/bill';
 import { getAccountingContext, hasMinRole } from '@/lib/accounting/helpers';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 // GET /api/accounting/bills
 export async function GET(request: Request) {
@@ -119,6 +120,16 @@ export async function POST(request: Request) {
 
     if (fetchError || !complete) {
       return NextResponse.json({ error: 'Bill created but could not be loaded' }, { status: 500 });
+    }
+
+    if (complete.project_id) {
+      emitAutomationEvent({
+        projectId: complete.project_id,
+        triggerType: 'bill.created' as never,
+        entityType: 'bill' as never,
+        entityId: complete.id,
+        data: { bill_number: complete.bill_number, vendor_name: complete.vendor_name, total: complete.total },
+      });
     }
 
     return NextResponse.json({ data: complete }, { status: 201 });

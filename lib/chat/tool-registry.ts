@@ -4972,7 +4972,7 @@ defineTool({
     limit: z.number().int().min(1).max(100).default(25).describe('Max results'),
   }),
   handler: async (params, ctx) => {
-    const { data: membership } = await ctx.supabase.from('accounting_company_memberships').select('company_id').eq('user_id', ctx.userId).limit(1).maybeSingle();
+    const { data: membership } = await ctx.supabase.from('accounting_company_memberships').select('company_id').eq('user_id', ctx.userId).order('created_at', { ascending: true }).limit(1).maybeSingle();
     if (!membership) return JSON.stringify({ error: 'No accounting company found' });
     let query = ctx.supabase.from('invoices').select('id, invoice_number, customer_name, invoice_date, due_date, status, total, balance_due, currency').eq('company_id', membership.company_id).is('deleted_at', null).order('invoice_date', { ascending: false }).limit(params.limit as number);
     if (params.status) query = query.eq('status', params.status as string);
@@ -4991,7 +4991,7 @@ defineTool({
     limit: z.number().int().min(1).max(100).default(25).describe('Max results'),
   }),
   handler: async (params, ctx) => {
-    const { data: membership } = await ctx.supabase.from('accounting_company_memberships').select('company_id').eq('user_id', ctx.userId).limit(1).maybeSingle();
+    const { data: membership } = await ctx.supabase.from('accounting_company_memberships').select('company_id').eq('user_id', ctx.userId).order('created_at', { ascending: true }).limit(1).maybeSingle();
     if (!membership) return JSON.stringify({ error: 'No accounting company found' });
     let query = ctx.supabase.from('bills').select('id, bill_number, vendor_name, bill_date, due_date, status, total, balance_due, currency').eq('company_id', membership.company_id).is('deleted_at', null).order('bill_date', { ascending: false }).limit(params.limit as number);
     if (params.status) query = query.eq('status', params.status as string);
@@ -5009,7 +5009,7 @@ defineTool({
     account_type: z.enum(['asset', 'liability', 'equity', 'revenue', 'expense']).optional().describe('Filter by account type'),
   }),
   handler: async (params, ctx) => {
-    const { data: membership } = await ctx.supabase.from('accounting_company_memberships').select('company_id').eq('user_id', ctx.userId).limit(1).maybeSingle();
+    const { data: membership } = await ctx.supabase.from('accounting_company_memberships').select('company_id').eq('user_id', ctx.userId).order('created_at', { ascending: true }).limit(1).maybeSingle();
     if (!membership) return JSON.stringify({ error: 'No accounting company found' });
     let query = ctx.supabase.from('chart_of_accounts').select('id, account_code, name, account_type, normal_balance, is_active').eq('company_id', membership.company_id).is('deleted_at', null).eq('is_active', true).order('account_code');
     if (params.account_type) query = query.eq('account_type', params.account_type as string);
@@ -5027,7 +5027,7 @@ defineTool({
     active_only: z.boolean().default(true).describe('Show only active recurring transactions'),
   }),
   handler: async (params, ctx) => {
-    const { data: membership } = await ctx.supabase.from('accounting_company_memberships').select('company_id').eq('user_id', ctx.userId).limit(1).maybeSingle();
+    const { data: membership } = await ctx.supabase.from('accounting_company_memberships').select('company_id').eq('user_id', ctx.userId).order('created_at', { ascending: true }).limit(1).maybeSingle();
     if (!membership) return JSON.stringify({ error: 'No accounting company found' });
     let query = ctx.supabase.from('recurring_transactions').select('id, name, type, counterparty_name, frequency, next_date, is_active, total_generated, currency, line_items').eq('company_id', membership.company_id).is('deleted_at', null).order('next_date');
     if (params.active_only) query = query.eq('is_active', true);
@@ -5045,7 +5045,7 @@ defineTool({
     invoice_id: z.string().uuid().describe('The invoice ID'),
   }),
   handler: async (params, ctx) => {
-    const { data: membership } = await ctx.supabase.from('accounting_company_memberships').select('company_id').eq('user_id', ctx.userId).limit(1).maybeSingle();
+    const { data: membership } = await ctx.supabase.from('accounting_company_memberships').select('company_id').eq('user_id', ctx.userId).order('created_at', { ascending: true }).limit(1).maybeSingle();
     if (!membership) return JSON.stringify({ error: 'No accounting company found' });
     const { data, error } = await ctx.supabase.from('invoices').select('*, invoice_line_items(*)').eq('id', params.invoice_id as string).eq('company_id', membership.company_id).is('deleted_at', null).single();
     if (error) throw new Error(`Failed: ${error.message}`);
@@ -5062,7 +5062,7 @@ defineTool({
     limit: z.number().int().min(1).max(100).default(25).describe('Max results'),
   }),
   handler: async (params, ctx) => {
-    const { data: membership } = await ctx.supabase.from('accounting_company_memberships').select('company_id').eq('user_id', ctx.userId).limit(1).maybeSingle();
+    const { data: membership } = await ctx.supabase.from('accounting_company_memberships').select('company_id').eq('user_id', ctx.userId).order('created_at', { ascending: true }).limit(1).maybeSingle();
     if (!membership) return JSON.stringify({ error: 'No accounting company found' });
     let query = ctx.supabase.from('journal_entries').select('id, entry_number, entry_date, memo, source_type, status').eq('company_id', membership.company_id).is('deleted_at', null).order('entry_date', { ascending: false }).limit(params.limit as number);
     if (params.status) query = query.eq('status', params.status as string);
@@ -5083,6 +5083,7 @@ defineTool({
     payment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/).describe('Payment date (YYYY-MM-DD)'),
     payment_method: z.enum(['cash', 'check', 'credit_card', 'bank_transfer', 'ach', 'wire', 'other']).optional().describe('Payment method'),
     reference: z.string().optional().describe('Reference/check number'),
+    notes: z.string().optional().describe('Internal payment notes'),
   }),
   handler: async (params, ctx) => {
     const { data, error } = await ctx.supabase.rpc('record_invoice_payment', {
@@ -5092,7 +5093,7 @@ defineTool({
       p_payment_date: params.payment_date as string,
       p_payment_method: (params.payment_method as string) ?? 'other',
       p_reference: (params.reference as string) ?? '',
-      p_notes: '',
+      p_notes: (params.notes as string) ?? '',
     });
     if (error) throw new Error(`Failed: ${error.message}`);
     return JSON.stringify({ success: true, payment_id: data });

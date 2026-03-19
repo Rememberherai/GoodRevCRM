@@ -52,6 +52,7 @@ interface InvoiceListProps {
 export function InvoiceList({ canCreate }: InvoiceListProps) {
   const router = useRouter();
   const [invoices, setInvoices] = useState<Invoice[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -60,19 +61,27 @@ export function InvoiceList({ canCreate }: InvoiceListProps) {
 
   const fetchInvoices = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams({ page: String(page), limit: '25' });
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (search.trim()) params.set('search', search.trim());
 
       const response = await fetch(`/api/accounting/invoices?${params}`);
-      if (!response.ok) return;
+      if (!response.ok) {
+        setInvoices([]);
+        setTotalPages(1);
+        setLoadError('Failed to load invoices');
+        return;
+      }
 
       const { data, pagination } = await response.json();
       setInvoices(data);
       setTotalPages(pagination.totalPages);
     } catch {
-      // ignore
+      setInvoices([]);
+      setTotalPages(1);
+      setLoadError('Failed to load invoices');
     } finally {
       setIsLoading(false);
     }
@@ -124,6 +133,12 @@ export function InvoiceList({ canCreate }: InvoiceListProps) {
           </SelectContent>
         </Select>
       </div>
+
+      {loadError ? (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
 
       <div className="rounded-md border">
         <Table>

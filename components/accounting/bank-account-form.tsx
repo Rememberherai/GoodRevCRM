@@ -32,6 +32,7 @@ interface BankAccountFormProps {
 export function BankAccountForm({ open, onClose, onSuccess }: BankAccountFormProps) {
   const [glAccounts, setGlAccounts] = useState<Account[]>([]);
   const [isLoading, setIsLoading] = useState(false);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
 
   const [name, setName] = useState('');
   const [institution, setInstitution] = useState('');
@@ -44,11 +45,17 @@ export function BankAccountForm({ open, onClose, onSuccess }: BankAccountFormPro
   const fetchAccounts = useCallback(async () => {
     try {
       const response = await fetch('/api/accounting/accounts?active=true');
-      if (!response.ok) return;
+      if (!response.ok) {
+        setGlAccounts([]);
+        setAccountsError('Failed to load GL accounts');
+        return;
+      }
       const { data } = await response.json();
       setGlAccounts(data);
+      setAccountsError(null);
     } catch {
-      // ignore
+      setGlAccounts([]);
+      setAccountsError('Failed to load GL accounts');
     }
   }, []);
 
@@ -75,6 +82,11 @@ export function BankAccountForm({ open, onClose, onSuccess }: BankAccountFormPro
 
     if (!name.trim()) {
       toast.error('Account name is required');
+      return;
+    }
+
+    if (accountsError) {
+      toast.error(accountsError);
       return;
     }
 
@@ -115,6 +127,12 @@ export function BankAccountForm({ open, onClose, onSuccess }: BankAccountFormPro
           <DialogTitle>Add Bank Account</DialogTitle>
         </DialogHeader>
         <form onSubmit={handleSubmit} className="space-y-4">
+          {accountsError ? (
+            <div className="rounded-md border border-destructive/40 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+              {accountsError}
+            </div>
+          ) : null}
+
           <div className="space-y-2">
             <Label htmlFor="bank-name">Account Name *</Label>
             <Input

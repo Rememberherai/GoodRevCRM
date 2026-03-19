@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createInvoiceSchema } from '@/lib/validators/invoice';
 import { getAccountingContext, hasMinRole } from '@/lib/accounting/helpers';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 // GET /api/accounting/invoices
 export async function GET(request: Request) {
@@ -120,6 +121,16 @@ export async function POST(request: Request) {
 
     if (fetchError || !complete) {
       return NextResponse.json({ error: 'Invoice created but could not be loaded' }, { status: 500 });
+    }
+
+    if (complete.project_id) {
+      emitAutomationEvent({
+        projectId: complete.project_id,
+        triggerType: 'invoice.created' as never,
+        entityType: 'invoice' as never,
+        entityId: complete.id,
+        data: { invoice_number: complete.invoice_number, customer_name: complete.customer_name, total: complete.total },
+      });
     }
 
     return NextResponse.json({ data: complete }, { status: 201 });

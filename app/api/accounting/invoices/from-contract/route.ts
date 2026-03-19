@@ -192,7 +192,7 @@ export async function POST(request: Request) {
       p_organization_id: organizationId ?? undefined,
       p_contact_id: contactId ?? undefined,
       p_project_id: project_id ?? undefined,
-      p_lines: JSON.stringify(lineItems),
+      p_lines: lineItems,
       p_opportunity_id: contract.opportunity_id ?? undefined,
       p_contract_id: contract.id,
     });

@@ -22,10 +22,12 @@ export function ProfitLossReportView() {
   const [startDate, setStartDate] = useState(yearStart);
   const [endDate, setEndDate] = useState(getTodayDateInputValue());
   const [report, setReport] = useState<ProfitLossReport | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (startDate) params.set('start_date', startDate);
@@ -35,8 +37,8 @@ export function ProfitLossReportView() {
       const { data } = await res.json();
       setReport(data);
     } catch {
-      console.error('Failed to load P&L');
       setReport(null);
+      setLoadError('Failed to load profit and loss report');
     } finally {
       setLoading(false);
     }
@@ -78,6 +80,12 @@ export function ProfitLossReportView() {
           onExportCSV={report ? handleExport : undefined}
         />
       </div>
+
+      {loadError ? (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
 
       {report && (
         <div className="rounded-lg border bg-card">

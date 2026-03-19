@@ -3,6 +3,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import Link from 'next/link';
 import { Plus, Pause, Play, Trash2, RefreshCw } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -55,20 +56,32 @@ const FREQ_LABELS: Record<string, string> = {
   annually: 'Annually',
 };
 
-export function RecurringTransactionList() {
+interface RecurringTransactionListProps {
+  canManage: boolean;
+  canDelete: boolean;
+}
+
+export function RecurringTransactionList({ canManage, canDelete }: RecurringTransactionListProps) {
   const [items, setItems] = useState<RecurringTransaction[]>([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [deleteId, setDeleteId] = useState<string | null>(null);
 
   const load = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const res = await fetch('/api/accounting/recurring-transactions');
-      if (!res.ok) throw new Error('Failed to fetch');
+      if (!res.ok) {
+        setItems([]);
+        setLoadError('Failed to load recurring transactions');
+        return;
+      }
       const { data } = await res.json();
       setItems(data ?? []);
     } catch {
-      console.error('Failed to load recurring transactions');
+      setItems([]);
+      setLoadError('Failed to load recurring transactions');
     } finally {
       setLoading(false);
     }
@@ -79,23 +92,41 @@ export function RecurringTransactionList() {
   }, [load]);
 
   const toggleActive = async (id: string, active: boolean) => {
-    const res = await fetch(`/api/accounting/recurring-transactions/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ is_active: !active }),
-    });
-    if (!res.ok) console.error('Failed to toggle recurring transaction');
-    load();
+    try {
+      const res = await fetch(`/api/accounting/recurring-transactions/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_active: !active }),
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || 'Failed to update recurring transaction');
+      }
+
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to update recurring transaction');
+    }
   };
 
   const handleDelete = async () => {
     if (!deleteId) return;
-    const res = await fetch(`/api/accounting/recurring-transactions/${deleteId}`, {
-      method: 'DELETE',
-    });
-    if (!res.ok) console.error('Failed to delete recurring transaction');
-    setDeleteId(null);
-    load();
+    try {
+      const res = await fetch(`/api/accounting/recurring-transactions/${deleteId}`, {
+        method: 'DELETE',
+      });
+
+      if (!res.ok) {
+        const body = await res.json().catch(() => null);
+        throw new Error(body?.error || 'Failed to delete recurring transaction');
+      }
+
+      setDeleteId(null);
+      await load();
+    } catch (error) {
+      toast.error(error instanceof Error ? error.message : 'Failed to delete recurring transaction');
+    }
   };
 
   if (loading) {
@@ -110,13 +141,21 @@ export function RecurringTransactionList() {
     <div className="space-y-4">
       <div className="flex items-center justify-between">
         <h2 className="text-lg font-semibold">Recurring Transactions</h2>
-        <Link href="/accounting/recurring/new">
-          <Button size="sm">
-            <Plus className="h-4 w-4 mr-2" />
-            New Recurring
-          </Button>
-        </Link>
+        {canManage ? (
+          <Link href="/accounting/recurring/new">
+            <Button size="sm">
+              <Plus className="h-4 w-4 mr-2" />
+              New Recurring
+            </Button>
+          </Link>
+        ) : null}
       </div>
+
+      {loadError ? (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
 
       {items.length === 0 ? (
         <div className="text-center py-12 text-muted-foreground">
@@ -173,27 +212,31 @@ export function RecurringTransactionList() {
                   <TableCell className="text-right text-sm">{item.total_generated}</TableCell>
                   <TableCell>
                     <div className="flex items-center gap-1">
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8"
-                        onClick={() => toggleActive(item.id, item.is_active)}
-                        title={item.is_active ? 'Pause' : 'Resume'}
-                      >
-                        {item.is_active ? (
-                          <Pause className="h-4 w-4" />
-                        ) : (
-                          <Play className="h-4 w-4" />
-                        )}
-                      </Button>
-                      <Button
-                        variant="ghost"
-                        size="icon"
-                        className="h-8 w-8 text-destructive"
-                        onClick={() => setDeleteId(item.id)}
-                      >
-                        <Trash2 className="h-4 w-4" />
-                      </Button>
+                      {canManage ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8"
+                          onClick={() => toggleActive(item.id, item.is_active)}
+                          title={item.is_active ? 'Pause' : 'Resume'}
+                        >
+                          {item.is_active ? (
+                            <Pause className="h-4 w-4" />
+                          ) : (
+                            <Play className="h-4 w-4" />
+                          )}
+                        </Button>
+                      ) : null}
+                      {canDelete ? (
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          className="h-8 w-8 text-destructive"
+                          onClick={() => setDeleteId(item.id)}
+                        >
+                          <Trash2 className="h-4 w-4" />
+                        </Button>
+                      ) : null}
                     </div>
                   </TableCell>
                 </TableRow>

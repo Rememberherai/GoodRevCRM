@@ -36,6 +36,7 @@ export async function getAccountingContext(
     .from('accounting_company_memberships')
     .select('company_id, role')
     .eq('user_id', user.id)
+    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
 
@@ -60,6 +61,19 @@ const ROLE_HIERARCHY: Record<AccountingRole, number> = {
  */
 export function hasMinRole(userRole: AccountingRole, requiredRole: AccountingRole): boolean {
   return ROLE_HIERARCHY[userRole] >= ROLE_HIERARCHY[requiredRole];
+}
+
+/**
+ * Convert debit/credit totals into a signed balance using the account's normal balance.
+ */
+export function getSignedBalance(
+  normalBalance: string | null | undefined,
+  debitAmount: number,
+  creditAmount: number,
+): number {
+  return normalBalance === 'credit'
+    ? creditAmount - debitAmount
+    : debitAmount - creditAmount;
 }
 
 /**

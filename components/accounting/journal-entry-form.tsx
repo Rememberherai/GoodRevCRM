@@ -15,6 +15,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import type { Database } from '@/types/database';
+import { toLocalDateString } from '@/lib/accounting/date';
 
 type Account = Database['public']['Tables']['chart_of_accounts']['Row'];
 
@@ -42,8 +43,9 @@ const emptyLine = (): LineItem => ({
 
 export function JournalEntryForm({ onSuccess }: JournalEntryFormProps) {
   const [accounts, setAccounts] = useState<Account[]>([]);
+  const [accountsError, setAccountsError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(false);
-  const [entryDate, setEntryDate] = useState(new Date().toISOString().split('T')[0]);
+  const [entryDate, setEntryDate] = useState(toLocalDateString(new Date()));
   const [memo, setMemo] = useState('');
   const [reference, setReference] = useState('');
   const [lines, setLines] = useState<LineItem[]>([emptyLine(), emptyLine()]);
@@ -51,11 +53,18 @@ export function JournalEntryForm({ onSuccess }: JournalEntryFormProps) {
   const fetchAccounts = useCallback(async () => {
     try {
       const response = await fetch('/api/accounting/accounts');
-      if (!response.ok) return;
+      if (!response.ok) {
+        setAccounts([]);
+        setAccountsError('Failed to load accounts');
+        return;
+      }
       const { data } = await response.json();
       setAccounts(data);
-    } catch {
-      // ignore
+      setAccountsError(null);
+    } catch (err) {
+      console.error('Failed to load accounts:', err);
+      setAccounts([]);
+      setAccountsError('Failed to load accounts');
     }
   }, []);
 
@@ -110,6 +119,11 @@ export function JournalEntryForm({ onSuccess }: JournalEntryFormProps) {
 
     if (!hasValidLines) {
       toast.error('At least 2 lines with amounts are required');
+      return;
+    }
+
+    if (accountsError) {
+      toast.error(accountsError);
       return;
     }
 
@@ -190,6 +204,11 @@ export function JournalEntryForm({ onSuccess }: JournalEntryFormProps) {
       {/* Lines */}
       <div className="space-y-2">
         <Label>Lines</Label>
+        {accountsError ? (
+          <div className="rounded-md border border-destructive/50 bg-destructive/10 px-3 py-2 text-sm text-destructive">
+            {accountsError}
+          </div>
+        ) : null}
         <div className="rounded-md border">
           <div className="grid grid-cols-[1fr_1fr_120px_120px_40px] gap-2 p-2 bg-muted/50 text-sm font-medium">
             <span>Account</span>

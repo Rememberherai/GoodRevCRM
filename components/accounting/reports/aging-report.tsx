@@ -52,6 +52,7 @@ export function AgingReportView({ type }: AgingReportViewProps) {
   const today = getTodayDateInputValue();
   const [asOfDate, setAsOfDate] = useState(today);
   const [report, setReport] = useState<AgingReport | null>(null);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
 
   const endpoint = type === 'ar' ? 'ar-aging' : 'ap-aging';
@@ -59,6 +60,7 @@ export function AgingReportView({ type }: AgingReportViewProps) {
 
   const fetchReport = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams();
       if (asOfDate) params.set('as_of_date', asOfDate);
@@ -67,8 +69,8 @@ export function AgingReportView({ type }: AgingReportViewProps) {
       const { data } = await res.json();
       setReport(data);
     } catch {
-      console.error(`Failed to load ${type} aging`);
       setReport(null);
+      setLoadError(`Failed to load ${type === 'ar' ? 'AR' : 'AP'} aging report`);
     } finally {
       setLoading(false);
     }
@@ -103,6 +105,12 @@ export function AgingReportView({ type }: AgingReportViewProps) {
         loading={loading}
         onExportCSV={report ? handleExport : undefined}
       />
+
+      {loadError ? (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
 
       {report && (
         <>

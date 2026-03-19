@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getAccountingContext, hasMinRole } from '@/lib/accounting/helpers';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -47,6 +48,16 @@ export async function POST(_request: Request, context: RouteContext) {
 
     if (fetchError || !bill) {
       return NextResponse.json({ error: 'Bill received but could not be loaded' }, { status: 500 });
+    }
+
+    if (bill.project_id) {
+      emitAutomationEvent({
+        projectId: bill.project_id,
+        triggerType: 'bill.received' as never,
+        entityType: 'bill' as never,
+        entityId: bill.id,
+        data: { bill_number: bill.bill_number, vendor_name: bill.vendor_name, total: bill.total },
+      });
     }
 
     return NextResponse.json({ data: bill, journal_entry_id: jeId });

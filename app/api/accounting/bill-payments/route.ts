@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { createBillPaymentSchema } from '@/lib/validators/bill';
 import { getAccountingContext, hasMinRole } from '@/lib/accounting/helpers';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 // POST /api/accounting/bill-payments
 export async function POST(request: Request) {
@@ -45,6 +46,40 @@ export async function POST(request: Request) {
 
     if (fetchError || !payment) {
       return NextResponse.json({ error: 'Payment recorded but could not be loaded' }, { status: 500 });
+    }
+
+    if (payment.bill_id) {
+      const { data: bill } = await supabase
+        .from('bills')
+        .select('project_id, bill_number, vendor_name, total, balance_due, status')
+        .eq('id', payment.bill_id)
+        .eq('company_id', ctx.companyId)
+        .maybeSingle();
+
+      if (bill?.project_id) {
+        emitAutomationEvent({
+          projectId: bill.project_id,
+          triggerType: 'payment.made' as never,
+          entityType: 'payment' as never,
+          entityId: payment.id,
+          data: { amount: payment.amount, bill_id: payment.bill_id },
+        });
+
+        if (Number(bill.balance_due ?? 0) <= 0.005 && bill.status === 'paid') {
+          emitAutomationEvent({
+            projectId: bill.project_id,
+            triggerType: 'bill.paid' as never,
+            entityType: 'bill' as never,
+            entityId: payment.bill_id,
+            data: {
+              bill_number: bill.bill_number,
+              vendor_name: bill.vendor_name,
+              total: bill.total,
+              balance_due: bill.balance_due,
+            },
+          });
+        }
+      }
     }
 
     return NextResponse.json({ data: payment }, { status: 201 });

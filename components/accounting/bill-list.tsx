@@ -50,6 +50,7 @@ interface BillListProps {
 export function BillList({ canCreate }: BillListProps) {
   const router = useRouter();
   const [bills, setBills] = useState<Bill[]>([]);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [statusFilter, setStatusFilter] = useState('all');
   const [search, setSearch] = useState('');
@@ -58,19 +59,27 @@ export function BillList({ canCreate }: BillListProps) {
 
   const fetchBills = useCallback(async () => {
     setIsLoading(true);
+    setLoadError(null);
     try {
       const params = new URLSearchParams({ page: String(page), limit: '25' });
       if (statusFilter !== 'all') params.set('status', statusFilter);
       if (search.trim()) params.set('search', search.trim());
 
       const response = await fetch(`/api/accounting/bills?${params}`);
-      if (!response.ok) return;
+      if (!response.ok) {
+        setBills([]);
+        setTotalPages(1);
+        setLoadError('Failed to load bills');
+        return;
+      }
 
       const { data, pagination } = await response.json();
       setBills(data);
       setTotalPages(pagination.totalPages);
     } catch {
-      // ignore
+      setBills([]);
+      setTotalPages(1);
+      setLoadError('Failed to load bills');
     } finally {
       setIsLoading(false);
     }
@@ -121,6 +130,12 @@ export function BillList({ canCreate }: BillListProps) {
           </SelectContent>
         </Select>
       </div>
+
+      {loadError ? (
+        <div className="rounded-md border border-destructive/50 bg-destructive/10 px-4 py-3 text-sm text-destructive">
+          {loadError}
+        </div>
+      ) : null}
 
       <div className="rounded-md border">
         <Table>

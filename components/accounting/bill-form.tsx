@@ -16,6 +16,7 @@ import {
 } from '@/components/ui/select';
 import { toast } from 'sonner';
 import type { Database } from '@/types/database';
+import { toLocalDateString } from '@/lib/accounting/date';
 
 type Account = Database['public']['Tables']['chart_of_accounts']['Row'];
 type TaxRate = Database['public']['Tables']['tax_rates']['Row'];
@@ -55,7 +56,7 @@ export function BillForm({ billId }: BillFormProps) {
   const [vendorName, setVendorName] = useState('');
   const [vendorEmail, setVendorEmail] = useState('');
   const [vendorAddress, setVendorAddress] = useState('');
-  const today = new Date().toISOString().split('T')[0];
+  const today = toLocalDateString(new Date());
   const [billDate, setBillDate] = useState(today);
   const [dueDate, setDueDate] = useState('');
   const [notes, setNotes] = useState('');
@@ -65,7 +66,7 @@ export function BillForm({ billId }: BillFormProps) {
     try {
       const [accountsRes, taxRatesRes, settingsRes] = await Promise.all([
         fetch('/api/accounting/accounts?active=true'),
-        fetch('/api/accounting/tax-rates'),
+        fetch('/api/accounting/tax-rates?active=all'),
         fetch('/api/accounting/settings'),
       ]);
 
@@ -75,7 +76,7 @@ export function BillForm({ billId }: BillFormProps) {
       }
       if (taxRatesRes.ok) {
         const { data } = await taxRatesRes.json();
-        setTaxRates(data.filter((r: TaxRate) => r.is_active));
+        setTaxRates(data);
       }
 
       if (billId) {
@@ -121,7 +122,7 @@ export function BillForm({ billId }: BillFormProps) {
             if (prev) return prev;
             const due = new Date();
             due.setDate(due.getDate() + data.default_payment_terms);
-            return due.toISOString().split('T')[0] ?? '';
+            return toLocalDateString(due);
           });
         }
       }
@@ -140,6 +141,8 @@ export function BillForm({ billId }: BillFormProps) {
   }, [fetchData]);
 
   const expenseAccounts = accounts.filter((a) => a.account_type === 'expense');
+  const availableTaxRates = (selectedId: string) =>
+    taxRates.filter((rate) => rate.is_active || rate.id === selectedId);
 
   const updateLine = (index: number, field: keyof LineItem, value: string) => {
     setLines((prev) => {
@@ -421,9 +424,9 @@ export function BillForm({ billId }: BillFormProps) {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="__none__">No Tax</SelectItem>
-                    {taxRates.map((r) => (
+                    {availableTaxRates(line.tax_rate_id).map((r) => (
                       <SelectItem key={r.id} value={r.id}>
-                        {r.name} ({(Number(r.rate) * 100).toFixed(2)}%)
+                        {r.name} ({(Number(r.rate) * 100).toFixed(2)}%){!r.is_active ? ' (Inactive)' : ''}
                       </SelectItem>
                     ))}
                   </SelectContent>

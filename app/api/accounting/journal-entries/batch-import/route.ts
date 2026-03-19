@@ -78,14 +78,12 @@ export async function POST(request: Request) {
         p_memo: entry.memo ?? undefined,
         p_reference: entry.reference ?? undefined,
         p_source_type: 'manual',
-        p_lines: JSON.stringify(
-          entry.lines.map((l) => ({
-            account_id: l.account_id,
-            description: l.description ?? '',
-            debit: l.debit,
-            credit: l.credit,
-          })),
-        ),
+        p_lines: entry.lines.map((l) => ({
+          account_id: l.account_id,
+          description: l.description ?? '',
+          debit: l.debit,
+          credit: l.credit,
+        })),
       });
 
       if (createErr) {

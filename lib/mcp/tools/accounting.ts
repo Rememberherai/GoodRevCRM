@@ -1,6 +1,7 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { checkPermission } from '../auth';
+import { getSignedBalance } from '@/lib/accounting/helpers';
 import type { McpContext } from '@/types/mcp';
 
 /**
@@ -12,6 +13,7 @@ async function getCompanyId(ctx: McpContext): Promise<string | null> {
     .from('accounting_company_memberships')
     .select('company_id')
     .eq('user_id', ctx.userId)
+    .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
   return data?.company_id ?? null;
@@ -180,6 +182,7 @@ export function registerAccountingTools(server: McpServer, getContext: () => Mcp
       payment_date: z.string().regex(/^\d{4}-\d{2}-\d{2}$/),
       payment_method: z.enum(['cash', 'check', 'credit_card', 'bank_transfer', 'ach', 'wire', 'other']).optional(),
       reference: z.string().optional(),
+      notes: z.string().optional(),
     },
     async (params) => {
       const ctx = getContext();
@@ -194,6 +197,7 @@ export function registerAccountingTools(server: McpServer, getContext: () => Mcp
         p_payment_date: params.payment_date,
         p_payment_method: params.payment_method ?? 'other',
         p_reference: params.reference ?? '',
+        p_notes: params.notes ?? '',
       });
 
       if (error) throw new Error(`Failed to record payment: ${error.message}`);
@@ -284,7 +288,11 @@ export function registerAccountingTools(server: McpServer, getContext: () => Mcp
           account_type: a.account_type,
           total_debit: totals.debitCents / 100,
           total_credit: totals.creditCents / 100,
-          balance: (totals.debitCents - totals.creditCents) / 100,
+          balance: getSignedBalance(
+            a.normal_balance,
+            totals.debitCents / 100,
+            totals.creditCents / 100,
+          ),
         };
       }).filter((row) => row.total_debit !== 0 || row.total_credit !== 0);
 

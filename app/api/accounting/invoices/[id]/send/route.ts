@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getAccountingContext, hasMinRole } from '@/lib/accounting/helpers';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -47,6 +48,16 @@ export async function POST(_request: Request, context: RouteContext) {
 
     if (fetchError || !invoice) {
       return NextResponse.json({ error: 'Invoice sent but could not be loaded' }, { status: 500 });
+    }
+
+    if (invoice.project_id) {
+      emitAutomationEvent({
+        projectId: invoice.project_id,
+        triggerType: 'invoice.sent' as never,
+        entityType: 'invoice' as never,
+        entityId: invoice.id,
+        data: { invoice_number: invoice.invoice_number, customer_name: invoice.customer_name, total: invoice.total },
+      });
     }
 
     return NextResponse.json({ data: invoice, journal_entry_id: jeId });
