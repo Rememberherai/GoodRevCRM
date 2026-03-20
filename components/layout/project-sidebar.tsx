@@ -21,6 +21,7 @@ import {
   HandCoins,
   HardHat,
   BriefcaseBusiness,
+  Map,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -63,6 +64,7 @@ const communityNavItems: NavItem[] = [
   { title: 'Jobs', href: '/jobs', icon: BriefcaseBusiness },
   { title: 'Contributions', href: '/contributions', icon: HandCoins },
   { title: 'Community Assets', href: '/community-assets', icon: Building2 },
+  { title: 'Community Map', href: '/community-map', icon: Map },
   { title: 'Reporting', href: '/reports', icon: BarChart3 },
 ];
 

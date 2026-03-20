@@ -9,6 +9,8 @@ import { MetricsCards } from '@/components/community/dashboard/metrics-cards';
 import { ImpactRadar } from '@/components/community/dashboard/impact-radar';
 import { ProgramCards } from '@/components/community/dashboard/program-cards';
 import { ActivityFeed } from '@/components/community/dashboard/activity-feed';
+import { MiniMap } from '@/components/community/dashboard/mini-map';
+import { PopulationImpact } from '@/components/community/dashboard/population-impact';
 import { getCommunityDashboardData } from '@/lib/community/dashboard';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ProjectRole } from '@/types/user';
@@ -66,13 +68,18 @@ export default async function ProjectDashboard({ params }: ProjectDashboardProps
 
         <MetricsCards metrics={dashboardData.metrics} />
 
+        <PopulationImpact {...dashboardData.populationImpact} />
+
         <ImpactRadar dimensions={dashboardData.dimensions} />
 
         {canSeeDetail && (
-          <div className="grid gap-6 xl:grid-cols-2">
-            <ProgramCards programs={dashboardData.programs} />
-            <ActivityFeed items={dashboardData.recentActivity} />
-          </div>
+          <>
+            <MiniMap center={dashboardData.miniMap.center} points={dashboardData.miniMap.points} />
+            <div className="grid gap-6 xl:grid-cols-2">
+              <ProgramCards programs={dashboardData.programs} />
+              <ActivityFeed items={dashboardData.recentActivity} />
+            </div>
+          </>
         )}
       </div>
     );

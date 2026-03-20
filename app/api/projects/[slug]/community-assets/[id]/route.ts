@@ -12,6 +12,31 @@ interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
 }
 
+function inferGeocodedStatus(updateData: CommunityAssetUpdate) {
+  if (
+    updateData.latitude !== null &&
+    updateData.latitude !== undefined &&
+    updateData.longitude !== null &&
+    updateData.longitude !== undefined
+  ) {
+    return 'manual';
+  }
+
+  const hasAddress = [
+    updateData.address_street,
+    updateData.address_city,
+    updateData.address_state,
+    updateData.address_postal_code,
+    updateData.address_country,
+  ].some((part) => Boolean(part));
+
+  if (hasAddress && (updateData.latitude === null || updateData.longitude === null)) {
+    return 'pending';
+  }
+
+  return updateData.geocoded_status;
+}
+
 export async function GET(_request: Request, context: RouteContext) {
   try {
     const { slug, id } = await context.params;
@@ -85,8 +110,16 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    const { project_id: _projectId, ...validatedUpdates } = validation.data;
+    const { project_id: projectIdFromBody, ...validatedUpdates } = validation.data;
+    if (projectIdFromBody && projectIdFromBody !== project.id) {
+      return NextResponse.json({ error: 'Project mismatch' }, { status: 400 });
+    }
+
     const updateData: CommunityAssetUpdate = { ...validatedUpdates };
+    const inferredGeocodedStatus = inferGeocodedStatus(updateData);
+    if (inferredGeocodedStatus !== undefined) {
+      updateData.geocoded_status = inferredGeocodedStatus;
+    }
     const { data: asset, error } = await supabase
       .from('community_assets')
       .update(updateData)

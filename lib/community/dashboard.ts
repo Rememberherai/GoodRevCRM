@@ -1,5 +1,6 @@
 import { CCF_DIMENSIONS } from '@/lib/community/frameworks';
 import type { ProjectRole } from '@/types/user';
+import { computeMapCenter, type HouseholdMapPoint } from '@/lib/community/map';
 
 export interface CommunityDashboardDimension {
   id: string;
@@ -40,6 +41,19 @@ export interface CommunityDashboardData {
   metrics: CommunityDashboardMetrics;
   programs: CommunityDashboardProgram[];
   recentActivity: CommunityDashboardActivityItem[];
+  miniMap: {
+    center: {
+      latitude: number;
+      longitude: number;
+      zoom: number;
+    };
+    points: Array<Pick<HouseholdMapPoint, 'id' | 'latitude' | 'longitude'>>;
+  };
+  populationImpact: {
+    servedPeople: number;
+    denominator: number | null;
+    percentage: number | null;
+  };
 }
 
 const ZERO_METRICS: CommunityDashboardMetrics = {
@@ -79,6 +93,7 @@ export async function getCommunityDashboardData(
     recentHouseholdsResult,
     recentContributionsResult,
     projectResult,
+    miniMapHouseholdsResult,
   ] = await Promise.all([
     supabase.from('households').select('id', { count: 'exact', head: true }).eq('project_id', projectId).is('deleted_at', null),
     supabase.from('programs').select('id', { count: 'exact', head: true }).eq('project_id', projectId).eq('status', 'active'),
@@ -91,7 +106,15 @@ export async function getCommunityDashboardData(
     canSeeDetail
       ? supabase.from('contributions').select('id, type, description, value, created_at').eq('project_id', projectId).order('created_at', { ascending: false }).limit(3)
       : Promise.resolve({ data: [], error: null }),
-    supabase.from('projects').select('impact_framework_id').eq('id', projectId).single(),
+    supabase.from('projects').select('impact_framework_id, settings').eq('id', projectId).single(),
+    supabase
+      .from('households')
+      .select('id, latitude, longitude')
+      .eq('project_id', projectId)
+      .is('deleted_at', null)
+      .not('latitude', 'is', null)
+      .not('longitude', 'is', null)
+      .limit(200),
   ]);
 
   let dimensions = fallbackDimensions();
@@ -212,6 +235,25 @@ export async function getCommunityDashboardData(
 
   recentActivity.sort((a, b) => b.createdAt.localeCompare(a.createdAt));
 
+  const miniMapPoints = !miniMapHouseholdsResult.error && Array.isArray(miniMapHouseholdsResult.data)
+    ? miniMapHouseholdsResult.data.map((row: { id: string; latitude: number; longitude: number }) => ({
+        id: row.id,
+        latitude: row.latitude,
+        longitude: row.longitude,
+      }))
+    : [];
+
+  const projectSettings = (projectResult?.data?.settings ?? {}) as {
+    default_map_center?: { latitude?: number; longitude?: number; zoom?: number };
+    community_population_denominator?: number;
+  };
+  const denominator = typeof projectSettings.community_population_denominator === 'number'
+    ? projectSettings.community_population_denominator
+    : null;
+  const percentage = denominator && denominator > 0
+    ? (uniqueVisitors / denominator) * 100
+    : null;
+
   return {
     dimensions,
     metrics: {
@@ -224,5 +266,14 @@ export async function getCommunityDashboardData(
     },
     programs: canSeeDetail ? programs : [],
     recentActivity: canSeeDetail ? recentActivity.slice(0, 6) : [],
+    miniMap: {
+      center: computeMapCenter([miniMapPoints], projectSettings.default_map_center),
+      points: miniMapPoints,
+    },
+    populationImpact: {
+      servedPeople: uniqueVisitors,
+      denominator,
+      percentage,
+    },
   };
 }

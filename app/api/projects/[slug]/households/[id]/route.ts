@@ -16,6 +16,31 @@ interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
 }
 
+function inferGeocodedStatus(updateData: HouseholdUpdate) {
+  if (
+    updateData.latitude !== null &&
+    updateData.latitude !== undefined &&
+    updateData.longitude !== null &&
+    updateData.longitude !== undefined
+  ) {
+    return 'manual';
+  }
+
+  const hasAddress = [
+    updateData.address_street,
+    updateData.address_city,
+    updateData.address_state,
+    updateData.address_postal_code,
+    updateData.address_country,
+  ].some((part) => Boolean(part));
+
+  if (hasAddress && (updateData.latitude === null || updateData.longitude === null)) {
+    return 'pending';
+  }
+
+  return updateData.geocoded_status;
+}
+
 // GET /api/projects/[slug]/households/[id] - Get single household
 export async function GET(_request: Request, context: RouteContext) {
   try {
@@ -156,6 +181,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (updates.notes !== undefined) updateData.notes = updates.notes;
     if (updates.custom_fields !== undefined) {
       updateData.custom_fields = updates.custom_fields as HouseholdUpdate['custom_fields'];
+    }
+    const inferredGeocodedStatus = inferGeocodedStatus(updateData);
+    if (inferredGeocodedStatus !== undefined) {
+      updateData.geocoded_status = inferredGeocodedStatus;
     }
 
     const { data: household, error } = await supabase

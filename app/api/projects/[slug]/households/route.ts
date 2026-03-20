@@ -15,6 +15,35 @@ interface RouteContext {
   params: Promise<{ slug: string }>;
 }
 
+function deriveGeocodedStatus(input: {
+  address_street?: string | null;
+  address_city?: string | null;
+  address_state?: string | null;
+  address_postal_code?: string | null;
+  address_country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  geocoded_status?: HouseholdInsert['geocoded_status'];
+}) {
+  if (input.latitude !== null && input.latitude !== undefined && input.longitude !== null && input.longitude !== undefined) {
+    return 'manual';
+  }
+
+  const hasAddress = [
+    input.address_street,
+    input.address_city,
+    input.address_state,
+    input.address_postal_code,
+    input.address_country,
+  ].some((part) => Boolean(part));
+
+  if (hasAddress) {
+    return 'pending';
+  }
+
+  return input.geocoded_status ?? 'failed';
+}
+
 async function cleanupCreatedHousehold(
   supabase: Awaited<ReturnType<typeof createClient>>,
   householdId: string,
@@ -189,6 +218,7 @@ export async function POST(request: Request, context: RouteContext) {
       ...householdFields,
       project_id: project.id,
       created_by: user.id,
+      geocoded_status: deriveGeocodedStatus(householdFields),
       custom_fields: householdFields.custom_fields as HouseholdInsert['custom_fields'],
     };
 

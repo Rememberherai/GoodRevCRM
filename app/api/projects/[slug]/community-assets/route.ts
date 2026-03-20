@@ -12,6 +12,35 @@ interface RouteContext {
   params: Promise<{ slug: string }>;
 }
 
+function deriveGeocodedStatus(input: {
+  address_street?: string | null;
+  address_city?: string | null;
+  address_state?: string | null;
+  address_postal_code?: string | null;
+  address_country?: string | null;
+  latitude?: number | null;
+  longitude?: number | null;
+  geocoded_status?: CommunityAssetInsert['geocoded_status'];
+}) {
+  if (input.latitude !== null && input.latitude !== undefined && input.longitude !== null && input.longitude !== undefined) {
+    return 'manual';
+  }
+
+  const hasAddress = [
+    input.address_street,
+    input.address_city,
+    input.address_state,
+    input.address_postal_code,
+    input.address_country,
+  ].some((part) => Boolean(part));
+
+  if (hasAddress) {
+    return 'pending';
+  }
+
+  return input.geocoded_status ?? 'failed';
+}
+
 export async function GET(request: Request, context: RouteContext) {
   try {
     const { slug } = await context.params;
@@ -110,6 +139,7 @@ export async function POST(request: Request, context: RouteContext) {
     const insertData: CommunityAssetInsert = {
       ...validation.data,
       project_id: project.id,
+      geocoded_status: deriveGeocodedStatus(validation.data),
     };
 
     const { data: asset, error } = await supabase
