@@ -144,7 +144,7 @@ export function ChatPanel({ projectSlug }: ChatPanelProps) {
                     History
                   </Button>
                 </DropdownMenuTrigger>
-                <DropdownMenuContent align="end" className="w-64">
+                <DropdownMenuContent align="end" className="w-64 z-[70]">
                   {conversations.map((conv) => (
                     <DropdownMenuItem
                       key={conv.id}
