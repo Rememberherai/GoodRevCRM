@@ -4,14 +4,16 @@ import { getProjectSecret } from '@/lib/secrets';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
+const coerceNumber = z.union([z.number(), z.string().transform(Number)]);
+
 const receiptLineItemSchema = z.object({
   description: z.string(),
-  amount: z.number().nullable().optional(),
+  amount: coerceNumber.nullable().optional(),
 });
 
 export const receiptExtractionSchema = z.object({
   vendor: z.string().nullable(),
-  amount: z.number().nullable(),
+  amount: coerceNumber.nullable(),
   receipt_date: z.string().nullable(),
   description: z.string().nullable(),
   account_code: z.string().nullable(),
