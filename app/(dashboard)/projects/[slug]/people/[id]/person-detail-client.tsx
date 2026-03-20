@@ -62,6 +62,7 @@ import {
   SelectContent,
   SelectItem,
   SelectTrigger,
+  SelectValue,
 } from '@/components/ui/select';
 import { useDispositions } from '@/hooks/use-dispositions';
 import { DISPOSITION_COLOR_MAP, type DispositionColor } from '@/types/disposition';
@@ -486,18 +487,20 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
                 }}
               >
                 <SelectTrigger className="h-7 w-auto gap-1 border-dashed text-xs px-2">
-                  {(() => {
-                    const disp = dispositions.find((d) => d.id === person.disposition_id);
-                    if (disp) {
-                      const colors = DISPOSITION_COLOR_MAP[disp.color as DispositionColor] ?? DISPOSITION_COLOR_MAP.gray;
-                      return (
-                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${colors.bg} ${colors.text} ${colors.border}`}>
-                          {disp.name}
-                        </span>
-                      );
-                    }
-                    return <span className="text-muted-foreground">Set disposition</span>;
-                  })()}
+                  <SelectValue placeholder="Set disposition">
+                    {(() => {
+                      const disp = dispositions.find((d) => d.id === person.disposition_id);
+                      if (disp) {
+                        const colors = DISPOSITION_COLOR_MAP[disp.color as DispositionColor] ?? DISPOSITION_COLOR_MAP.gray;
+                        return (
+                          <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${colors.bg} ${colors.text} ${colors.border}`}>
+                            {disp.name}
+                          </span>
+                        );
+                      }
+                      return <span className="text-muted-foreground">Set disposition</span>;
+                    })()}
+                  </SelectValue>
                 </SelectTrigger>
                 <SelectContent>
                   <SelectItem value="none">No disposition</SelectItem>
