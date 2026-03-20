@@ -106,6 +106,7 @@ export type ConditionOperator =
 export type AutomationEntityType =
   | 'organization'
   | 'person'
+  | 'household'
   | 'opportunity'
   | 'rfp'
   | 'product'
@@ -120,7 +121,14 @@ export type AutomationEntityType =
   | 'payment'
   | 'booking'
   | 'event_type'
-  | 'disposition';
+  | 'disposition'
+  | 'program'
+  | 'program_enrollment'
+  | 'program_attendance'
+  | 'contribution'
+  | 'community_asset'
+  | 'intake'
+  | 'household_member';
 
 export type ExecutionStatus =
   | 'success'

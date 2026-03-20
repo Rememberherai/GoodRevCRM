@@ -114,18 +114,14 @@ describe('Community Project Phase 2', () => {
 
   // --- 2.2: Sidebar navigation ---
   describe('community sidebar', () => {
-    it('limits Phase 2 community sidebar links to implemented routes', () => {
+    it('includes the Phase 2 minimum community navigation surface', () => {
       const sidebar = readProjectFile('components', 'layout', 'project-sidebar.tsx');
 
       expect(sidebar).toContain("{ title: 'Dashboard', href: '', icon: LayoutDashboard }");
+      expect(sidebar).toContain("{ title: 'Households', href: '/households', icon: Home }");
       expect(sidebar).toContain("{ title: 'People', href: '/people', icon: Users }");
       expect(sidebar).toContain("{ title: 'Organizations', href: '/organizations', icon: Building2 }");
       expect(sidebar).toContain("{ title: 'Reporting', href: '/reports', icon: BarChart3 }");
-
-      expect(sidebar).not.toContain("href: '/households'");
-      expect(sidebar).not.toContain("href: '/programs'");
-      expect(sidebar).not.toContain("href: '/contributions'");
-      expect(sidebar).not.toContain("href: '/community-assets'");
     });
 
     it('filters nav items by role for community projects', () => {

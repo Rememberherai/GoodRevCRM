@@ -35,6 +35,7 @@ function createAdminClient() {
 const entityTableMap: Record<AutomationEntityType, string> = {
   organization: 'organizations',
   person: 'people',
+  household: 'households',
   opportunity: 'opportunities',
   rfp: 'rfps',
   product: 'products',
@@ -50,6 +51,13 @@ const entityTableMap: Record<AutomationEntityType, string> = {
   event_type: 'event_types',
   booking: 'bookings',
   disposition: 'dispositions',
+  program: 'programs',
+  program_enrollment: 'program_enrollments',
+  program_attendance: 'program_attendance',
+  contribution: 'contributions',
+  community_asset: 'community_assets',
+  intake: 'household_intake',
+  household_member: 'household_members',
 };
 
 /**

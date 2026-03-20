@@ -36,6 +36,14 @@ const entityTableMap: Record<string, string> = {
   rfp: 'rfps',
   task: 'tasks',
   meeting: 'meetings',
+  household: 'households',
+  program: 'programs',
+  program_enrollment: 'program_enrollments',
+  program_attendance: 'program_attendance',
+  contribution: 'contributions',
+  community_asset: 'community_assets',
+  intake: 'household_intake',
+  household_member: 'household_members',
 };
 
 /**
