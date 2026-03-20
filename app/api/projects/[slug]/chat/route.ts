@@ -62,7 +62,7 @@ export async function POST(request: Request, context: RouteContext) {
     }
     if (
       project.project_type === 'community'
-      && ['contractor', 'board_viewer', 'member', 'viewer'].includes(membership.role)
+      && ['board_viewer', 'member', 'viewer'].includes(membership.role)
     ) {
       return NextResponse.json(
         { error: 'Community chat tools for this role are not enabled in this phase' },
@@ -171,7 +171,7 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const isCommunityProject = project.project_type === 'community';
-    const toolDefs = isCommunityProject ? getCommunityToolDefinitions() : getToolDefinitions();
+    const toolDefs = isCommunityProject ? getCommunityToolDefinitions(membership.role) : getToolDefinitions();
     const openrouter = await getProjectOpenRouterClient(project.id);
     const encoder = new TextEncoder();
 

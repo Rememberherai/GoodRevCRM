@@ -1,21 +1,16 @@
 import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
-import { ProjectSidebar } from '@/components/layout/project-sidebar';
-import { ProjectHeader } from '@/components/layout/project-header';
 import { CallClientWrapper } from '@/components/calls/call-client-wrapper';
 import { ChatPanel } from '@/components/chat/chat-panel';
 import { LastProjectTracker } from '@/components/projects/last-project-tracker';
-import type { Database } from '@/types/database';
-import type { ProjectRole } from '@/types/user';
+import { ContractorPortalHeader } from '@/components/layout/contractor-portal-header';
 
-type Project = Database['public']['Tables']['projects']['Row'];
-
-interface ProjectLayoutProps {
+interface ContractorLayoutProps {
   children: React.ReactNode;
   params: Promise<{ slug: string }>;
 }
 
-export default async function ProjectLayout({ children, params }: ProjectLayoutProps) {
+export default async function ContractorLayout({ children, params }: ContractorLayoutProps) {
   const { slug } = await params;
   const supabase = await createClient();
 
@@ -27,10 +22,9 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
     redirect('/login');
   }
 
-  // Fetch the project
   const { data: project, error } = await supabase
     .from('projects')
-    .select('*')
+    .select('id, name, slug, project_type')
     .eq('slug', slug)
     .is('deleted_at', null)
     .single();
@@ -46,19 +40,22 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
     .eq('user_id', user.id)
     .single();
 
-  if (project.project_type === 'community' && membership?.role === 'contractor') {
-    redirect(`/contractor/${slug}`);
+  if (!membership) {
+    redirect('/projects');
+  }
+
+  if (membership.role !== 'contractor') {
+    redirect(`/projects/${slug}`);
   }
 
   return (
     <CallClientWrapper>
-      <div className="flex h-screen bg-background">
+      <div className="flex min-h-screen flex-col bg-background">
         <LastProjectTracker projectSlug={project.slug} />
-        <ProjectSidebar project={project as Project} role={membership?.role as ProjectRole | undefined} />
-        <div className="flex flex-col flex-1 overflow-hidden">
-          <ProjectHeader project={project as Project} />
-          <main className="flex-1 overflow-auto p-6">{children}</main>
-        </div>
+        <ContractorPortalHeader projectName={project.name} projectSlug={project.slug} />
+        <main className="mx-auto flex w-full max-w-7xl flex-1 flex-col px-4 py-6 sm:px-6">
+          {children}
+        </main>
       </div>
       <ChatPanel projectSlug={slug} projectType={project.project_type} />
     </CallClientWrapper>

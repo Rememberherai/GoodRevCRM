@@ -58,6 +58,8 @@ const entityTableMap: Record<AutomationEntityType, string> = {
   community_asset: 'community_assets',
   intake: 'household_intake',
   household_member: 'household_members',
+  job: 'jobs',
+  contractor_scope: 'contractor_scopes',
 };
 
 /**

@@ -128,7 +128,9 @@ export type AutomationEntityType =
   | 'contribution'
   | 'community_asset'
   | 'intake'
-  | 'household_member';
+  | 'household_member'
+  | 'job'
+  | 'contractor_scope';
 
 export type ExecutionStatus =
   | 'success'

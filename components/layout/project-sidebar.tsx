@@ -19,6 +19,8 @@ import {
   PenTool,
   Home,
   HandCoins,
+  HardHat,
+  BriefcaseBusiness,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -57,6 +59,8 @@ const communityNavItems: NavItem[] = [
   { title: 'People', href: '/people', icon: Users },
   { title: 'Organizations', href: '/organizations', icon: Building2 },
   { title: 'Programs', href: '/programs', icon: CalendarRange },
+  { title: 'Contractors', href: '/contractors', icon: HardHat },
+  { title: 'Jobs', href: '/jobs', icon: BriefcaseBusiness },
   { title: 'Contributions', href: '/contributions', icon: HandCoins },
   { title: 'Community Assets', href: '/community-assets', icon: Building2 },
   { title: 'Reporting', href: '/reports', icon: BarChart3 },
@@ -78,7 +82,7 @@ export function ProjectSidebar({ project, role }: ProjectSidebarProps) {
     if (role === 'board_viewer') {
       navItems = communityNavItems.filter((item) => item.title === 'Dashboard' || item.title === 'Reporting');
     } else if (role === 'contractor') {
-      navItems = communityNavItems.filter((item) => item.title === 'Dashboard');
+      navItems = [];
     }
   }
 

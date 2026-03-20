@@ -51,6 +51,7 @@ export async function GET(request: Request, context: RouteContext) {
     const sortBy = searchParams.get('sortBy') ?? 'created_at';
     const sortOrder = searchParams.get('sortOrder') ?? 'desc';
     const organizationId = searchParams.get('organizationId');
+    const isContractor = searchParams.get('is_contractor');
 
     const offset = (page - 1) * limit;
 
@@ -89,6 +90,12 @@ export async function GET(request: Request, context: RouteContext) {
           pagination: { page, limit, total: 0, totalPages: 0 },
         });
       }
+    }
+
+    if (isContractor === 'true') {
+      query = query.eq('is_contractor', true);
+    } else if (isContractor === 'false') {
+      query = query.eq('is_contractor', false);
     }
 
     // Apply sorting

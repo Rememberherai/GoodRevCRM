@@ -73,6 +73,8 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
             {isCommunity ? (
               <>
                 <ToolGroup name="Receipt Processing" tools={['process_image', 'confirm']} />
+                <ToolGroup name="Contractors" tools={['create_scope', 'send_documents', 'onboard']} />
+                <ToolGroup name="Jobs" tools={['assign', 'pull', 'list_for_contractor', 'my_jobs', 'my_calendar', 'work_plan']} />
                 <ToolGroup name="Calendar Sync" tools={['sync_program', 'sync_job']} />
               </>
             ) : (
@@ -129,7 +131,7 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
           </div>
           <p className="text-xs text-muted-foreground">
             {isCommunity
-              ? 'The assistant can process receipts and push calendar events for community workflows in this phase.'
+              ? 'The assistant can process receipts, coordinate contractor onboarding, manage jobs, and push calendar events for community workflows in this phase.'
               : 'The AI can use these tools to read and modify your CRM data across all entity types.'}
           </p>
         </div>

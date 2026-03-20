@@ -27,9 +27,18 @@ export async function POST(request: Request) {
 
     const { token } = validationResult.data;
 
-    // Call the accept_invitation RPC function
+    // Preload invitation details so contractor acceptance can link the auth user
+    // to the matching community person record after the RPC succeeds.
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const { data: result, error } = await (supabase as any).rpc('accept_invitation', {
+    const supabaseAny = supabase as any;
+    const { data: invitation } = await supabaseAny
+      .from('project_invitations')
+      .select('project_id, email, role')
+      .eq('token', token)
+      .maybeSingle();
+
+    // Call the accept_invitation RPC function
+    const { data: result, error } = await supabaseAny.rpc('accept_invitation', {
       p_token: token,
     });
 
@@ -51,6 +60,19 @@ export async function POST(request: Request) {
         return NextResponse.json({ error: result.error }, { status: 404 });
       }
       return NextResponse.json({ error: result.error }, { status: 400 });
+    }
+
+    if (invitation?.role === 'contractor' && invitation.project_id) {
+      await supabase
+        .from('people')
+        .update({
+          user_id: user.id,
+          is_contractor: true,
+        })
+        .eq('project_id', invitation.project_id)
+        .eq('email', invitation.email)
+        .is('deleted_at', null)
+        .is('user_id', null);
     }
 
     // Success - return the project_id so frontend can redirect
