@@ -53,11 +53,11 @@ export function MapFilters({
           </div>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-3">
-          <label className="space-y-2 text-sm">
+        <div className="grid gap-4 sm:grid-cols-3 xl:grid-cols-1">
+          <label className="space-y-1.5 text-sm">
             <span className="font-medium">Asset Category</span>
             <select
-              className="w-full rounded-md border bg-background px-3 py-2"
+              className="w-full truncate rounded-md border bg-background px-3 py-2 text-sm"
               value={filters.assetCategory}
               onChange={(event) => onFilterChange('assetCategory', event.target.value)}
             >
@@ -71,10 +71,10 @@ export function MapFilters({
             </select>
           </label>
 
-          <label className="space-y-2 text-sm">
+          <label className="space-y-1.5 text-sm">
             <span className="font-medium">Asset Condition</span>
             <select
-              className="w-full rounded-md border bg-background px-3 py-2"
+              className="w-full truncate rounded-md border bg-background px-3 py-2 text-sm"
               value={filters.assetCondition}
               onChange={(event) => onFilterChange('assetCondition', event.target.value)}
             >
@@ -86,10 +86,10 @@ export function MapFilters({
             </select>
           </label>
 
-          <label className="space-y-2 text-sm">
+          <label className="space-y-1.5 text-sm">
             <span className="font-medium">Program Status</span>
             <select
-              className="w-full rounded-md border bg-background px-3 py-2"
+              className="w-full truncate rounded-md border bg-background px-3 py-2 text-sm"
               value={filters.programStatus}
               onChange={(event) => onFilterChange('programStatus', event.target.value)}
             >
