@@ -45,11 +45,11 @@ export async function GET(request: Request, context: RouteContext) {
       .from('contributions')
       .select(`
         *,
-        dimension:impact_dimensions(id, label, color),
-        donor_person:people(id, first_name, last_name),
-        donor_organization:organizations(id, name),
-        donor_household:households(id, name),
-        program:programs(id, name)
+        dimension:impact_dimensions!contributions_dimension_id_fkey(id, label, color),
+        donor_person:people!contributions_donor_person_id_fkey(id, first_name, last_name),
+        donor_organization:organizations!contributions_donor_organization_id_fkey(id, name),
+        donor_household:households!contributions_donor_household_id_fkey(id, name),
+        program:programs!contributions_program_id_fkey(id, name)
       `, { count: 'exact' })
       .eq('project_id', project.id)
       .order('date', { ascending: false })
