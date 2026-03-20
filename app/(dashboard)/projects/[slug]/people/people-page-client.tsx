@@ -42,6 +42,9 @@ import { BulkEnrichWithReviewModal } from '@/components/enrichment/bulk-enrich-w
 import { EnrollInSequenceDialog } from '@/components/sequences/enrollment/enroll-in-sequence-dialog';
 import { ColumnPicker } from '@/components/table/column-picker';
 import { renderCellValue } from '@/lib/table-columns/renderers';
+import { DispositionCell } from '@/components/dispositions/disposition-cell';
+import { useDispositions } from '@/hooks/use-dispositions';
+import { usePersonStore, updatePersonApi } from '@/stores/person';
 import { ClickableEmail } from '@/components/contacts/clickable-email';
 import { ClickablePhone } from '@/components/contacts/clickable-phone';
 
@@ -68,6 +71,9 @@ export function PeoplePageClient() {
     goToPage,
     refresh,
   } = usePeople();
+
+  const { dispositions } = useDispositions('person');
+  const updatePersonInStore = usePersonStore((s) => s.updatePerson);
 
   const {
     columns,
@@ -173,6 +179,20 @@ export function PeoplePageClient() {
             )}
           </div>
         </Link>
+      );
+    }
+
+    // Inline-editable disposition
+    if (columnKey === 'disposition') {
+      return (
+        <DispositionCell
+          dispositionId={person.disposition_id ?? null}
+          dispositions={dispositions}
+          onUpdate={async (newId) => {
+            await updatePersonApi(slug, person.id, { disposition_id: newId });
+            updatePersonInStore(person.id, { disposition_id: newId });
+          }}
+        />
       );
     }
 

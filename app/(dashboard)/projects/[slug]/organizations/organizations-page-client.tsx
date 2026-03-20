@@ -45,6 +45,9 @@ import { BulkGenericEmailDialog } from '@/components/organizations/bulk-generic-
 import { EPAImportDialog } from '@/components/organizations/epa-import-dialog';
 import { ColumnPicker } from '@/components/table/column-picker';
 import { renderCellValue } from '@/lib/table-columns/renderers';
+import { DispositionCell } from '@/components/dispositions/disposition-cell';
+import { useDispositions } from '@/hooks/use-dispositions';
+import { useOrganizationStore, updateOrganizationApi } from '@/stores/organization';
 import {
   Dialog,
   DialogContent,
@@ -126,6 +129,8 @@ export function OrganizationsPageClient() {
   } = useOrganizations();
 
   const { fields: customFields } = useEntityCustomFields('organization');
+  const { dispositions } = useDispositions('organization');
+  const updateOrgInStore = useOrganizationStore((s) => s.updateOrganization);
 
   const {
     columns,
@@ -182,6 +187,20 @@ export function OrganizationsPageClient() {
             )}
           </div>
         </Link>
+      );
+    }
+
+    // Inline-editable disposition
+    if (columnKey === 'disposition') {
+      return (
+        <DispositionCell
+          dispositionId={org.disposition_id ?? null}
+          dispositions={dispositions}
+          onUpdate={async (newId) => {
+            await updateOrganizationApi(slug, org.id, { disposition_id: newId });
+            updateOrgInStore(org.id, { disposition_id: newId });
+          }}
+        />
       );
     }
 
