@@ -163,10 +163,13 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
     form.setValue('slug', slug);
   };
 
+  const frameworkType = form.watch('framework_type');
+  const accountingTarget = form.watch('accounting_target');
+
   const canAdvance = () => {
     if (step === 0) return true;
-    if (step === 1 && isCommunity) return !!form.getValues('framework_type');
-    if (step === 2 && isCommunity) return !!form.getValues('accounting_target');
+    if (step === 1 && isCommunity) return !!frameworkType;
+    if (step === 2 && isCommunity) return !!accountingTarget;
     return true;
   };
 
