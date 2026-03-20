@@ -4,6 +4,7 @@ import type { ColumnDefinition, ColumnConfig } from '@/types/table-columns';
 // System column definitions for Organizations
 export const ORGANIZATION_COLUMNS: ColumnDefinition[] = [
   { key: 'name', label: 'Organization', type: 'system', fieldType: 'text', sortable: true, defaultVisible: true, minWidth: 200 },
+  { key: 'disposition', label: 'Disposition', type: 'system', fieldType: 'select', sortable: true, defaultVisible: true },
   { key: 'industry', label: 'Industry', type: 'system', fieldType: 'text', sortable: true, defaultVisible: true },
   { key: 'website', label: 'Website', type: 'system', fieldType: 'url', sortable: false, defaultVisible: true },
   { key: 'employee_count', label: 'Employees', type: 'system', fieldType: 'number', sortable: true, defaultVisible: true },
@@ -21,6 +22,7 @@ export const ORGANIZATION_COLUMNS: ColumnDefinition[] = [
 // System column definitions for People
 export const PERSON_COLUMNS: ColumnDefinition[] = [
   { key: 'name', label: 'Name', type: 'system', fieldType: 'text', sortable: true, defaultVisible: true, minWidth: 180 },
+  { key: 'disposition', label: 'Disposition', type: 'system', fieldType: 'select', sortable: true, defaultVisible: true },
   { key: 'job_title', label: 'Title', type: 'system', fieldType: 'text', sortable: true, defaultVisible: true },
   { key: 'email', label: 'Email', type: 'system', fieldType: 'email', sortable: true, defaultVisible: true },
   { key: 'phone', label: 'Phone', type: 'system', fieldType: 'phone', sortable: false, defaultVisible: true },
@@ -83,8 +85,8 @@ export const COLUMN_DEFINITIONS: Record<EntityType, ColumnDefinition[]> = {
 
 // Default visible columns for each entity (for new users)
 export const DEFAULT_VISIBLE_COLUMNS: Record<EntityType, string[]> = {
-  organization: ['name', 'industry', 'website', 'employee_count'],
-  person: ['name', 'job_title', 'email', 'phone'],
+  organization: ['name', 'disposition', 'industry', 'website', 'employee_count'],
+  person: ['name', 'disposition', 'job_title', 'email', 'phone'],
   opportunity: ['name', 'stage', 'amount', 'probability', 'expected_close_date'],
   rfp: ['title', 'status', 'progress', 'due_date', 'estimated_value'],
 };
@@ -168,6 +170,14 @@ export function getColumnAccessor(key: string): string | ((item: Record<string, 
       const contact = item.primary_contact as Record<string, unknown> | null;
       if (!contact) return null;
       return `${contact.first_name || ''} ${contact.last_name || ''}`.trim();
+    };
+  }
+
+  // Handle disposition (joined as nested object)
+  if (key === 'disposition') {
+    return (item: Record<string, unknown>) => {
+      const disposition = item.disposition as Record<string, unknown> | null;
+      return disposition?.name ?? null;
     };
   }
 

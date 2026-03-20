@@ -49,6 +49,7 @@ const entityTableMap: Record<AutomationEntityType, string> = {
   payment: 'payments',
   event_type: 'event_types',
   booking: 'bookings',
+  disposition: 'dispositions',
 };
 
 /**

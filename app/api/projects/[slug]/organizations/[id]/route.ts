@@ -40,7 +40,7 @@ export async function GET(_request: Request, context: RouteContext) {
     // Fetch organization with related counts
     const { data: organization, error } = await supabase
       .from('organizations')
-      .select('*')
+      .select('*, disposition:dispositions(id, name, color)')
       .eq('id', id)
       .eq('project_id', project.id)
       .is('deleted_at', null)
@@ -133,6 +133,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (updates.address_state !== undefined) updateData.address_state = updates.address_state;
     if (updates.address_postal_code !== undefined) updateData.address_postal_code = updates.address_postal_code;
     if (updates.address_country !== undefined) updateData.address_country = updates.address_country;
+    if (updates.disposition_id !== undefined) updateData.disposition_id = updates.disposition_id;
     if (updates.custom_fields !== undefined) {
       updateData.custom_fields = updates.custom_fields as OrganizationUpdate['custom_fields'];
     }

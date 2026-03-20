@@ -83,6 +83,11 @@ export const organizationSchema = z.object({
     .nullable()
     .optional(),
   custom_fields: z.record(z.string(), z.unknown()).optional(),
+  disposition_id: z
+    .string()
+    .uuid('Must be a valid disposition ID')
+    .nullable()
+    .optional(),
 });
 
 export const createOrganizationSchema = organizationSchema;

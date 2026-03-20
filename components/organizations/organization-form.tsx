@@ -6,6 +6,8 @@ import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Plus } from 'lucide-react';
 import { organizationSchema, type CreateOrganizationInput } from '@/lib/validators/organization';
+import { useDispositions } from '@/hooks/use-dispositions';
+import { DISPOSITION_COLOR_MAP, type DispositionColor } from '@/types/disposition';
 import {
   createOrganization,
   updateOrganizationApi,
@@ -22,6 +24,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { LogoUpload } from '@/components/ui/logo-upload';
 import { CustomFieldsRenderer } from '@/components/forms/custom-fields-renderer';
 import { AddFieldDialog } from '@/components/schema/add-field-dialog';
@@ -43,6 +52,8 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
     (organization?.custom_fields as Record<string, unknown>) ?? {}
   );
   const [showAddFieldDialog, setShowAddFieldDialog] = useState(false);
+  const [dispositionId, setDispositionId] = useState<string | null>(organization?.disposition_id ?? null);
+  const { dispositions } = useDispositions('organization');
   const addOrganization = useOrganizationStore((s) => s.addOrganization);
   const updateOrganizationInStore = useOrganizationStore((s) => s.updateOrganization);
   const { fields: customFields } = useEntityCustomFields('organization');
@@ -84,6 +95,7 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
     try {
       const submitData = {
         ...data,
+        disposition_id: dispositionId,
         custom_fields: customFieldValues,
       };
       if (organization) {
@@ -151,6 +163,34 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
               )}
             </div>
           </div>
+
+          {dispositions.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="disposition">Disposition</Label>
+              <Select
+                value={dispositionId ?? 'none'}
+                onValueChange={(v) => setDispositionId(v === 'none' ? null : v)}
+              >
+                <SelectTrigger id="disposition">
+                  <SelectValue placeholder="Select disposition..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No disposition</SelectItem>
+                  {dispositions.map((d) => {
+                    const colors = DISPOSITION_COLOR_MAP[d.color as DispositionColor] ?? DISPOSITION_COLOR_MAP.gray;
+                    return (
+                      <SelectItem key={d.id} value={d.id}>
+                        <span className="flex items-center gap-2">
+                          <span className={`inline-block h-2 w-2 rounded-full ${colors.bg} ${colors.border} border`} />
+                          {d.name}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="grid gap-4 sm:grid-cols-2">
             <div className="space-y-2">

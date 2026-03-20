@@ -119,7 +119,8 @@ export type AutomationEntityType =
   | 'bill'
   | 'payment'
   | 'booking'
-  | 'event_type';
+  | 'event_type'
+  | 'disposition';
 
 export type ExecutionStatus =
   | 'success'

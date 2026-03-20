@@ -78,6 +78,14 @@ import { SmsConversation } from '@/components/sms/sms-conversation';
 import { PhoneCall, MessageSquareText } from 'lucide-react';
 import { OrgFinancialSummary } from '@/components/accounting/org-financial-summary';
 import { LogoUpload } from '@/components/ui/logo-upload';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/components/ui/select';
+import { useDispositions } from '@/hooks/use-dispositions';
+import { DISPOSITION_COLOR_MAP, type DispositionColor } from '@/types/disposition';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
 import { ClickableEmail } from '@/components/contacts/clickable-email';
@@ -210,6 +218,7 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
   const router = useRouter();
   const slug = params.slug as string;
   const [activeTab, setActiveTab] = useState('info');
+  const { dispositions } = useDispositions('organization');
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showResearchResults, setShowResearchResults] = useState(false);
@@ -507,11 +516,57 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
           {organization.domain && (
             <p className="text-muted-foreground">{organization.domain}</p>
           )}
-          {organization.industry && (
-            <Badge variant="secondary" className="mt-1">
-              {organization.industry}
-            </Badge>
-          )}
+          <div className="flex items-center gap-2 mt-1">
+            {dispositions.length > 0 && (
+              <Select
+                value={organization.disposition_id ?? 'none'}
+                onValueChange={async (v) => {
+                  const newId = v === 'none' ? null : v;
+                  try {
+                    await updateOrganizationApi(slug, organization.id, { disposition_id: newId });
+                    setCurrentOrganization({ ...organization, disposition_id: newId });
+                    toast.success('Disposition updated');
+                  } catch {
+                    toast.error('Failed to update disposition');
+                  }
+                }}
+              >
+                <SelectTrigger className="h-7 w-auto gap-1 border-dashed text-xs px-2">
+                  {(() => {
+                    const disp = dispositions.find((d) => d.id === organization.disposition_id);
+                    if (disp) {
+                      const colors = DISPOSITION_COLOR_MAP[disp.color as DispositionColor] ?? DISPOSITION_COLOR_MAP.gray;
+                      return (
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${colors.bg} ${colors.text} ${colors.border}`}>
+                          {disp.name}
+                        </span>
+                      );
+                    }
+                    return <span className="text-muted-foreground">Set disposition</span>;
+                  })()}
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No disposition</SelectItem>
+                  {dispositions.map((d) => {
+                    const colors = DISPOSITION_COLOR_MAP[d.color as DispositionColor] ?? DISPOSITION_COLOR_MAP.gray;
+                    return (
+                      <SelectItem key={d.id} value={d.id}>
+                        <span className="flex items-center gap-2">
+                          <span className={`inline-block h-2 w-2 rounded-full ${colors.bg} ${colors.border} border`} />
+                          {d.name}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            )}
+            {organization.industry && (
+              <Badge variant="secondary">
+                {organization.industry}
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 

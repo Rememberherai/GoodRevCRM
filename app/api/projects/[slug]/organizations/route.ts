@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { createOrganizationSchema } from '@/lib/validators/organization';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { detectDuplicates } from '@/lib/deduplication';
+import { getDefaultDisposition } from '@/lib/dispositions/service';
 import type { Database } from '@/types/database';
 
 type OrganizationInsert = Database['public']['Tables']['organizations']['Insert'];
@@ -55,7 +56,7 @@ export async function GET(request: Request, context: RouteContext) {
     // Build query — select only ID when requested for bulk selection
     let query = supabase
       .from('organizations')
-      .select(idsOnly ? 'id' : '*', { count: 'exact' })
+      .select(idsOnly ? 'id' : '*, disposition:dispositions(id, name, color)', { count: 'exact' })
       .eq('project_id', project.id)
       .is('deleted_at', null);
 
@@ -66,7 +67,7 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     // Apply sorting
-    const ALLOWED_SORT_COLUMNS = ['name', 'domain', 'industry', 'created_at', 'updated_at'];
+    const ALLOWED_SORT_COLUMNS = ['name', 'domain', 'industry', 'created_at', 'updated_at', 'disposition_id'];
     const ascending = sortOrder === 'asc';
     if (ALLOWED_SORT_COLUMNS.includes(sortBy)) {
       query = query.order(sortBy, { ascending });
@@ -85,7 +86,7 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     return NextResponse.json({
-      organizations: organizations as Organization[],
+      organizations: organizations as unknown as Organization[],
       pagination: {
         page,
         limit,
@@ -170,8 +171,19 @@ export async function POST(request: Request, context: RouteContext) {
       }
     }
 
+    // Auto-assign default disposition if none provided
+    let dispositionId = validationResult.data.disposition_id ?? null;
+    if (!dispositionId) {
+      const defaultDisp = await getDefaultDisposition(
+        { supabase, projectId: project.id, userId: user.id },
+        'organization'
+      );
+      if (defaultDisp) dispositionId = defaultDisp.id;
+    }
+
     const orgData: OrganizationInsert = {
       ...validationResult.data,
+      disposition_id: dispositionId,
       project_id: project.id,
       created_by: user.id,
       custom_fields: validationResult.data.custom_fields as OrganizationInsert['custom_fields'],

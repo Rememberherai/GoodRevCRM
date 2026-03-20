@@ -137,6 +137,7 @@ defineTool({
     address_postal_code: z.string().max(20).nullable().optional(),
     address_country: z.string().max(100).nullable().optional(),
     custom_fields: z.record(z.string(), z.unknown()).optional().describe('Custom field values'),
+    disposition_id: z.string().uuid().nullable().optional().describe('Disposition ID (status category)'),
   }),
   handler: async (params, ctx) => {
     const { custom_fields, ...rest } = params as Record<string, unknown>;
@@ -181,6 +182,7 @@ defineTool({
     description: z.string().max(2000).nullable().optional(),
     phone: z.string().max(50).nullable().optional(),
     custom_fields: z.record(z.string(), z.unknown()).optional(),
+    disposition_id: z.string().uuid().nullable().optional().describe('Disposition ID (status category)'),
   }),
   handler: async (params, ctx) => {
     const { organization_id: id, custom_fields: cf, ...updates } = params as Record<string, unknown>;
@@ -366,6 +368,7 @@ defineTool({
     notes: z.string().max(2000).nullable().optional().describe('Notes'),
     organization_id: z.string().uuid().optional().describe('Link to organization'),
     custom_fields: z.record(z.string(), z.unknown()).optional().describe('Custom field values'),
+    disposition_id: z.string().uuid().nullable().optional().describe('Disposition ID (status category)'),
   }),
   handler: async (params, ctx) => {
     const { organization_id, custom_fields, ...personFields } = params as Record<string, unknown>;
@@ -423,6 +426,7 @@ defineTool({
     department: z.string().max(100).nullable().optional(),
     notes: z.string().max(2000).nullable().optional(),
     custom_fields: z.record(z.string(), z.unknown()).optional(),
+    disposition_id: z.string().uuid().nullable().optional().describe('Disposition ID (status category)'),
   }),
   handler: async (params, ctx) => {
     const { person_id: id, custom_fields: cf, ...updates } = params as Record<string, unknown>;
@@ -5967,6 +5971,194 @@ defineTool({
     return JSON.stringify({ success: true });
   },
 });
+
+// ── Disposition Tools ─────────────────────────────────────────────────────────
+
+defineTool({
+  name: 'dispositions.list',
+  description: 'List dispositions (status categories like Prospect, Customer, Partner) for a given entity type',
+  minRole: 'viewer',
+  parameters: z.object({
+    entity_type: z.enum(['organization', 'person']).describe('Entity type to list dispositions for'),
+  }),
+  handler: async (params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('dispositions')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .eq('entity_type', params.entity_type as string)
+      .is('deleted_at', null)
+      .order('sort_order', { ascending: true });
+
+    if (error) throw new Error(`Failed to list dispositions: ${error.message}`);
+    return JSON.stringify({ dispositions: data });
+  },
+});
+
+defineTool({
+  name: 'dispositions.create',
+  description: 'Create a new disposition (status category) for organizations or people',
+  minRole: 'member',
+  parameters: z.object({
+    name: z.string().min(1).max(50).describe('Disposition name (e.g. Prospect, Customer, Partner)'),
+    entity_type: z.enum(['organization', 'person']).describe('Entity type this disposition applies to'),
+    color: z.enum(['gray', 'blue', 'green', 'red', 'yellow', 'purple', 'orange', 'pink']).optional().describe('Badge color'),
+    is_default: z.boolean().optional().describe('Whether this is the default disposition for new records'),
+    sort_order: z.number().int().min(0).optional().describe('Display order'),
+  }),
+  handler: async (params, ctx) => {
+    const { name, entity_type, color, is_default, sort_order } = params as {
+      name: string; entity_type: string; color?: string; is_default?: boolean; sort_order?: number;
+    };
+
+    // Clear other defaults if setting this as default
+    if (is_default) {
+      await ctx.supabase
+        .from('dispositions')
+        .update({ is_default: false } as any)
+        .eq('project_id', ctx.projectId)
+        .eq('entity_type', entity_type)
+        .eq('is_default', true)
+        .is('deleted_at', null);
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- dynamic tool params
+    const { data, error } = await ctx.supabase
+      .from('dispositions')
+      .insert({
+        name,
+        entity_type,
+        color: color ?? 'gray',
+        is_default: is_default ?? false,
+        sort_order: sort_order ?? 0,
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+      } as any)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to create disposition: ${error.message}`);
+
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.created',
+      entityType: 'disposition',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    }).catch((e) => console.error('Automation event error:', e));
+
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'dispositions.update',
+  description: 'Update an existing disposition',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Disposition ID'),
+    name: z.string().min(1).max(50).optional().describe('Disposition name'),
+    color: z.enum(['gray', 'blue', 'green', 'red', 'yellow', 'purple', 'orange', 'pink']).optional().describe('Badge color'),
+    is_default: z.boolean().optional().describe('Whether this is the default disposition'),
+    sort_order: z.number().int().min(0).optional().describe('Display order'),
+  }),
+  handler: async (params, ctx) => {
+    const { id, ...updates } = params as Record<string, unknown>;
+
+    // If setting as default, clear other defaults for the same entity_type
+    if (updates.is_default) {
+      const { data: existing } = await ctx.supabase
+        .from('dispositions')
+        .select('entity_type')
+        .eq('id', id as string)
+        .eq('project_id', ctx.projectId)
+        .single();
+
+      if (existing) {
+        await ctx.supabase
+          .from('dispositions')
+          .update({ is_default: false } as any)
+          .eq('project_id', ctx.projectId)
+          .eq('entity_type', existing.entity_type)
+          .eq('is_default', true)
+          .is('deleted_at', null);
+      }
+    }
+
+    const { data, error } = await ctx.supabase
+      .from('dispositions')
+      .update(updates as Record<string, unknown>)
+      .eq('id', id as string)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update disposition: ${error.message}`);
+
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'disposition',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    }).catch((e) => console.error('Automation event error:', e));
+
+    return JSON.stringify(data);
+  },
+});
+
+defineTool({
+  name: 'dispositions.delete',
+  description: 'Soft-delete a disposition. Records using it will have their disposition cleared.',
+  minRole: 'member',
+  parameters: z.object({
+    id: z.string().uuid().describe('Disposition ID'),
+  }),
+  handler: async (params, ctx) => {
+    // Get entity_type before deletion so we can null out references
+    const { data: existing, error: fetchError } = await ctx.supabase
+      .from('dispositions')
+      .select('entity_type')
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .single();
+
+    if (fetchError) throw new Error(`Disposition not found: ${fetchError.message}`);
+
+    const { data, error } = await ctx.supabase
+      .from('dispositions')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', params.id as string)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to delete disposition: ${error.message}`);
+
+    // Null out references on entities using this disposition
+    const table = existing.entity_type === 'organization' ? 'organizations' : 'people';
+    await ctx.supabase
+      .from(table)
+      .update({ disposition_id: null } as any)
+      .eq('disposition_id', params.id as string)
+      .eq('project_id', ctx.projectId);
+
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.deleted',
+      entityType: 'disposition',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    }).catch((e) => console.error('Automation event error:', e));
+
+    return JSON.stringify({ deleted: true, id: data.id });
+  },
+});
+
+// ── Exports ──────────────────────────────────────────────────────────────────
 
 export function getToolDefinitions(): ToolDefinition[] {
   return tools.map((tool) => {

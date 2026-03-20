@@ -1,6 +1,7 @@
 import { ExternalLink, Mail, Phone } from 'lucide-react';
 import type { ResolvedColumn } from '@/types/table-columns';
 import { getColumnAccessor } from './definitions';
+import { DISPOSITION_COLOR_MAP, type DispositionColor } from '@/types/disposition';
 
 /**
  * Get the value from an item using the column accessor
@@ -74,6 +75,18 @@ export function renderCellValue<T extends Record<string, unknown>>(
   item: T,
   column: ResolvedColumn
 ): React.ReactNode {
+  // Special handling for disposition column — render colored badge from joined data
+  if (column.key === 'disposition') {
+    const disposition = (item as Record<string, unknown>).disposition as { name: string; color: string } | null;
+    if (!disposition) return <span className="text-muted-foreground">-</span>;
+    const colors = DISPOSITION_COLOR_MAP[disposition.color as DispositionColor] ?? DISPOSITION_COLOR_MAP.gray;
+    return (
+      <span className={`inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-medium border ${colors.bg} ${colors.text} ${colors.border}`}>
+        {disposition.name}
+      </span>
+    );
+  }
+
   const value = getCellValue(item, column);
 
   if (value === null || value === undefined || value === '') {

@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug, Plug2, KeyRound, Clock, Package } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug, Plug2, KeyRound, Clock, Package, Tag } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
@@ -49,6 +49,7 @@ import { ApiConnectionsPanel } from '@/components/settings/api-connections-panel
 import { ProjectSecretsPanel } from '@/components/settings/project-secrets-panel';
 import { SchedulerPanel } from '@/components/settings/scheduler-panel';
 import { ProductsCatalogPanel } from '@/components/settings/products-catalog-panel';
+import { DispositionsPanel } from '@/components/settings/dispositions-panel';
 import type { ProjectRole } from '@/types/user';
 
 
@@ -287,6 +288,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             <Clock className="h-4 w-4" />
             Scheduler
           </TabsTrigger>
+          <TabsTrigger value="dispositions" className="gap-2">
+            <Tag className="h-4 w-4" />
+            Dispositions
+          </TabsTrigger>
           <TabsTrigger value="products" className="gap-2">
             <Package className="h-4 w-4" />
             Products
@@ -493,6 +498,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
 
         <TabsContent value="scheduler" className="space-y-6 mt-6">
           <SchedulerPanel slug={slug} />
+        </TabsContent>
+
+        <TabsContent value="dispositions" className="space-y-6 mt-6">
+          <DispositionsPanel currentUserRole={currentUserRole} />
         </TabsContent>
 
         <TabsContent value="products" className="space-y-6 mt-6">

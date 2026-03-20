@@ -6,6 +6,8 @@ import { zodResolver } from '@hookform/resolvers/zod';
 import { useParams } from 'next/navigation';
 import { personSchema, type CreatePersonInput } from '@/lib/validators/person';
 import { createPerson, updatePersonApi, DuplicateDetectedError } from '@/stores/person';
+import { useDispositions } from '@/hooks/use-dispositions';
+import { DISPOSITION_COLOR_MAP, type DispositionColor } from '@/types/disposition';
 import { useEmailValidation } from '@/hooks/use-email-validation';
 import { DuplicateInterceptModal } from '@/components/deduplication/duplicate-intercept-modal';
 import type { Person } from '@/types/person';
@@ -16,6 +18,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Separator } from '@/components/ui/separator';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
 
 interface PersonFormProps {
@@ -32,6 +41,8 @@ export function PersonForm({ person, organizationId, onSuccess, onCancel }: Pers
   const [error, setError] = useState<string | null>(null);
   const [duplicateMatches, setDuplicateMatches] = useState<DetectionMatch[] | null>(null);
   const [pendingFormData, setPendingFormData] = useState<CreatePersonInput | null>(null);
+  const [dispositionId, setDispositionId] = useState<string | null>(person?.disposition_id ?? null);
+  const { dispositions } = useDispositions('person');
   const { validate: validateEmail, validating: emailValidating, result: emailResult } = useEmailValidation();
 
   const {
@@ -72,10 +83,11 @@ export function PersonForm({ person, organizationId, onSuccess, onCancel }: Pers
     setIsLoading(true);
     setError(null);
     try {
+      const submitData = { ...data, disposition_id: dispositionId };
       if (person) {
-        await updatePersonApi(projectSlug, person.id, data);
+        await updatePersonApi(projectSlug, person.id, submitData);
       } else {
-        await createPerson(projectSlug, { ...data, organization_id: organizationId, force_create: forceCreate });
+        await createPerson(projectSlug, { ...submitData, organization_id: organizationId, force_create: forceCreate });
       }
       setDuplicateMatches(null);
       setPendingFormData(null);
@@ -163,6 +175,34 @@ export function PersonForm({ person, organizationId, onSuccess, onCancel }: Pers
               )}
             </div>
           </div>
+
+          {dispositions.length > 0 && (
+            <div className="space-y-2">
+              <Label htmlFor="disposition">Disposition</Label>
+              <Select
+                value={dispositionId ?? 'none'}
+                onValueChange={(v) => setDispositionId(v === 'none' ? null : v)}
+              >
+                <SelectTrigger id="disposition">
+                  <SelectValue placeholder="Select disposition..." />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No disposition</SelectItem>
+                  {dispositions.map((d) => {
+                    const colors = DISPOSITION_COLOR_MAP[d.color as DispositionColor] ?? DISPOSITION_COLOR_MAP.gray;
+                    return (
+                      <SelectItem key={d.id} value={d.id}>
+                        <span className="flex items-center gap-2">
+                          <span className={`inline-block h-2 w-2 rounded-full ${colors.bg} ${colors.border} border`} />
+                          {d.name}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           <div className="space-y-2">
             <Label htmlFor="avatar_url">Avatar URL</Label>

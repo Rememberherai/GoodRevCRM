@@ -2561,6 +2561,70 @@ export type Database = {
           },
         ]
       }
+      dispositions: {
+        Row: {
+          color: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          entity_type: string
+          id: string
+          is_default: boolean
+          name: string
+          project_id: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          entity_type: string
+          id?: string
+          is_default?: boolean
+          name: string
+          project_id: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          entity_type?: string
+          id?: string
+          is_default?: boolean
+          name?: string
+          project_id?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "dispositions_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "dispositions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "dispositions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       duplicate_candidates: {
         Row: {
           created_at: string
@@ -5466,6 +5530,7 @@ export type Database = {
           default_tax_rate_id: string | null
           deleted_at: string | null
           description: string | null
+          disposition_id: string | null
           domain: string | null
           employee_count: number | null
           id: string
@@ -5497,6 +5562,7 @@ export type Database = {
           default_tax_rate_id?: string | null
           deleted_at?: string | null
           description?: string | null
+          disposition_id?: string | null
           domain?: string | null
           employee_count?: number | null
           id?: string
@@ -5528,6 +5594,7 @@ export type Database = {
           default_tax_rate_id?: string | null
           deleted_at?: string | null
           description?: string | null
+          disposition_id?: string | null
           domain?: string | null
           employee_count?: number | null
           id?: string
@@ -5550,6 +5617,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "organizations_disposition_id_fkey"
+            columns: ["disposition_id"]
+            isOneToOne: false
+            referencedRelation: "dispositions"
             referencedColumns: ["id"]
           },
           {
@@ -5707,6 +5781,7 @@ export type Database = {
           custom_fields: Json
           deleted_at: string | null
           department: string | null
+          disposition_id: string | null
           email: string | null
           email_verified: boolean | null
           email_verified_at: string | null
@@ -5740,6 +5815,7 @@ export type Database = {
           custom_fields?: Json
           deleted_at?: string | null
           department?: string | null
+          disposition_id?: string | null
           email?: string | null
           email_verified?: boolean | null
           email_verified_at?: string | null
@@ -5773,6 +5849,7 @@ export type Database = {
           custom_fields?: Json
           deleted_at?: string | null
           department?: string | null
+          disposition_id?: string | null
           email?: string | null
           email_verified?: boolean | null
           email_verified_at?: string | null
@@ -5800,6 +5877,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "people_disposition_id_fkey"
+            columns: ["disposition_id"]
+            isOneToOne: false
+            referencedRelation: "dispositions"
             referencedColumns: ["id"]
           },
           {

@@ -112,6 +112,7 @@ export function registerPeopleTools(server: McpServer, getContext: () => McpCont
       department: z.string().max(100).nullable().optional().describe('Department'),
       notes: z.string().max(2000).nullable().optional().describe('Notes'),
       organization_id: z.string().uuid().optional().describe('Link to organization'),
+      disposition_id: z.string().uuid().nullable().optional().describe('Disposition (status) ID'),
       custom_fields: z.record(z.string(), z.unknown()).optional().describe('Custom field values'),
     },
     async (params) => {
@@ -172,6 +173,7 @@ export function registerPeopleTools(server: McpServer, getContext: () => McpCont
       job_title: z.string().max(200).nullable().optional(),
       department: z.string().max(100).nullable().optional(),
       notes: z.string().max(2000).nullable().optional(),
+      disposition_id: z.string().uuid().nullable().optional().describe('Disposition (status) ID'),
       custom_fields: z.record(z.string(), z.unknown()).optional(),
     },
     async (params) => {

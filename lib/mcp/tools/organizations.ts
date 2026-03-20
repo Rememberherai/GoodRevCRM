@@ -96,6 +96,7 @@ export function registerOrganizationTools(server: McpServer, getContext: () => M
       address_state: z.string().max(100).nullable().optional(),
       address_postal_code: z.string().max(20).nullable().optional(),
       address_country: z.string().max(100).nullable().optional(),
+      disposition_id: z.string().uuid().nullable().optional().describe('Disposition (status) ID'),
       custom_fields: z.record(z.string(), z.unknown()).optional().describe('Custom field values'),
     },
     async (params) => {
@@ -147,6 +148,7 @@ export function registerOrganizationTools(server: McpServer, getContext: () => M
       address_state: z.string().max(100).nullable().optional(),
       address_postal_code: z.string().max(20).nullable().optional(),
       address_country: z.string().max(100).nullable().optional(),
+      disposition_id: z.string().uuid().nullable().optional().describe('Disposition (status) ID'),
       custom_fields: z.record(z.string(), z.unknown()).optional(),
     },
     async (params) => {

@@ -113,6 +113,7 @@ export function ChatSettings({ onBack }: ChatSettingsProps) {
             <ToolGroup name="Quotes" tools={['list', 'get', 'create', 'update', 'delete', 'accept', 'reject', 'set_primary', 'add_line_item', 'update_line_item', 'remove_line_item']} />
             <ToolGroup name="Accounting" tools={['list_invoices', 'get_invoice', 'list_bills', 'list_accounts', 'list_journal_entries', 'list_recurring', 'record_payment']} />
             <ToolGroup name="Calendar" tools={['list_event_types', 'get_event_type', 'create_event_type', 'update_event_type', 'delete_event_type', 'list_bookings', 'get_booking', 'cancel_booking', 'update_profile', 'get_booking_link', 'list_availability_schedules', 'update_availability', 'list_event_type_members', 'add_event_type_member', 'remove_event_type_member', 'get_round_robin_stats']} />
+            <ToolGroup name="Dispositions" tools={['list', 'create', 'update', 'delete']} />
           </div>
           <p className="text-xs text-muted-foreground">
             The AI can use these tools to read and modify your CRM data across all entity types.

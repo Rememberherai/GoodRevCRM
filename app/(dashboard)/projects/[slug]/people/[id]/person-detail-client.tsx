@@ -23,7 +23,7 @@ import {
 import { EnrichButton } from '@/components/enrichment';
 import { EnrichmentReviewModal } from '@/components/enrichment/enrichment-review-modal';
 import { usePerson } from '@/hooks/use-people';
-import { usePersonStore, deletePerson } from '@/stores/person';
+import { usePersonStore, deletePerson, updatePersonApi } from '@/stores/person';
 import type { EnrichmentPerson } from '@/lib/fullenrich/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -57,6 +57,14 @@ import type { ActivityWithUser } from '@/types/activity';
 import { getSalesNavUrl } from '@/lib/linkedin/utils';
 import { toast } from 'sonner';
 import { LogActivityModal } from '@/components/activity/log-activity-modal';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+} from '@/components/ui/select';
+import { useDispositions } from '@/hooks/use-dispositions';
+import { DISPOSITION_COLOR_MAP, type DispositionColor } from '@/types/disposition';
 
 interface PersonDetailClientProps {
   personId: string;
@@ -76,6 +84,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
     : `/projects/${slug}/people`;
   const backLabel = fromOrg && orgId ? 'Back to Organization' : 'Back to People';
   const [activeTab, setActiveTab] = useState('info');
+  const { dispositions } = useDispositions('person');
   const [isEditing, setIsEditing] = useState(false);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -461,11 +470,57 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
           {person.job_title && (
             <p className="text-muted-foreground">{person.job_title}</p>
           )}
-          {person.department && (
-            <Badge variant="secondary" className="mt-1">
-              {person.department}
-            </Badge>
-          )}
+          <div className="flex items-center gap-2 mt-1">
+            {dispositions.length > 0 && (
+              <Select
+                value={person.disposition_id ?? 'none'}
+                onValueChange={async (v) => {
+                  const newId = v === 'none' ? null : v;
+                  try {
+                    await updatePersonApi(slug, person.id, { disposition_id: newId });
+                    refresh();
+                    toast.success('Disposition updated');
+                  } catch {
+                    toast.error('Failed to update disposition');
+                  }
+                }}
+              >
+                <SelectTrigger className="h-7 w-auto gap-1 border-dashed text-xs px-2">
+                  {(() => {
+                    const disp = dispositions.find((d) => d.id === person.disposition_id);
+                    if (disp) {
+                      const colors = DISPOSITION_COLOR_MAP[disp.color as DispositionColor] ?? DISPOSITION_COLOR_MAP.gray;
+                      return (
+                        <span className={`inline-flex items-center rounded-full px-2 py-0.5 text-xs font-medium border ${colors.bg} ${colors.text} ${colors.border}`}>
+                          {disp.name}
+                        </span>
+                      );
+                    }
+                    return <span className="text-muted-foreground">Set disposition</span>;
+                  })()}
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="none">No disposition</SelectItem>
+                  {dispositions.map((d) => {
+                    const colors = DISPOSITION_COLOR_MAP[d.color as DispositionColor] ?? DISPOSITION_COLOR_MAP.gray;
+                    return (
+                      <SelectItem key={d.id} value={d.id}>
+                        <span className="flex items-center gap-2">
+                          <span className={`inline-block h-2 w-2 rounded-full ${colors.bg} ${colors.border} border`} />
+                          {d.name}
+                        </span>
+                      </SelectItem>
+                    );
+                  })}
+                </SelectContent>
+              </Select>
+            )}
+            {person.department && (
+              <Badge variant="secondary">
+                {person.department}
+              </Badge>
+            )}
+          </div>
         </div>
       </div>
 

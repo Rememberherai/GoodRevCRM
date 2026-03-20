@@ -109,6 +109,11 @@ export const personSchema = z.object({
       message: `Custom fields cannot exceed ${MAX_CUSTOM_FIELD_KEYS} keys`,
     })
     .optional(),
+  disposition_id: z
+    .string()
+    .uuid('Must be a valid disposition ID')
+    .nullable()
+    .optional(),
 });
 
 export const createPersonSchema = personSchema;
