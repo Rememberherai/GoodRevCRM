@@ -44,9 +44,11 @@ import { ColumnPicker } from '@/components/table/column-picker';
 import { renderCellValue } from '@/lib/table-columns/renderers';
 import { DispositionCell } from '@/components/dispositions/disposition-cell';
 import { useDispositions } from '@/hooks/use-dispositions';
+import { useOutreachGuard } from '@/hooks/use-outreach-guard';
 import { usePersonStore, updatePersonApi } from '@/stores/person';
 import { ClickableEmail } from '@/components/contacts/clickable-email';
 import { ClickablePhone } from '@/components/contacts/clickable-phone';
+import type { BulkOperation } from '@/types/bulk';
 
 export function PeoplePageClient() {
   const params = useParams();
@@ -60,6 +62,7 @@ export function PeoplePageClient() {
   const [bulkEnrichOpen, setBulkEnrichOpen] = useState(false);
   const [bulkValidateOpen, setBulkValidateOpen] = useState(false);
   const [enrollInSequenceOpen, setEnrollInSequenceOpen] = useState(false);
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const {
     people,
@@ -73,6 +76,7 @@ export function PeoplePageClient() {
   } = usePeople();
 
   const { dispositions } = useDispositions('person');
+  const { checkWithDisposition, GuardDialog } = useOutreachGuard(slug);
   const updatePersonInStore = usePersonStore((s) => s.updatePerson);
 
   const {
@@ -147,6 +151,34 @@ export function PeoplePageClient() {
     }
   };
 
+  const handleBulkAction = async (operation: BulkOperation) => {
+    if (selectedIds.size === 0) return;
+
+    setBulkLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/bulk`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          entity_type: 'person',
+          entity_ids: Array.from(selectedIds),
+          operation,
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error('Bulk operation failed');
+      }
+
+      clearSelection();
+      refresh();
+    } catch (err) {
+      console.error('Bulk action error:', err);
+    } finally {
+      setBulkLoading(false);
+    }
+  };
+
   const getInitials = (firstName: string, lastName: string) => {
     return `${firstName[0] ?? ''}${lastName[0] ?? ''}`.toUpperCase();
   };
@@ -211,7 +243,12 @@ export function PeoplePageClient() {
         <div className="flex items-center gap-1">
           <ClickableEmail
             email={person.email}
-            onEmailClick={() => setSendEmailTo({ email: person.email!, personId: person.id })}
+            onEmailClick={() => {
+              const disp = dispositions.find((d) => d.id === person.disposition_id);
+              const dispData = disp ? { name: disp.name, blocks_outreach: disp.blocks_outreach ?? false } : null;
+              const name = [person.first_name, person.last_name].filter(Boolean).join(' ') || 'Unknown';
+              checkWithDisposition(person.id, name, dispData, () => setSendEmailTo({ email: person.email!, personId: person.id }));
+            }}
             showIcon={true}
             variant="link"
           />
@@ -468,7 +505,8 @@ export function PeoplePageClient() {
             selectedCount={selectedIds.size}
             entityType="person"
             onClearSelection={clearSelection}
-            onBulkAction={async () => {}}
+            onBulkAction={handleBulkAction}
+            loading={bulkLoading}
             showEnrich
             onEnrich={() => setBulkEnrichOpen(true)}
             showValidateEmails
