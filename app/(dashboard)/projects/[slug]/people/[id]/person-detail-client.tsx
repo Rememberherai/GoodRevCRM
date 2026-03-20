@@ -104,6 +104,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
 
   const { person, isLoading, error, refresh } = usePerson(personId);
   const removePerson = usePersonStore((s) => s.removePerson);
+  const setCurrentPerson = usePersonStore((s) => s.setCurrentPerson);
 
   const handleValidateEmail = async () => {
     if (!person?.email) return;
@@ -479,7 +480,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
                   const newId = v === 'none' ? null : v;
                   try {
                     await updatePersonApi(slug, person.id, { disposition_id: newId });
-                    refresh();
+                    setCurrentPerson({ ...person, disposition_id: newId });
                     toast.success('Disposition updated');
                   } catch {
                     toast.error('Failed to update disposition');
