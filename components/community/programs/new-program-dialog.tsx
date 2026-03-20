@@ -147,7 +147,7 @@ export function NewProgramDialog({
         if (!nextOpen) reset();
       }}
     >
-      <DialogContent className="sm:max-w-[720px]">
+      <DialogContent className="sm:max-w-[720px] max-h-[85vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>New Program</DialogTitle>
           <DialogDescription>
@@ -219,9 +219,14 @@ export function NewProgramDialog({
                       checked={selectedDimensions.includes(dimension.id)}
                       onCheckedChange={(checked) => toggleDimension(dimension.id, checked === true)}
                     />
-                    <div>
-                      <div className="font-medium">{dimension.label}</div>
-                      <div className="text-xs text-muted-foreground">{dimension.color ?? 'No color set'}</div>
+                    <div className="flex items-center gap-2">
+                      {dimension.color && (
+                        <span
+                          className="inline-block h-3 w-3 rounded-full shrink-0"
+                          style={{ backgroundColor: dimension.color }}
+                        />
+                      )}
+                      <span className="font-medium">{dimension.label}</span>
                     </div>
                   </label>
                 ))}
