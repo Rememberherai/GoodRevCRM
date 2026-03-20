@@ -56,7 +56,7 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
           <main className="flex-1 overflow-auto p-6">{children}</main>
         </div>
       </div>
-      <ChatPanel projectSlug={slug} />
+      <ChatPanel projectSlug={slug} projectType={project.project_type} />
     </CallClientWrapper>
   );
 }

@@ -4,8 +4,9 @@ import { NextResponse } from 'next/server';
 import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
 import type { ChatMessageWithTools, ToolCallFunction } from '@/lib/openrouter/client';
 import { getToolDefinitions, executeTool } from '@/lib/chat/tool-registry';
+import { getCommunityToolDefinitions, executeCommunityTool } from '@/lib/chat/community-tool-registry';
 import { buildSystemPrompt } from '@/lib/chat/system-prompt';
-import { isStandardMcpRole, type McpContext } from '@/types/mcp';
+import { isMcpRole, isStandardMcpRole, type McpContext } from '@/types/mcp';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -44,12 +45,6 @@ export async function POST(request: Request, context: RouteContext) {
       .is('deleted_at', null)
       .single();
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    if (project.project_type === 'community') {
-      return NextResponse.json(
-        { error: 'Chat tools for community projects are not enabled in this phase' },
-        { status: 403 }
-      );
-    }
 
     const { data: membership } = await supabase
       .from('project_memberships')
@@ -58,8 +53,21 @@ export async function POST(request: Request, context: RouteContext) {
       .eq('user_id', user.id)
       .single();
     if (!membership) return NextResponse.json({ error: 'Not a project member' }, { status: 403 });
-    if (!isStandardMcpRole(membership.role)) {
+
+    if (!isMcpRole(membership.role)) {
       return NextResponse.json({ error: 'Unsupported project role' }, { status: 403 });
+    }
+    if (project.project_type !== 'community' && !isStandardMcpRole(membership.role)) {
+      return NextResponse.json({ error: 'Unsupported project role' }, { status: 403 });
+    }
+    if (
+      project.project_type === 'community'
+      && ['contractor', 'board_viewer', 'member', 'viewer'].includes(membership.role)
+    ) {
+      return NextResponse.json(
+        { error: 'Community chat tools for this role are not enabled in this phase' },
+        { status: 403 }
+      );
     }
 
     const body = await request.json();
@@ -136,7 +144,7 @@ export async function POST(request: Request, context: RouteContext) {
       .limit(100);
 
     // Build message history for OpenRouter
-    const systemPrompt = buildSystemPrompt(project.name) + pageContextPrompt;
+    const systemPrompt = buildSystemPrompt(project.name, project.project_type) + pageContextPrompt;
     const messages: ChatMessageWithTools[] = [
       { role: 'system', content: systemPrompt },
     ];
@@ -162,7 +170,8 @@ export async function POST(request: Request, context: RouteContext) {
       }
     }
 
-    const toolDefs = getToolDefinitions();
+    const isCommunityProject = project.project_type === 'community';
+    const toolDefs = isCommunityProject ? getCommunityToolDefinitions() : getToolDefinitions();
     const openrouter = await getProjectOpenRouterClient(project.id);
     const encoder = new TextEncoder();
 
@@ -222,7 +231,9 @@ export async function POST(request: Request, context: RouteContext) {
 
                 let toolResult: string;
                 try {
-                  toolResult = await executeTool(toolCall.function.name, parsedArgs, mcpContext);
+                  toolResult = isCommunityProject
+                    ? await executeCommunityTool(toolCall.function.name, parsedArgs, mcpContext)
+                    : await executeTool(toolCall.function.name, parsedArgs, mcpContext);
                 } catch (err) {
                   toolResult = JSON.stringify({ error: err instanceof Error ? err.message : 'Tool execution failed' });
                 }
@@ -267,6 +278,14 @@ export async function POST(request: Request, context: RouteContext) {
             if (!streamResponse.body) {
               // Fallback: send the non-streamed content
               send({ type: 'text_delta', content: finalContent });
+
+              // Save final assistant message to DB
+              await db.from('chat_messages').insert({
+                conversation_id: convId,
+                role: 'assistant',
+                content: finalContent,
+                token_usage: result.usage,
+              });
             } else {
               const reader = streamResponse.body.getReader();
               const decoder = new TextDecoder();
@@ -355,7 +374,16 @@ export async function GET(request: Request, context: RouteContext) {
       .single();
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
-    // Use admin client for chat table operations (auth + membership already verified above)
+    // Verify membership
+    const { data: membership } = await supabase
+      .from('project_memberships')
+      .select('role')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single();
+    if (!membership) return NextResponse.json({ error: 'Not a project member' }, { status: 403 });
+
+    // Use admin client for chat table operations (auth + membership verified above)
     const adminSupabase = createAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const db = adminSupabase as any;
@@ -363,6 +391,16 @@ export async function GET(request: Request, context: RouteContext) {
     const conversationId = searchParams.get('conversationId');
 
     if (conversationId) {
+      // Verify the conversation belongs to this user and project
+      const { data: conv } = await db
+        .from('chat_conversations')
+        .select('id')
+        .eq('id', conversationId)
+        .eq('project_id', project.id)
+        .eq('user_id', user.id)
+        .single();
+      if (!conv) return NextResponse.json({ error: 'Conversation not found' }, { status: 404 });
+
       // Get messages for a conversation
       const { data: messages, error } = await db
         .from('chat_messages')

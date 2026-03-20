@@ -4,6 +4,7 @@ import { requireCommunityPermission } from '@/lib/projects/community-permissions
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { createProgramSchema } from '@/lib/validators/community/programs';
+import { syncProgramSession } from '@/lib/assistant/calendar-bridge';
 import type { Database } from '@/types/database';
 
 type ProgramInsert = Database['public']['Tables']['programs']['Insert'];
@@ -20,7 +21,7 @@ export async function GET(request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: project, error: projectError } = await supabase
-      .from('projects').select('id').eq('slug', slug).is('deleted_at', null).single();
+      .from('projects').select('*').eq('slug', slug).is('deleted_at', null).single();
     if (projectError || !project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     await requireCommunityPermission(supabase, user.id, project.id, 'programs', 'view');
@@ -80,7 +81,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: project, error: projectError } = await supabase
-      .from('projects').select('id').eq('slug', slug).is('deleted_at', null).single();
+      .from('projects').select('*').eq('slug', slug).is('deleted_at', null).single();
     if (projectError || !project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     await requireCommunityPermission(supabase, user.id, project.id, 'programs', 'create');
@@ -91,7 +92,7 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Validation failed', details: validationResult.error.flatten() }, { status: 400 });
     }
 
-    const { project_id: _pid, ...validated } = validationResult.data;
+    const validated = validationResult.data;
     const insertData: ProgramInsert = {
       ...validated,
       project_id: project.id,
@@ -115,7 +116,20 @@ export async function POST(request: Request, context: RouteContext) {
       data: program as Record<string, unknown>,
     });
 
-    return NextResponse.json({ program }, { status: 201 });
+    let calendarSync: { synced: boolean; reason?: string; eventId?: string } | null = null;
+    if (project.calendar_sync_enabled) {
+      try {
+        calendarSync = await syncProgramSession(program.id);
+      } catch (calendarError) {
+        console.error('Error syncing program session to Google Calendar:', calendarError);
+        calendarSync = {
+          synced: false,
+          reason: calendarError instanceof Error ? calendarError.message : 'Program calendar sync failed',
+        };
+      }
+    }
+
+    return NextResponse.json({ program, calendar_sync: calendarSync }, { status: 201 });
   } catch (error) {
     if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: 403 });
     console.error('Error in POST /api/projects/[slug]/programs:', error);

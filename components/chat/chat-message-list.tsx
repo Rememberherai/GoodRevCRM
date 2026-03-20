@@ -59,14 +59,19 @@ const TOOL_COLORS: Record<string, { bg: string; border: string; icon: string; ba
 
 const DEFAULT_COLORS = { bg: 'bg-gray-50 dark:bg-gray-950/30', border: 'border-gray-200 dark:border-gray-800', icon: 'text-gray-600 dark:text-gray-400', badge: 'bg-gray-100 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300' };
 
+function normalizeToolName(toolName: string) {
+  return toolName.replace(/\./g, '_');
+}
+
 function getToolColors(toolName: string) {
-  const category = toolName.split('_')[0] ?? '';
+  const category = normalizeToolName(toolName).split('_')[0] ?? '';
   return TOOL_COLORS[category] ?? DEFAULT_COLORS;
 }
 
 function formatToolName(name: string): string {
+  const normalized = normalizeToolName(name);
   // organizations_list → Organizations > List
-  const parts = name.split('_');
+  const parts = normalized.split('_');
   if (parts.length >= 2) {
     const first = parts[0] ?? '';
     const category = first.charAt(0).toUpperCase() + first.slice(1);
@@ -98,10 +103,10 @@ export function ChatMessageList({ messages, streamingContent, pendingToolCalls, 
           <div className="flex flex-col items-center justify-center py-12 text-center">
             <Bot className="h-10 w-10 text-muted-foreground mb-3" />
             <p className="text-sm text-muted-foreground">
-              Ask me anything about your CRM data.
+              Ask me anything about your project data.
             </p>
             <p className="text-xs text-muted-foreground mt-1">
-              I can search, create, update, and manage your organizations, contacts, and more.
+              I can use connected project tools and explain what I changed.
             </p>
           </div>
         )}

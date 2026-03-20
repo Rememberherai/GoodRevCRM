@@ -22,11 +22,14 @@ const MODELS = [
 
 interface ChatSettingsProps {
   onBack: () => void;
+  projectType?: string | null;
 }
 
-export function ChatSettings({ onBack }: ChatSettingsProps) {
+export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
   // For now, model selection is informational — stored per-conversation in the DB
   // Future: persist model preference and pass to API route
+
+  const isCommunity = projectType === 'community';
 
   return (
     <div className="flex flex-col h-full">
@@ -67,56 +70,67 @@ export function ChatSettings({ onBack }: ChatSettingsProps) {
         <div className="space-y-2">
           <Label className="text-xs font-medium">Available Tools</Label>
           <div className="rounded-md border p-3 space-y-2">
-            <ToolGroup name="Organizations" tools={['list', 'get', 'create', 'update', 'delete', 'get_people']} />
-            <ToolGroup name="People" tools={['list', 'get', 'create', 'update', 'delete', 'link_organization']} />
-            <ToolGroup name="Opportunities" tools={['list', 'get', 'create', 'update', 'delete']} />
-            <ToolGroup name="Tasks" tools={['list', 'get', 'create', 'update', 'delete']} />
-            <ToolGroup name="Notes" tools={['list', 'create', 'update', 'delete']} />
-            <ToolGroup name="RFPs" tools={['list', 'get', 'create', 'update', 'delete']} />
-            <ToolGroup name="RFP Questions" tools={['list', 'get', 'create', 'update', 'delete']} />
-            <ToolGroup name="Sequences" tools={['list', 'get', 'create', 'update', 'enroll', 'unenroll']} />
-            <ToolGroup name="Meetings" tools={['list', 'create', 'update', 'delete']} />
-            <ToolGroup name="Calls" tools={['list', 'get']} />
-            <ToolGroup name="Email" tools={['send', 'history', 'inbox', 'unknown_senders', 'create_contact_from_sender']} />
-            <ToolGroup name="Drafts" tools={['list', 'get', 'create', 'update', 'delete']} />
-            <ToolGroup name="Templates" tools={['list', 'get', 'create', 'update', 'delete']} />
-            <ToolGroup name="Tags" tools={['list', 'create', 'assign', 'get_entity_tags']} />
-            <ToolGroup name="Comments" tools={['list', 'create']} />
-            <ToolGroup name="Dashboard" tools={['stats']} />
-            <ToolGroup name="Search" tools={['global']} />
-            <ToolGroup name="Automations" tools={['list', 'get', 'create', 'update', 'delete']} />
-            <ToolGroup name="Content Library" tools={['list', 'search', 'get', 'create', 'update', 'delete']} />
-            <ToolGroup name="News" tools={['list_keywords', 'create_keyword', 'delete_keyword', 'list_articles', 'update_article']} />
-            <ToolGroup name="Custom Fields" tools={['list', 'create', 'update', 'delete']} />
-            <ToolGroup name="Webhooks" tools={['list', 'get', 'create', 'update', 'delete']} />
-            <ToolGroup name="Reports" tools={['list', 'get', 'create', 'delete', 'run', 'forecasting', 'activity_conversions']} />
-            <ToolGroup name="Activity" tools={['list', 'follow_ups']} />
-            <ToolGroup name="Research" tools={['list', 'get']} />
-            <ToolGroup name="Widgets" tools={['list', 'create', 'update', 'delete']} />
-            <ToolGroup name="Members" tools={['list', 'update_role']} />
-            <ToolGroup name="Invitations" tools={['list']} />
-            <ToolGroup name="Settings" tools={['get']} />
-            <ToolGroup name="Duplicates" tools={['list', 'resolve']} />
-            <ToolGroup name="Merge" tools={['execute']} />
-            <ToolGroup name="Enrichment" tools={['list', 'start']} />
-            <ToolGroup name="Contacts" tools={['discover', 'add_to_org']} />
-            <ToolGroup name="SMS" tools={['list', 'send']} />
-            <ToolGroup name="Signatures" tools={['list', 'get', 'create', 'update', 'delete']} />
-            <ToolGroup name="LinkedIn" tools={['generate_message']} />
-            <ToolGroup name="Bulk" tools={['execute']} />
-            <ToolGroup name="Sequence Steps" tools={['list', 'get', 'create', 'update', 'delete']} />
-            <ToolGroup name="Call Metrics" tools={['metrics']} />
-            <ToolGroup name="RFP Stats" tools={['stats']} />
-            <ToolGroup name="Workflows" tools={['list', 'get', 'create', 'update', 'delete', 'activate', 'execute', 'executions', 'validate']} />
-            <ToolGroup name="Contracts" tools={['list', 'get', 'create', 'void', 'add_recipient', 'add_field', 'audit_trail', 'templates_list']} />
-            <ToolGroup name="Products" tools={['list', 'get', 'create', 'update', 'delete']} />
-            <ToolGroup name="Quotes" tools={['list', 'get', 'create', 'update', 'delete', 'accept', 'reject', 'set_primary', 'add_line_item', 'update_line_item', 'remove_line_item']} />
-            <ToolGroup name="Accounting" tools={['list_invoices', 'get_invoice', 'list_bills', 'list_accounts', 'list_journal_entries', 'list_recurring', 'record_payment']} />
-            <ToolGroup name="Calendar" tools={['list_event_types', 'get_event_type', 'create_event_type', 'update_event_type', 'delete_event_type', 'list_bookings', 'get_booking', 'cancel_booking', 'update_profile', 'get_booking_link', 'list_availability_schedules', 'update_availability', 'list_event_type_members', 'add_event_type_member', 'remove_event_type_member', 'get_round_robin_stats']} />
-            <ToolGroup name="Dispositions" tools={['list', 'create', 'update', 'delete']} />
+            {isCommunity ? (
+              <>
+                <ToolGroup name="Receipt Processing" tools={['process_image', 'confirm']} />
+                <ToolGroup name="Calendar Sync" tools={['sync_program', 'sync_job']} />
+              </>
+            ) : (
+              <>
+                <ToolGroup name="Organizations" tools={['list', 'get', 'create', 'update', 'delete', 'get_people']} />
+                <ToolGroup name="People" tools={['list', 'get', 'create', 'update', 'delete', 'link_organization']} />
+                <ToolGroup name="Opportunities" tools={['list', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="Tasks" tools={['list', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="Notes" tools={['list', 'create', 'update', 'delete']} />
+                <ToolGroup name="RFPs" tools={['list', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="RFP Questions" tools={['list', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="Sequences" tools={['list', 'get', 'create', 'update', 'enroll', 'unenroll']} />
+                <ToolGroup name="Meetings" tools={['list', 'create', 'update', 'delete']} />
+                <ToolGroup name="Calls" tools={['list', 'get']} />
+                <ToolGroup name="Email" tools={['send', 'history', 'inbox', 'unknown_senders', 'create_contact_from_sender']} />
+                <ToolGroup name="Drafts" tools={['list', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="Templates" tools={['list', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="Tags" tools={['list', 'create', 'assign', 'get_entity_tags']} />
+                <ToolGroup name="Comments" tools={['list', 'create']} />
+                <ToolGroup name="Dashboard" tools={['stats']} />
+                <ToolGroup name="Search" tools={['global']} />
+                <ToolGroup name="Automations" tools={['list', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="Content Library" tools={['list', 'search', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="News" tools={['list_keywords', 'create_keyword', 'delete_keyword', 'list_articles', 'update_article']} />
+                <ToolGroup name="Custom Fields" tools={['list', 'create', 'update', 'delete']} />
+                <ToolGroup name="Webhooks" tools={['list', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="Reports" tools={['list', 'get', 'create', 'delete', 'run', 'forecasting', 'activity_conversions']} />
+                <ToolGroup name="Activity" tools={['list', 'follow_ups']} />
+                <ToolGroup name="Research" tools={['list', 'get']} />
+                <ToolGroup name="Widgets" tools={['list', 'create', 'update', 'delete']} />
+                <ToolGroup name="Members" tools={['list', 'update_role']} />
+                <ToolGroup name="Invitations" tools={['list']} />
+                <ToolGroup name="Settings" tools={['get']} />
+                <ToolGroup name="Duplicates" tools={['list', 'resolve']} />
+                <ToolGroup name="Merge" tools={['execute']} />
+                <ToolGroup name="Enrichment" tools={['list', 'start']} />
+                <ToolGroup name="Contacts" tools={['discover', 'add_to_org']} />
+                <ToolGroup name="SMS" tools={['list', 'send']} />
+                <ToolGroup name="Signatures" tools={['list', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="LinkedIn" tools={['generate_message']} />
+                <ToolGroup name="Bulk" tools={['execute']} />
+                <ToolGroup name="Sequence Steps" tools={['list', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="Call Metrics" tools={['metrics']} />
+                <ToolGroup name="RFP Stats" tools={['stats']} />
+                <ToolGroup name="Workflows" tools={['list', 'get', 'create', 'update', 'delete', 'activate', 'execute', 'executions', 'validate']} />
+                <ToolGroup name="Contracts" tools={['list', 'get', 'create', 'void', 'add_recipient', 'add_field', 'audit_trail', 'templates_list']} />
+                <ToolGroup name="Products" tools={['list', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="Quotes" tools={['list', 'get', 'create', 'update', 'delete', 'accept', 'reject', 'set_primary', 'add_line_item', 'update_line_item', 'remove_line_item']} />
+                <ToolGroup name="Accounting" tools={['list_invoices', 'get_invoice', 'list_bills', 'list_accounts', 'list_journal_entries', 'list_recurring', 'record_payment']} />
+                <ToolGroup name="Calendar" tools={['list_event_types', 'get_event_type', 'create_event_type', 'update_event_type', 'delete_event_type', 'list_bookings', 'get_booking', 'cancel_booking', 'update_profile', 'get_booking_link', 'list_availability_schedules', 'update_availability', 'list_event_type_members', 'add_event_type_member', 'remove_event_type_member', 'get_round_robin_stats']} />
+                <ToolGroup name="Dispositions" tools={['list', 'create', 'update', 'delete']} />
+              </>
+            )}
           </div>
           <p className="text-xs text-muted-foreground">
-            The AI can use these tools to read and modify your CRM data across all entity types.
+            {isCommunity
+              ? 'The assistant can process receipts and push calendar events for community workflows in this phase.'
+              : 'The AI can use these tools to read and modify your CRM data across all entity types.'}
           </p>
         </div>
 

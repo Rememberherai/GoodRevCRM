@@ -19,9 +19,10 @@ import { cn } from '@/lib/utils';
 
 interface ChatPanelProps {
   projectSlug: string;
+  projectType?: string | null;
 }
 
-export function ChatPanel({ projectSlug }: ChatPanelProps) {
+export function ChatPanel({ projectSlug, projectType }: ChatPanelProps) {
   const { isOpen, panelWidth, setPanelWidth, close } = useChatStore();
   const {
     messages,
@@ -96,18 +97,20 @@ export function ChatPanel({ projectSlug }: ChatPanelProps) {
     return (
       <div
         className={cn(
-          'fixed inset-y-0 right-0 z-[60] flex animate-in slide-in-from-right duration-300',
+          'fixed inset-0 z-[60] flex animate-in slide-in-from-right duration-300 md:inset-y-0 md:left-auto md:right-0',
           isResizing && 'select-none'
         )}
-        style={{ width: panelWidth }}
+        style={{ ['--chat-panel-width' as string]: `${panelWidth}px` }}
       >
         {/* Resize handle */}
         <div
-          className="w-1.5 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors shrink-0"
+          className="hidden w-1.5 shrink-0 cursor-col-resize transition-colors hover:bg-primary/20 active:bg-primary/30 md:block"
           onMouseDown={handleMouseDown}
         />
-        <div className="flex-1 flex flex-col bg-background border-l shadow-xl overflow-hidden">
-          <ChatSettings onBack={() => setShowSettings(false)} />
+        <div
+          className="flex h-full w-screen flex-1 flex-col overflow-hidden bg-background shadow-xl md:w-[var(--chat-panel-width)] md:border-l"
+        >
+          <ChatSettings onBack={() => setShowSettings(false)} projectType={projectType} />
         </div>
       </div>
     );
@@ -116,19 +119,21 @@ export function ChatPanel({ projectSlug }: ChatPanelProps) {
   return (
     <div
       className={cn(
-        'fixed inset-y-0 right-0 z-[60] flex animate-in slide-in-from-right duration-300',
+        'fixed inset-0 z-[60] flex animate-in slide-in-from-right duration-300 md:inset-y-0 md:left-auto md:right-0',
         isResizing && 'select-none'
       )}
-      style={{ width: panelWidth }}
+      style={{ ['--chat-panel-width' as string]: `${panelWidth}px` }}
     >
       {/* Resize handle */}
       <div
-        className="w-1.5 cursor-col-resize hover:bg-primary/20 active:bg-primary/30 transition-colors shrink-0"
+        className="hidden w-1.5 shrink-0 cursor-col-resize transition-colors hover:bg-primary/20 active:bg-primary/30 md:block"
         onMouseDown={handleMouseDown}
       />
 
       {/* Panel content */}
-      <div className="flex-1 flex flex-col bg-background border-l shadow-xl overflow-hidden">
+      <div
+        className="flex h-full w-screen flex-1 flex-col overflow-hidden bg-background shadow-xl md:w-[var(--chat-panel-width)] md:border-l"
+      >
         {/* Header */}
         <div className="flex items-center justify-between border-b px-4 py-3">
           <div className="flex items-center gap-2">
@@ -249,6 +254,8 @@ export function ChatPanel({ projectSlug }: ChatPanelProps) {
           onSend={sendMessage}
           onStop={stopStreaming}
           isStreaming={isStreaming}
+          projectSlug={projectSlug}
+          projectType={projectType}
         />
       </div>
     </div>

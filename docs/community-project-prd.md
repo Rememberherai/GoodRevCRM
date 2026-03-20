@@ -83,7 +83,6 @@ These features remain in the data model as future enhancements but are not in th
 | Grant management (pipeline, deadlines, compliance) | High value but complex; needs MVP data to be useful |
 | Community Map (Leaflet + geocoding) | Visual impact — powerful but not blocking daily ops |
 | Referral management (closed-loop tracking) | Needs partner directory + household data in place first |
-| Household risk index | Needs enrollment + relationship data to score against |
 | Broadcast messaging | Reuses existing Telnyx/Gmail; lower priority than core CRUD |
 | Facility booking / events calendar | Nice-to-have; programs and assets must exist first |
 | Relationships + social network tracking | Enrichment layer on top of people data |
@@ -572,34 +571,7 @@ Person-to-person connections that map the social fabric.
 - **Identify local influencers** — people with highest relationship counts / most bridging connections
 - Identify socially isolated individuals for outreach
 
-### 4.10 Household Risk Index
-
-Configurable vulnerability scoring to support proactive outreach. This is a **decision-support tool, not an automated action trigger** — it surfaces households for human review, never triggers adverse actions automatically.
-
-**Default scoring signals** (all weights configurable per-project in Settings):
-- Not enrolled in any programs
-- No social relationships recorded
-- Open referrals that haven't been resolved
-- No recent contributions or engagement
-
-**Optional demographic signals** (disabled by default — must be explicitly enabled):
-- Young children in the household
-- Single-adult household
-
-These demographic signals are proxies, not risk factors. They are off by default because using them uncritically can be stigmatizing. When enabled, the UI shows a disclaimer explaining what the score means and what it doesn't.
-
-**Governance rules:**
-- The risk score is **visible only to staff with case management permissions** — not contractors, not board members, not in exports unless explicitly included
-- The score **cannot trigger automated outreach, status changes, or service denials** — it only populates a review list for case managers
-- Every score is **explainable** — clicking a score shows which signals contributed and their weights
-- Staff can **override or dismiss** a risk flag with a note explaining why
-
-**Views:**
-- Risk score column on household list (sortable, visible to case managers only)
-- Risk distribution chart on dashboard
-- High-risk alert list for case managers with explainability drill-down
-
-### 4.11 Referral Management
+### 4.10 Referral Management
 
 Closed-loop tracking for service referrals to partner organizations.
 
@@ -610,7 +582,7 @@ Closed-loop tracking for service referrals to partner organizations.
 - Track outcomes, not just that a referral was made
 - Reporting by partner and service type
 
-### 4.12 Community Dashboard
+### 4.11 Community Dashboard
 
 The landing page for community projects — holistic health check.
 
@@ -629,11 +601,10 @@ The landing page for community projects — holistic health check.
 
 **V2 Additions:**
 
-5. **At-Risk Household Alerts:** Households flagged by risk index (requires V2 risk index)
-6. **Geographic Coverage:** Mini-map showing household distribution (requires V2 map)
-7. **% of Population/Households Impacted** — configurable denominator (census tract, zip code, or manual)
+5. **Geographic Coverage:** Mini-map showing household distribution (requires V2 map)
+6. **% of Population/Households Impacted** — configurable denominator (census tract, zip code, or manual)
 
-### 4.13 Broadcast Messaging
+### 4.12 Broadcast Messaging
 
 Simplified mass communication for weather alerts, schedule changes, event reminders.
 
@@ -644,7 +615,7 @@ Simplified mass communication for weather alerts, schedule changes, event remind
 
 Reuses existing Telnyx SMS + Gmail email infrastructure.
 
-### 4.14 Waivers
+### 4.13 Waivers
 
 Reuses the existing e-signature/contracts module for liability waivers, photo releases, and policy documents.
 
@@ -654,7 +625,7 @@ Reuses the existing e-signature/contracts module for liability waivers, photo re
 - Status "active" blocked until waiver is signed
 - Waiver status visible in enrollment list and batch attendance grid
 
-### 4.15 Case Management & Intake
+### 4.14 Case Management & Intake
 
 For community centers providing direct services.
 
@@ -669,7 +640,7 @@ For community centers providing direct services.
 
 **Referral tracking** covered in §4.11.
 
-### 4.16 Calendar & Accounting Integration
+### 4.15 Calendar & Accounting Integration
 
 Community projects hook into two existing GoodRev modules — the **Calendar** (`lib/calendar/`, `app/(dashboard)/calendar/`) and **Accounting** (`lib/accounting/`, `app/(dashboard)/accounting/`) systems. These are not rebuilt for community — they're reused via cross-references and assistant tools.
 
@@ -696,7 +667,7 @@ Community calendar sync is **write-only** — GoodRev creates, updates, and dele
 
 **No duplication:** Community contributions (§4.4) track the *impact framework* side of value exchanges (which capital, which program, which household). Accounting tracks the *financial* side (which GL account, debit/credit, reconciliation). A single receipt confirmation can create both a contribution record (for impact reporting) and a bill (for accounting) in one step.
 
-### 4.17 Reporting & Analytics
+### 4.16 Reporting & Analytics
 
 **MVP Reports:**
 
@@ -722,7 +693,7 @@ Community calendar sync is **write-only** — GoodRev creates, updates, and dele
 
 **Unduplicated Counts:** All funder-facing reports use `COUNT(DISTINCT person_id)`.
 
-### 4.18 Public Dashboard (V2)
+### 4.17 Public Dashboard (V2)
 
 A published, unauthenticated view of community impact data — curated by admins, designed for funders, board members, elected officials, and the general public.
 
@@ -744,7 +715,7 @@ A published, unauthenticated view of community impact data — curated by admins
 - **No activity feed** — no recent events, no audit trail, no timeline
 - **No drill-through** — public dashboard links do not lead to internal detail pages
 - **Minimum-count thresholds** — any metric derived from fewer than N records (configurable, default 5) is suppressed with "< 5" to prevent deanonymization via small cohorts
-- **Excluded categories** — minors data, intake/needs assessments, risk scores, referral details, contractor details, and any PII are never shown regardless of widget selection
+- **Excluded categories** — minors data, intake/needs assessments, referral details, contractor details, and any PII are never shown regardless of widget selection
 - **No export** — the public dashboard is view-only, no CSV/PDF export buttons
 
 **Publish model:**
@@ -828,7 +799,6 @@ Items hidden for community projects: Opportunities, RFPs, Sequences, Content Lib
 - Messages assistant: *"Set up a new contractor — Maria Lopez, bilingual tutor, starting next week"*
 
 **Added in V2:**
-- Reviews at-risk household alerts on dashboard
 - Checks grant compliance reports
 
 ### Persona 2: James — Program Coordinator
@@ -850,7 +820,6 @@ Items hidden for community projects: Opportunities, RFPs, Sequences, Content Lib
 
 **Added in V2:**
 - Referral logged → closed-loop status tracking begins
-- Risk index calculated automatically, flagged for review
 
 ### Persona 4: David — Board Member / Funder Liaison
 
@@ -941,7 +910,7 @@ Items hidden for community projects: Opportunities, RFPs, Sequences, Content Lib
 ```typescript
 // New: lib/projects/community-permissions.ts
 type CommunityResource = 'households' | 'intake' | 'programs' | 'contributions'
-  | 'risk_scores' | 'referrals' | 'grants' | 'jobs' | 'assistant_ap'
+  | 'referrals' | 'grants' | 'jobs' | 'assistant_ap'
   | 'dashboard' | 'reports' | 'settings' | 'public_dashboard';
 type CommunityAction = 'view' | 'create' | 'update' | 'delete' | 'export_pii' | 'manage';
 
@@ -957,18 +926,18 @@ function checkCommunityPermission(
 
 Phase 1 must: (1) extend the Postgres role ENUM, (2) split `ProjectRole` into `StandardProjectRole | CommunityProjectRole` in TypeScript, (3) retype `permissions.ts` to use `StandardProjectRole`, (4) implement `checkCommunityPermission()` in TypeScript, (5) implement `community_has_permission()` in SQL, (6) write RLS policies for all new community tables that call the SQL function, (7) write automated per-role RLS tests. Frontend conditional rendering alone is not sufficient — every "—" in the matrix below must be enforced at the database/API layer by the absence of a matching RLS allow-policy (Postgres RLS is allow-based; there is no `DENY` primitive — access is denied by default unless an explicit policy grants it).
 
-| Role | Households | Intake/Needs | Programs | Contributions | Risk Scores | Referrals | Grants | Jobs | Assistant (AP) | Dashboard | Reports | Settings | Public Dashboard |
-|------|-----------|-------------|----------|--------------|-------------|-----------|--------|------|---------------|-----------|---------|----------|-----------------|
-| **Owner** | CRUD | CRUD | CRUD | CRUD | View + configure | CRUD | CRUD | CRUD + pull | Full | Full | Full + export PII | Full | Manage |
-| **Admin** | CRUD | CRUD | CRUD | CRUD | View + configure | CRUD | CRUD | CRUD + pull | Full | Full | Full + export PII | Full | Manage |
-| **Staff** | CRUD | — | CRUD | CRUD | View | CRUD | View | Assign + manage | Approve own receipts | Full | Standard (no PII export) | View only | — |
-| **Case Manager** | CRUD | CRUD | CRUD | CRUD | View + override/dismiss | CRUD | View | View | Approve own receipts | Full | Standard + risk reports | View only | — |
-| **Contractor** | — | — | — | — | — | — | — | Own jobs: accept/decline/time + view unassigned jobs matching own scope (read-only) | — | — | — | Own profile only | — |
-| **Board Viewer** | — | — | — | — | — | — | View | — | — | Aggregate only | Aggregate only (no PII) | — | — |
+| Role | Households | Intake/Needs | Programs | Contributions | Referrals | Grants | Jobs | Assistant (AP) | Dashboard | Reports | Settings | Public Dashboard |
+|------|-----------|-------------|----------|--------------|-----------|--------|------|---------------|-----------|---------|----------|-----------------|
+| **Owner** | CRUD | CRUD | CRUD | CRUD | CRUD | CRUD | CRUD + pull | Full | Full | Full + export PII | Full | Manage |
+| **Admin** | CRUD | CRUD | CRUD | CRUD | CRUD | CRUD | CRUD + pull | Full | Full | Full + export PII | Full | Manage |
+| **Staff** | CRUD | — | CRUD | CRUD | CRUD | View | Assign + manage | Approve own receipts | Full | Standard (no PII export) | View only | — |
+| **Case Manager** | CRUD | CRUD | CRUD | CRUD | CRUD | View | View | Approve own receipts | Full | Standard | View only | — |
+| **Contractor** | — | — | — | — | — | — | Own jobs: accept/decline/time + view unassigned jobs matching own scope (read-only) | — | — | — | Own profile only | — |
+| **Board Viewer** | — | — | — | — | — | View | — | — | Aggregate only | Aggregate only (no PII) | — | — |
 
 "Staff" in the assistant approval model (§3.5) maps to the **Staff** role for AP + job actions, and to both **Staff** and **Case Manager** for AP-only actions. "Admin/Owner" maps to **Owner** and **Admin**.
 
-**Audit logging:** All data access and mutations are logged (existing `activity_log` pattern). Sensitive actions (viewing risk scores, accessing needs assessments, exporting PII) generate audit entries visible to project admins.
+**Audit logging:** All data access and mutations are logged (existing `activity_log` pattern). Sensitive actions (accessing needs assessments, exporting PII) generate audit entries visible to project admins.
 
 **Contractor surface:** Contractors access the **same web app** as staff, but with a restricted view enforced by their role. When a contractor logs in, they see:
 - Their job list (active + completed)
@@ -1021,7 +990,6 @@ Each external integration has a defined failure mode:
 - **Intake Form Fields**: Configure custom fields for household intake
 - **Dimension Scoring Weights**: Adjust how each dimension is scored on radar chart
 - **Active Dimensions**: Enable/disable individual dimensions
-- **Risk Index Weights**: Configure which signals contribute to household risk scoring
 - **Organization EIN**: For grant applications and any receipt generation
 - **Contractor Settings**: Default scope of work template, required documents checklist
 - **Job Settings**: Default inaction warning period, clock-running alert threshold
@@ -1115,7 +1083,6 @@ The community project type is **additive** — it must not regress, modify, or i
 
 **Phase 8: Enrichment Features**
 - Referral management with closed-loop tracking
-- Household risk index (computation + dashboard alerts + explainability)
 - Relationships CRUD (person detail tab + influencer identification)
 - Broadcasts (SMS/email)
 - Facility booking / events calendar
@@ -1193,6 +1160,9 @@ The community project type is **additive** — it must not regress, modify, or i
 - Record losses alongside gains (direction: inflow/outflow)
 - Severity categorization (minor/moderate/major)
 - Net capital flow reporting
+
+### Household Risk Index (deferred beyond V2)
+Configurable vulnerability scoring to support proactive outreach — surfaces households for human review, never triggers adverse actions automatically. Scoring signals would include program enrollment gaps, missing social relationships, unresolved referrals, and engagement dropoff. Requires governance guardrails (case-manager-only visibility, explainability, override/dismiss capability). Consider only after core community data is well-established and the team has a clear use case.
 
 ### Other Future Features
 - Self-service portal for community members

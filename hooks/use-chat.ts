@@ -5,6 +5,12 @@ import { useChatStore, type ChatMessage } from '@/stores/chat';
 
 // Tool names that mutate data — trigger a page refresh after these complete
 const MUTATING_TOOLS = new Set([
+  'receipts.confirm',
+  'receipts_confirm',
+  'calendar.sync_program',
+  'calendar_sync_program',
+  'calendar.sync_job',
+  'calendar_sync_job',
   'organizations_create', 'organizations_update', 'organizations_delete',
   'people_create', 'people_update', 'people_delete', 'people_link_organization',
   'opportunities_create', 'opportunities_update', 'opportunities_delete',
@@ -52,6 +58,10 @@ const MUTATING_TOOLS = new Set([
   'calendar_add_event_type_member', 'calendar_remove_event_type_member',
   'dispositions_create', 'dispositions_update', 'dispositions_delete',
 ]);
+
+function normalizeToolName(toolName: string) {
+  return toolName.replace(/\./g, '_');
+}
 
 export interface PageContext {
   entityType: 'organization' | 'person';
@@ -199,7 +209,7 @@ export function useChat(projectSlug: string) {
                   arguments: event.arguments,
                   status: 'pending',
                 });
-                if (MUTATING_TOOLS.has(event.name)) {
+                if (MUTATING_TOOLS.has(event.name) || MUTATING_TOOLS.has(normalizeToolName(event.name))) {
                   hadMutationRef.current = true;
                 }
                 break;
@@ -261,7 +271,7 @@ export function useChat(projectSlug: string) {
       resetStreamingContent();
       abortRef.current = null;
     }
-  }, [projectSlug, loadConversations, pathname, setError, setStreaming, resetStreamingContent, clearToolCalls, addMessage, setCurrentConversationId, addToolCall, updateToolCallResult, appendStreamingContent, finalizeToolCalls]);
+  }, [projectSlug, loadConversations, pathname, router, setError, setStreaming, resetStreamingContent, clearToolCalls, addMessage, setCurrentConversationId, addToolCall, updateToolCallResult, appendStreamingContent, finalizeToolCalls]);
 
   const newConversation = useCallback(() => {
     reset();

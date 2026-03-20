@@ -30,6 +30,34 @@ export const SECRET_KEYS = {
     description: 'Growth metrics and census data enrichment',
     placeholder: 'Your Census API key',
   },
+  quickbooks_access_token: {
+    envVar: 'QUICKBOOKS_ACCESS_TOKEN',
+    label: 'QuickBooks Access Token',
+    description: 'OAuth access token for QuickBooks Online',
+    placeholder: 'QuickBooks access token',
+    hidden: true,
+  },
+  quickbooks_refresh_token: {
+    envVar: 'QUICKBOOKS_REFRESH_TOKEN',
+    label: 'QuickBooks Refresh Token',
+    description: 'OAuth refresh token for QuickBooks Online',
+    placeholder: 'QuickBooks refresh token',
+    hidden: true,
+  },
+  quickbooks_realm_id: {
+    envVar: 'QUICKBOOKS_REALM_ID',
+    label: 'QuickBooks Realm ID',
+    description: 'QuickBooks company identifier',
+    placeholder: '1234567890',
+    hidden: true,
+  },
+  quickbooks_token_expires_at: {
+    envVar: 'QUICKBOOKS_TOKEN_EXPIRES_AT',
+    label: 'QuickBooks Token Expiry',
+    description: 'ISO timestamp for QuickBooks token expiration',
+    placeholder: '2026-03-20T12:00:00.000Z',
+    hidden: true,
+  },
   cronjob_org_api_key: {
     envVar: 'CRONJOB_ORG_API_KEY',
     label: 'cron-job.org API Key',
@@ -152,7 +180,7 @@ export async function setProjectSecret(
   projectId: string,
   keyName: SecretKeyName,
   plainValue: string,
-  userId: string
+  userId?: string | null
 ): Promise<void> {
   const supabase = createAdminClient();
   const encrypted = encrypt(plainValue);
@@ -164,7 +192,7 @@ export async function setProjectSecret(
         project_id: projectId,
         key_name: keyName,
         encrypted_value: encrypted,
-        updated_by: userId,
+        updated_by: userId ?? null,
       },
       { onConflict: 'project_id,key_name' }
     );
