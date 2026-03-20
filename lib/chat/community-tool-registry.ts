@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { checkCommunityPermission, type CommunityAction, type CommunityResource } from '@/lib/projects/community-permissions';
 import type { ToolDefinitionParam } from '@/lib/openrouter/client';
 import type { McpContext } from '@/types/mcp';
@@ -31,8 +30,6 @@ const receiptProcessSchema = z.object({
   image_url: z.string().url().optional(),
   content_type: z.string().optional(),
   user_context: z.string().optional(),
-}).refine((value) => Boolean(value.storage_path || value.image_url), {
-  message: 'Either storage_path or image_url is required',
 });
 
 const receiptConfirmSchema = z.object({
@@ -46,8 +43,6 @@ const receiptConfirmSchema = z.object({
   storage_bucket: z.string().optional(),
   storage_path: z.string().optional(),
   content_type: z.string().optional(),
-}).refine((value) => Boolean(value.image_url || value.storage_path), {
-  message: 'A receipt image or uploaded storage path is required before confirmation',
 });
 
 const calendarSyncProgramSchema = z.object({
@@ -66,6 +61,9 @@ defineCommunityTool({
   parameters: receiptProcessSchema,
   handler: async (params, ctx) => {
     const parsed = receiptProcessSchema.parse(params);
+    if (!parsed.storage_path && !parsed.image_url) {
+      throw new Error('Either storage_path or image_url is required');
+    }
     const admin = createAdminClient();
     const { data: project } = await admin
       .from('projects')
@@ -111,6 +109,9 @@ defineCommunityTool({
   parameters: receiptConfirmSchema,
   handler: async (params, ctx) => {
     const parsed = receiptConfirmSchema.parse(params);
+    if (!parsed.image_url && !parsed.storage_path) {
+      throw new Error('A receipt image or uploaded storage path is required before confirmation');
+    }
     const admin = createAdminClient();
     const { data: project } = await admin
       .from('projects')
@@ -251,20 +252,19 @@ defineCommunityTool({
 });
 
 export function getCommunityToolDefinitions(): ToolDefinitionParam[] {
-  return tools.map((tool) => ({
-    type: 'function',
-    function: {
-      name: tool.name,
-      description: tool.description,
-      // zod-to-json-schema lags the repo's current Zod typing surface, but this
-      // runtime path matches the existing standard tool registry behavior.
-      // @ts-expect-error External library typing mismatch with the installed Zod version.
-      parameters: zodToJsonSchema(tool.parameters as unknown as z.ZodTypeAny, {
-        target: 'openApi3',
-        $refStrategy: 'none',
-      }) as Record<string, unknown>,
-    },
-  }));
+  return tools.map((tool) => {
+    const schema = z.toJSONSchema(tool.parameters) as Record<string, unknown>;
+    delete schema.$schema;
+
+    return {
+      type: 'function',
+      function: {
+        name: tool.name,
+        description: tool.description,
+        parameters: schema,
+      },
+    };
+  });
 }
 
 export async function executeCommunityTool(name: string, params: Record<string, unknown>, ctx: McpContext) {

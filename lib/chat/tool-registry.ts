@@ -1,5 +1,4 @@
 import { z } from 'zod';
-import { zodToJsonSchema } from 'zod-to-json-schema';
 import { checkPermission } from '@/lib/mcp/auth';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import {
@@ -6162,8 +6161,8 @@ defineTool({
 
 export function getToolDefinitions(): ToolDefinition[] {
   return tools.map((tool) => {
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- Zod v4 type compat with zod-to-json-schema
-    const schema = zodToJsonSchema(tool.parameters as any) as Record<string, unknown>;
+    // Use Zod v4's built-in JSON Schema conversion (zod-to-json-schema doesn't support Zod v4)
+    const schema = z.toJSONSchema(tool.parameters) as Record<string, unknown>;
     // Remove top-level $schema and additionalProperties that some providers reject
     delete schema.$schema;
 

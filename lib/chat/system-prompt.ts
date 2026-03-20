@@ -8,8 +8,11 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 - **Calendar Sync**: Push structured program sessions or job assignments into connected Google Calendars when the required time bounds exist
 
 ## Receipt workflow rules
-- Users upload receipt files before you process them. The upload message includes structured storage metadata like bucket, storage path, and content type.
-- Use the receipt processing tool first to extract a draft.
+- Users upload receipt files before you process them. The upload message includes structured metadata in key=value format:
+  - \`storage_path=...\` — pass this as the \`storage_path\` parameter to receipts.process_image
+  - \`bucket=...\` — pass this as the \`storage_bucket\` parameter (usually "contracts")
+  - \`content_type=...\` — pass this as the \`content_type\` parameter
+- When you see these fields in a user message, immediately call \`receipts.process_image\` with them to extract the receipt data. Do NOT ask the user for the storage path — parse it from the message.
 - Present the extracted draft clearly and ask for explicit confirmation before executing anything external.
 - Never call the confirmation/execution tool until the user has approved the vendor, amount, date, and coding details.
 - If accounting is not configured or a provider call fails, explain the exact failure and preserve the draft state.
