@@ -35,7 +35,7 @@ import { toast } from 'sonner';
 const createTaskFormSchema = z.object({
   title: z.string().min(1, 'Title is required').max(255),
   description: z.string().optional(),
-  status: z.enum(['todo', 'in_progress', 'completed']),
+  status: z.enum(['pending', 'in_progress', 'completed', 'cancelled']),
   priority: z.enum(['low', 'medium', 'high', 'urgent']),
   due_date: z.string().optional(),
 });
@@ -50,6 +50,7 @@ interface CreateTaskModalProps {
   organizationId?: string;
   opportunityId?: string;
   rfpId?: string;
+  defaultTitle?: string;
   onSuccess?: () => void;
 }
 
@@ -61,6 +62,7 @@ export function CreateTaskModal({
   organizationId,
   opportunityId,
   rfpId,
+  defaultTitle,
   onSuccess,
 }: CreateTaskModalProps) {
   const [saving, setSaving] = useState(false);
@@ -70,7 +72,7 @@ export function CreateTaskModal({
     defaultValues: {
       title: '',
       description: '',
-      status: 'todo',
+      status: 'pending',
       priority: 'medium',
       due_date: '',
     },
@@ -79,14 +81,14 @@ export function CreateTaskModal({
   useEffect(() => {
     if (open) {
       form.reset({
-        title: '',
+        title: defaultTitle ?? '',
         description: '',
-        status: 'todo',
+        status: 'pending',
         priority: 'medium',
         due_date: '',
       });
     }
-  }, [open, form]);
+  }, [open, form, defaultTitle]);
 
   const onSubmit = async (data: CreateTaskFormData) => {
     setSaving(true);
@@ -176,9 +178,10 @@ export function CreateTaskModal({
                         </SelectTrigger>
                       </FormControl>
                       <SelectContent>
-                        <SelectItem value="todo">To Do</SelectItem>
+                        <SelectItem value="pending">Pending</SelectItem>
                         <SelectItem value="in_progress">In Progress</SelectItem>
                         <SelectItem value="completed">Completed</SelectItem>
+                        <SelectItem value="cancelled">Cancelled</SelectItem>
                       </SelectContent>
                     </Select>
                     <FormMessage />

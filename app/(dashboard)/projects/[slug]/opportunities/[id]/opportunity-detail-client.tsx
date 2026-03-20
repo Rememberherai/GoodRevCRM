@@ -21,6 +21,7 @@ import {
   Trophy,
   XCircle,
   TrendingUp,
+  ListTodo,
 } from 'lucide-react';
 import { useOpportunity } from '@/hooks/use-opportunities';
 import { useOpportunityStore, deleteOpportunity } from '@/stores/opportunity';
@@ -45,6 +46,7 @@ import { OpportunityForm } from '@/components/opportunities/opportunity-form';
 import { EntityActivitySection } from '@/components/activity/entity-activity-section';
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 import { SendEmailModal } from '@/components/gmail';
+import { CreateTaskModal } from '@/components/tasks/create-task-modal';
 import { EntityCommentsFeed } from '@/components/comments';
 import { CreateInvoiceButton } from '@/components/accounting/create-invoice-button';
 import { QuoteList } from '@/components/quotes/quote-list';
@@ -83,6 +85,7 @@ export function OpportunityDetailClient({ opportunityId, currentUserId }: Opport
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showSendEmail, setShowSendEmail] = useState(false);
+  const [showCreateTask, setShowCreateTask] = useState(false);
   const [quotesEnabled, setQuotesEnabled] = useState(false);
 
   const { opportunity, isLoading, error, refresh } = useOpportunity(opportunityId);
@@ -207,6 +210,10 @@ export function OpportunityDetailClient({ opportunityId, currentUserId }: Opport
               currency={opportunity.currency}
             />
           )}
+          <Button variant="outline" onClick={() => setShowCreateTask(true)}>
+            <ListTodo className="mr-2 h-4 w-4" />
+            Follow Up
+          </Button>
           <Button variant="outline" onClick={() => setShowSendEmail(true)}>
             <Mail className="mr-2 h-4 w-4" />
             Send Email
@@ -592,6 +599,15 @@ export function OpportunityDetailClient({ opportunityId, currentUserId }: Opport
         personId={opportunity.primary_contact_id ?? undefined}
         organizationId={opportunity.organization_id ?? undefined}
         opportunityId={opportunityId}
+      />
+
+      <CreateTaskModal
+        open={showCreateTask}
+        onOpenChange={setShowCreateTask}
+        projectSlug={slug}
+        opportunityId={opportunityId}
+        organizationId={opportunity.organization_id ?? undefined}
+        defaultTitle={`Follow up on ${opportunity.name}`}
       />
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

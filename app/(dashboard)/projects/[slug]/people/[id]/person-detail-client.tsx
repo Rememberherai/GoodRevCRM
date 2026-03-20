@@ -51,12 +51,13 @@ import { ClickableEmail } from '@/components/contacts/clickable-email';
 import { ClickablePhone } from '@/components/contacts/clickable-phone';
 import { CallLogTable } from '@/components/calls/call-log-table';
 import { SmsConversation } from '@/components/sms/sms-conversation';
-import { PhoneCall, MessageSquareText, ExternalLink, Copy, Check, UserPlus, Users, ClipboardList, ShieldCheck, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { PhoneCall, MessageSquareText, ExternalLink, Copy, Check, UserPlus, Users, ClipboardList, ListTodo, ShieldCheck, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ActivityWithUser } from '@/types/activity';
 import { getSalesNavUrl } from '@/lib/linkedin/utils';
 import { toast } from 'sonner';
 import { LogActivityModal } from '@/components/activity/log-activity-modal';
+import { CreateTaskModal } from '@/components/tasks/create-task-modal';
 import {
   Select,
   SelectContent,
@@ -100,6 +101,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
   const [messageCopied, setMessageCopied] = useState(false);
   const [loggingLinkedIn, setLoggingLinkedIn] = useState<string | null>(null);
   const [showLogActivity, setShowLogActivity] = useState(false);
+  const [showCreateTask, setShowCreateTask] = useState(false);
   const [emailValidating, setEmailValidating] = useState(false);
 
   const { person, isLoading, error, refresh } = usePerson(personId);
@@ -408,6 +410,10 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
           <Button variant="outline" onClick={() => setShowLogActivity(true)}>
             <ClipboardList className="mr-2 h-4 w-4" />
             Log Activity
+          </Button>
+          <Button variant="outline" onClick={() => setShowCreateTask(true)}>
+            <ListTodo className="mr-2 h-4 w-4" />
+            Follow Up
           </Button>
           {person.email && (
             <Button variant="outline" onClick={() => setShowSendEmail(true)}>
@@ -918,6 +924,15 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
             loadActivities();
           }
         }}
+      />
+
+      <CreateTaskModal
+        open={showCreateTask}
+        onOpenChange={setShowCreateTask}
+        projectSlug={slug}
+        personId={personId}
+        organizationId={person.organizations?.[0]?.organization_id}
+        defaultTitle={`Follow up with ${getFullName(person.first_name, person.last_name)}`}
       />
 
       <EnrichmentReviewModal

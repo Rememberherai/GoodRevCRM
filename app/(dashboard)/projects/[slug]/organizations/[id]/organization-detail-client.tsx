@@ -65,6 +65,7 @@ import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-sec
 import { EntityEmailTab } from '@/components/email/entity-email-tab';
 import { UnknownSendersPanel } from '@/components/email/unknown-senders-panel';
 import { SendEmailModal } from '@/components/gmail';
+import { CreateTaskModal } from '@/components/tasks/create-task-modal';
 import { EntityCommentsFeed } from '@/components/comments';
 import { BulkActionsBar } from '@/components/bulk/bulk-actions-bar';
 import { BulkEnrichWithReviewModal } from '@/components/enrichment/bulk-enrich-with-review-modal';
@@ -75,7 +76,7 @@ import { OrgNewsFetchCard } from '@/components/news/org-news-fetch-card';
 import { ClickToDialButton } from '@/components/calls/click-to-dial-button';
 import { CallLogTable } from '@/components/calls/call-log-table';
 import { SmsConversation } from '@/components/sms/sms-conversation';
-import { PhoneCall, MessageSquareText } from 'lucide-react';
+import { PhoneCall, MessageSquareText, ListTodo } from 'lucide-react';
 import { OrgFinancialSummary } from '@/components/accounting/org-financial-summary';
 import { LogoUpload } from '@/components/ui/logo-upload';
 import {
@@ -229,6 +230,7 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
   const [showAddRfpDialog, setShowAddRfpDialog] = useState(false);
   const [showContactDiscovery, setShowContactDiscovery] = useState(false);
   const [showSendEmail, setShowSendEmail] = useState(false);
+  const [showCreateTask, setShowCreateTask] = useState(false);
   const [people, setPeople] = useState<Person[]>([]);
   const [peopleLoading, setPeopleLoading] = useState(false);
   const [selectedPeopleIds, setSelectedPeopleIds] = useState<Set<string>>(new Set());
@@ -485,6 +487,10 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
           </Link>
         </Button>
         <div className="flex items-center gap-2">
+          <Button variant="outline" onClick={() => setShowCreateTask(true)}>
+            <ListTodo className="mr-2 h-4 w-4" />
+            Follow Up
+          </Button>
           <Button variant="outline" onClick={() => setShowSendEmail(true)}>
             <Mail className="mr-2 h-4 w-4" />
             Send Email
@@ -1378,6 +1384,14 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
         onOpenChange={setShowSendEmail}
         projectSlug={slug}
         organizationId={organizationId}
+      />
+
+      <CreateTaskModal
+        open={showCreateTask}
+        onOpenChange={setShowCreateTask}
+        projectSlug={slug}
+        organizationId={organizationId}
+        defaultTitle={`Follow up with ${organization.name}`}
       />
 
       <AddFieldDialog

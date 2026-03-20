@@ -42,7 +42,6 @@ const priorityConfig = {
 
 const statusConfig: Record<string, { label: string; icon: typeof Circle }> = {
   pending: { label: 'Pending', icon: Circle },
-  todo: { label: 'To Do', icon: Circle },
   in_progress: { label: 'In Progress', icon: Clock },
   completed: { label: 'Completed', icon: CheckCircle2 },
   cancelled: { label: 'Cancelled', icon: Circle },
