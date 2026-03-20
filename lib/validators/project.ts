@@ -19,7 +19,11 @@ export const projectSettingsSchema = z.object({
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 
-export const projectSchema = z.object({
+export const projectTypeSchema = z.enum(['standard', 'community']).default('standard');
+export const accountingTargetSchema = z.enum(['goodrev', 'quickbooks', 'none']).nullable().optional();
+export const frameworkTypeSchema = z.enum(['ccf', 'vital_conditions', 'custom']).nullable().optional();
+
+const projectBaseSchema = z.object({
   name: z
     .string()
     .min(1, 'Name is required')
@@ -44,11 +48,41 @@ export const projectSchema = z.object({
     .optional()
     .or(z.literal('')),
   settings: projectSettingsSchema.optional(),
+  project_type: projectTypeSchema.optional(),
+  accounting_target: accountingTargetSchema,
+  framework_type: frameworkTypeSchema,
 });
+
+function validateCommunityFields(
+  value: z.infer<typeof projectBaseSchema> | Partial<z.infer<typeof projectBaseSchema>>,
+  ctx: z.RefinementCtx
+) {
+  if (value.project_type === 'community') {
+    if (!value.framework_type) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['framework_type'],
+        message: 'Community projects require an impact framework selection',
+      });
+    }
+    if (!value.accounting_target) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['accounting_target'],
+        message: 'Community projects require an accounting target selection',
+      });
+    }
+  }
+}
+
+export const projectSchema = projectBaseSchema.superRefine(validateCommunityFields);
 
 export const createProjectSchema = projectSchema;
 
-export const updateProjectSchema = projectSchema.partial();
+export const updateProjectSchema = projectBaseSchema.partial().superRefine((value, ctx) => {
+  if (!value.project_type) return;
+  validateCommunityFields(value, ctx);
+});
 
 export type CreateProjectInput = z.infer<typeof createProjectSchema>;
 export type UpdateProjectInput = z.infer<typeof updateProjectSchema>;

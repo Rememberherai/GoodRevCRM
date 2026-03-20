@@ -5,7 +5,13 @@ import { CompanyContextCard } from '@/components/projects/company-context-card';
 import { DashboardActivityCenter } from '@/components/dashboard/activity-center';
 import { AnalyticsDashboard } from '@/components/dashboard/analytics-dashboard';
 import { NewsHeadlines } from '@/components/dashboard/news-headlines';
+import { MetricsCards } from '@/components/community/dashboard/metrics-cards';
+import { ImpactRadar } from '@/components/community/dashboard/impact-radar';
+import { ProgramCards } from '@/components/community/dashboard/program-cards';
+import { ActivityFeed } from '@/components/community/dashboard/activity-feed';
+import { getCommunityDashboardData } from '@/lib/community/dashboard';
 import type { CompanyContext } from '@/lib/validators/project';
+import type { ProjectRole } from '@/types/user';
 
 interface ProjectDashboardProps {
   params: Promise<{ slug: string }>;
@@ -18,7 +24,7 @@ export default async function ProjectDashboard({ params }: ProjectDashboardProps
   // Fetch project with settings
   const { data: project } = await supabase
     .from('projects')
-    .select('id, settings')
+    .select('id, settings, project_type')
     .eq('slug', slug)
     .is('deleted_at', null)
     .single();
@@ -30,6 +36,47 @@ export default async function ProjectDashboard({ params }: ProjectDashboardProps
   // Get current user for analytics filter
   const { data: { user } } = await supabase.auth.getUser();
   const currentUserId = user?.id ?? '';
+
+  const { data: membership } = projectId
+    ? await supabase
+        .from('project_memberships')
+        .select('role')
+        .eq('project_id', projectId)
+        .eq('user_id', currentUserId)
+        .single()
+    : { data: null };
+
+  if (project?.project_type === 'community') {
+    const dashboardData = await getCommunityDashboardData(
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      supabase as any,
+      projectId,
+      (membership?.role as ProjectRole | undefined) ?? 'viewer'
+    );
+    const canSeeDetail = membership?.role !== 'board_viewer' && membership?.role !== 'contractor';
+
+    return (
+      <div className="space-y-6">
+        <div>
+          <h2 className="text-2xl font-bold">Community Dashboard</h2>
+          <p className="text-muted-foreground">
+            Aggregate community metrics and impact framework tracking.
+          </p>
+        </div>
+
+        <MetricsCards metrics={dashboardData.metrics} />
+
+        <ImpactRadar dimensions={dashboardData.dimensions} />
+
+        {canSeeDetail && (
+          <div className="grid gap-6 xl:grid-cols-2">
+            <ProgramCards programs={dashboardData.programs} />
+            <ActivityFeed items={dashboardData.recentActivity} />
+          </div>
+        )}
+      </div>
+    );
+  }
 
   // Fetch counts for dashboard widgets
   const [orgsResult, peopleResult, oppsResult, rfpsResult] = await Promise.all([

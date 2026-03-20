@@ -6,6 +6,7 @@ import { CallClientWrapper } from '@/components/calls/call-client-wrapper';
 import { ChatPanel } from '@/components/chat/chat-panel';
 import { LastProjectTracker } from '@/components/projects/last-project-tracker';
 import type { Database } from '@/types/database';
+import type { ProjectRole } from '@/types/user';
 
 type Project = Database['public']['Tables']['projects']['Row'];
 
@@ -38,11 +39,18 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
     notFound();
   }
 
+  const { data: membership } = await supabase
+    .from('project_memberships')
+    .select('role')
+    .eq('project_id', project.id)
+    .eq('user_id', user.id)
+    .single();
+
   return (
     <CallClientWrapper>
       <div className="flex h-screen bg-background">
         <LastProjectTracker projectSlug={project.slug} />
-        <ProjectSidebar project={project as Project} />
+        <ProjectSidebar project={project as Project} role={membership?.role as ProjectRole | undefined} />
         <div className="flex flex-col flex-1 overflow-hidden">
           <ProjectHeader project={project as Project} />
           <main className="flex-1 overflow-auto p-6">{children}</main>

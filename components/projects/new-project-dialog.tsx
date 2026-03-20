@@ -4,8 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { z } from 'zod';
-import { Loader2 } from 'lucide-react';
+import { Loader2, Building2, Users, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -26,54 +25,105 @@ import {
 } from '@/components/ui/form';
 import { Input } from '@/components/ui/input';
 import { Textarea } from '@/components/ui/textarea';
+import { RadioGroup, RadioGroupItem } from '@/components/ui/radio-group';
+import { Label } from '@/components/ui/label';
 import { toast } from 'sonner';
-
-const projectSchema = z.object({
-  name: z.string().min(1, 'Name is required').max(100, 'Name is too long'),
-  slug: z
-    .string()
-    .min(1, 'Slug is required')
-    .max(50, 'Slug is too long')
-    .regex(
-      /^[a-z0-9]+(?:-[a-z0-9]+)*$/,
-      'Slug must be lowercase with hyphens only'
-    ),
-  description: z.string().max(500, 'Description is too long').optional(),
-});
-
-type ProjectFormValues = z.infer<typeof projectSchema>;
+import { createProjectSchema, type CreateProjectInput } from '@/lib/validators/project';
+import type { ProjectType } from '@/types/project';
 
 interface NewProjectDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
 }
 
+const PROJECT_TYPES: { value: ProjectType; title: string; description: string; icon: React.ComponentType<{ className?: string }> }[] = [
+  {
+    value: 'standard',
+    title: 'Standard CRM',
+    description: 'Sales pipeline, opportunities, RFPs, sequences, and contracts.',
+    icon: Building2,
+  },
+  {
+    value: 'community',
+    title: 'Community Center',
+    description: 'Households, programs, contributions, contractors, and impact tracking.',
+    icon: Users,
+  },
+];
+
+const FRAMEWORKS = [
+  {
+    value: 'ccf' as const,
+    title: 'Community Capitals Framework',
+    description: '7 capitals: Natural, Cultural, Human, Social, Political, Financial, Built.',
+  },
+  {
+    value: 'vital_conditions' as const,
+    title: '7 Vital Conditions',
+    description: 'Health & well-being framework: Basic Needs, Belonging, Lifelong Learning, and more.',
+  },
+  {
+    value: 'custom' as const,
+    title: 'Custom Framework',
+    description: 'Define your own impact dimensions later in Settings.',
+  },
+];
+
+const ACCOUNTING_TARGETS = [
+  {
+    value: 'goodrev' as const,
+    title: 'GoodRev Accounting',
+    description: 'Use the built-in accounting module for bills and expenses.',
+  },
+  {
+    value: 'quickbooks' as const,
+    title: 'QuickBooks Online',
+    description: 'Connect to QuickBooks for bill creation and receipt processing.',
+  },
+  {
+    value: 'none' as const,
+    title: 'Skip for Now',
+    description: 'Set up accounting integration later in Settings.',
+  },
+];
+
 export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) {
   const [isLoading, setIsLoading] = useState(false);
+  const [step, setStep] = useState(0);
   const router = useRouter();
 
-  const form = useForm<ProjectFormValues>({
-    resolver: zodResolver(projectSchema),
+  const form = useForm<CreateProjectInput>({
+    resolver: zodResolver(createProjectSchema),
     defaultValues: {
       name: '',
       slug: '',
       description: '',
+      project_type: 'standard',
+      framework_type: null,
+      accounting_target: null,
     },
   });
 
-  const onSubmit = async (values: ProjectFormValues) => {
+  const projectType = form.watch('project_type');
+  const isCommunity = projectType === 'community';
+
+  // Steps: 0 = type, 1 = framework (community only), 2 = accounting (community only), 3 = details
+  const detailsStep = isCommunity ? 3 : 1;
+
+  const onSubmit = async (values: CreateProjectInput) => {
     setIsLoading(true);
 
     try {
       const response = await fetch('/api/projects', {
         method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
+        headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           name: values.name,
           slug: values.slug,
           description: values.description || null,
+          project_type: values.project_type,
+          framework_type: isCommunity ? values.framework_type : undefined,
+          accounting_target: isCommunity ? values.accounting_target : undefined,
         }),
       });
 
@@ -81,17 +131,14 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
 
       if (!response.ok) {
         if (response.status === 409) {
-          form.setError('slug', {
-            message: 'This slug is already taken',
-          });
+          form.setError('slug', { message: 'This slug is already taken' });
           return;
         }
         throw new Error(data.error || 'Failed to create project');
       }
 
       toast.success('Project created successfully');
-      onOpenChange(false);
-      form.reset();
+      handleClose();
       router.push(`/projects/${data.project.slug}`);
       router.refresh();
     } catch (error) {
@@ -102,7 +149,12 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
     }
   };
 
-  // Auto-generate slug from name
+  const handleClose = () => {
+    onOpenChange(false);
+    setStep(0);
+    form.reset();
+  };
+
   const handleNameChange = (name: string) => {
     const slug = name
       .toLowerCase()
@@ -111,87 +163,243 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
     form.setValue('slug', slug);
   };
 
+  const canAdvance = () => {
+    if (step === 0) return true;
+    if (step === 1 && isCommunity) return !!form.getValues('framework_type');
+    if (step === 2 && isCommunity) return !!form.getValues('accounting_target');
+    return true;
+  };
+
+  const handleNext = () => {
+    if (step === 0 && !isCommunity) {
+      setStep(detailsStep);
+    } else {
+      setStep(step + 1);
+    }
+  };
+
+  const handleBack = () => {
+    if (step === detailsStep && !isCommunity) {
+      setStep(0);
+    } else {
+      setStep(step - 1);
+    }
+  };
+
   return (
-    <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[425px]">
+    <Dialog open={open} onOpenChange={handleClose}>
+      <DialogContent className="sm:max-w-[500px]">
         <DialogHeader>
           <DialogTitle>Create New Project</DialogTitle>
           <DialogDescription>
-            Create a new project to organize your CRM data.
+            {step === 0 && 'Choose the type of project you want to create.'}
+            {step === 1 && isCommunity && 'Select an impact measurement framework.'}
+            {step === 2 && isCommunity && 'Choose your accounting integration.'}
+            {step === detailsStep && 'Enter your project details.'}
           </DialogDescription>
         </DialogHeader>
 
         <Form {...form}>
           <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-4">
-            <FormField
-              control={form.control}
-              name="name"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Name</FormLabel>
-                  <FormControl>
-                    <Input
-                      placeholder="My Project"
-                      {...field}
-                      onChange={(e) => {
-                        field.onChange(e);
-                        handleNameChange(e.target.value);
-                      }}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Step 0: Project Type */}
+            {step === 0 && (
+              <FormField
+                control={form.control}
+                name="project_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <RadioGroup
+                        value={field.value}
+                        onValueChange={field.onChange}
+                        className="grid gap-3"
+                      >
+                        {PROJECT_TYPES.map((type) => (
+                          <Label
+                            key={type.value}
+                            htmlFor={`type-${type.value}`}
+                            className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${
+                              field.value === type.value
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border hover:border-muted-foreground/50'
+                            }`}
+                          >
+                            <RadioGroupItem value={type.value} id={`type-${type.value}`} className="mt-0.5" />
+                            <div className="flex-1">
+                              <div className="flex items-center gap-2">
+                                <type.icon className="h-4 w-4" />
+                                <span className="font-medium">{type.title}</span>
+                              </div>
+                              <p className="text-sm text-muted-foreground mt-1">{type.description}</p>
+                            </div>
+                          </Label>
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
 
-            <FormField
-              control={form.control}
-              name="slug"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Slug</FormLabel>
-                  <FormControl>
-                    <Input placeholder="my-project" {...field} />
-                  </FormControl>
-                  <FormDescription>
-                    URL-friendly identifier for your project
-                  </FormDescription>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Step 1: Framework (community only) */}
+            {step === 1 && isCommunity && (
+              <FormField
+                control={form.control}
+                name="framework_type"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <RadioGroup
+                        value={field.value ?? ''}
+                        onValueChange={field.onChange}
+                        className="grid gap-3"
+                      >
+                        {FRAMEWORKS.map((fw) => (
+                          <Label
+                            key={fw.value}
+                            htmlFor={`fw-${fw.value}`}
+                            className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${
+                              field.value === fw.value
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border hover:border-muted-foreground/50'
+                            }`}
+                          >
+                            <RadioGroupItem value={fw.value} id={`fw-${fw.value}`} className="mt-0.5" />
+                            <div className="flex-1">
+                              <span className="font-medium">{fw.title}</span>
+                              <p className="text-sm text-muted-foreground mt-1">{fw.description}</p>
+                            </div>
+                          </Label>
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
 
-            <FormField
-              control={form.control}
-              name="description"
-              render={({ field }) => (
-                <FormItem>
-                  <FormLabel>Description</FormLabel>
-                  <FormControl>
-                    <Textarea
-                      placeholder="Optional description..."
-                      className="resize-none"
-                      {...field}
-                    />
-                  </FormControl>
-                  <FormMessage />
-                </FormItem>
-              )}
-            />
+            {/* Step 2: Accounting Target (community only) */}
+            {step === 2 && isCommunity && (
+              <FormField
+                control={form.control}
+                name="accounting_target"
+                render={({ field }) => (
+                  <FormItem>
+                    <FormControl>
+                      <RadioGroup
+                        value={field.value ?? ''}
+                        onValueChange={field.onChange}
+                        className="grid gap-3"
+                      >
+                        {ACCOUNTING_TARGETS.map((at) => (
+                          <Label
+                            key={at.value}
+                            htmlFor={`at-${at.value}`}
+                            className={`flex items-start gap-3 rounded-lg border p-4 cursor-pointer transition-colors ${
+                              field.value === at.value
+                                ? 'border-primary bg-primary/5'
+                                : 'border-border hover:border-muted-foreground/50'
+                            }`}
+                          >
+                            <RadioGroupItem value={at.value} id={`at-${at.value}`} className="mt-0.5" />
+                            <div className="flex-1">
+                              <span className="font-medium">{at.title}</span>
+                              <p className="text-sm text-muted-foreground mt-1">{at.description}</p>
+                            </div>
+                          </Label>
+                        ))}
+                      </RadioGroup>
+                    </FormControl>
+                  </FormItem>
+                )}
+              />
+            )}
 
-            <DialogFooter>
-              <Button
-                type="button"
-                variant="outline"
-                onClick={() => onOpenChange(false)}
-                disabled={isLoading}
-              >
-                Cancel
-              </Button>
-              <Button type="submit" disabled={isLoading}>
-                {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-                Create Project
-              </Button>
+            {/* Details Step */}
+            {step === detailsStep && (
+              <>
+                <FormField
+                  control={form.control}
+                  name="name"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Name</FormLabel>
+                      <FormControl>
+                        <Input
+                          placeholder={isCommunity ? 'Eastside Community Center' : 'My Project'}
+                          {...field}
+                          onChange={(e) => {
+                            field.onChange(e);
+                            handleNameChange(e.target.value);
+                          }}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="slug"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Slug</FormLabel>
+                      <FormControl>
+                        <Input placeholder="my-project" {...field} />
+                      </FormControl>
+                      <FormDescription>
+                        URL-friendly identifier for your project
+                      </FormDescription>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+
+                <FormField
+                  control={form.control}
+                  name="description"
+                  render={({ field }) => (
+                    <FormItem>
+                      <FormLabel>Description</FormLabel>
+                      <FormControl>
+                        <Textarea
+                          placeholder="Optional description..."
+                          className="resize-none"
+                          {...field}
+                          value={field.value ?? ''}
+                        />
+                      </FormControl>
+                      <FormMessage />
+                    </FormItem>
+                  )}
+                />
+              </>
+            )}
+
+            <DialogFooter className="flex gap-2 sm:gap-0">
+              {step > 0 ? (
+                <Button type="button" variant="outline" onClick={handleBack} disabled={isLoading}>
+                  <ArrowLeft className="mr-2 h-4 w-4" />
+                  Back
+                </Button>
+              ) : (
+                <Button type="button" variant="outline" onClick={handleClose} disabled={isLoading}>
+                  Cancel
+                </Button>
+              )}
+
+              {step < detailsStep ? (
+                <Button type="button" onClick={handleNext} disabled={!canAdvance()}>
+                  Next
+                  <ArrowRight className="ml-2 h-4 w-4" />
+                </Button>
+              ) : (
+                <Button type="submit" disabled={isLoading}>
+                  {isLoading && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
+                  Create Project
+                </Button>
+              )}
             </DialogFooter>
           </form>
         </Form>

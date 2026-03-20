@@ -1,6 +1,7 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { createProjectSchema } from '@/lib/validators/project';
+import { cloneFrameworkToProject, getFrameworkTemplate } from '@/lib/community/frameworks';
 import type { Database } from '@/types/database';
 
 type ProjectInsert = Database['public']['Tables']['projects']['Insert'];
@@ -59,20 +60,29 @@ export async function POST(request: Request) {
       );
     }
 
-    const { name, slug, description, settings } = validationResult.data;
+    const { name, slug, description, settings, project_type, accounting_target, framework_type } = validationResult.data;
 
     // Use service client to bypass RLS for project creation
     const serviceClient = createServiceClient();
 
+    const insertData: ProjectInsert = {
+      name,
+      slug,
+      description: description ?? null,
+      settings: settings ?? {},
+      owner_id: user.id,
+    };
+
+    if (project_type) {
+      insertData.project_type = project_type;
+    }
+    if (accounting_target) {
+      insertData.accounting_target = accounting_target;
+    }
+
     const { data: project, error } = await serviceClient
       .from('projects')
-      .insert({
-        name,
-        slug,
-        description: description ?? null,
-        settings: settings ?? {},
-        owner_id: user.id,
-      } as ProjectInsert)
+      .insert(insertData)
       .select()
       .single();
 
@@ -89,6 +99,54 @@ export async function POST(request: Request) {
         { error: 'Failed to create project' },
         { status: 500 }
       );
+    }
+
+    // For community projects, framework setup must succeed or the project is rolled back.
+    if (project_type === 'community' && framework_type && framework_type !== 'custom') {
+      try {
+        const template = getFrameworkTemplate(framework_type);
+        const { framework, dimensions } = cloneFrameworkToProject(template, project.id);
+
+        const { data: insertedFramework, error: fwError } = await serviceClient
+          .from('impact_frameworks')
+          .insert(framework)
+          .select('id')
+          .single();
+
+        if (fwError || !insertedFramework) {
+          throw fwError ?? new Error('Failed to create community framework');
+        }
+
+        const { error: dimensionsError } = await serviceClient
+          .from('impact_dimensions')
+          .insert(dimensions);
+
+        if (dimensionsError) {
+          throw dimensionsError;
+        }
+
+        const { error: updateProjectError } = await serviceClient
+          .from('projects')
+          .update({ impact_framework_id: insertedFramework.id })
+          .eq('id', project.id);
+
+        if (updateProjectError) {
+          throw updateProjectError;
+        }
+
+        project.impact_framework_id = insertedFramework.id;
+      } catch (fwError) {
+        console.error('Error setting up community project framework:', fwError);
+        await serviceClient
+          .from('projects')
+          .delete()
+          .eq('id', project.id);
+
+        return NextResponse.json(
+          { error: 'Failed to finish community project setup. The project was not created.' },
+          { status: 500 }
+        );
+      }
     }
 
     return NextResponse.json({ project }, { status: 201 });

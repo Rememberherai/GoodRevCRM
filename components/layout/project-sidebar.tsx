@@ -21,82 +21,59 @@ import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { useChatStore } from '@/stores/chat';
 import type { Project } from '@/types/project';
+import type { ProjectRole } from '@/types/user';
 
 interface ProjectSidebarProps {
   project: Project;
+  role?: ProjectRole;
 }
 
-const navItems = [
-  {
-    title: 'Dashboard',
-    href: '',
-    icon: LayoutDashboard,
-  },
-  {
-    title: 'Organizations',
-    href: '/organizations',
-    icon: Building2,
-  },
-  {
-    title: 'People',
-    href: '/people',
-    icon: Users,
-  },
-  {
-    title: 'Opportunities',
-    href: '/opportunities',
-    icon: Target,
-  },
-  {
-    title: 'RFPs',
-    href: '/rfps',
-    icon: FileText,
-  },
-  {
-    title: 'Sequences',
-    href: '/sequences',
-    icon: Mail,
-  },
-  {
-    title: 'Content Library',
-    href: '/content-library',
-    icon: Library,
-  },
-  {
-    title: 'Reporting',
-    href: '/reports',
-    icon: BarChart3,
-  },
-  {
-    title: 'News',
-    href: '/news',
-    icon: Newspaper,
-  },
-  {
-    title: 'Contracts',
-    href: '/contracts',
-    icon: PenTool,
-  },
-  {
-    title: 'Workflows',
-    href: '/workflows',
-    icon: GitBranch,
-  },
+interface NavItem {
+  title: string;
+  href: string;
+  icon: React.ComponentType<{ className?: string }>;
+}
+
+const standardNavItems: NavItem[] = [
+  { title: 'Dashboard', href: '', icon: LayoutDashboard },
+  { title: 'Organizations', href: '/organizations', icon: Building2 },
+  { title: 'People', href: '/people', icon: Users },
+  { title: 'Opportunities', href: '/opportunities', icon: Target },
+  { title: 'RFPs', href: '/rfps', icon: FileText },
+  { title: 'Sequences', href: '/sequences', icon: Mail },
+  { title: 'Content Library', href: '/content-library', icon: Library },
+  { title: 'Reporting', href: '/reports', icon: BarChart3 },
+  { title: 'News', href: '/news', icon: Newspaper },
+  { title: 'Contracts', href: '/contracts', icon: PenTool },
+  { title: 'Workflows', href: '/workflows', icon: GitBranch },
 ];
 
-const bottomNavItems = [
-  {
-    title: 'Settings',
-    href: '/settings',
-    icon: Settings,
-  },
+const communityNavItems: NavItem[] = [
+  { title: 'Dashboard', href: '', icon: LayoutDashboard },
+  { title: 'People', href: '/people', icon: Users },
+  { title: 'Organizations', href: '/organizations', icon: Building2 },
+  { title: 'Reporting', href: '/reports', icon: BarChart3 },
 ];
 
-export function ProjectSidebar({ project }: ProjectSidebarProps) {
+const bottomNavItems: NavItem[] = [
+  { title: 'Settings', href: '/settings', icon: Settings },
+];
+
+export function ProjectSidebar({ project, role }: ProjectSidebarProps) {
   const pathname = usePathname();
   const basePath = `/projects/${project.slug}`;
   const toggleChat = useChatStore((s) => s.toggle);
   const chatOpen = useChatStore((s) => s.isOpen);
+
+  let navItems = project.project_type === 'community' ? communityNavItems : standardNavItems;
+
+  if (project.project_type === 'community') {
+    if (role === 'board_viewer') {
+      navItems = communityNavItems.filter((item) => item.title === 'Dashboard' || item.title === 'Reporting');
+    } else if (role === 'contractor') {
+      navItems = communityNavItems.filter((item) => item.title === 'Dashboard');
+    }
+  }
 
   return (
     <aside className="w-64 border-r bg-card flex flex-col">
@@ -156,7 +133,7 @@ export function ProjectSidebar({ project }: ProjectSidebarProps) {
           <MessageSquare className="h-4 w-4" />
           Chat
         </button>
-        {bottomNavItems.map((item) => {
+        {!(project.project_type === 'community' && (role === 'board_viewer' || role === 'contractor')) && bottomNavItems.map((item) => {
           const href = `${basePath}${item.href}`;
           const isActive = pathname.startsWith(href);
 
