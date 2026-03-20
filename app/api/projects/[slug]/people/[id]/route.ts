@@ -40,7 +40,7 @@ export async function GET(_request: Request, context: RouteContext) {
     // Fetch person
     const { data: person, error } = await supabase
       .from('people')
-      .select('*, disposition:dispositions(id, name, color)')
+      .select('*, disposition:dispositions(id, name, color, blocks_outreach)')
       .eq('id', id)
       .eq('project_id', project.id)
       .is('deleted_at', null)

@@ -491,6 +491,8 @@ export function PeoplePageClient() {
         </AlertDialogContent>
       </AlertDialog>
 
+      {GuardDialog}
+
       <SendEmailModal
         open={!!sendEmailTo}
         onOpenChange={(open) => { if (!open) setSendEmailTo(null); }}

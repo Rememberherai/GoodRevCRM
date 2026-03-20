@@ -2563,6 +2563,7 @@ export type Database = {
       }
       dispositions: {
         Row: {
+          blocks_outreach: boolean
           color: string
           created_at: string
           created_by: string | null
@@ -2576,6 +2577,7 @@ export type Database = {
           updated_at: string
         }
         Insert: {
+          blocks_outreach?: boolean
           color?: string
           created_at?: string
           created_by?: string | null
@@ -2589,6 +2591,7 @@ export type Database = {
           updated_at?: string
         }
         Update: {
+          blocks_outreach?: boolean
           color?: string
           created_at?: string
           created_by?: string | null

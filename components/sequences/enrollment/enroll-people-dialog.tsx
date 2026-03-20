@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Search, Loader2, Mail, Check } from 'lucide-react';
+import { useOutreachGuard } from '@/hooks/use-outreach-guard';
 import {
   Dialog,
   DialogContent,
@@ -59,6 +60,7 @@ export function EnrollPeopleDialog({
   const [isLoading, setIsLoading] = useState(false);
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const { checkOutreach, GuardDialog } = useOutreachGuard(projectSlug);
 
   useEffect(() => {
     if (open) {
@@ -135,9 +137,7 @@ export function EnrollPeopleDialog({
     }
   };
 
-  const handleEnroll = async () => {
-    if (selectedPeople.size === 0 || !selectedConnection) return;
-
+  const doEnroll = async (ids: string[]) => {
     setIsEnrolling(true);
     setError(null);
 
@@ -148,7 +148,7 @@ export function EnrollPeopleDialog({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            person_ids: Array.from(selectedPeople),
+            person_ids: ids,
             gmail_connection_id: selectedConnection,
           }),
         }
@@ -170,12 +170,19 @@ export function EnrollPeopleDialog({
     }
   };
 
+  const handleEnroll = async () => {
+    if (selectedPeople.size === 0 || !selectedConnection) return;
+    await checkOutreach(Array.from(selectedPeople), (filteredIds) => doEnroll(filteredIds));
+  };
+
   const getPersonName = (person: Person) => {
     const name = [person.first_name, person.last_name].filter(Boolean).join(' ');
     return name || person.email || 'Unknown';
   };
 
   return (
+    <>
+    {GuardDialog}
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
@@ -319,5 +326,6 @@ export function EnrollPeopleDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

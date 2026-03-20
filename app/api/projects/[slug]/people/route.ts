@@ -57,7 +57,7 @@ export async function GET(request: Request, context: RouteContext) {
     // Build query — select only ID when requested for bulk selection
     let query = supabase
       .from('people')
-      .select(idsOnly ? 'id' : '*, disposition:dispositions(id, name, color)', { count: 'exact' })
+      .select(idsOnly ? 'id' : '*, disposition:dispositions(id, name, color, blocks_outreach)', { count: 'exact' })
       .eq('project_id', project.id)
       .is('deleted_at', null);
 

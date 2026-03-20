@@ -40,7 +40,7 @@ export async function GET(_request: Request, context: RouteContext) {
     // Fetch organization with related counts
     const { data: organization, error } = await supabase
       .from('organizations')
-      .select('*, disposition:dispositions(id, name, color)')
+      .select('*, disposition:dispositions(id, name, color, blocks_outreach)')
       .eq('id', id)
       .eq('project_id', project.id)
       .is('deleted_at', null)

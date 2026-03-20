@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Loader2, Mail, ListChecks, Users } from 'lucide-react';
+import { useOutreachGuard } from '@/hooks/use-outreach-guard';
 import {
   Dialog,
   DialogContent,
@@ -63,6 +64,7 @@ export function EnrollInSequenceDialog({
   const [isEnrolling, setIsEnrolling] = useState(false);
   const [groupByOrg, setGroupByOrg] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const { checkOutreach, GuardDialog } = useOutreachGuard(projectSlug);
 
   useEffect(() => {
     if (open) {
@@ -114,9 +116,7 @@ export function EnrollInSequenceDialog({
     }
   };
 
-  const handleEnroll = async () => {
-    if (!selectedSequence || !selectedConnection || personIds.length === 0) return;
-
+  const doEnroll = async (ids: string[]) => {
     setIsEnrolling(true);
     setError(null);
 
@@ -127,7 +127,7 @@ export function EnrollInSequenceDialog({
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            person_ids: personIds,
+            person_ids: ids,
             gmail_connection_id: selectedConnection,
             group_by_org: groupByOrg,
           }),
@@ -140,7 +140,7 @@ export function EnrollInSequenceDialog({
       }
 
       const data = await response.json();
-      const count = data.count ?? personIds.length;
+      const count = data.count ?? ids.length;
       toast.success(`Enrolled ${count} ${count === 1 ? 'person' : 'people'} in sequence`);
       onEnrolled?.(count);
       onOpenChange(false);
@@ -151,9 +151,16 @@ export function EnrollInSequenceDialog({
     }
   };
 
+  const handleEnroll = async () => {
+    if (!selectedSequence || !selectedConnection || personIds.length === 0) return;
+    await checkOutreach(personIds, (filteredIds) => doEnroll(filteredIds));
+  };
+
   const selectedSeq = sequences.find((s) => s.id === selectedSequence);
 
   return (
+    <>
+    {GuardDialog}
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent className="max-w-lg">
         <DialogHeader>
@@ -296,5 +303,6 @@ export function EnrollInSequenceDialog({
         </DialogFooter>
       </DialogContent>
     </Dialog>
+    </>
   );
 }

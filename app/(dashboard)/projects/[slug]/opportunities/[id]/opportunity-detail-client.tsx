@@ -47,6 +47,7 @@ import { EntityActivitySection } from '@/components/activity/entity-activity-sec
 import { EntityMeetingsSection } from '@/components/meetings/entity-meetings-section';
 import { SendEmailModal } from '@/components/gmail';
 import { CreateTaskModal } from '@/components/tasks/create-task-modal';
+import { useOutreachGuard } from '@/hooks/use-outreach-guard';
 import { EntityCommentsFeed } from '@/components/comments';
 import { CreateInvoiceButton } from '@/components/accounting/create-invoice-button';
 import { QuoteList } from '@/components/quotes/quote-list';
@@ -87,6 +88,7 @@ export function OpportunityDetailClient({ opportunityId, currentUserId }: Opport
   const [showSendEmail, setShowSendEmail] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [quotesEnabled, setQuotesEnabled] = useState(false);
+  const { checkOutreach, GuardDialog } = useOutreachGuard(slug);
 
   const { opportunity, isLoading, error, refresh } = useOpportunity(opportunityId);
   const quotesHook = useQuotes(opportunityId, { enabled: quotesEnabled });
@@ -214,7 +216,14 @@ export function OpportunityDetailClient({ opportunityId, currentUserId }: Opport
             <ListTodo className="mr-2 h-4 w-4" />
             Follow Up
           </Button>
-          <Button variant="outline" onClick={() => setShowSendEmail(true)}>
+          <Button variant="outline" onClick={() => {
+            const contactId = opportunity.primary_contact_id;
+            if (contactId) {
+              checkOutreach([contactId], () => setShowSendEmail(true));
+            } else {
+              setShowSendEmail(true);
+            }
+          }}>
             <Mail className="mr-2 h-4 w-4" />
             Send Email
           </Button>
@@ -590,6 +599,8 @@ export function OpportunityDetailClient({ opportunityId, currentUserId }: Opport
           </TabsContent>
         )}
       </Tabs>
+
+      {GuardDialog}
 
       <SendEmailModal
         open={showSendEmail}

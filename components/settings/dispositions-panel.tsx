@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { Plus, Pencil, Trash2, Loader2, Tag, Star, ArrowUp, ArrowDown } from 'lucide-react';
+import { Plus, Pencil, Trash2, Loader2, Tag, Star, ArrowUp, ArrowDown, ShieldAlert } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -54,12 +54,14 @@ interface DispositionFormData {
   name: string;
   color: DispositionColor;
   is_default: boolean;
+  blocks_outreach: boolean;
 }
 
 const emptyForm: DispositionFormData = {
   name: '',
   color: 'gray',
   is_default: false,
+  blocks_outreach: false,
 };
 
 function DispositionBadge({ name, color }: { name: string; color: string }) {
@@ -126,6 +128,7 @@ function DispositionList({ entityType, currentUserRole }: { entityType: Disposit
       name: d.name,
       color: (d.color as DispositionColor) || 'gray',
       is_default: d.is_default,
+      blocks_outreach: d.blocks_outreach ?? false,
     });
     setDialogOpen(true);
   };
@@ -142,6 +145,7 @@ function DispositionList({ entityType, currentUserRole }: { entityType: Disposit
           name: formData.name.trim(),
           color: formData.color,
           is_default: formData.is_default,
+          blocks_outreach: formData.blocks_outreach,
         });
         toast.success('Disposition updated');
       } else {
@@ -149,6 +153,7 @@ function DispositionList({ entityType, currentUserRole }: { entityType: Disposit
           name: formData.name.trim(),
           color: formData.color,
           is_default: formData.is_default,
+          blocks_outreach: formData.blocks_outreach,
           sort_order: dispositions.length,
         });
         toast.success('Disposition created');
@@ -198,6 +203,7 @@ function DispositionList({ entityType, currentUserRole }: { entityType: Disposit
           name: d.name,
           color: d.color,
           is_default: d.is_default,
+          blocks_outreach: d.blocks_outreach,
           sort_order: i,
         });
       }
@@ -250,6 +256,7 @@ function DispositionList({ entityType, currentUserRole }: { entityType: Disposit
                 <TableHead>Name</TableHead>
                 <TableHead>Preview</TableHead>
                 <TableHead>Default</TableHead>
+                <TableHead>Blocks Outreach</TableHead>
                 {canManage && <TableHead className="w-[80px]" />}
               </TableRow>
             </TableHeader>
@@ -287,6 +294,11 @@ function DispositionList({ entityType, currentUserRole }: { entityType: Disposit
                   <TableCell>
                     {d.is_default && (
                       <Star className="h-4 w-4 text-yellow-500 fill-yellow-500" />
+                    )}
+                  </TableCell>
+                  <TableCell>
+                    {d.blocks_outreach && (
+                      <ShieldAlert className="h-4 w-4 text-amber-500" />
                     )}
                   </TableCell>
                   {canManage && (
@@ -352,6 +364,20 @@ function DispositionList({ entityType, currentUserRole }: { entityType: Disposit
               <Label htmlFor="disposition-default">
                 Default for new {entityType === 'organization' ? 'organizations' : 'people'}
               </Label>
+            </div>
+            <div className="flex items-center gap-2">
+              <Switch
+                id="disposition-blocks-outreach"
+                checked={formData.blocks_outreach}
+                onCheckedChange={(checked) => setFormData({ ...formData, blocks_outreach: checked })}
+              />
+              <Label htmlFor="disposition-blocks-outreach" className="flex items-center gap-1.5">
+                <ShieldAlert className="h-4 w-4 text-amber-500" />
+                Blocks outreach
+              </Label>
+              <p className="text-xs text-muted-foreground ml-1">
+                Warn before enrolling in sequences or sending emails
+              </p>
             </div>
           </div>
           <DialogFooter>

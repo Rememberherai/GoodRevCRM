@@ -33,10 +33,10 @@ export const DISPOSITION_COLOR_MAP: Record<DispositionColor, { bg: string; text:
 };
 
 /** Default dispositions seeded when user clicks "Initialize defaults" */
-export const DEFAULT_DISPOSITIONS: Array<{ name: string; color: DispositionColor; is_default: boolean }> = [
-  { name: 'Prospect', color: 'blue', is_default: true },
-  { name: 'Customer', color: 'green', is_default: false },
-  { name: 'Partner', color: 'purple', is_default: false },
-  { name: 'Not a Fit', color: 'gray', is_default: false },
-  { name: 'Former Customer', color: 'orange', is_default: false },
+export const DEFAULT_DISPOSITIONS: Array<{ name: string; color: DispositionColor; is_default: boolean; blocks_outreach: boolean }> = [
+  { name: 'Prospect', color: 'blue', is_default: true, blocks_outreach: false },
+  { name: 'Customer', color: 'green', is_default: false, blocks_outreach: false },
+  { name: 'Partner', color: 'purple', is_default: false, blocks_outreach: false },
+  { name: 'Not a Fit', color: 'gray', is_default: false, blocks_outreach: true },
+  { name: 'Former Customer', color: 'orange', is_default: false, blocks_outreach: false },
 ];

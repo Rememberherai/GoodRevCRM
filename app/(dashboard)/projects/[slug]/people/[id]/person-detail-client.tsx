@@ -67,6 +67,7 @@ import {
 } from '@/components/ui/select';
 import { useDispositions } from '@/hooks/use-dispositions';
 import { DISPOSITION_COLOR_MAP, type DispositionColor } from '@/types/disposition';
+import { useOutreachGuard } from '@/hooks/use-outreach-guard';
 
 interface PersonDetailClientProps {
   personId: string;
@@ -103,10 +104,25 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
   const [showLogActivity, setShowLogActivity] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [emailValidating, setEmailValidating] = useState(false);
+  const { checkWithDisposition, GuardDialog } = useOutreachGuard(slug);
 
   const { person, isLoading, error, refresh } = usePerson(personId);
   const removePerson = usePersonStore((s) => s.removePerson);
   const setCurrentPerson = usePersonStore((s) => s.setCurrentPerson);
+
+  const getPersonDisposition = useCallback(() => {
+    if (!person?.disposition_id) return null;
+    const disp = dispositions.find((d) => d.id === person.disposition_id);
+    if (!disp) return null;
+    return { name: disp.name, blocks_outreach: disp.blocks_outreach ?? false };
+  }, [person?.disposition_id, dispositions]);
+
+  const handleGuardedSendEmail = useCallback(() => {
+    if (!person) return;
+    const disp = getPersonDisposition();
+    const name = [person.first_name, person.last_name].filter(Boolean).join(' ') || 'Unknown';
+    checkWithDisposition(person.id, name, disp, () => setShowSendEmail(true));
+  }, [person, getPersonDisposition, checkWithDisposition]);
 
   const handleValidateEmail = async () => {
     if (!person?.email) return;
@@ -416,7 +432,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
             Follow Up
           </Button>
           {person.email && (
-            <Button variant="outline" onClick={() => setShowSendEmail(true)}>
+            <Button variant="outline" onClick={handleGuardedSendEmail}>
               <Mail className="mr-2 h-4 w-4" />
               Send Email
             </Button>
@@ -582,7 +598,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
                   <div className="flex items-center gap-2">
                     <ClickableEmail
                       email={person.email}
-                      onEmailClick={() => setShowSendEmail(true)}
+                      onEmailClick={handleGuardedSendEmail}
                       showIcon={true}
                       variant="link"
                     />
@@ -902,6 +918,8 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
+
+      {GuardDialog}
 
       <SendEmailModal
         open={showSendEmail}

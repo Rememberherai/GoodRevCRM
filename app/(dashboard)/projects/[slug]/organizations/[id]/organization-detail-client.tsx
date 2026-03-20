@@ -88,6 +88,7 @@ import {
 } from '@/components/ui/select';
 import { useDispositions } from '@/hooks/use-dispositions';
 import { DISPOSITION_COLOR_MAP, type DispositionColor } from '@/types/disposition';
+import { useOutreachGuard } from '@/hooks/use-outreach-guard';
 import { fetchPeople } from '@/stores/person';
 import type { ResearchJob } from '@/types/research';
 import { ClickableEmail } from '@/components/contacts/clickable-email';
@@ -221,6 +222,7 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
   const slug = params.slug as string;
   const [activeTab, setActiveTab] = useState('info');
   const { dispositions } = useDispositions('organization');
+  const { checkWithDisposition, GuardDialog } = useOutreachGuard(slug);
   const [showDeleteDialog, setShowDeleteDialog] = useState(false);
   const [isDeleting, setIsDeleting] = useState(false);
   const [showResearchResults, setShowResearchResults] = useState(false);
@@ -261,6 +263,25 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
   const { organization, isLoading, error, refresh } = useOrganization(organizationId);
   const { fields: customFields } = useEntityCustomFields('organization');
   const setCurrentOrganization = useOrganizationStore((s) => s.setCurrentOrganization);
+
+  const getOrgDisposition = useCallback(() => {
+    if (!organization?.disposition_id) return null;
+    const disp = dispositions.find((d) => d.id === organization.disposition_id);
+    if (!disp) return null;
+    return { name: disp.name, blocks_outreach: disp.blocks_outreach ?? false };
+  }, [organization?.disposition_id, dispositions]);
+
+  const handleGuardedSendEmail = useCallback(() => {
+    if (!organization) return;
+    const disp = getOrgDisposition();
+    checkWithDisposition(organization.id, organization.name ?? 'Unknown', disp, () => setShowSendEmail(true));
+  }, [organization, getOrgDisposition, checkWithDisposition]);
+
+  const handleGuardedEnrollSequence = useCallback(() => {
+    if (!organization) return;
+    const disp = getOrgDisposition();
+    checkWithDisposition(organization.id, organization.name ?? 'Unknown', disp, () => setEnrollInSequenceOpen(true));
+  }, [organization, getOrgDisposition, checkWithDisposition]);
 
   const loadPeople = useCallback(async () => {
     if (!slug) return;
@@ -491,7 +512,7 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
             <ListTodo className="mr-2 h-4 w-4" />
             Follow Up
           </Button>
-          <Button variant="outline" onClick={() => setShowSendEmail(true)}>
+          <Button variant="outline" onClick={handleGuardedSendEmail}>
             <Mail className="mr-2 h-4 w-4" />
             Send Email
           </Button>
@@ -1063,7 +1084,7 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
               />
               <Button
                 size="sm"
-                onClick={() => setEnrollInSequenceOpen(true)}
+                onClick={handleGuardedEnrollSequence}
               >
                 <Send className="mr-2 h-4 w-4" />
                 Enroll in Sequence
@@ -1378,6 +1399,8 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
         organizationName={organization.name}
         onRfpAdded={handleRfpAdded}
       />
+
+      {GuardDialog}
 
       <SendEmailModal
         open={showSendEmail}
