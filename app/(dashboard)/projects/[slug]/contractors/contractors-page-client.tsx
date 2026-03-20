@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { HardHat, MessageSquare } from 'lucide-react';
+import { HardHat, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { AddContractorDialog } from '@/components/community/contractors/add-contractor-dialog';
 
 interface ContractorPerson {
   id: string;
@@ -38,6 +39,7 @@ export function ContractorsPageClient() {
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showAddContractor, setShowAddContractor] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -109,9 +111,9 @@ export function ContractorsPageClient() {
             <CardTitle>Contractor Directory</CardTitle>
             <CardDescription>Use chat onboarding to create scopes, collect documents, and invite contractors.</CardDescription>
           </div>
-          <Button variant="outline">
-            <MessageSquare className="mr-2 h-4 w-4" />
-            Open Chat to Onboard
+          <Button onClick={() => setShowAddContractor(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            Add Contractor
           </Button>
         </CardHeader>
         <CardContent>
@@ -162,6 +164,12 @@ export function ContractorsPageClient() {
           )}
         </CardContent>
       </Card>
+      <AddContractorDialog
+        open={showAddContractor}
+        onOpenChange={setShowAddContractor}
+        projectSlug={slug}
+        onCreated={() => void loadData()}
+      />
     </div>
   );
 }
