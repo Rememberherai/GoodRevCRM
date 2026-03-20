@@ -71,42 +71,60 @@ function detectPageContext(pathname: string): PageContext | null {
 }
 
 export function useChat(projectSlug: string) {
+  // Subscribe to state for rendering
   const store = useChatStore();
   const abortRef = useRef<AbortController | null>(null);
   const pathname = usePathname();
   const router = useRouter();
   const hadMutationRef = useRef(false);
 
+  // Extract stable action references (these never change between renders)
+  const setConversations = useChatStore((s) => s.setConversations);
+  const setCurrentConversation = useChatStore((s) => s.setCurrentConversation);
+  const setCurrentConversationId = useChatStore((s) => s.setCurrentConversationId);
+  const setMessages = useChatStore((s) => s.setMessages);
+  const addMessage = useChatStore((s) => s.addMessage);
+  const appendStreamingContent = useChatStore((s) => s.appendStreamingContent);
+  const resetStreamingContent = useChatStore((s) => s.resetStreamingContent);
+  const addToolCall = useChatStore((s) => s.addToolCall);
+  const updateToolCallResult = useChatStore((s) => s.updateToolCallResult);
+  const clearToolCalls = useChatStore((s) => s.clearToolCalls);
+  const finalizeToolCalls = useChatStore((s) => s.finalizeToolCalls);
+  const setStreaming = useChatStore((s) => s.setStreaming);
+  const setError = useChatStore((s) => s.setError);
+  const reset = useChatStore((s) => s.reset);
+
   const loadConversations = useCallback(async () => {
     try {
       const res = await fetch(`/api/projects/${projectSlug}/chat`);
       if (!res.ok) return;
       const data = await res.json();
-      store.setConversations(data.conversations ?? []);
+      setConversations(data.conversations ?? []);
     } catch {
       // Silently fail
     }
-  }, [projectSlug, store]);
+  }, [projectSlug, setConversations]);
 
   const loadConversation = useCallback(async (conversationId: string) => {
-    store.setCurrentConversation(conversationId);
+    setCurrentConversation(conversationId);
     try {
       const res = await fetch(`/api/projects/${projectSlug}/chat?conversationId=${conversationId}`);
       if (!res.ok) return;
       const data = await res.json();
-      store.setMessages(data.messages ?? []);
+      setMessages(data.messages ?? []);
     } catch {
-      store.setError('Failed to load conversation');
+      setError('Failed to load conversation');
     }
-  }, [projectSlug, store]);
+  }, [projectSlug, setCurrentConversation, setMessages, setError]);
 
   const sendMessage = useCallback(async (text: string) => {
-    if (store.isStreaming) return;
+    const state = useChatStore.getState();
+    if (state.isStreaming) return;
 
-    store.setError(null);
-    store.setStreaming(true);
-    store.resetStreamingContent();
-    store.clearToolCalls();
+    setError(null);
+    setStreaming(true);
+    resetStreamingContent();
+    clearToolCalls();
     hadMutationRef.current = false;
 
     // Add user message optimistically
@@ -116,7 +134,7 @@ export function useChat(projectSlug: string) {
       content: text,
       created_at: new Date().toISOString(),
     };
-    store.addMessage(userMsg);
+    addMessage(userMsg);
 
     const controller = new AbortController();
     abortRef.current = controller;
@@ -127,7 +145,7 @@ export function useChat(projectSlug: string) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          conversationId: store.currentConversationId,
+          conversationId: useChatStore.getState().currentConversationId,
           message: text,
           pageContext,
         }),
@@ -136,14 +154,14 @@ export function useChat(projectSlug: string) {
 
       if (!res.ok) {
         const err = await res.json().catch(() => ({ error: 'Request failed' }));
-        store.setError(err.error ?? 'Request failed');
-        store.setStreaming(false);
+        setError(err.error ?? 'Request failed');
+        setStreaming(false);
         return;
       }
 
       if (!res.body) {
-        store.setError('No response body');
-        store.setStreaming(false);
+        setError('No response body');
+        setStreaming(false);
         return;
       }
 
@@ -169,13 +187,13 @@ export function useChat(projectSlug: string) {
 
             switch (event.type) {
               case 'conversation':
-                if (!store.currentConversationId && event.conversationId) {
-                  store.setCurrentConversationId(event.conversationId);
+                if (!useChatStore.getState().currentConversationId && event.conversationId) {
+                  setCurrentConversationId(event.conversationId);
                 }
                 break;
 
               case 'tool_call':
-                store.addToolCall({
+                addToolCall({
                   id: event.id,
                   name: event.name,
                   arguments: event.arguments,
@@ -187,7 +205,7 @@ export function useChat(projectSlug: string) {
                 break;
 
               case 'tool_result':
-                store.updateToolCallResult(
+                updateToolCallResult(
                   event.id,
                   event.result,
                   'complete'
@@ -195,7 +213,7 @@ export function useChat(projectSlug: string) {
                 break;
 
               case 'text_delta':
-                store.appendStreamingContent(event.content);
+                appendStreamingContent(event.content);
                 break;
 
               case 'done':
@@ -209,12 +227,12 @@ export function useChat(projectSlug: string) {
                       content: finalContent,
                       created_at: new Date().toISOString(),
                     };
-                    store.addMessage(assistantMsg);
-                    store.resetStreamingContent();
+                    addMessage(assistantMsg);
+                    resetStreamingContent();
                   }
                 }
                 // Move pending tool calls to completed (persistent display)
-                store.finalizeToolCalls();
+                finalizeToolCalls();
                 // Refresh conversations list for title updates
                 loadConversations();
                 // Hot-refresh the page if any mutating tools were used
@@ -224,7 +242,7 @@ export function useChat(projectSlug: string) {
                 break;
 
               case 'error':
-                store.setError(event.message);
+                setError(event.message);
                 break;
             }
           } catch {
@@ -236,30 +254,31 @@ export function useChat(projectSlug: string) {
       if (err instanceof DOMException && err.name === 'AbortError') {
         // User cancelled
       } else {
-        store.setError(err instanceof Error ? err.message : 'An error occurred');
+        setError(err instanceof Error ? err.message : 'An error occurred');
       }
     } finally {
-      store.setStreaming(false);
-      store.resetStreamingContent();
+      setStreaming(false);
+      resetStreamingContent();
       abortRef.current = null;
     }
-  }, [projectSlug, store, loadConversations, pathname]);
+  }, [projectSlug, loadConversations, pathname, setError, setStreaming, resetStreamingContent, clearToolCalls, addMessage, setCurrentConversationId, addToolCall, updateToolCallResult, appendStreamingContent, finalizeToolCalls]);
 
   const newConversation = useCallback(() => {
-    store.reset();
-  }, [store]);
+    reset();
+  }, [reset]);
 
   const deleteConversation = useCallback(async (conversationId: string) => {
     try {
       await fetch(`/api/projects/${projectSlug}/chat/${conversationId}`, { method: 'DELETE' });
-      store.setConversations(store.conversations.filter((c) => c.id !== conversationId));
-      if (store.currentConversationId === conversationId) {
-        store.reset();
+      const current = useChatStore.getState();
+      setConversations(current.conversations.filter((c) => c.id !== conversationId));
+      if (current.currentConversationId === conversationId) {
+        reset();
       }
     } catch {
       // Silently fail
     }
-  }, [projectSlug, store]);
+  }, [projectSlug, setConversations, reset]);
 
   const renameConversation = useCallback(async (conversationId: string, title: string) => {
     try {
@@ -269,15 +288,16 @@ export function useChat(projectSlug: string) {
         body: JSON.stringify({ title }),
       });
       if (!res.ok) return;
-      store.setConversations(
-        store.conversations.map((c) =>
+      const current = useChatStore.getState();
+      setConversations(
+        current.conversations.map((c) =>
           c.id === conversationId ? { ...c, title } : c
         )
       );
     } catch {
       // Silently fail
     }
-  }, [projectSlug, store]);
+  }, [projectSlug, setConversations]);
 
   const stopStreaming = useCallback(() => {
     abortRef.current?.abort();
