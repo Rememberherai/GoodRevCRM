@@ -14,7 +14,10 @@ interface ReceiptAccountingInput {
 }
 
 function toIsoDate(input: string) {
-  return input.slice(0, 10);
+  // Handle both ISO "2026-02-14" and natural "Feb 14, 2026" formats
+  const d = new Date(input);
+  if (isNaN(d.getTime())) return input.slice(0, 10);
+  return d.toISOString().slice(0, 10);
 }
 
 async function ensureAccountingCompany(projectId: string, userId: string, projectName: string) {
@@ -152,6 +155,7 @@ async function createGoodRevBill(params: ReceiptAccountingInput) {
       : params.className
         ? `Class: ${params.className}`
         : undefined,
+    p_created_by: params.userId,
   });
 
   if (error || !billId) {
