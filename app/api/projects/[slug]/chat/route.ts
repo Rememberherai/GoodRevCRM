@@ -5,7 +5,7 @@ import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
 import type { ChatMessageWithTools, ToolCallFunction } from '@/lib/openrouter/client';
 import { getToolDefinitions, executeTool } from '@/lib/chat/tool-registry';
 import { buildSystemPrompt } from '@/lib/chat/system-prompt';
-import type { McpContext, McpRole } from '@/types/mcp';
+import { isStandardMcpRole, type McpContext } from '@/types/mcp';
 import { z } from 'zod';
 
 export const dynamic = 'force-dynamic';
@@ -39,11 +39,17 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { data: project } = await supabase
       .from('projects')
-      .select('id, name')
+      .select('id, name, project_type')
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    if (project.project_type === 'community') {
+      return NextResponse.json(
+        { error: 'Chat tools for community projects are not enabled in this phase' },
+        { status: 403 }
+      );
+    }
 
     const { data: membership } = await supabase
       .from('project_memberships')
@@ -52,6 +58,9 @@ export async function POST(request: Request, context: RouteContext) {
       .eq('user_id', user.id)
       .single();
     if (!membership) return NextResponse.json({ error: 'Not a project member' }, { status: 403 });
+    if (!isStandardMcpRole(membership.role)) {
+      return NextResponse.json({ error: 'Unsupported project role' }, { status: 403 });
+    }
 
     const body = await request.json();
     const validation = sendMessageSchema.safeParse(body);
@@ -86,7 +95,7 @@ export async function POST(request: Request, context: RouteContext) {
     const mcpContext: McpContext = {
       projectId: project.id,
       userId: user.id,
-      role: membership.role as McpRole,
+      role: membership.role,
       apiKeyId: 'chat-session',
       supabase: adminSupabase,
     };

@@ -1,5 +1,8 @@
 // Base types for GoodRev CRM
 
+import type { ProjectRole } from './user';
+export type { ProjectRole } from './user';
+
 export type EntityType = 'organization' | 'person' | 'opportunity' | 'rfp';
 
 export interface BaseEntity {
@@ -9,8 +12,6 @@ export interface BaseEntity {
   updated_at: string;
   deleted_at: string | null;
 }
-
-export type ProjectRole = 'owner' | 'admin' | 'member' | 'viewer';
 
 export interface User {
   id: string;

@@ -99,7 +99,7 @@ export async function POST(request: Request, context: RouteContext) {
 
           const detectFn = entity_type === 'person' ? detectPersonDuplicates : detectOrganizationDuplicates;
           const matches = await detectFn(
-            record as Record<string, string | null>,
+            record as unknown as Record<string, string | null>,
             {
               entityType: entity_type,
               projectId: project.id,

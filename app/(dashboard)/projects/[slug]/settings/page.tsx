@@ -51,6 +51,7 @@ import { SchedulerPanel } from '@/components/settings/scheduler-panel';
 import { ProductsCatalogPanel } from '@/components/settings/products-catalog-panel';
 import { DispositionsPanel } from '@/components/settings/dispositions-panel';
 import type { ProjectRole } from '@/types/user';
+import type { ProjectType } from '@/types/project';
 
 
 interface ProjectSettingsPageProps {
@@ -152,7 +153,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
     }
   };
 
-  const handleInvite = async (data: { email: string; role?: 'admin' | 'member' | 'viewer' }) => {
+  const handleInvite = async (data: { email: string; role?: Exclude<ProjectRole, 'owner'> }) => {
     const res = await fetch(`/api/projects/${slug}/members`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -450,6 +451,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
                 members={members}
                 currentUserId={currentUserId}
                 currentUserRole={currentUserRole}
+                projectType={(currentProject?.project_type as ProjectType | undefined) ?? 'standard'}
                 onUpdateRole={handleUpdateRole}
                 onRemove={handleRemoveMember}
                 loading={membersLoading}
@@ -460,6 +462,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
           <InviteMemberDialog
             open={inviteDialogOpen}
             onOpenChange={setInviteDialogOpen}
+            projectType={(currentProject?.project_type as ProjectType | undefined) ?? 'standard'}
             onInvite={handleInvite}
           />
         </TabsContent>

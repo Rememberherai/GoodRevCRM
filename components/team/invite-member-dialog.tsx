@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useForm } from 'react-hook-form';
+import { type Resolver, useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
 import { Mail, UserPlus, Copy, Check, Link } from 'lucide-react';
 import { Button } from '@/components/ui/button';
@@ -30,10 +30,16 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Alert, AlertDescription } from '@/components/ui/alert';
-import { inviteMemberSchema } from '@/lib/validators/user';
+import { inviteCommunityMemberSchema, inviteMemberSchema } from '@/lib/validators/user';
+import type { ProjectType } from '@/types/project';
 import type { z } from 'zod';
 
-type FormValues = z.infer<typeof inviteMemberSchema>;
+type StandardFormValues = z.infer<typeof inviteMemberSchema>;
+type CommunityFormValues = z.infer<typeof inviteCommunityMemberSchema>;
+type FormValues = StandardFormValues | CommunityFormValues;
+
+const STANDARD_DEFAULT_ROLE: StandardFormValues['role'] = 'member';
+const COMMUNITY_DEFAULT_ROLE: CommunityFormValues['role'] = 'staff';
 
 interface InviteResult {
   invite_url: string;
@@ -43,19 +49,28 @@ interface InviteResult {
 interface InviteMemberDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onInvite: (data: FormValues) => Promise<InviteResult>;
+  projectType?: ProjectType;
+  onInvite: (data: StandardFormValues | CommunityFormValues) => Promise<InviteResult>;
 }
 
-export function InviteMemberDialog({ open, onOpenChange, onInvite }: InviteMemberDialogProps) {
+export function InviteMemberDialog({
+  open,
+  onOpenChange,
+  projectType = 'standard',
+  onInvite,
+}: InviteMemberDialogProps) {
   const [loading, setLoading] = useState(false);
   const [inviteResult, setInviteResult] = useState<InviteResult | null>(null);
   const [copied, setCopied] = useState(false);
+  const activeSchema = projectType === 'community' ? inviteCommunityMemberSchema : inviteMemberSchema;
+  const resolver = zodResolver(activeSchema) as Resolver<FormValues>;
+  const defaultRole = projectType === 'community' ? COMMUNITY_DEFAULT_ROLE : STANDARD_DEFAULT_ROLE;
 
   const form = useForm<FormValues>({
-    resolver: zodResolver(inviteMemberSchema),
+    resolver,
     defaultValues: {
       email: '',
-      role: 'member',
+      role: defaultRole,
     },
   });
 
@@ -82,7 +97,7 @@ export function InviteMemberDialog({ open, onOpenChange, onInvite }: InviteMembe
       // Reset state when dialog closes
       setInviteResult(null);
       setCopied(false);
-      form.reset();
+      form.reset({ email: '', role: defaultRole });
     }
     onOpenChange(isOpen);
   };
@@ -220,7 +235,7 @@ export function InviteMemberDialog({ open, onOpenChange, onInvite }: InviteMembe
               name="role"
               render={({ field }) => (
                 <FormItem>
-                  <FormLabel>Role</FormLabel>
+                <FormLabel>Role</FormLabel>
                   <Select
                     onValueChange={field.onChange}
                     defaultValue={field.value}
@@ -239,22 +254,61 @@ export function InviteMemberDialog({ open, onOpenChange, onInvite }: InviteMembe
                           </p>
                         </div>
                       </SelectItem>
-                      <SelectItem value="member">
-                        <div>
-                          <p className="font-medium">Member</p>
-                          <p className="text-xs text-muted-foreground">
-                            Can create, edit, and delete data
-                          </p>
-                        </div>
-                      </SelectItem>
-                      <SelectItem value="viewer">
-                        <div>
-                          <p className="font-medium">Viewer</p>
-                          <p className="text-xs text-muted-foreground">
-                            Can only view data, no editing
-                          </p>
-                        </div>
-                      </SelectItem>
+                      {projectType === 'community' ? (
+                        <>
+                          <SelectItem value="staff">
+                            <div>
+                              <p className="font-medium">Staff</p>
+                              <p className="text-xs text-muted-foreground">
+                                Can manage day-to-day community work, but not intake
+                              </p>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="case_manager">
+                            <div>
+                              <p className="font-medium">Case Manager</p>
+                              <p className="text-xs text-muted-foreground">
+                                Can access intake and case-management workflows
+                              </p>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="contractor">
+                            <div>
+                              <p className="font-medium">Contractor</p>
+                              <p className="text-xs text-muted-foreground">
+                                Restricted to their jobs, profile, and contractor tools
+                              </p>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="board_viewer">
+                            <div>
+                              <p className="font-medium">Board Viewer</p>
+                              <p className="text-xs text-muted-foreground">
+                                Aggregate-only dashboard, reports, and grants visibility
+                              </p>
+                            </div>
+                          </SelectItem>
+                        </>
+                      ) : (
+                        <>
+                          <SelectItem value="member">
+                            <div>
+                              <p className="font-medium">Member</p>
+                              <p className="text-xs text-muted-foreground">
+                                Can create, edit, and delete data
+                              </p>
+                            </div>
+                          </SelectItem>
+                          <SelectItem value="viewer">
+                            <div>
+                              <p className="font-medium">Viewer</p>
+                              <p className="text-xs text-muted-foreground">
+                                Can only view data, no editing
+                              </p>
+                            </div>
+                          </SelectItem>
+                        </>
+                      )}
                     </SelectContent>
                   </Select>
                   <FormMessage />

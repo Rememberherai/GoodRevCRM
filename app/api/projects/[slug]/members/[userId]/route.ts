@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { updateMemberRoleSchema } from '@/lib/validators/user';
+import { updateCommunityMemberRoleSchema, updateMemberRoleSchema } from '@/lib/validators/user';
+import type { ProjectType } from '@/types/project';
 
 interface RouteContext {
   params: Promise<{ slug: string; userId: string }>;
@@ -22,7 +23,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id')
+      .select('id, project_type')
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
@@ -68,7 +69,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id')
+      .select('id, project_type')
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
@@ -85,7 +86,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const body = await request.json();
-    const validationResult = updateMemberRoleSchema.safeParse(body);
+    const projectType = (project.project_type as ProjectType | undefined) ?? 'standard';
+    const validationResult = (
+      projectType === 'community' ? updateCommunityMemberRoleSchema : updateMemberRoleSchema
+    ).safeParse(body);
 
     if (!validationResult.success) {
       return NextResponse.json(

@@ -24,6 +24,7 @@ import {
   AlertDialogTitle,
 } from '@/components/ui/alert-dialog';
 import type { ProjectRole } from '@/types/user';
+import type { ProjectType } from '@/types/project';
 
 interface MemberWithUser {
   id: string;
@@ -43,6 +44,7 @@ interface MemberListProps {
   members: MemberWithUser[];
   currentUserId: string;
   currentUserRole: ProjectRole;
+  projectType?: ProjectType;
   onUpdateRole: (userId: string, role: ProjectRole) => Promise<void>;
   onRemove: (userId: string) => Promise<void>;
   loading?: boolean;
@@ -53,6 +55,10 @@ const roleIcons: Record<ProjectRole, typeof Shield> = {
   admin: Shield,
   member: User,
   viewer: Eye,
+  staff: Shield,
+  case_manager: ShieldCheck,
+  contractor: User,
+  board_viewer: Eye,
 };
 
 const roleColors: Record<ProjectRole, string> = {
@@ -60,6 +66,10 @@ const roleColors: Record<ProjectRole, string> = {
   admin: 'bg-blue-100 text-blue-800',
   member: 'bg-green-100 text-green-800',
   viewer: 'bg-gray-100 text-gray-800',
+  staff: 'bg-cyan-100 text-cyan-800',
+  case_manager: 'bg-amber-100 text-amber-800',
+  contractor: 'bg-orange-100 text-orange-800',
+  board_viewer: 'bg-slate-100 text-slate-800',
 };
 
 function getInitials(name: string | null, email: string): string {
@@ -78,6 +88,7 @@ export function MemberList({
   members,
   currentUserId,
   currentUserRole,
+  projectType = 'standard',
   onUpdateRole,
   onRemove,
   loading = false,
@@ -85,6 +96,9 @@ export function MemberList({
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
   const [memberToRemove, setMemberToRemove] = useState<string | null>(null);
   const [actionInProgress, setActionInProgress] = useState(false);
+  const availableRoles: ProjectRole[] = projectType === 'community'
+    ? ['admin', 'staff', 'case_manager', 'contractor', 'board_viewer']
+    : ['admin', 'member', 'viewer'];
 
   const canManageMembers = ['owner', 'admin'].includes(currentUserRole);
 
@@ -198,7 +212,7 @@ export function MemberList({
                     <DropdownMenuContent align="end">
                       {canUpdateRole(member.role) && (
                         <>
-                          {(['admin', 'member', 'viewer'] as ProjectRole[])
+                          {availableRoles
                             .filter((r) => r !== member.role)
                             .map((role) => (
                               <DropdownMenuItem

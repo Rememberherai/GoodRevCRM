@@ -1,8 +1,8 @@
 import crypto from 'crypto';
 import { createAdminClient } from '@/lib/supabase/admin';
-import type { McpContext, McpRole } from '@/types/mcp';
+import { isMcpRole, isStandardMcpRole, type McpContext, type McpRole, type StandardMcpRole } from '@/types/mcp';
 
-const ROLE_HIERARCHY: Record<McpRole, number> = {
+const ROLE_HIERARCHY: Record<StandardMcpRole, number> = {
   viewer: 0,
   member: 1,
   admin: 2,
@@ -13,7 +13,11 @@ const ROLE_HIERARCHY: Record<McpRole, number> = {
  * Check if the authenticated role meets the minimum required role.
  * Throws if insufficient permissions.
  */
-export function checkPermission(currentRole: McpRole, requiredRole: McpRole): void {
+export function checkPermission(currentRole: McpRole, requiredRole: StandardMcpRole): void {
+  if (!isStandardMcpRole(currentRole)) {
+    throw new Error(`Role '${currentRole}' is not supported by the legacy MCP/chat tool registry`);
+  }
+
   if (ROLE_HIERARCHY[currentRole] < ROLE_HIERARCHY[requiredRole]) {
     throw new Error(
       `Insufficient permissions: requires '${requiredRole}' role, but key has '${currentRole}'`
@@ -66,6 +70,9 @@ export async function authenticateApiKey(
   if (error || !apiKey) {
     return null;
   }
+  if (!isMcpRole(apiKey.role)) {
+    return null;
+  }
 
   // Check expiry
   if (apiKey.expires_at && new Date(apiKey.expires_at) < new Date()) {
@@ -85,7 +92,7 @@ export async function authenticateApiKey(
   return {
     projectId: apiKey.project_id as string,
     userId: apiKey.created_by as string,
-    role: apiKey.role as McpRole,
+    role: apiKey.role,
     apiKeyId: apiKey.id as string,
     supabase,
   };

@@ -1,7 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
-import { inviteMemberSchema, memberQuerySchema } from '@/lib/validators/user';
+import { inviteCommunityMemberSchema, inviteMemberSchema, memberQuerySchema } from '@/lib/validators/user';
 import { randomBytes } from 'crypto';
+import type { ProjectType } from '@/types/project';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -23,7 +24,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id')
+      .select('id, project_type')
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
@@ -120,7 +121,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id')
+      .select('id, project_type')
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
@@ -148,7 +149,10 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const body = await request.json();
-    const validationResult = inviteMemberSchema.safeParse(body);
+    const projectType = (project.project_type as ProjectType | undefined) ?? 'standard';
+    const validationResult = (
+      projectType === 'community' ? inviteCommunityMemberSchema : inviteMemberSchema
+    ).safeParse(body);
 
     if (!validationResult.success) {
       return NextResponse.json(

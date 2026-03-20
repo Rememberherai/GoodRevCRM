@@ -134,6 +134,24 @@ describe('Project Store', () => {
     vi.resetModules();
   });
 
+  const buildMockProject = () => ({
+    id: '1',
+    name: 'Test',
+    slug: 'test',
+    description: null,
+    logo_url: null,
+    settings: {},
+    owner_id: 'user-1',
+    project_type: 'standard' as const,
+    accounting_target: null,
+    accounting_company_id: null,
+    calendar_sync_enabled: null,
+    impact_framework_id: null,
+    created_at: new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+    deleted_at: null,
+  });
+
   it('should have initial empty state', async () => {
     const { useProjectStore } = await import('@/stores/project');
     const state = useProjectStore.getState();
@@ -145,18 +163,7 @@ describe('Project Store', () => {
 
   it('should set current project', async () => {
     const { useProjectStore } = await import('@/stores/project');
-    const mockProject = {
-      id: '1',
-      name: 'Test',
-      slug: 'test',
-      description: null,
-      logo_url: null,
-      settings: {},
-      owner_id: 'user-1',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      deleted_at: null,
-    };
+    const mockProject = buildMockProject();
 
     useProjectStore.getState().setCurrentProject(mockProject);
 
@@ -165,18 +172,7 @@ describe('Project Store', () => {
 
   it('should add project to list', async () => {
     const { useProjectStore } = await import('@/stores/project');
-    const mockProject = {
-      id: '1',
-      name: 'Test',
-      slug: 'test',
-      description: null,
-      logo_url: null,
-      settings: {},
-      owner_id: 'user-1',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      deleted_at: null,
-    };
+    const mockProject = buildMockProject();
 
     useProjectStore.getState().addProject(mockProject);
 
@@ -186,18 +182,7 @@ describe('Project Store', () => {
 
   it('should update project in list', async () => {
     const { useProjectStore } = await import('@/stores/project');
-    const mockProject = {
-      id: '1',
-      name: 'Test',
-      slug: 'test',
-      description: null,
-      logo_url: null,
-      settings: {},
-      owner_id: 'user-1',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      deleted_at: null,
-    };
+    const mockProject = buildMockProject();
 
     useProjectStore.getState().setProjects([mockProject]);
     useProjectStore.getState().updateProject('test', { name: 'Updated' });
@@ -207,18 +192,7 @@ describe('Project Store', () => {
 
   it('should remove project from list', async () => {
     const { useProjectStore } = await import('@/stores/project');
-    const mockProject = {
-      id: '1',
-      name: 'Test',
-      slug: 'test',
-      description: null,
-      logo_url: null,
-      settings: {},
-      owner_id: 'user-1',
-      created_at: new Date().toISOString(),
-      updated_at: new Date().toISOString(),
-      deleted_at: null,
-    };
+    const mockProject = buildMockProject();
 
     useProjectStore.getState().setProjects([mockProject]);
     useProjectStore.getState().removeProject('test');

@@ -1,6 +1,8 @@
 // User management types
 
-export type ProjectRole = 'owner' | 'admin' | 'member' | 'viewer';
+export type StandardProjectRole = 'owner' | 'admin' | 'member' | 'viewer';
+export type CommunityProjectRole = 'staff' | 'case_manager' | 'contractor' | 'board_viewer';
+export type ProjectRole = StandardProjectRole | CommunityProjectRole;
 
 export type NotificationDigest = 'realtime' | 'daily' | 'weekly' | 'never';
 
@@ -67,8 +69,8 @@ export interface UserSession {
   created_at: string;
 }
 
-// Role permissions
-export const rolePermissions: Record<ProjectRole, string[]> = {
+// Legacy permission map for standard CRM projects only.
+export const rolePermissions: Record<StandardProjectRole, string[]> = {
   owner: [
     'project:delete',
     'project:settings',
@@ -105,6 +107,6 @@ export const rolePermissions: Record<ProjectRole, string[]> = {
   viewer: ['entities:view'],
 };
 
-export function hasPermission(role: ProjectRole, permission: string): boolean {
+export function hasPermission(role: StandardProjectRole, permission: string): boolean {
   return rolePermissions[role]?.includes(permission) ?? false;
 }

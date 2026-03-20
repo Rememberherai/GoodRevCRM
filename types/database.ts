@@ -7,26 +7,1021 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
+  }
+  auth: {
     Tables: {
-      [_ in never]: never
+      audit_log_entries: {
+        Row: {
+          created_at: string | null
+          id: string
+          instance_id: string | null
+          ip_address: string
+          payload: Json | null
+        }
+        Insert: {
+          created_at?: string | null
+          id: string
+          instance_id?: string | null
+          ip_address?: string
+          payload?: Json | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          instance_id?: string | null
+          ip_address?: string
+          payload?: Json | null
+        }
+        Relationships: []
+      }
+      custom_oauth_providers: {
+        Row: {
+          acceptable_client_ids: string[]
+          attribute_mapping: Json
+          authorization_params: Json
+          authorization_url: string | null
+          cached_discovery: Json | null
+          client_id: string
+          client_secret: string
+          created_at: string
+          discovery_cached_at: string | null
+          discovery_url: string | null
+          email_optional: boolean
+          enabled: boolean
+          id: string
+          identifier: string
+          issuer: string | null
+          jwks_uri: string | null
+          name: string
+          pkce_enabled: boolean
+          provider_type: string
+          scopes: string[]
+          skip_nonce_check: boolean
+          token_url: string | null
+          updated_at: string
+          userinfo_url: string | null
+        }
+        Insert: {
+          acceptable_client_ids?: string[]
+          attribute_mapping?: Json
+          authorization_params?: Json
+          authorization_url?: string | null
+          cached_discovery?: Json | null
+          client_id: string
+          client_secret: string
+          created_at?: string
+          discovery_cached_at?: string | null
+          discovery_url?: string | null
+          email_optional?: boolean
+          enabled?: boolean
+          id?: string
+          identifier: string
+          issuer?: string | null
+          jwks_uri?: string | null
+          name: string
+          pkce_enabled?: boolean
+          provider_type: string
+          scopes?: string[]
+          skip_nonce_check?: boolean
+          token_url?: string | null
+          updated_at?: string
+          userinfo_url?: string | null
+        }
+        Update: {
+          acceptable_client_ids?: string[]
+          attribute_mapping?: Json
+          authorization_params?: Json
+          authorization_url?: string | null
+          cached_discovery?: Json | null
+          client_id?: string
+          client_secret?: string
+          created_at?: string
+          discovery_cached_at?: string | null
+          discovery_url?: string | null
+          email_optional?: boolean
+          enabled?: boolean
+          id?: string
+          identifier?: string
+          issuer?: string | null
+          jwks_uri?: string | null
+          name?: string
+          pkce_enabled?: boolean
+          provider_type?: string
+          scopes?: string[]
+          skip_nonce_check?: boolean
+          token_url?: string | null
+          updated_at?: string
+          userinfo_url?: string | null
+        }
+        Relationships: []
+      }
+      flow_state: {
+        Row: {
+          auth_code: string | null
+          auth_code_issued_at: string | null
+          authentication_method: string
+          code_challenge: string | null
+          code_challenge_method:
+            | Database["auth"]["Enums"]["code_challenge_method"]
+            | null
+          created_at: string | null
+          email_optional: boolean
+          id: string
+          invite_token: string | null
+          linking_target_id: string | null
+          oauth_client_state_id: string | null
+          provider_access_token: string | null
+          provider_refresh_token: string | null
+          provider_type: string
+          referrer: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          auth_code?: string | null
+          auth_code_issued_at?: string | null
+          authentication_method: string
+          code_challenge?: string | null
+          code_challenge_method?:
+            | Database["auth"]["Enums"]["code_challenge_method"]
+            | null
+          created_at?: string | null
+          email_optional?: boolean
+          id: string
+          invite_token?: string | null
+          linking_target_id?: string | null
+          oauth_client_state_id?: string | null
+          provider_access_token?: string | null
+          provider_refresh_token?: string | null
+          provider_type: string
+          referrer?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          auth_code?: string | null
+          auth_code_issued_at?: string | null
+          authentication_method?: string
+          code_challenge?: string | null
+          code_challenge_method?:
+            | Database["auth"]["Enums"]["code_challenge_method"]
+            | null
+          created_at?: string | null
+          email_optional?: boolean
+          id?: string
+          invite_token?: string | null
+          linking_target_id?: string | null
+          oauth_client_state_id?: string | null
+          provider_access_token?: string | null
+          provider_refresh_token?: string | null
+          provider_type?: string
+          referrer?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: []
+      }
+      identities: {
+        Row: {
+          created_at: string | null
+          email: string | null
+          id: string
+          identity_data: Json
+          last_sign_in_at: string | null
+          provider: string
+          provider_id: string
+          updated_at: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          identity_data: Json
+          last_sign_in_at?: string | null
+          provider: string
+          provider_id: string
+          updated_at?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string | null
+          email?: string | null
+          id?: string
+          identity_data?: Json
+          last_sign_in_at?: string | null
+          provider?: string
+          provider_id?: string
+          updated_at?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "identities_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      instances: {
+        Row: {
+          created_at: string | null
+          id: string
+          raw_base_config: string | null
+          updated_at: string | null
+          uuid: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id: string
+          raw_base_config?: string | null
+          updated_at?: string | null
+          uuid?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: string
+          raw_base_config?: string | null
+          updated_at?: string | null
+          uuid?: string | null
+        }
+        Relationships: []
+      }
+      mfa_amr_claims: {
+        Row: {
+          authentication_method: string
+          created_at: string
+          id: string
+          session_id: string
+          updated_at: string
+        }
+        Insert: {
+          authentication_method: string
+          created_at: string
+          id: string
+          session_id: string
+          updated_at: string
+        }
+        Update: {
+          authentication_method?: string
+          created_at?: string
+          id?: string
+          session_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfa_amr_claims_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mfa_challenges: {
+        Row: {
+          created_at: string
+          factor_id: string
+          id: string
+          ip_address: unknown
+          otp_code: string | null
+          verified_at: string | null
+          web_authn_session_data: Json | null
+        }
+        Insert: {
+          created_at: string
+          factor_id: string
+          id: string
+          ip_address: unknown
+          otp_code?: string | null
+          verified_at?: string | null
+          web_authn_session_data?: Json | null
+        }
+        Update: {
+          created_at?: string
+          factor_id?: string
+          id?: string
+          ip_address?: unknown
+          otp_code?: string | null
+          verified_at?: string | null
+          web_authn_session_data?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfa_challenges_auth_factor_id_fkey"
+            columns: ["factor_id"]
+            isOneToOne: false
+            referencedRelation: "mfa_factors"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      mfa_factors: {
+        Row: {
+          created_at: string
+          factor_type: Database["auth"]["Enums"]["factor_type"]
+          friendly_name: string | null
+          id: string
+          last_challenged_at: string | null
+          last_webauthn_challenge_data: Json | null
+          phone: string | null
+          secret: string | null
+          status: Database["auth"]["Enums"]["factor_status"]
+          updated_at: string
+          user_id: string
+          web_authn_aaguid: string | null
+          web_authn_credential: Json | null
+        }
+        Insert: {
+          created_at: string
+          factor_type: Database["auth"]["Enums"]["factor_type"]
+          friendly_name?: string | null
+          id: string
+          last_challenged_at?: string | null
+          last_webauthn_challenge_data?: Json | null
+          phone?: string | null
+          secret?: string | null
+          status: Database["auth"]["Enums"]["factor_status"]
+          updated_at: string
+          user_id: string
+          web_authn_aaguid?: string | null
+          web_authn_credential?: Json | null
+        }
+        Update: {
+          created_at?: string
+          factor_type?: Database["auth"]["Enums"]["factor_type"]
+          friendly_name?: string | null
+          id?: string
+          last_challenged_at?: string | null
+          last_webauthn_challenge_data?: Json | null
+          phone?: string | null
+          secret?: string | null
+          status?: Database["auth"]["Enums"]["factor_status"]
+          updated_at?: string
+          user_id?: string
+          web_authn_aaguid?: string | null
+          web_authn_credential?: Json | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "mfa_factors_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oauth_authorizations: {
+        Row: {
+          approved_at: string | null
+          authorization_code: string | null
+          authorization_id: string
+          client_id: string
+          code_challenge: string | null
+          code_challenge_method:
+            | Database["auth"]["Enums"]["code_challenge_method"]
+            | null
+          created_at: string
+          expires_at: string
+          id: string
+          nonce: string | null
+          redirect_uri: string
+          resource: string | null
+          response_type: Database["auth"]["Enums"]["oauth_response_type"]
+          scope: string
+          state: string | null
+          status: Database["auth"]["Enums"]["oauth_authorization_status"]
+          user_id: string | null
+        }
+        Insert: {
+          approved_at?: string | null
+          authorization_code?: string | null
+          authorization_id: string
+          client_id: string
+          code_challenge?: string | null
+          code_challenge_method?:
+            | Database["auth"]["Enums"]["code_challenge_method"]
+            | null
+          created_at?: string
+          expires_at?: string
+          id: string
+          nonce?: string | null
+          redirect_uri: string
+          resource?: string | null
+          response_type?: Database["auth"]["Enums"]["oauth_response_type"]
+          scope: string
+          state?: string | null
+          status?: Database["auth"]["Enums"]["oauth_authorization_status"]
+          user_id?: string | null
+        }
+        Update: {
+          approved_at?: string | null
+          authorization_code?: string | null
+          authorization_id?: string
+          client_id?: string
+          code_challenge?: string | null
+          code_challenge_method?:
+            | Database["auth"]["Enums"]["code_challenge_method"]
+            | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          nonce?: string | null
+          redirect_uri?: string
+          resource?: string | null
+          response_type?: Database["auth"]["Enums"]["oauth_response_type"]
+          scope?: string
+          state?: string | null
+          status?: Database["auth"]["Enums"]["oauth_authorization_status"]
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oauth_authorizations_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "oauth_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oauth_authorizations_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      oauth_client_states: {
+        Row: {
+          code_verifier: string | null
+          created_at: string
+          id: string
+          provider_type: string
+        }
+        Insert: {
+          code_verifier?: string | null
+          created_at: string
+          id: string
+          provider_type: string
+        }
+        Update: {
+          code_verifier?: string | null
+          created_at?: string
+          id?: string
+          provider_type?: string
+        }
+        Relationships: []
+      }
+      oauth_clients: {
+        Row: {
+          client_name: string | null
+          client_secret_hash: string | null
+          client_type: Database["auth"]["Enums"]["oauth_client_type"]
+          client_uri: string | null
+          created_at: string
+          deleted_at: string | null
+          grant_types: string
+          id: string
+          logo_uri: string | null
+          redirect_uris: string
+          registration_type: Database["auth"]["Enums"]["oauth_registration_type"]
+          token_endpoint_auth_method: string
+          updated_at: string
+        }
+        Insert: {
+          client_name?: string | null
+          client_secret_hash?: string | null
+          client_type?: Database["auth"]["Enums"]["oauth_client_type"]
+          client_uri?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          grant_types: string
+          id: string
+          logo_uri?: string | null
+          redirect_uris: string
+          registration_type: Database["auth"]["Enums"]["oauth_registration_type"]
+          token_endpoint_auth_method: string
+          updated_at?: string
+        }
+        Update: {
+          client_name?: string | null
+          client_secret_hash?: string | null
+          client_type?: Database["auth"]["Enums"]["oauth_client_type"]
+          client_uri?: string | null
+          created_at?: string
+          deleted_at?: string | null
+          grant_types?: string
+          id?: string
+          logo_uri?: string | null
+          redirect_uris?: string
+          registration_type?: Database["auth"]["Enums"]["oauth_registration_type"]
+          token_endpoint_auth_method?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      oauth_consents: {
+        Row: {
+          client_id: string
+          granted_at: string
+          id: string
+          revoked_at: string | null
+          scopes: string
+          user_id: string
+        }
+        Insert: {
+          client_id: string
+          granted_at?: string
+          id: string
+          revoked_at?: string | null
+          scopes: string
+          user_id: string
+        }
+        Update: {
+          client_id?: string
+          granted_at?: string
+          id?: string
+          revoked_at?: string | null
+          scopes?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "oauth_consents_client_id_fkey"
+            columns: ["client_id"]
+            isOneToOne: false
+            referencedRelation: "oauth_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "oauth_consents_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      one_time_tokens: {
+        Row: {
+          created_at: string
+          id: string
+          relates_to: string
+          token_hash: string
+          token_type: Database["auth"]["Enums"]["one_time_token_type"]
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id: string
+          relates_to: string
+          token_hash: string
+          token_type: Database["auth"]["Enums"]["one_time_token_type"]
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          relates_to?: string
+          token_hash?: string
+          token_type?: Database["auth"]["Enums"]["one_time_token_type"]
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "one_time_tokens_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      refresh_tokens: {
+        Row: {
+          created_at: string | null
+          id: number
+          instance_id: string | null
+          parent: string | null
+          revoked: boolean | null
+          session_id: string | null
+          token: string | null
+          updated_at: string | null
+          user_id: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          id?: number
+          instance_id?: string | null
+          parent?: string | null
+          revoked?: boolean | null
+          session_id?: string | null
+          token?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          id?: number
+          instance_id?: string | null
+          parent?: string | null
+          revoked?: boolean | null
+          session_id?: string | null
+          token?: string | null
+          updated_at?: string | null
+          user_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "refresh_tokens_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saml_providers: {
+        Row: {
+          attribute_mapping: Json | null
+          created_at: string | null
+          entity_id: string
+          id: string
+          metadata_url: string | null
+          metadata_xml: string
+          name_id_format: string | null
+          sso_provider_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          attribute_mapping?: Json | null
+          created_at?: string | null
+          entity_id: string
+          id: string
+          metadata_url?: string | null
+          metadata_xml: string
+          name_id_format?: string | null
+          sso_provider_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          attribute_mapping?: Json | null
+          created_at?: string | null
+          entity_id?: string
+          id?: string
+          metadata_url?: string | null
+          metadata_xml?: string
+          name_id_format?: string | null
+          sso_provider_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saml_providers_sso_provider_id_fkey"
+            columns: ["sso_provider_id"]
+            isOneToOne: false
+            referencedRelation: "sso_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      saml_relay_states: {
+        Row: {
+          created_at: string | null
+          flow_state_id: string | null
+          for_email: string | null
+          id: string
+          redirect_to: string | null
+          request_id: string
+          sso_provider_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          flow_state_id?: string | null
+          for_email?: string | null
+          id: string
+          redirect_to?: string | null
+          request_id: string
+          sso_provider_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          flow_state_id?: string | null
+          for_email?: string | null
+          id?: string
+          redirect_to?: string | null
+          request_id?: string
+          sso_provider_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "saml_relay_states_flow_state_id_fkey"
+            columns: ["flow_state_id"]
+            isOneToOne: false
+            referencedRelation: "flow_state"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "saml_relay_states_sso_provider_id_fkey"
+            columns: ["sso_provider_id"]
+            isOneToOne: false
+            referencedRelation: "sso_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      schema_migrations: {
+        Row: {
+          version: string
+        }
+        Insert: {
+          version: string
+        }
+        Update: {
+          version?: string
+        }
+        Relationships: []
+      }
+      sessions: {
+        Row: {
+          aal: Database["auth"]["Enums"]["aal_level"] | null
+          created_at: string | null
+          factor_id: string | null
+          id: string
+          ip: unknown
+          not_after: string | null
+          oauth_client_id: string | null
+          refresh_token_counter: number | null
+          refresh_token_hmac_key: string | null
+          refreshed_at: string | null
+          scopes: string | null
+          tag: string | null
+          updated_at: string | null
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          aal?: Database["auth"]["Enums"]["aal_level"] | null
+          created_at?: string | null
+          factor_id?: string | null
+          id: string
+          ip?: unknown
+          not_after?: string | null
+          oauth_client_id?: string | null
+          refresh_token_counter?: number | null
+          refresh_token_hmac_key?: string | null
+          refreshed_at?: string | null
+          scopes?: string | null
+          tag?: string | null
+          updated_at?: string | null
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          aal?: Database["auth"]["Enums"]["aal_level"] | null
+          created_at?: string | null
+          factor_id?: string | null
+          id?: string
+          ip?: unknown
+          not_after?: string | null
+          oauth_client_id?: string | null
+          refresh_token_counter?: number | null
+          refresh_token_hmac_key?: string | null
+          refreshed_at?: string | null
+          scopes?: string | null
+          tag?: string | null
+          updated_at?: string | null
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sessions_oauth_client_id_fkey"
+            columns: ["oauth_client_id"]
+            isOneToOne: false
+            referencedRelation: "oauth_clients"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "sessions_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sso_domains: {
+        Row: {
+          created_at: string | null
+          domain: string
+          id: string
+          sso_provider_id: string
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          domain: string
+          id: string
+          sso_provider_id: string
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          domain?: string
+          id?: string
+          sso_provider_id?: string
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "sso_domains_sso_provider_id_fkey"
+            columns: ["sso_provider_id"]
+            isOneToOne: false
+            referencedRelation: "sso_providers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      sso_providers: {
+        Row: {
+          created_at: string | null
+          disabled: boolean | null
+          id: string
+          resource_id: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          disabled?: boolean | null
+          id: string
+          resource_id?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          disabled?: boolean | null
+          id?: string
+          resource_id?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
+      users: {
+        Row: {
+          aud: string | null
+          banned_until: string | null
+          confirmation_sent_at: string | null
+          confirmation_token: string | null
+          confirmed_at: string | null
+          created_at: string | null
+          deleted_at: string | null
+          email: string | null
+          email_change: string | null
+          email_change_confirm_status: number | null
+          email_change_sent_at: string | null
+          email_change_token_current: string | null
+          email_change_token_new: string | null
+          email_confirmed_at: string | null
+          encrypted_password: string | null
+          id: string
+          instance_id: string | null
+          invited_at: string | null
+          is_anonymous: boolean
+          is_sso_user: boolean
+          is_super_admin: boolean | null
+          last_sign_in_at: string | null
+          phone: string | null
+          phone_change: string | null
+          phone_change_sent_at: string | null
+          phone_change_token: string | null
+          phone_confirmed_at: string | null
+          raw_app_meta_data: Json | null
+          raw_user_meta_data: Json | null
+          reauthentication_sent_at: string | null
+          reauthentication_token: string | null
+          recovery_sent_at: string | null
+          recovery_token: string | null
+          role: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          aud?: string | null
+          banned_until?: string | null
+          confirmation_sent_at?: string | null
+          confirmation_token?: string | null
+          confirmed_at?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          email_change?: string | null
+          email_change_confirm_status?: number | null
+          email_change_sent_at?: string | null
+          email_change_token_current?: string | null
+          email_change_token_new?: string | null
+          email_confirmed_at?: string | null
+          encrypted_password?: string | null
+          id: string
+          instance_id?: string | null
+          invited_at?: string | null
+          is_anonymous?: boolean
+          is_sso_user?: boolean
+          is_super_admin?: boolean | null
+          last_sign_in_at?: string | null
+          phone?: string | null
+          phone_change?: string | null
+          phone_change_sent_at?: string | null
+          phone_change_token?: string | null
+          phone_confirmed_at?: string | null
+          raw_app_meta_data?: Json | null
+          raw_user_meta_data?: Json | null
+          reauthentication_sent_at?: string | null
+          reauthentication_token?: string | null
+          recovery_sent_at?: string | null
+          recovery_token?: string | null
+          role?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          aud?: string | null
+          banned_until?: string | null
+          confirmation_sent_at?: string | null
+          confirmation_token?: string | null
+          confirmed_at?: string | null
+          created_at?: string | null
+          deleted_at?: string | null
+          email?: string | null
+          email_change?: string | null
+          email_change_confirm_status?: number | null
+          email_change_sent_at?: string | null
+          email_change_token_current?: string | null
+          email_change_token_new?: string | null
+          email_confirmed_at?: string | null
+          encrypted_password?: string | null
+          id?: string
+          instance_id?: string | null
+          invited_at?: string | null
+          is_anonymous?: boolean
+          is_sso_user?: boolean
+          is_super_admin?: boolean | null
+          last_sign_in_at?: string | null
+          phone?: string | null
+          phone_change?: string | null
+          phone_change_sent_at?: string | null
+          phone_change_token?: string | null
+          phone_confirmed_at?: string | null
+          raw_app_meta_data?: Json | null
+          raw_user_meta_data?: Json | null
+          reauthentication_sent_at?: string | null
+          reauthentication_token?: string | null
+          recovery_sent_at?: string | null
+          recovery_token?: string | null
+          role?: string | null
+          updated_at?: string | null
+        }
+        Relationships: []
+      }
     }
     Views: {
       [_ in never]: never
     }
     Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
+      email: { Args: never; Returns: string }
+      jwt: { Args: never; Returns: Json }
+      role: { Args: never; Returns: string }
+      uid: { Args: never; Returns: string }
     }
     Enums: {
-      [_ in never]: never
+      aal_level: "aal1" | "aal2" | "aal3"
+      code_challenge_method: "s256" | "plain"
+      factor_status: "unverified" | "verified"
+      factor_type: "totp" | "webauthn" | "phone"
+      oauth_authorization_status: "pending" | "approved" | "denied" | "expired"
+      oauth_client_type: "public" | "confidential"
+      oauth_registration_type: "dynamic" | "manual"
+      oauth_response_type: "code"
+      one_time_token_type:
+        | "confirmation_token"
+        | "reauthentication_token"
+        | "recovery_token"
+        | "email_change_token_new"
+        | "email_change_token_current"
+        | "phone_change_token"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1301,6 +2296,76 @@ export type Database = {
           },
         ]
       }
+      broadcasts: {
+        Row: {
+          body: string
+          channel: string
+          created_at: string
+          created_by: string | null
+          failure_reason: string | null
+          filter_criteria: Json
+          id: string
+          project_id: string
+          scheduled_at: string | null
+          sent_at: string | null
+          status: string
+          subject: string
+          updated_at: string
+        }
+        Insert: {
+          body: string
+          channel: string
+          created_at?: string
+          created_by?: string | null
+          failure_reason?: string | null
+          filter_criteria?: Json
+          id?: string
+          project_id: string
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subject: string
+          updated_at?: string
+        }
+        Update: {
+          body?: string
+          channel?: string
+          created_at?: string
+          created_by?: string | null
+          failure_reason?: string | null
+          filter_criteria?: Json
+          id?: string
+          project_id?: string
+          scheduled_at?: string | null
+          sent_at?: string | null
+          status?: string
+          subject?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "broadcasts_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcasts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "broadcasts_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calendar_integrations: {
         Row: {
           access_token: string
@@ -1754,6 +2819,114 @@ export type Database = {
             columns: ["conversation_id"]
             isOneToOne: false
             referencedRelation: "chat_conversations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_assets: {
+        Row: {
+          address_city: string | null
+          address_country: string | null
+          address_postal_code: string | null
+          address_state: string | null
+          address_street: string | null
+          category: string
+          condition: string
+          created_at: string
+          description: string | null
+          dimension_id: string | null
+          geocoded_status: string
+          id: string
+          latitude: number | null
+          longitude: number | null
+          name: string
+          notes: string | null
+          project_id: string
+          steward_organization_id: string | null
+          steward_person_id: string | null
+          updated_at: string
+          value_estimate: number | null
+        }
+        Insert: {
+          address_city?: string | null
+          address_country?: string | null
+          address_postal_code?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          category: string
+          condition?: string
+          created_at?: string
+          description?: string | null
+          dimension_id?: string | null
+          geocoded_status?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+          notes?: string | null
+          project_id: string
+          steward_organization_id?: string | null
+          steward_person_id?: string | null
+          updated_at?: string
+          value_estimate?: number | null
+        }
+        Update: {
+          address_city?: string | null
+          address_country?: string | null
+          address_postal_code?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          category?: string
+          condition?: string
+          created_at?: string
+          description?: string | null
+          dimension_id?: string | null
+          geocoded_status?: string
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+          notes?: string | null
+          project_id?: string
+          steward_organization_id?: string | null
+          steward_person_id?: string | null
+          updated_at?: string
+          value_estimate?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_assets_dimension_id_fkey"
+            columns: ["dimension_id"]
+            isOneToOne: false
+            referencedRelation: "impact_dimensions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_assets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "community_assets_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_assets_steward_organization_id_fkey"
+            columns: ["steward_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_assets_steward_person_id_fkey"
+            columns: ["steward_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
             referencedColumns: ["id"]
           },
         ]
@@ -2320,6 +3493,235 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contractor_scopes: {
+        Row: {
+          certifications: string[]
+          compensation_terms: string | null
+          contractor_id: string
+          created_at: string
+          created_by: string | null
+          description: string | null
+          document_url: string | null
+          end_date: string | null
+          home_base_latitude: number | null
+          home_base_longitude: number | null
+          id: string
+          project_id: string
+          service_area_radius_miles: number | null
+          service_categories: string[]
+          start_date: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          certifications?: string[]
+          compensation_terms?: string | null
+          contractor_id: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          document_url?: string | null
+          end_date?: string | null
+          home_base_latitude?: number | null
+          home_base_longitude?: number | null
+          id?: string
+          project_id: string
+          service_area_radius_miles?: number | null
+          service_categories?: string[]
+          start_date?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          certifications?: string[]
+          compensation_terms?: string | null
+          contractor_id?: string
+          created_at?: string
+          created_by?: string | null
+          description?: string | null
+          document_url?: string | null
+          end_date?: string | null
+          home_base_latitude?: number | null
+          home_base_longitude?: number | null
+          id?: string
+          project_id?: string
+          service_area_radius_miles?: number | null
+          service_categories?: string[]
+          start_date?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contractor_scopes_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_scopes_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contractor_scopes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "contractor_scopes_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      contributions: {
+        Row: {
+          created_at: string
+          currency: string
+          date: string
+          description: string | null
+          dimension_id: string | null
+          donor_household_id: string | null
+          donor_organization_id: string | null
+          donor_person_id: string | null
+          grant_id: string | null
+          hours: number | null
+          id: string
+          program_id: string | null
+          project_id: string
+          recipient_household_id: string | null
+          recipient_person_id: string | null
+          status: string
+          type: string
+          updated_at: string
+          value: number | null
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          date: string
+          description?: string | null
+          dimension_id?: string | null
+          donor_household_id?: string | null
+          donor_organization_id?: string | null
+          donor_person_id?: string | null
+          grant_id?: string | null
+          hours?: number | null
+          id?: string
+          program_id?: string | null
+          project_id: string
+          recipient_household_id?: string | null
+          recipient_person_id?: string | null
+          status?: string
+          type: string
+          updated_at?: string
+          value?: number | null
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          date?: string
+          description?: string | null
+          dimension_id?: string | null
+          donor_household_id?: string | null
+          donor_organization_id?: string | null
+          donor_person_id?: string | null
+          grant_id?: string | null
+          hours?: number | null
+          id?: string
+          program_id?: string | null
+          project_id?: string
+          recipient_household_id?: string | null
+          recipient_person_id?: string | null
+          status?: string
+          type?: string
+          updated_at?: string
+          value?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "contributions_dimension_id_fkey"
+            columns: ["dimension_id"]
+            isOneToOne: false
+            referencedRelation: "impact_dimensions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contributions_donor_household_id_fkey"
+            columns: ["donor_household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contributions_donor_organization_id_fkey"
+            columns: ["donor_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contributions_donor_person_id_fkey"
+            columns: ["donor_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contributions_grant_id_fkey"
+            columns: ["grant_id"]
+            isOneToOne: false
+            referencedRelation: "grants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contributions_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contributions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "contributions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contributions_recipient_household_id_fkey"
+            columns: ["recipient_household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "contributions_recipient_person_id_fkey"
+            columns: ["recipient_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
             referencedColumns: ["id"]
           },
         ]
@@ -3519,6 +4921,7 @@ export type Database = {
       }
       event_types: {
         Row: {
+          asset_id: string | null
           buffer_after_minutes: number | null
           buffer_before_minutes: number | null
           cancellation_policy: string | null
@@ -3537,6 +4940,7 @@ export type Database = {
           max_attendees: number | null
           max_days_in_advance: number | null
           min_notice_hours: number | null
+          program_id: string | null
           project_id: string
           redirect_url: string | null
           requires_confirmation: boolean | null
@@ -3550,6 +4954,7 @@ export type Database = {
           weekly_limit: number | null
         }
         Insert: {
+          asset_id?: string | null
           buffer_after_minutes?: number | null
           buffer_before_minutes?: number | null
           cancellation_policy?: string | null
@@ -3568,6 +4973,7 @@ export type Database = {
           max_attendees?: number | null
           max_days_in_advance?: number | null
           min_notice_hours?: number | null
+          program_id?: string | null
           project_id: string
           redirect_url?: string | null
           requires_confirmation?: boolean | null
@@ -3581,6 +4987,7 @@ export type Database = {
           weekly_limit?: number | null
         }
         Update: {
+          asset_id?: string | null
           buffer_after_minutes?: number | null
           buffer_before_minutes?: number | null
           cancellation_policy?: string | null
@@ -3599,6 +5006,7 @@ export type Database = {
           max_attendees?: number | null
           max_days_in_advance?: number | null
           min_notice_hours?: number | null
+          program_id?: string | null
           project_id?: string
           redirect_url?: string | null
           requires_confirmation?: boolean | null
@@ -3612,6 +5020,20 @@ export type Database = {
           weekly_limit?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "event_types_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "community_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_types_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "event_types_project_id_fkey"
             columns: ["project_id"]
@@ -3802,6 +5224,391 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grants: {
+        Row: {
+          amount_awarded: number | null
+          amount_requested: number | null
+          application_due_at: string | null
+          assigned_to: string | null
+          contact_person_id: string | null
+          created_at: string
+          funder_organization_id: string | null
+          id: string
+          loi_due_at: string | null
+          name: string
+          notes: string | null
+          project_id: string
+          report_due_at: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          amount_awarded?: number | null
+          amount_requested?: number | null
+          application_due_at?: string | null
+          assigned_to?: string | null
+          contact_person_id?: string | null
+          created_at?: string
+          funder_organization_id?: string | null
+          id?: string
+          loi_due_at?: string | null
+          name: string
+          notes?: string | null
+          project_id: string
+          report_due_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          amount_awarded?: number | null
+          amount_requested?: number | null
+          application_due_at?: string | null
+          assigned_to?: string | null
+          contact_person_id?: string | null
+          created_at?: string
+          funder_organization_id?: string | null
+          id?: string
+          loi_due_at?: string | null
+          name?: string
+          notes?: string | null
+          project_id?: string
+          report_due_at?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grants_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grants_contact_person_id_fkey"
+            columns: ["contact_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grants_funder_organization_id_fkey"
+            columns: ["funder_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grants_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "grants_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      household_intake: {
+        Row: {
+          assessed_at: string
+          assessed_by: string | null
+          created_at: string
+          household_id: string
+          id: string
+          needs: Json
+          notes: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          assessed_at?: string
+          assessed_by?: string | null
+          created_at?: string
+          household_id: string
+          id?: string
+          needs?: Json
+          notes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          assessed_at?: string
+          assessed_by?: string | null
+          created_at?: string
+          household_id?: string
+          id?: string
+          needs?: Json
+          notes?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "household_intake_assessed_by_fkey"
+            columns: ["assessed_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "household_intake_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      household_members: {
+        Row: {
+          created_at: string
+          end_date: string | null
+          household_id: string
+          id: string
+          is_primary_contact: boolean
+          person_id: string
+          relationship: string
+          start_date: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          end_date?: string | null
+          household_id: string
+          id?: string
+          is_primary_contact?: boolean
+          person_id: string
+          relationship: string
+          start_date: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          end_date?: string | null
+          household_id?: string
+          id?: string
+          is_primary_contact?: boolean
+          person_id?: string
+          relationship?: string
+          start_date?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "household_members_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "household_members_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      households: {
+        Row: {
+          address_city: string | null
+          address_country: string | null
+          address_postal_code: string | null
+          address_state: string | null
+          address_street: string | null
+          created_at: string
+          created_by: string | null
+          custom_fields: Json
+          deleted_at: string | null
+          geocoded_status: string
+          household_size: number | null
+          id: string
+          latitude: number | null
+          longitude: number | null
+          name: string
+          notes: string | null
+          primary_contact_person_id: string | null
+          project_id: string
+          updated_at: string
+        }
+        Insert: {
+          address_city?: string | null
+          address_country?: string | null
+          address_postal_code?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_fields?: Json
+          deleted_at?: string | null
+          geocoded_status?: string
+          household_size?: number | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name: string
+          notes?: string | null
+          primary_contact_person_id?: string | null
+          project_id: string
+          updated_at?: string
+        }
+        Update: {
+          address_city?: string | null
+          address_country?: string | null
+          address_postal_code?: string | null
+          address_state?: string | null
+          address_street?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_fields?: Json
+          deleted_at?: string | null
+          geocoded_status?: string
+          household_size?: number | null
+          id?: string
+          latitude?: number | null
+          longitude?: number | null
+          name?: string
+          notes?: string | null
+          primary_contact_person_id?: string | null
+          project_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "households_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "households_primary_contact_person_id_fkey"
+            columns: ["primary_contact_person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "households_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "households_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      impact_dimensions: {
+        Row: {
+          color: string
+          created_at: string
+          description: string | null
+          framework_id: string
+          icon: string
+          id: string
+          is_active: boolean
+          key: string
+          label: string
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          color: string
+          created_at?: string
+          description?: string | null
+          framework_id: string
+          icon: string
+          id?: string
+          is_active?: boolean
+          key: string
+          label: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          color?: string
+          created_at?: string
+          description?: string | null
+          framework_id?: string
+          icon?: string
+          id?: string
+          is_active?: boolean
+          key?: string
+          label?: string
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "impact_dimensions_framework_id_fkey"
+            columns: ["framework_id"]
+            isOneToOne: false
+            referencedRelation: "impact_frameworks"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      impact_frameworks: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_active: boolean
+          name: string
+          project_id: string | null
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name: string
+          project_id?: string | null
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_active?: boolean
+          name?: string
+          project_id?: string | null
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "impact_frameworks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "impact_frameworks_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -4157,6 +5964,161 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      job_time_entries: {
+        Row: {
+          created_at: string
+          duration_minutes: number | null
+          ended_at: string | null
+          id: string
+          is_break: boolean
+          job_id: string
+          notes: string | null
+          started_at: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          id?: string
+          is_break?: boolean
+          job_id: string
+          notes?: string | null
+          started_at: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          duration_minutes?: number | null
+          ended_at?: string | null
+          id?: string
+          is_break?: boolean
+          job_id?: string
+          notes?: string | null
+          started_at?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "job_time_entries_job_id_fkey"
+            columns: ["job_id"]
+            isOneToOne: false
+            referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      jobs: {
+        Row: {
+          assigned_by: string | null
+          completed_at: string | null
+          contractor_id: string | null
+          created_at: string
+          deadline: string | null
+          description: string | null
+          desired_start: string | null
+          id: string
+          is_out_of_scope: boolean
+          notes: string | null
+          priority: string
+          project_id: string
+          pulled_at: string | null
+          required_certifications: string[]
+          scope_id: string | null
+          service_address: string | null
+          service_category: string | null
+          service_latitude: number | null
+          service_longitude: number | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          assigned_by?: string | null
+          completed_at?: string | null
+          contractor_id?: string | null
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          desired_start?: string | null
+          id?: string
+          is_out_of_scope?: boolean
+          notes?: string | null
+          priority?: string
+          project_id: string
+          pulled_at?: string | null
+          required_certifications?: string[]
+          scope_id?: string | null
+          service_address?: string | null
+          service_category?: string | null
+          service_latitude?: number | null
+          service_longitude?: number | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          assigned_by?: string | null
+          completed_at?: string | null
+          contractor_id?: string | null
+          created_at?: string
+          deadline?: string | null
+          description?: string | null
+          desired_start?: string | null
+          id?: string
+          is_out_of_scope?: boolean
+          notes?: string | null
+          priority?: string
+          project_id?: string
+          pulled_at?: string | null
+          required_certifications?: string[]
+          scope_id?: string | null
+          service_address?: string | null
+          service_category?: string | null
+          service_latitude?: number | null
+          service_longitude?: number | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "jobs_assigned_by_fkey"
+            columns: ["assigned_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "jobs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "jobs_scope_id_fkey"
+            columns: ["scope_id"]
+            isOneToOne: false
+            referencedRelation: "contractor_scopes"
             referencedColumns: ["id"]
           },
         ]
@@ -5539,9 +7501,12 @@ export type Database = {
           id: string
           industry: string | null
           is_customer: boolean
+          is_referral_partner: boolean
           is_vendor: boolean
+          latitude: number | null
           linkedin_url: string | null
           logo_url: string | null
+          longitude: number | null
           name: string
           payment_terms: number | null
           phone: string | null
@@ -5571,9 +7536,12 @@ export type Database = {
           id?: string
           industry?: string | null
           is_customer?: boolean
+          is_referral_partner?: boolean
           is_vendor?: boolean
+          latitude?: number | null
           linkedin_url?: string | null
           logo_url?: string | null
+          longitude?: number | null
           name: string
           payment_terms?: number | null
           phone?: string | null
@@ -5603,9 +7571,12 @@ export type Database = {
           id?: string
           industry?: string | null
           is_customer?: boolean
+          is_referral_partner?: boolean
           is_vendor?: boolean
+          latitude?: number | null
           linkedin_url?: string | null
           logo_url?: string | null
+          longitude?: number | null
           name?: string
           payment_terms?: number | null
           phone?: string | null
@@ -5793,10 +7764,14 @@ export type Database = {
           enrichment_status: string | null
           first_name: string
           id: string
+          is_contractor: boolean
+          is_volunteer: boolean
           job_title: string | null
           last_name: string
+          latitude: number | null
           linkedin_outreach_status: string | null
           linkedin_url: string | null
+          longitude: number | null
           mobile_phone: string | null
           notes: string | null
           phone: string | null
@@ -5805,6 +7780,7 @@ export type Database = {
           timezone: string | null
           twitter_handle: string | null
           updated_at: string
+          user_id: string | null
         }
         Insert: {
           address_city?: string | null
@@ -5827,10 +7803,14 @@ export type Database = {
           enrichment_status?: string | null
           first_name: string
           id?: string
+          is_contractor?: boolean
+          is_volunteer?: boolean
           job_title?: string | null
           last_name: string
+          latitude?: number | null
           linkedin_outreach_status?: string | null
           linkedin_url?: string | null
+          longitude?: number | null
           mobile_phone?: string | null
           notes?: string | null
           phone?: string | null
@@ -5839,6 +7819,7 @@ export type Database = {
           timezone?: string | null
           twitter_handle?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Update: {
           address_city?: string | null
@@ -5861,10 +7842,14 @@ export type Database = {
           enrichment_status?: string | null
           first_name?: string
           id?: string
+          is_contractor?: boolean
+          is_volunteer?: boolean
           job_title?: string | null
           last_name?: string
+          latitude?: number | null
           linkedin_outreach_status?: string | null
           linkedin_url?: string | null
+          longitude?: number | null
           mobile_phone?: string | null
           notes?: string | null
           phone?: string | null
@@ -5873,6 +7858,7 @@ export type Database = {
           timezone?: string | null
           twitter_handle?: string | null
           updated_at?: string
+          user_id?: string | null
         }
         Relationships: [
           {
@@ -5901,6 +7887,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "people_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -6039,6 +8032,190 @@ export type Database = {
           },
           {
             foreignKeyName: "products_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      program_attendance: {
+        Row: {
+          created_at: string
+          date: string
+          hours: number
+          id: string
+          person_id: string
+          program_id: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          date: string
+          hours?: number
+          id?: string
+          person_id: string
+          program_id: string
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          date?: string
+          hours?: number
+          id?: string
+          person_id?: string
+          program_id?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_attendance_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_attendance_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      program_enrollments: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          enrolled_at: string
+          household_id: string | null
+          id: string
+          notes: string | null
+          person_id: string | null
+          program_id: string
+          status: string
+          updated_at: string
+          waiver_status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          enrolled_at?: string
+          household_id?: string | null
+          id?: string
+          notes?: string | null
+          person_id?: string | null
+          program_id: string
+          status?: string
+          updated_at?: string
+          waiver_status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          enrolled_at?: string
+          household_id?: string | null
+          id?: string
+          notes?: string | null
+          person_id?: string | null
+          program_id?: string
+          status?: string
+          updated_at?: string
+          waiver_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_enrollments_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_enrollments_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_enrollments_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      programs: {
+        Row: {
+          capacity: number | null
+          created_at: string
+          description: string | null
+          end_date: string | null
+          id: string
+          location_latitude: number | null
+          location_longitude: number | null
+          location_name: string | null
+          name: string
+          project_id: string
+          requires_waiver: boolean
+          schedule: Json | null
+          start_date: string | null
+          status: string
+          target_dimensions: string[]
+          updated_at: string
+        }
+        Insert: {
+          capacity?: number | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          location_latitude?: number | null
+          location_longitude?: number | null
+          location_name?: string | null
+          name: string
+          project_id: string
+          requires_waiver?: boolean
+          schedule?: Json | null
+          start_date?: string | null
+          status?: string
+          target_dimensions?: string[]
+          updated_at?: string
+        }
+        Update: {
+          capacity?: number | null
+          created_at?: string
+          description?: string | null
+          end_date?: string | null
+          id?: string
+          location_latitude?: number | null
+          location_longitude?: number | null
+          location_name?: string | null
+          name?: string
+          project_id?: string
+          requires_waiver?: boolean
+          schedule?: Json | null
+          start_date?: string | null
+          status?: string
+          target_dimensions?: string[]
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "programs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "programs_project_id_fkey"
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
@@ -6223,45 +8400,237 @@ export type Database = {
       }
       projects: {
         Row: {
+          accounting_company_id: string | null
+          accounting_target: string | null
+          calendar_sync_enabled: boolean | null
           created_at: string
           deleted_at: string | null
           description: string | null
           id: string
+          impact_framework_id: string | null
           logo_url: string | null
           name: string
           owner_id: string
+          project_type: string
           settings: Json
           slug: string
           updated_at: string
         }
         Insert: {
+          accounting_company_id?: string | null
+          accounting_target?: string | null
+          calendar_sync_enabled?: boolean | null
           created_at?: string
           deleted_at?: string | null
           description?: string | null
           id?: string
+          impact_framework_id?: string | null
           logo_url?: string | null
           name: string
           owner_id: string
+          project_type?: string
           settings?: Json
           slug: string
           updated_at?: string
         }
         Update: {
+          accounting_company_id?: string | null
+          accounting_target?: string | null
+          calendar_sync_enabled?: boolean | null
           created_at?: string
           deleted_at?: string | null
           description?: string | null
           id?: string
+          impact_framework_id?: string | null
           logo_url?: string | null
           name?: string
           owner_id?: string
+          project_type?: string
           settings?: Json
           slug?: string
           updated_at?: string
         }
         Relationships: [
           {
+            foreignKeyName: "projects_accounting_company_id_fkey"
+            columns: ["accounting_company_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_companies"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "projects_impact_framework_id_fkey"
+            columns: ["impact_framework_id"]
+            isOneToOne: false
+            referencedRelation: "impact_frameworks"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "projects_owner_id_fkey"
             columns: ["owner_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_dashboard_configs: {
+        Row: {
+          access_type: string
+          archived_at: string | null
+          created_at: string
+          data_freshness: string
+          date_range_end: string | null
+          date_range_start: string | null
+          date_range_type: string
+          description: string | null
+          excluded_categories: string[]
+          geo_granularity: string
+          hero_image_url: string | null
+          id: string
+          min_count_threshold: number
+          password_hash: string | null
+          project_id: string
+          published_at: string | null
+          published_by: string | null
+          slug: string
+          snapshot_data: Json | null
+          status: string
+          theme: Json
+          title: string
+          updated_at: string
+          widget_order: string[]
+          widgets: Json
+        }
+        Insert: {
+          access_type?: string
+          archived_at?: string | null
+          created_at?: string
+          data_freshness?: string
+          date_range_end?: string | null
+          date_range_start?: string | null
+          date_range_type?: string
+          description?: string | null
+          excluded_categories?: string[]
+          geo_granularity?: string
+          hero_image_url?: string | null
+          id?: string
+          min_count_threshold?: number
+          password_hash?: string | null
+          project_id: string
+          published_at?: string | null
+          published_by?: string | null
+          slug: string
+          snapshot_data?: Json | null
+          status?: string
+          theme?: Json
+          title: string
+          updated_at?: string
+          widget_order?: string[]
+          widgets?: Json
+        }
+        Update: {
+          access_type?: string
+          archived_at?: string | null
+          created_at?: string
+          data_freshness?: string
+          date_range_end?: string | null
+          date_range_start?: string | null
+          date_range_type?: string
+          description?: string | null
+          excluded_categories?: string[]
+          geo_granularity?: string
+          hero_image_url?: string | null
+          id?: string
+          min_count_threshold?: number
+          password_hash?: string | null
+          project_id?: string
+          published_at?: string | null
+          published_by?: string | null
+          slug?: string
+          snapshot_data?: Json | null
+          status?: string
+          theme?: Json
+          title?: string
+          updated_at?: string
+          widget_order?: string[]
+          widgets?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_dashboard_configs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "public_dashboard_configs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "public_dashboard_configs_published_by_fkey"
+            columns: ["published_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      public_dashboard_share_links: {
+        Row: {
+          access_count: number
+          config_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          is_active: boolean
+          label: string | null
+          last_accessed_at: string | null
+          token: string
+          updated_at: string
+        }
+        Insert: {
+          access_count?: number
+          config_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          last_accessed_at?: string | null
+          token: string
+          updated_at?: string
+        }
+        Update: {
+          access_count?: number
+          config_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          is_active?: boolean
+          label?: string | null
+          last_accessed_at?: string | null
+          token?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "public_dashboard_share_links_config_id_fkey"
+            columns: ["config_id"]
+            isOneToOne: false
+            referencedRelation: "public_dashboard_configs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "public_dashboard_share_links_created_by_fkey"
+            columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -6449,6 +8818,88 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      receipt_confirmations: {
+        Row: {
+          account_code: string | null
+          accounting_target: string
+          amount: number
+          class_name: string | null
+          created_at: string
+          description: string | null
+          error_message: string | null
+          external_bill_id: string | null
+          id: string
+          image_url: string
+          ocr_raw: Json
+          project_id: string
+          receipt_date: string
+          status: string
+          submitted_by: string | null
+          updated_at: string
+          vendor: string
+        }
+        Insert: {
+          account_code?: string | null
+          accounting_target: string
+          amount: number
+          class_name?: string | null
+          created_at?: string
+          description?: string | null
+          error_message?: string | null
+          external_bill_id?: string | null
+          id?: string
+          image_url: string
+          ocr_raw?: Json
+          project_id: string
+          receipt_date: string
+          status?: string
+          submitted_by?: string | null
+          updated_at?: string
+          vendor: string
+        }
+        Update: {
+          account_code?: string | null
+          accounting_target?: string
+          amount?: number
+          class_name?: string | null
+          created_at?: string
+          description?: string | null
+          error_message?: string | null
+          external_bill_id?: string | null
+          id?: string
+          image_url?: string
+          ocr_raw?: Json
+          project_id?: string
+          receipt_date?: string
+          status?: string
+          submitted_by?: string | null
+          updated_at?: string
+          vendor?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "receipt_confirmations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "receipt_confirmations_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "receipt_confirmations_submitted_by_fkey"
+            columns: ["submitted_by"]
+            isOneToOne: false
+            referencedRelation: "users"
             referencedColumns: ["id"]
           },
         ]
@@ -6653,6 +9104,146 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      referrals: {
+        Row: {
+          created_at: string
+          household_id: string | null
+          id: string
+          notes: string | null
+          outcome: string | null
+          partner_organization_id: string | null
+          person_id: string | null
+          project_id: string
+          service_type: string
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          household_id?: string | null
+          id?: string
+          notes?: string | null
+          outcome?: string | null
+          partner_organization_id?: string | null
+          person_id?: string | null
+          project_id: string
+          service_type: string
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          household_id?: string | null
+          id?: string
+          notes?: string | null
+          outcome?: string | null
+          partner_organization_id?: string | null
+          person_id?: string | null
+          project_id?: string
+          service_type?: string
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "referrals_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_partner_organization_id_fkey"
+            columns: ["partner_organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "referrals_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "referrals_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      relationships: {
+        Row: {
+          created_at: string
+          id: string
+          notes: string | null
+          person_a_id: string
+          person_b_id: string
+          project_id: string
+          type: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          person_a_id: string
+          person_b_id: string
+          project_id: string
+          type: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          notes?: string | null
+          person_a_id?: string
+          person_b_id?: string
+          project_id?: string
+          type?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "relationships_person_a_id_fkey"
+            columns: ["person_a_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "relationships_person_b_id_fkey"
+            columns: ["person_b_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "relationships_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "relationships_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -9199,6 +11790,26 @@ export type Database = {
         Args: { p_days_old?: number }
         Returns: number
       }
+      community_can_access_shared_directory: {
+        Args: { p_action: string; p_project_id: string }
+        Returns: boolean
+      }
+      community_contractor_can_view_job: {
+        Args: { p_job_id: string }
+        Returns: boolean
+      }
+      community_contractor_person_id: {
+        Args: { p_project_id: string }
+        Returns: string
+      }
+      community_current_role: {
+        Args: { p_project_id: string }
+        Returns: Database["public"]["Enums"]["project_role"]
+      }
+      community_has_permission: {
+        Args: { p_action: string; p_project_id: string; p_resource: string }
+        Returns: boolean
+      }
       complete_reconciliation: {
         Args: { p_reconciliation_id: string }
         Returns: string
@@ -9950,7 +12561,15 @@ export type Database = {
         | "negotiation"
         | "closed_won"
         | "closed_lost"
-      project_role: "owner" | "admin" | "member" | "viewer"
+      project_role:
+        | "owner"
+        | "admin"
+        | "member"
+        | "viewer"
+        | "staff"
+        | "case_manager"
+        | "contractor"
+        | "board_viewer"
       quote_status: "draft" | "sent" | "accepted" | "rejected" | "expired"
       rfp_question_status: "unanswered" | "draft" | "review" | "approved"
       rfp_status:
@@ -10091,8 +12710,25 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
+  auth: {
+    Enums: {
+      aal_level: ["aal1", "aal2", "aal3"],
+      code_challenge_method: ["s256", "plain"],
+      factor_status: ["unverified", "verified"],
+      factor_type: ["totp", "webauthn", "phone"],
+      oauth_authorization_status: ["pending", "approved", "denied", "expired"],
+      oauth_client_type: ["public", "confidential"],
+      oauth_registration_type: ["dynamic", "manual"],
+      oauth_response_type: ["code"],
+      one_time_token_type: [
+        "confirmation_token",
+        "reauthentication_token",
+        "recovery_token",
+        "email_change_token_new",
+        "email_change_token_current",
+        "phone_change_token",
+      ],
+    },
   },
   public: {
     Enums: {
@@ -10123,7 +12759,16 @@ export const Constants = {
         "closed_won",
         "closed_lost",
       ],
-      project_role: ["owner", "admin", "member", "viewer"],
+      project_role: [
+        "owner",
+        "admin",
+        "member",
+        "viewer",
+        "staff",
+        "case_manager",
+        "contractor",
+        "board_viewer",
+      ],
       quote_status: ["draft", "sent", "accepted", "rejected", "expired"],
       rfp_question_status: ["unanswered", "draft", "review", "approved"],
       rfp_status: [
@@ -10144,4 +12789,3 @@ export const Constants = {
     },
   },
 } as const
-

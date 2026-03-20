@@ -1,7 +1,9 @@
 import { z } from 'zod';
 
 // Project roles
-export const projectRoles = ['owner', 'admin', 'member', 'viewer'] as const;
+export const standardProjectRoles = ['owner', 'admin', 'member', 'viewer'] as const;
+export const communityProjectRoles = ['staff', 'case_manager', 'contractor', 'board_viewer'] as const;
+export const projectRoles = [...standardProjectRoles, ...communityProjectRoles] as const;
 
 // Notification digest options
 export const notificationDigests = ['realtime', 'daily', 'weekly', 'never'] as const;
@@ -14,12 +16,27 @@ export const inviteMemberSchema = z.object({
 
 export type InviteMemberInput = z.infer<typeof inviteMemberSchema>;
 
+export const inviteCommunityMemberSchema = z.object({
+  email: z.string().email(),
+  role: z
+    .enum(['admin', 'staff', 'case_manager', 'contractor', 'board_viewer'])
+    .optional(),
+});
+
+export type InviteCommunityMemberInput = z.infer<typeof inviteCommunityMemberSchema>;
+
 // Update member role schema
 export const updateMemberRoleSchema = z.object({
   role: z.enum(['admin', 'member', 'viewer']),
 });
 
 export type UpdateMemberRoleInput = z.infer<typeof updateMemberRoleSchema>;
+
+export const updateCommunityMemberRoleSchema = z.object({
+  role: z.enum(['admin', 'staff', 'case_manager', 'contractor', 'board_viewer']),
+});
+
+export type UpdateCommunityMemberRoleInput = z.infer<typeof updateCommunityMemberRoleSchema>;
 
 // User settings schema
 export const userSettingsSchema = z.object({
