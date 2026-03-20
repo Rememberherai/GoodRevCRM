@@ -32,6 +32,26 @@ interface DimensionOption {
   color: string | null;
 }
 
+function buildSchedulePayload(
+  summary: string,
+  startDate: string,
+  sessionStartTime: string,
+  sessionEndTime: string,
+) {
+  const hasSummary = summary.trim().length > 0;
+  const hasTimes = sessionStartTime && sessionEndTime && startDate;
+
+  if (!hasSummary && !hasTimes) return null;
+
+  const schedule: Record<string, string> = {};
+  if (hasSummary) schedule.summary = summary.trim();
+  if (hasTimes) {
+    schedule.session_start = `${startDate}T${sessionStartTime}:00`;
+    schedule.session_end = `${startDate}T${sessionEndTime}:00`;
+  }
+  return schedule;
+}
+
 export function NewProgramDialog({
   open,
   onOpenChange,
@@ -53,6 +73,8 @@ export function NewProgramDialog({
   const [startDate, setStartDate] = useState('');
   const [endDate, setEndDate] = useState('');
   const [scheduleText, setScheduleText] = useState('');
+  const [sessionStartTime, setSessionStartTime] = useState('');
+  const [sessionEndTime, setSessionEndTime] = useState('');
   const [requiresWaiver, setRequiresWaiver] = useState(false);
   const [selectedDimensions, setSelectedDimensions] = useState<string[]>([]);
 
@@ -86,6 +108,8 @@ export function NewProgramDialog({
     setStartDate('');
     setEndDate('');
     setScheduleText('');
+    setSessionStartTime('');
+    setSessionEndTime('');
     setRequiresWaiver(false);
     setSelectedDimensions([]);
   };
@@ -106,7 +130,7 @@ export function NewProgramDialog({
       start_date: startDate || null,
       end_date: endDate || null,
       target_dimensions: selectedDimensions,
-      schedule: scheduleText.trim() ? { summary: scheduleText.trim() } : null,
+      schedule: buildSchedulePayload(scheduleText, startDate, sessionStartTime, sessionEndTime),
       requires_waiver: requiresWaiver,
     };
 
@@ -198,6 +222,19 @@ export function NewProgramDialog({
             <Label htmlFor="program-schedule">Schedule Summary</Label>
             <Input id="program-schedule" value={scheduleText} onChange={(event) => setScheduleText(event.target.value)} placeholder="Tuesdays 6-8pm" />
           </div>
+          <div className="space-y-2">
+            <Label htmlFor="program-session-start">Session Start Time</Label>
+            <Input id="program-session-start" type="time" value={sessionStartTime} onChange={(event) => setSessionStartTime(event.target.value)} />
+          </div>
+          <div className="space-y-2">
+            <Label htmlFor="program-session-end">Session End Time</Label>
+            <Input id="program-session-end" type="time" value={sessionEndTime} onChange={(event) => setSessionEndTime(event.target.value)} />
+          </div>
+          {sessionStartTime && sessionEndTime && !startDate && (
+            <div className="sm:col-span-2 text-sm text-amber-600">
+              Set a Start Date above so session times can sync to Google Calendar.
+            </div>
+          )}
           <div className="sm:col-span-2 flex items-center justify-between rounded-lg border p-3">
             <div>
               <div className="font-medium">Requires waiver</div>
