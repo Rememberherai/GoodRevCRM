@@ -51,7 +51,7 @@ import { ClickableEmail } from '@/components/contacts/clickable-email';
 import { ClickablePhone } from '@/components/contacts/clickable-phone';
 import { CallLogTable } from '@/components/calls/call-log-table';
 import { SmsConversation } from '@/components/sms/sms-conversation';
-import { PhoneCall, MessageSquareText, ExternalLink, Copy, Check, UserPlus, Users, ClipboardList, ListTodo, ShieldCheck, CheckCircle2, AlertTriangle, Loader2 } from 'lucide-react';
+import { PhoneCall, MessageSquareText, ExternalLink, Copy, Check, UserPlus, Users, ClipboardList, ListTodo, ShieldCheck, CheckCircle2, AlertTriangle, Loader2, Plus, FileText } from 'lucide-react';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ActivityWithUser } from '@/types/activity';
 import { getSalesNavUrl } from '@/lib/linkedin/utils';
@@ -68,14 +68,16 @@ import {
 import { useDispositions } from '@/hooks/use-dispositions';
 import { DISPOSITION_COLOR_MAP, type DispositionColor } from '@/types/disposition';
 import { useOutreachGuard } from '@/hooks/use-outreach-guard';
+import { NewScopeDialog } from '@/components/community/contractors/new-scope-dialog';
 
 interface PersonDetailClientProps {
   personId: string;
   companyContext?: CompanyContext;
   currentUserId?: string;
+  projectType?: string;
 }
 
-export function PersonDetailClient({ personId, companyContext, currentUserId }: PersonDetailClientProps) {
+export function PersonDetailClient({ personId, companyContext, currentUserId, projectType }: PersonDetailClientProps) {
   const params = useParams();
   const router = useRouter();
   const searchParams = useSearchParams();
@@ -104,6 +106,9 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
   const [showLogActivity, setShowLogActivity] = useState(false);
   const [showCreateTask, setShowCreateTask] = useState(false);
   const [emailValidating, setEmailValidating] = useState(false);
+  const [scopes, setScopes] = useState<Array<{ id: string; title: string; status: string; start_date: string | null; end_date: string | null; service_categories: string[] }>>([]);
+  const [scopesLoading, setScopesLoading] = useState(false);
+  const [showNewScope, setShowNewScope] = useState(false);
   const { checkWithDisposition, GuardDialog } = useOutreachGuard(slug);
 
   const { person, isLoading, error, refresh } = usePerson(personId);
@@ -266,6 +271,29 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
       setLoggingLinkedIn(null);
     }
   }, [person, personId, slug, activeTab, loadActivities]);
+
+  // Load contractor scopes for community projects
+  const loadScopes = useCallback(async () => {
+    if (projectType !== 'community') return;
+    setScopesLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/contractor-scopes?contractorId=${personId}`);
+      if (response.ok) {
+        const data = await response.json() as { scopes?: typeof scopes };
+        setScopes(data.scopes ?? []);
+      }
+    } catch {
+      // non-critical
+    } finally {
+      setScopesLoading(false);
+    }
+  }, [slug, personId, projectType]);
+
+  useEffect(() => {
+    if (projectType === 'community') {
+      void loadScopes();
+    }
+  }, [projectType, loadScopes]);
 
   // Check for completed but unreviewed enrichments on mount (no auto-popup)
   useEffect(() => {
@@ -778,6 +806,63 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
             </Card>
           </div>
 
+          {/* Contractor Scopes — community projects only */}
+          {projectType === 'community' && (
+            <Card>
+              <CardHeader>
+                <div className="flex items-center justify-between">
+                  <CardTitle className="flex items-center gap-2">
+                    <FileText className="h-5 w-5" />
+                    Contractor Scopes
+                  </CardTitle>
+                  <Button
+                    size="sm"
+                    onClick={() => setShowNewScope(true)}
+                  >
+                    <Plus className="mr-2 h-4 w-4" />
+                    Add Scope
+                  </Button>
+                </div>
+              </CardHeader>
+              <CardContent>
+                {scopesLoading ? (
+                  <div className="text-sm text-muted-foreground">Loading...</div>
+                ) : scopes.length === 0 ? (
+                  <p className="text-sm text-muted-foreground">No contractor scopes yet. Add one to define their work agreement.</p>
+                ) : (
+                  <div className="space-y-3">
+                    {scopes.map((scope) => (
+                      <Link
+                        key={scope.id}
+                        href={`/projects/${slug}/contractors/${personId}`}
+                        className="block rounded-lg border p-3 hover:bg-muted/50 transition-colors"
+                      >
+                        <div className="flex items-center justify-between">
+                          <span className="font-medium">{scope.title}</span>
+                          <Badge variant="secondary">{(scope.status ?? 'draft').replace(/_/g, ' ')}</Badge>
+                        </div>
+                        {scope.service_categories?.length > 0 && (
+                          <div className="flex flex-wrap gap-1 mt-2">
+                            {scope.service_categories.map((cat) => (
+                              <Badge key={cat} variant="outline" className="text-xs">{cat}</Badge>
+                            ))}
+                          </div>
+                        )}
+                        {(scope.start_date || scope.end_date) && (
+                          <div className="text-xs text-muted-foreground mt-1">
+                            {scope.start_date && `From ${new Date(scope.start_date).toLocaleDateString()}`}
+                            {scope.start_date && scope.end_date && ' — '}
+                            {scope.end_date && `To ${new Date(scope.end_date).toLocaleDateString()}`}
+                          </div>
+                        )}
+                      </Link>
+                    ))}
+                  </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
           {person.notes && (
             <Card>
               <CardHeader>
@@ -952,6 +1037,16 @@ export function PersonDetailClient({ personId, companyContext, currentUserId }: 
         organizationId={person.organizations?.[0]?.organization_id}
         defaultTitle={`Follow up with ${getFullName(person.first_name, person.last_name)}`}
       />
+
+      {projectType === 'community' && (
+        <NewScopeDialog
+          open={showNewScope}
+          onOpenChange={setShowNewScope}
+          projectSlug={slug}
+          contractorId={personId}
+          onCreated={() => void loadScopes()}
+        />
+      )}
 
       <EnrichmentReviewModal
         open={showPendingReviewModal}

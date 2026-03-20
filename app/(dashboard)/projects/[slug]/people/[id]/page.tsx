@@ -16,19 +16,20 @@ export default async function PersonDetailPage({ params }: PersonDetailPageProps
   // Fetch project settings for company context
   const { data: project } = await supabase
     .from('projects')
-    .select('settings')
+    .select('settings, project_type')
     .eq('slug', slug)
     .is('deleted_at', null)
     .single();
 
   const settings = project?.settings as { company_context?: CompanyContext } | null;
   const companyContext = settings?.company_context;
+  const projectType = (project?.project_type as string) ?? 'standard';
 
   const { data: { user } } = await supabase.auth.getUser();
 
   return (
     <Suspense fallback={<PersonDetailSkeleton />}>
-      <PersonDetailClient personId={id} companyContext={companyContext} currentUserId={user?.id} />
+      <PersonDetailClient personId={id} companyContext={companyContext} currentUserId={user?.id} projectType={projectType} />
     </Suspense>
   );
 }

@@ -3,10 +3,11 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, HardHat } from 'lucide-react';
+import { ArrowLeft, HardHat, Plus } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { NewScopeDialog } from '@/components/community/contractors/new-scope-dialog';
 
 interface ContractorPerson {
   id: string;
@@ -47,6 +48,7 @@ export function ContractorDetailClient({ contractorId }: { contractorId: string 
   const [jobs, setJobs] = useState<JobRecord[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [showNewScope, setShowNewScope] = useState(false);
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -136,8 +138,16 @@ export function ContractorDetailClient({ contractorId }: { contractorId: string 
       <div className="grid gap-4 md:grid-cols-2">
         <Card>
           <CardHeader>
-            <CardTitle>Scope of Work</CardTitle>
-            <CardDescription>Current scope records and signed document links.</CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle>Scope of Work</CardTitle>
+                <CardDescription>Current scope records and signed document links.</CardDescription>
+              </div>
+              <Button size="sm" onClick={() => setShowNewScope(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Scope
+              </Button>
+            </div>
           </CardHeader>
           <CardContent className="space-y-3">
             {scopes.length === 0 ? (
@@ -200,6 +210,14 @@ export function ContractorDetailClient({ contractorId }: { contractorId: string 
           </CardContent>
         </Card>
       </div>
+
+      <NewScopeDialog
+        open={showNewScope}
+        onOpenChange={setShowNewScope}
+        projectSlug={slug}
+        contractorId={contractorId}
+        onCreated={() => void loadData()}
+      />
     </div>
   );
 }

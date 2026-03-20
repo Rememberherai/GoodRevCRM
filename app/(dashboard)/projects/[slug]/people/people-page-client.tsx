@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Search, Users, MoreHorizontal, Pencil, Trash2, Send, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { Search, Users, MoreHorizontal, Pencil, Trash2, Send, CheckCircle2, AlertTriangle, Plus } from 'lucide-react';
 import { usePeople } from '@/hooks/use-people';
 import { useColumnPreferences } from '@/hooks/use-column-preferences';
 import { Button } from '@/components/ui/button';
@@ -48,6 +48,7 @@ import { useOutreachGuard } from '@/hooks/use-outreach-guard';
 import { usePersonStore, updatePersonApi } from '@/stores/person';
 import { ClickableEmail } from '@/components/contacts/clickable-email';
 import { ClickablePhone } from '@/components/contacts/clickable-phone';
+import { NewPersonDialog } from '@/components/people/new-person-dialog';
 import type { BulkOperation } from '@/types/bulk';
 
 export function PeoplePageClient() {
@@ -63,6 +64,7 @@ export function PeoplePageClient() {
   const [bulkValidateOpen, setBulkValidateOpen] = useState(false);
   const [enrollInSequenceOpen, setEnrollInSequenceOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
+  const [newPersonOpen, setNewPersonOpen] = useState(false);
 
   const {
     people,
@@ -299,6 +301,10 @@ export function PeoplePageClient() {
             Manage contacts and individuals in your CRM
           </p>
         </div>
+        <Button onClick={() => setNewPersonOpen(true)}>
+          <Plus className="mr-2 h-4 w-4" />
+          Add Person
+        </Button>
       </div>
 
       <div className="flex items-center gap-4">
@@ -390,7 +396,7 @@ export function PeoplePageClient() {
                     <Users className="h-8 w-8 text-muted-foreground" />
                     <p className="text-muted-foreground">No people yet</p>
                     <p className="text-sm text-muted-foreground">
-                      Add people from an organization&apos;s detail page
+                      Click &quot;Add Person&quot; to create your first contact
                     </p>
                   </div>
                 </TableCell>
@@ -492,6 +498,14 @@ export function PeoplePageClient() {
       </AlertDialog>
 
       {GuardDialog}
+
+      <NewPersonDialog
+        open={newPersonOpen}
+        onOpenChange={(open) => {
+          setNewPersonOpen(open);
+          if (!open) refresh();
+        }}
+      />
 
       <SendEmailModal
         open={!!sendEmailTo}
