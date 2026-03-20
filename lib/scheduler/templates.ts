@@ -164,6 +164,20 @@ export const CRON_TEMPLATES: CronTemplate[] = [
       wdays: [-1],
     },
   },
+  {
+    key: 'process-geocodes',
+    title: 'Process Geocodes',
+    path: '/api/cron/process-geocodes',
+    description: 'Geocodes pending households and community assets via Nominatim',
+    defaultSchedule: {
+      timezone: 'America/New_York',
+      hours: [-1],
+      minutes: [0, 15, 30, 45],
+      mdays: [-1],
+      months: [-1],
+      wdays: [-1],
+    },
+  },
 ];
 
 /** Human-readable description of a cron-job.org schedule */
