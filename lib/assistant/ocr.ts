@@ -110,15 +110,8 @@ async function callOpenRouterForJson(projectId: string, body: Record<string, unk
 }
 
 async function extractFromPdf(projectId: string, bytes: Buffer, userContext?: string) {
-  const { PDFParse } = await import('pdf-parse');
-  const parser = new PDFParse({ data: bytes });
-  const pdfResult = await parser.getText();
-  await parser.destroy();
-  const rawText = pdfResult.text?.trim();
-  if (!rawText) {
-    throw new Error('No readable text found in the uploaded PDF');
-  }
-
+  // Send PDF directly to Gemini as base64 — avoids pdfjs-dist DOMMatrix errors in Node
+  const dataUrl = `data:application/pdf;base64,${bytes.toString('base64')}`;
   return callOpenRouterForJson(projectId, {
     model: 'google/gemini-2.5-flash',
     response_format: { type: 'json_object' },
@@ -129,10 +122,19 @@ async function extractFromPdf(projectId: string, bytes: Buffer, userContext?: st
       },
       {
         role: 'user',
-        content: `Receipt text:\n${rawText}\n\nAdditional context:\n${userContext ?? 'None'}`,
+        content: [
+          {
+            type: 'text',
+            text: `Extract the receipt. Additional context: ${userContext ?? 'None'}`,
+          },
+          {
+            type: 'image_url',
+            image_url: { url: dataUrl },
+          },
+        ],
       },
     ],
-  }).then((result) => ({ ...result, raw_text: rawText }));
+  });
 }
 
 async function extractFromImage(projectId: string, bytes: Buffer, contentType: string, userContext?: string) {
