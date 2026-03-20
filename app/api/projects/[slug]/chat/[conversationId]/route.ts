@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -33,8 +34,9 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Validation failed' }, { status: 400 });
     }
 
+    // Use admin client for chat table operations (auth + membership already verified above)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = supabase as any;
+    const db = createAdminClient() as any;
 
     const { error } = await db
       .from('chat_conversations')
@@ -67,8 +69,9 @@ export async function DELETE(_request: Request, context: RouteContext) {
       .single();
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
+    // Use admin client for chat table operations (auth + membership already verified above)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = supabase as any;
+    const db = createAdminClient() as any;
 
     // Verify ownership and delete (messages cascade)
     const { error } = await db

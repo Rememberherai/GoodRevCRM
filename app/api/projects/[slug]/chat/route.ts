@@ -91,8 +91,9 @@ export async function POST(request: Request, context: RouteContext) {
       supabase: adminSupabase,
     };
 
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any -- chat tables not yet in generated types
-    const db = supabase as any;
+    // Use admin client for chat table operations (auth + membership already verified above)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const db = adminSupabase as any;
 
     // Load or create conversation
     let convId = conversationId;
@@ -345,8 +346,10 @@ export async function GET(request: Request, context: RouteContext) {
       .single();
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
+    // Use admin client for chat table operations (auth + membership already verified above)
+    const adminSupabase = createAdminClient();
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    const db = supabase as any;
+    const db = adminSupabase as any;
     const { searchParams } = new URL(request.url);
     const conversationId = searchParams.get('conversationId');
 
