@@ -45,14 +45,29 @@ export async function GET(_request: Request, context: RouteContext) {
     // Use notes linked to the contact person with grant tag to track outreach
     const { data, error } = await supabase
       .from('notes')
-      .select('id, content, content_html, created_at, created_by, person_id')
+      .select('id, content, content_html, created_at, created_by, person_id, person:people(id, first_name, last_name, email)')
       .eq('project_id', project.id)
       .not('person_id', 'is', null)
       .ilike('content', `%[grant:${id}]%`)
       .order('created_at', { ascending: false });
 
     if (error) throw error;
-    return NextResponse.json({ outreach: data ?? [] });
+
+    // Transform notes into outreach records with subject extracted from content
+    const outreach = (data ?? []).map((note) => {
+      // Content format: "[grant:ID] Subject\n\nBody"
+      const contentWithoutTag = (note.content ?? '').replace(/\[grant:[^\]]+\]\s*/, '');
+      const subject = contentWithoutTag.split('\n')[0] || 'Outreach';
+      return {
+        id: note.id,
+        subject,
+        body_html: note.content_html,
+        created_at: note.created_at,
+        person: note.person,
+      };
+    });
+
+    return NextResponse.json({ outreach });
   } catch (error) {
     if (error instanceof ProjectAccessError)
       return NextResponse.json({ error: error.message }, { status: error.status });

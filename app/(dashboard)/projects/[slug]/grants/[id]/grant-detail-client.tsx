@@ -13,6 +13,7 @@ import { Textarea } from '@/components/ui/textarea';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GrantComplianceCard } from '@/components/community/reports/grant-compliance';
+import { SendEmailModal } from '@/components/gmail';
 
 interface GrantDetail {
   id: string;
@@ -77,6 +78,7 @@ export default function GrantDetailClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [showSendEmail, setShowSendEmail] = useState(false);
 
   // Editable fields
   const [editName, setEditName] = useState('');
@@ -172,6 +174,33 @@ export default function GrantDetailClient() {
       setError(err instanceof Error ? err.message : 'Failed to delete');
     }
   };
+
+  const handleOutreachEmailSuccess = useCallback(async () => {
+    // Also log the sent email as grant outreach so it appears in the history
+    if (grant?.contact?.id) {
+      try {
+        await fetch(`/api/projects/${slug}/grants/${id}/outreach`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            contact_person_id: grant.contact.id,
+            subject: 'Email sent',
+            body: 'Outreach email sent via Gmail',
+          }),
+        });
+      } catch {
+        // Non-critical — email was already sent
+      }
+    }
+    // Refresh outreach list
+    try {
+      const res = await fetch(`/api/projects/${slug}/grants/${id}/outreach`);
+      const json = await res.json() as { outreach?: OutreachRecord[] };
+      setOutreach(json.outreach ?? []);
+    } catch {
+      // Silently fail — outreach list will refresh on next page load
+    }
+  }, [slug, id, grant?.contact?.id]);
 
   if (isLoading) return null;
   if (!grant) return (
@@ -317,14 +346,26 @@ export default function GrantDetailClient() {
 
         <TabsContent value="outreach">
           <Card>
-            <CardHeader>
-              <CardTitle>Outreach History</CardTitle>
-              <CardDescription>Communication with grantor contacts</CardDescription>
+            <CardHeader className="flex flex-row items-center justify-between">
+              <div>
+                <CardTitle>Outreach History</CardTitle>
+                <CardDescription>Communication with grantor contacts</CardDescription>
+              </div>
+              {grant.contact?.email && (
+                <Button size="sm" onClick={() => setShowSendEmail(true)}>
+                  <Mail className="mr-1 h-4 w-4" /> Send Email
+                </Button>
+              )}
             </CardHeader>
             <CardContent>
+              {!grant.contact?.email && (
+                <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground mb-4">
+                  Add a contact person with an email address to this grant to send outreach emails.
+                </div>
+              )}
               {outreach.length === 0 ? (
                 <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
-                  No outreach recorded yet. Use the chat assistant to draft and send outreach.
+                  No outreach recorded yet. Send an email above or use the chat assistant to draft outreach.
                 </div>
               ) : (
                 <div className="space-y-3">
@@ -381,6 +422,18 @@ export default function GrantDetailClient() {
           </Card>
         </TabsContent>
       </Tabs>
+
+      {grant.contact?.email && (
+        <SendEmailModal
+          open={showSendEmail}
+          onOpenChange={setShowSendEmail}
+          projectSlug={slug}
+          defaultTo={grant.contact.email}
+          personId={grant.contact.id}
+          organizationId={grant.funder_organization_id ?? undefined}
+          onSuccess={handleOutreachEmailSuccess}
+        />
+      )}
     </div>
   );
 }
