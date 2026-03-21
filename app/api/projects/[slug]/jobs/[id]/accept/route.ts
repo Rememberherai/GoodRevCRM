@@ -105,7 +105,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     emitAutomationEvent({
       projectId: project.id,
-      triggerType: 'entity.updated',
+      triggerType: 'job.accepted' as never,
       entityType: 'job',
       entityId: job.id,
       data: { ...job, phase5_action: 'accepted' },

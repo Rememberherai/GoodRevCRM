@@ -152,11 +152,10 @@ export async function POST(request: Request, context: RouteContext) {
     // Emit automation event
     emitAutomationEvent({
       projectId: project.id,
-      triggerType: 'entity.created',
+      triggerType: 'household.member_added' as never,
       entityType: 'household_member',
       entityId: member.id,
       data: {
-        event: 'household.member_added',
         household_id: id,
         person_id: validationResult.data.person_id,
         relationship: validationResult.data.relationship,

@@ -72,6 +72,20 @@ export const triggerTypes = [
   'booking.completed',
   'booking.no_show',
   'event_type.created',
+  'household.created',
+  'household.member_added',
+  'program.enrollment.created',
+  'program.attendance.batch',
+  'contribution.created',
+  'job.assigned',
+  'job.accepted',
+  'job.declined',
+  'job.completed',
+  'contractor.onboarded',
+  'referral.created',
+  'referral.completed',
+  'broadcast.sent',
+  'risk_score.high',
 ] as const;
 
 export const actionTypes = [
@@ -122,6 +136,19 @@ export const automationEntityTypes = [
   'payment',
   'booking',
   'event_type',
+  'household',
+  'program',
+  'program_enrollment',
+  'program_attendance',
+  'contribution',
+  'community_asset',
+  'referral',
+  'relationship',
+  'broadcast',
+  'intake',
+  'household_member',
+  'job',
+  'contractor_scope',
 ] as const;
 
 const conditionValueSchema = z.union([

@@ -1,6 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from './database';
 import type { ProjectRole, StandardProjectRole } from './user';
+import type { ProjectType } from './project';
 
 // RBAC roles in order of privilege
 export const STANDARD_MCP_ROLES = [
@@ -8,6 +9,15 @@ export const STANDARD_MCP_ROLES = [
   'member',
   'admin',
   'owner',
+] as const;
+
+export const COMMUNITY_MCP_ROLES = [
+  'owner',
+  'admin',
+  'staff',
+  'case_manager',
+  'contractor',
+  'board_viewer',
 ] as const;
 
 export const MCP_ROLES = [
@@ -34,6 +44,7 @@ export function isStandardMcpRole(role: string): role is StandardMcpRole {
 // Context passed to every MCP tool handler
 export interface McpContext {
   projectId: string;
+  projectType: ProjectType;
   userId: string;
   role: McpRole;
   apiKeyId: string;

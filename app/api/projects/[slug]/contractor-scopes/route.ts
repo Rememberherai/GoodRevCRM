@@ -131,7 +131,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     emitAutomationEvent({
       projectId: project.id,
-      triggerType: 'entity.created',
+      triggerType: 'contractor.onboarded' as never,
       entityType: 'contractor_scope' as never,
       entityId: scope.id,
       data: scope as Record<string, unknown>,

@@ -95,7 +95,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     emitAutomationEvent({
       projectId: project.id,
-      triggerType: 'entity.updated',
+      triggerType: 'job.declined' as never,
       entityType: 'job',
       entityId: job.id,
       data: { ...job, phase5_action: 'declined', decline_reason: reason },

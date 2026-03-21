@@ -10,10 +10,36 @@ import { syncJobAssignment, syncProgramSession } from '@/lib/assistant/calendar-
 import { checkContractorScopeMatch, formatWorkPlanLines } from '@/lib/community/jobs';
 import { createProjectNotification } from '@/lib/community/notifications';
 import { sendContractorDocuments, type ContractorDocumentKind } from '@/lib/community/contractor-documents';
+import { emitAutomationEvent } from '@/lib/automations/engine';
+import { createHouseholdSchema, updateHouseholdSchema } from '@/lib/validators/community/households';
+import {
+  batchAttendanceSchema,
+  createProgramSchema,
+  programEnrollmentBaseSchema,
+  updateProgramSchema,
+} from '@/lib/validators/community/programs';
+import {
+  contributionBaseSchema,
+} from '@/lib/validators/community/contributions';
+import {
+  createCommunityAssetSchema,
+  updateCommunityAssetSchema,
+} from '@/lib/validators/community/assets';
+import {
+  referralBaseSchema,
+  updateReferralSchema,
+} from '@/lib/validators/community/referrals';
+import {
+  relationshipBaseSchema,
+} from '@/lib/validators/community/relationships';
+import {
+  createBroadcastSchema,
+} from '@/lib/validators/community/broadcasts';
+import { sendBroadcast } from '@/lib/community/broadcasts';
 import type { ProjectRole } from '@/types/user';
 import type { Database, Json } from '@/types/database';
 
-type CommunityChatTool = {
+export type CommunityChatTool = {
   name: string;
   description: string;
   parameters: z.ZodObject<z.ZodRawShape>;
@@ -106,6 +132,1007 @@ const jobPullSchema = z.object({
 const contractorJobsSchema = z.object({
   contractor_id: z.string().uuid().optional(),
   include_unassigned: z.boolean().default(false),
+});
+
+const paginatedListSchema = z.object({
+  page: z.number().int().min(1).default(1),
+  limit: z.number().int().min(1).max(100).default(50),
+  search: z.string().optional(),
+});
+
+const entityGetSchema = z.object({
+  id: z.string().uuid(),
+});
+
+const householdsListSchema = paginatedListSchema;
+const householdsCreateToolSchema = createHouseholdSchema.omit({
+  project_id: true,
+  members: true,
+  intake: true,
+});
+const householdsUpdateToolSchema = updateHouseholdSchema.omit({
+  project_id: true,
+  members: true,
+  intake: true,
+}).extend({
+  id: z.string().uuid(),
+});
+
+const programsListSchema = paginatedListSchema.extend({
+  status: z.string().optional(),
+});
+const programsCreateToolSchema = createProgramSchema.omit({ project_id: true });
+const programsUpdateToolSchema = updateProgramSchema.omit({ project_id: true }).extend({
+  id: z.string().uuid(),
+});
+const programsEnrollToolSchema = programEnrollmentBaseSchema.extend({
+  program_id: z.string().uuid(),
+});
+const programsAttendanceToolSchema = batchAttendanceSchema.extend({
+  program_id: z.string().uuid(),
+});
+
+const contributionsListSchema = paginatedListSchema.extend({
+  type: z.string().optional(),
+  dimension_id: z.string().uuid().optional(),
+  program_id: z.string().uuid().optional(),
+});
+const contributionsCreateToolSchema = contributionBaseSchema.omit({ project_id: true });
+const contributionsUpdateToolSchema = contributionBaseSchema.partial().omit({ project_id: true }).extend({
+  id: z.string().uuid(),
+});
+
+const assetsListSchema = paginatedListSchema.extend({
+  category: z.string().optional(),
+  condition: z.string().optional(),
+});
+const assetsCreateToolSchema = createCommunityAssetSchema.omit({ project_id: true });
+const assetsUpdateToolSchema = updateCommunityAssetSchema.omit({ project_id: true }).extend({
+  id: z.string().uuid(),
+});
+
+const referralsListSchema = z.object({
+  status: z.string().optional(),
+  household_id: z.string().uuid().optional(),
+  person_id: z.string().uuid().optional(),
+});
+const referralsCreateToolSchema = referralBaseSchema.omit({ project_id: true });
+const referralsUpdateToolSchema = updateReferralSchema.omit({ project_id: true }).extend({
+  id: z.string().uuid(),
+});
+
+const relationshipsListSchema = z.object({
+  person_id: z.string().uuid().optional(),
+});
+const relationshipsCreateToolSchema = relationshipBaseSchema.omit({ project_id: true });
+
+const broadcastsCreateToolSchema = createBroadcastSchema.omit({ project_id: true });
+const broadcastsSendToolSchema = z.object({
+  id: z.string().uuid(),
+});
+
+function paginate(page: number, limit: number) {
+  const offset = (page - 1) * limit;
+  return { offset, to: offset + limit - 1 };
+}
+
+function deriveHouseholdGeocodedStatus(
+  input: z.infer<typeof householdsCreateToolSchema> | z.infer<typeof householdsUpdateToolSchema>,
+  mode: 'create' | 'update'
+) {
+  if (input.latitude !== null && input.latitude !== undefined && input.longitude !== null && input.longitude !== undefined) {
+    return 'manual';
+  }
+
+  const touchedGeoFields = [
+    input.address_street,
+    input.address_city,
+    input.address_state,
+    input.address_postal_code,
+    input.address_country,
+    input.latitude,
+    input.longitude,
+    input.geocoded_status,
+  ].some((value) => value !== undefined);
+
+  if (mode === 'update' && !touchedGeoFields) {
+    return undefined;
+  }
+
+  const hasAddress = [
+    input.address_street,
+    input.address_city,
+    input.address_state,
+    input.address_postal_code,
+    input.address_country,
+  ].some(Boolean);
+
+  return hasAddress ? 'pending' : (mode === 'create' ? (input.geocoded_status ?? 'failed') : input.geocoded_status);
+}
+
+function deriveAssetGeocodedStatus(
+  input: z.infer<typeof assetsCreateToolSchema> | z.infer<typeof assetsUpdateToolSchema>,
+  mode: 'create' | 'update'
+) {
+  if (input.latitude !== null && input.latitude !== undefined && input.longitude !== null && input.longitude !== undefined) {
+    return 'manual';
+  }
+
+  const touchedGeoFields = [
+    input.address_street,
+    input.address_city,
+    input.address_state,
+    input.address_postal_code,
+    input.address_country,
+    input.latitude,
+    input.longitude,
+    input.geocoded_status,
+  ].some((value) => value !== undefined);
+
+  if (mode === 'update' && !touchedGeoFields) {
+    return undefined;
+  }
+
+  const hasAddress = [
+    input.address_street,
+    input.address_city,
+    input.address_state,
+    input.address_postal_code,
+    input.address_country,
+  ].some(Boolean);
+
+  return hasAddress ? 'pending' : (mode === 'create' ? (input.geocoded_status ?? 'failed') : input.geocoded_status);
+}
+
+function communityError(message: string) {
+  return new Error(message);
+}
+
+defineCommunityTool({
+  name: 'households.list',
+  description: 'List community households with optional search and pagination.',
+  resource: 'households',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: householdsListSchema,
+  handler: async (params, ctx) => {
+    const parsed = householdsListSchema.parse(params);
+    const admin = createAdminClient();
+    const { offset, to } = paginate(parsed.page, parsed.limit);
+
+    let query = admin
+      .from('households')
+      .select('id, name, address_city, address_state, household_size, updated_at', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+      .range(offset, to);
+
+    if (parsed.search) {
+      const sanitized = parsed.search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""');
+      query = query.or(`name.ilike."%${sanitized}%",address_city.ilike."%${sanitized}%",address_state.ilike."%${sanitized}%"`);
+    }
+
+    const { data, error, count } = await query;
+    if (error) throw communityError(`Failed to list households: ${error.message}`);
+    return JSON.stringify({
+      households: data ?? [],
+      pagination: {
+        page: parsed.page,
+        limit: parsed.limit,
+        total: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / parsed.limit),
+      },
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'households.get',
+  description: 'Get a household and its linked members.',
+  resource: 'households',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: entityGetSchema,
+  handler: async (params, ctx) => {
+    const parsed = entityGetSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('households')
+      .select('*, household_members(*, person:people(id, first_name, last_name, email))')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id)
+      .is('deleted_at', null)
+      .single();
+    if (error || !data) throw communityError(`Household not found: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineCommunityTool({
+  name: 'households.create',
+  description: 'Create a new household record.',
+  resource: 'households',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: householdsCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = householdsCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('households')
+      .insert({
+        ...parsed,
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+        geocoded_status: deriveHouseholdGeocodedStatus(parsed, 'create'),
+        custom_fields: parsed.custom_fields as Json,
+      })
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to create household: ${error?.message ?? 'unknown error'}`);
+
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'household.created' as never,
+      entityType: 'household',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+
+    return JSON.stringify({ household: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'households.update',
+  description: 'Update an existing household record.',
+  resource: 'households',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: householdsUpdateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = householdsUpdateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { id, ...updates } = parsed;
+    const geocodedStatus = deriveHouseholdGeocodedStatus(parsed, 'update');
+    const { data, error } = await admin
+      .from('households')
+      .update({
+        ...updates,
+        ...(geocodedStatus !== undefined ? { geocoded_status: geocodedStatus } : {}),
+        custom_fields: updates.custom_fields as Json | undefined,
+      })
+      .eq('project_id', ctx.projectId)
+      .eq('id', id)
+      .is('deleted_at', null)
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to update household: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'household',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ household: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'programs.list',
+  description: 'List community programs with optional status filtering.',
+  resource: 'programs',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: programsListSchema,
+  handler: async (params, ctx) => {
+    const parsed = programsListSchema.parse(params);
+    const admin = createAdminClient();
+    const { offset, to } = paginate(parsed.page, parsed.limit);
+    let query = admin
+      .from('programs')
+      .select('id, name, status, start_date, end_date, requires_waiver, updated_at', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('updated_at', { ascending: false })
+      .range(offset, to);
+
+    if (parsed.search) {
+      query = query.ilike('name', `%${parsed.search}%`);
+    }
+    if (parsed.status) {
+      query = query.eq('status', parsed.status);
+    }
+
+    const { data, error, count } = await query;
+    if (error) throw communityError(`Failed to list programs: ${error.message}`);
+    return JSON.stringify({
+      programs: data ?? [],
+      pagination: {
+        page: parsed.page,
+        limit: parsed.limit,
+        total: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / parsed.limit),
+      },
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'programs.get',
+  description: 'Get a single community program record.',
+  resource: 'programs',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: entityGetSchema,
+  handler: async (params, ctx) => {
+    const parsed = entityGetSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('programs')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id)
+      .single();
+    if (error || !data) throw communityError(`Program not found: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineCommunityTool({
+  name: 'programs.create',
+  description: 'Create a new community program.',
+  resource: 'programs',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: programsCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = programsCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('programs')
+      .insert({
+        ...parsed,
+        project_id: ctx.projectId,
+        target_dimensions: parsed.target_dimensions,
+        schedule: parsed.schedule as Json | null | undefined,
+      })
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to create program: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.created',
+      entityType: 'program',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ program: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'programs.update',
+  description: 'Update a community program.',
+  resource: 'programs',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: programsUpdateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = programsUpdateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { id, ...updates } = parsed;
+    const { data, error } = await admin
+      .from('programs')
+      .update({
+        ...updates,
+        schedule: updates.schedule as Json | null | undefined,
+      })
+      .eq('project_id', ctx.projectId)
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to update program: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'program',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ program: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'programs.enroll',
+  description: 'Enroll a person or household into a program.',
+  resource: 'programs',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: programsEnrollToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = programsEnrollToolSchema.parse(params);
+    const admin = createAdminClient();
+
+    const { data: program, error: programError } = await admin
+      .from('programs')
+      .select('id, requires_waiver')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.program_id)
+      .single();
+    if (programError || !program) throw communityError(`Program not found: ${programError?.message ?? 'unknown error'}`);
+
+    const requestedStatus = parsed.status ?? 'active';
+    const { data, error } = await admin
+      .from('program_enrollments')
+      .insert({
+        program_id: parsed.program_id,
+        person_id: parsed.person_id ?? null,
+        household_id: parsed.household_id ?? null,
+        status: program.requires_waiver && requestedStatus === 'active' ? 'waitlisted' : requestedStatus,
+        waiver_status: program.requires_waiver ? 'pending' : 'not_required',
+        enrolled_at: parsed.enrolled_at ?? new Date().toISOString(),
+        completed_at: parsed.completed_at ?? null,
+        notes: parsed.notes ?? null,
+      })
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to create enrollment: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'program.enrollment.created' as never,
+      entityType: 'program_enrollment',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ enrollment: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'programs.record_attendance',
+  description: 'Create or update a batch attendance set for a program date.',
+  resource: 'programs',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: programsAttendanceToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = programsAttendanceToolSchema.parse(params);
+    const admin = createAdminClient();
+    const entries = parsed.entries.map((entry) => ({
+      program_id: parsed.program_id,
+      person_id: entry.person_id,
+      date: parsed.date,
+      status: entry.status,
+      hours: entry.hours ?? 0,
+    }));
+    const { data, error } = await admin
+      .from('program_attendance')
+      .upsert(entries, { onConflict: 'program_id,person_id,date' })
+      .select('*');
+    if (error) throw communityError(`Failed to save attendance: ${error.message}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'program.attendance.batch' as never,
+      entityType: 'program_attendance',
+      entityId: parsed.program_id,
+      data: { program_id: parsed.program_id, date: parsed.date, count: data?.length ?? 0 },
+    });
+    return JSON.stringify({ attendance: data ?? [] });
+  },
+});
+
+defineCommunityTool({
+  name: 'contributions.list',
+  description: 'List community contributions with optional filters.',
+  resource: 'contributions',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: contributionsListSchema,
+  handler: async (params, ctx) => {
+    const parsed = contributionsListSchema.parse(params);
+    const admin = createAdminClient();
+    const { offset, to } = paginate(parsed.page, parsed.limit);
+    let query = admin
+      .from('contributions')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('date', { ascending: false })
+      .range(offset, to);
+    if (parsed.search) query = query.ilike('description', `%${parsed.search}%`);
+    if (parsed.type) query = query.eq('type', parsed.type);
+    if (parsed.dimension_id) query = query.eq('dimension_id', parsed.dimension_id);
+    if (parsed.program_id) query = query.eq('program_id', parsed.program_id);
+    const { data, error, count } = await query;
+    if (error) throw communityError(`Failed to list contributions: ${error.message}`);
+    return JSON.stringify({
+      contributions: data ?? [],
+      pagination: {
+        page: parsed.page,
+        limit: parsed.limit,
+        total: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / parsed.limit),
+      },
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'contributions.get',
+  description: 'Get a single community contribution.',
+  resource: 'contributions',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: entityGetSchema,
+  handler: async (params, ctx) => {
+    const parsed = entityGetSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('contributions')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id)
+      .single();
+    if (error || !data) throw communityError(`Contribution not found: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineCommunityTool({
+  name: 'contributions.create',
+  description: 'Create a contribution record for money, goods, hours, grants, or services.',
+  resource: 'contributions',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: contributionsCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = contributionsCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    let dimensionId = parsed.dimension_id ?? null;
+    if (!dimensionId && parsed.program_id) {
+      const { data: program } = await admin
+        .from('programs')
+        .select('target_dimensions')
+        .eq('project_id', ctx.projectId)
+        .eq('id', parsed.program_id)
+        .single();
+      dimensionId = Array.isArray(program?.target_dimensions) ? (program.target_dimensions[0] ?? null) : null;
+    }
+    const { data, error } = await admin
+      .from('contributions')
+      .insert({
+        ...parsed,
+        project_id: ctx.projectId,
+        dimension_id: dimensionId,
+      })
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to create contribution: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'contribution.created' as never,
+      entityType: 'contribution',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ contribution: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'contributions.update',
+  description: 'Update an existing contribution record.',
+  resource: 'contributions',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: contributionsUpdateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = contributionsUpdateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { id, ...updates } = parsed;
+    const { data, error } = await admin
+      .from('contributions')
+      .update(updates)
+      .eq('project_id', ctx.projectId)
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to update contribution: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'contribution',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ contribution: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'assets.list',
+  description: 'List community assets with optional category and condition filters.',
+  resource: 'community_assets',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: assetsListSchema,
+  handler: async (params, ctx) => {
+    const parsed = assetsListSchema.parse(params);
+    const admin = createAdminClient();
+    const { offset, to } = paginate(parsed.page, parsed.limit);
+    let query = admin
+      .from('community_assets')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('updated_at', { ascending: false })
+      .range(offset, to);
+    if (parsed.category) query = query.eq('category', parsed.category);
+    if (parsed.condition) query = query.eq('condition', parsed.condition);
+    if (parsed.search) query = query.ilike('name', `%${parsed.search}%`);
+    const { data, error, count } = await query;
+    if (error) throw communityError(`Failed to list assets: ${error.message}`);
+    return JSON.stringify({
+      assets: data ?? [],
+      pagination: {
+        page: parsed.page,
+        limit: parsed.limit,
+        total: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / parsed.limit),
+      },
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'assets.get',
+  description: 'Get a single community asset.',
+  resource: 'community_assets',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: entityGetSchema,
+  handler: async (params, ctx) => {
+    const parsed = entityGetSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('community_assets')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id)
+      .single();
+    if (error || !data) throw communityError(`Asset not found: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineCommunityTool({
+  name: 'assets.create',
+  description: 'Create a community asset record.',
+  resource: 'community_assets',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: assetsCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = assetsCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('community_assets')
+      .insert({
+        ...parsed,
+        project_id: ctx.projectId,
+        geocoded_status: deriveAssetGeocodedStatus(parsed, 'create'),
+      })
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to create asset: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.created',
+      entityType: 'community_asset',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ asset: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'assets.update',
+  description: 'Update a community asset.',
+  resource: 'community_assets',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: assetsUpdateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = assetsUpdateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { id, ...updates } = parsed;
+    const geocodedStatus = deriveAssetGeocodedStatus(parsed, 'update');
+    const { data, error } = await admin
+      .from('community_assets')
+      .update({
+        ...updates,
+        ...(geocodedStatus !== undefined ? { geocoded_status: geocodedStatus } : {}),
+      })
+      .eq('project_id', ctx.projectId)
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to update asset: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'community_asset',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ asset: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'referrals.list',
+  description: 'List community referrals with optional household, person, or status filters.',
+  resource: 'referrals',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: referralsListSchema,
+  handler: async (params, ctx) => {
+    const parsed = referralsListSchema.parse(params);
+    const admin = createAdminClient();
+    let query = admin
+      .from('referrals')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .order('updated_at', { ascending: false });
+    if (parsed.status) query = query.eq('status', parsed.status);
+    if (parsed.household_id) query = query.eq('household_id', parsed.household_id);
+    if (parsed.person_id) query = query.eq('person_id', parsed.person_id);
+    const { data, error } = await query;
+    if (error) throw communityError(`Failed to list referrals: ${error.message}`);
+    return JSON.stringify({ referrals: data ?? [] });
+  },
+});
+
+defineCommunityTool({
+  name: 'referrals.get',
+  description: 'Get a single referral record.',
+  resource: 'referrals',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: entityGetSchema,
+  handler: async (params, ctx) => {
+    const parsed = entityGetSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('referrals')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id)
+      .single();
+    if (error || !data) throw communityError(`Referral not found: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineCommunityTool({
+  name: 'referrals.create',
+  description: 'Create a new community referral.',
+  resource: 'referrals',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: referralsCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = referralsCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('referrals')
+      .insert({
+        ...parsed,
+        project_id: ctx.projectId,
+      })
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to create referral: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'referral.created' as never,
+      entityType: 'referral' as never,
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ referral: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'referrals.update',
+  description: 'Update a referral and record completion status changes.',
+  resource: 'referrals',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: referralsUpdateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = referralsUpdateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { id, ...updates } = parsed;
+    const { data, error } = await admin
+      .from('referrals')
+      .update(updates)
+      .eq('project_id', ctx.projectId)
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to update referral: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: data.status === 'completed' ? ('referral.completed' as never) : 'entity.updated',
+      entityType: 'referral' as never,
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ referral: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'relationships.list',
+  description: 'List relationships across people in the community project.',
+  resource: 'relationships',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: relationshipsListSchema,
+  handler: async (params, ctx) => {
+    const parsed = relationshipsListSchema.parse(params);
+    const admin = createAdminClient();
+    let query = admin
+      .from('relationships')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .order('updated_at', { ascending: false });
+    if (parsed.person_id) {
+      query = query.or(`person_a_id.eq.${parsed.person_id},person_b_id.eq.${parsed.person_id}`);
+    }
+    const { data, error } = await query;
+    if (error) throw communityError(`Failed to list relationships: ${error.message}`);
+    return JSON.stringify({ relationships: data ?? [] });
+  },
+});
+
+defineCommunityTool({
+  name: 'relationships.create',
+  description: 'Create a relationship between two people in the community.',
+  resource: 'relationships',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: relationshipsCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = relationshipsCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('relationships')
+      .insert({
+        ...parsed,
+        project_id: ctx.projectId,
+      })
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to create relationship: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.created',
+      entityType: 'relationship' as never,
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ relationship: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'broadcasts.list',
+  description: 'List community broadcasts and their send status.',
+  resource: 'broadcasts',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: z.object({}),
+  handler: async (_params, ctx) => {
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('broadcasts')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .order('updated_at', { ascending: false });
+    if (error) throw communityError(`Failed to list broadcasts: ${error.message}`);
+    return JSON.stringify({ broadcasts: data ?? [] });
+  },
+});
+
+defineCommunityTool({
+  name: 'broadcasts.create',
+  description: 'Create a broadcast draft with audience filters and content.',
+  resource: 'broadcasts',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: broadcastsCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = broadcastsCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('broadcasts')
+      .insert({
+        ...parsed,
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+        filter_criteria: parsed.filter_criteria as Json,
+      })
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to create broadcast: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.created',
+      entityType: 'broadcast',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ broadcast: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'broadcasts.send',
+  description: 'Send an existing broadcast to its resolved recipients.',
+  resource: 'broadcasts',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: broadcastsSendToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = broadcastsSendToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { data: broadcast, error: lookupError } = await admin
+      .from('broadcasts')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id)
+      .single();
+    if (lookupError || !broadcast) throw communityError(`Broadcast not found: ${lookupError?.message ?? 'unknown error'}`);
+
+    const result = await sendBroadcast(broadcast, ctx.userId);
+    const status = result.failures.length > 0 ? 'failed' : 'sent';
+
+    await admin
+      .from('broadcasts')
+      .update({
+        status,
+        sent_at: new Date().toISOString(),
+        failure_reason: result.failures.length > 0 ? result.failures.join('\n').slice(0, 2000) : null,
+      })
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id);
+
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'broadcast.sent' as never,
+      entityType: 'broadcast',
+      entityId: parsed.id,
+      data: {
+        broadcast_id: parsed.id,
+        status,
+        sent_count: result.sentCount,
+        failure_count: result.failures.length,
+      },
+    });
+
+    return JSON.stringify({
+      broadcast_id: parsed.id,
+      status,
+      sent_count: result.sentCount,
+      failure_count: result.failures.length,
+      failures: result.failures,
+    });
+  },
 });
 
 defineCommunityTool({
@@ -409,6 +1436,17 @@ defineCommunityTool({
         })
       : [];
 
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'contractor.onboarded' as never,
+      entityType: 'contractor_scope',
+      entityId: scope.id,
+      data: {
+        ...scope,
+        documents_sent: documents.length,
+      } as Record<string, unknown>,
+    });
+
     return JSON.stringify({
       scope_id: scope.id,
       scope_status: scope.status,
@@ -491,6 +1529,14 @@ defineCommunityTool({
         priority: 'high',
       });
     }
+
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'job.assigned' as never,
+      entityType: 'job',
+      entityId: job.id,
+      data: job as Record<string, unknown>,
+    });
 
     return JSON.stringify({
       job_id: job.id,
@@ -725,6 +1771,10 @@ function getAllowedTools(role?: ProjectRole) {
     }
     return checkCommunityPermission(role, tool.resource, tool.action);
   });
+}
+
+export function getCommunityToolCatalog(role?: ProjectRole): CommunityChatTool[] {
+  return getAllowedTools(role);
 }
 
 export function getCommunityToolDefinitions(role?: ProjectRole): ToolDefinitionParam[] {

@@ -11,7 +11,7 @@ export const contributionTypeSchema = z.enum([
 
 export const contributionStatusSchema = z.enum(['pledged', 'received', 'completed', 'cancelled']);
 
-const contributionBaseSchema = z.object({
+export const contributionBaseSchema = z.object({
   project_id: optionalUuidSchema,
   type: contributionTypeSchema,
   status: contributionStatusSchema.default('received'),

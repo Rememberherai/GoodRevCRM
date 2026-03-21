@@ -72,6 +72,13 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
           <div className="rounded-md border p-3 space-y-2">
             {isCommunity ? (
               <>
+                <ToolGroup name="Households" tools={['list', 'get', 'create', 'update']} />
+                <ToolGroup name="Programs" tools={['list', 'get', 'create', 'update', 'enroll', 'record_attendance']} />
+                <ToolGroup name="Contributions" tools={['list', 'get', 'create', 'update']} />
+                <ToolGroup name="Assets" tools={['list', 'get', 'create', 'update']} />
+                <ToolGroup name="Referrals" tools={['list', 'get', 'create', 'update']} />
+                <ToolGroup name="Relationships" tools={['list', 'create']} />
+                <ToolGroup name="Broadcasts" tools={['list', 'create', 'send']} />
                 <ToolGroup name="Receipt Processing" tools={['process_image', 'confirm']} />
                 <ToolGroup name="Contractors" tools={['create_scope', 'send_documents', 'onboard']} />
                 <ToolGroup name="Jobs" tools={['assign', 'pull', 'list_for_contractor', 'my_jobs', 'my_calendar', 'work_plan']} />
@@ -131,7 +138,7 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
           </div>
           <p className="text-xs text-muted-foreground">
             {isCommunity
-              ? 'The assistant can process receipts, coordinate contractor onboarding, manage jobs, and push calendar events for community workflows in this phase.'
+              ? 'The assistant can manage community records, process receipts, coordinate contractor onboarding, manage jobs, send broadcasts, and push calendar events for community workflows in this phase.'
               : 'The AI can use these tools to read and modify your CRM data across all entity types.'}
           </p>
         </div>

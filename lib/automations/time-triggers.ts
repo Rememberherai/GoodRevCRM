@@ -42,8 +42,12 @@ const entityTableMap: Record<string, string> = {
   program_attendance: 'program_attendance',
   contribution: 'contributions',
   community_asset: 'community_assets',
+  referral: 'referrals',
+  relationship: 'relationships',
   intake: 'household_intake',
   household_member: 'household_members',
+  job: 'jobs',
+  contractor_scope: 'contractor_scopes',
 };
 
 /**

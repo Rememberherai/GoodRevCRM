@@ -57,6 +57,13 @@ const TOOL_COLORS: Record<string, { bg: string; border: string; icon: string; ba
   dispositions: { bg: 'bg-purple-50 dark:bg-purple-950/30', border: 'border-purple-200 dark:border-purple-800', icon: 'text-purple-600 dark:text-purple-400', badge: 'bg-purple-100 dark:bg-purple-900/50 text-purple-700 dark:text-purple-300' },
   contractors: { bg: 'bg-amber-50 dark:bg-amber-950/30', border: 'border-amber-200 dark:border-amber-800', icon: 'text-amber-700 dark:text-amber-300', badge: 'bg-amber-100 dark:bg-amber-900/50 text-amber-800 dark:text-amber-200' },
   jobs: { bg: 'bg-green-50 dark:bg-green-950/30', border: 'border-green-200 dark:border-green-800', icon: 'text-green-700 dark:text-green-300', badge: 'bg-green-100 dark:bg-green-900/50 text-green-800 dark:text-green-200' },
+  households: { bg: 'bg-sky-50 dark:bg-sky-950/30', border: 'border-sky-200 dark:border-sky-800', icon: 'text-sky-700 dark:text-sky-300', badge: 'bg-sky-100 dark:bg-sky-900/50 text-sky-800 dark:text-sky-200' },
+  programs: { bg: 'bg-indigo-50 dark:bg-indigo-950/30', border: 'border-indigo-200 dark:border-indigo-800', icon: 'text-indigo-700 dark:text-indigo-300', badge: 'bg-indigo-100 dark:bg-indigo-900/50 text-indigo-800 dark:text-indigo-200' },
+  contributions: { bg: 'bg-emerald-50 dark:bg-emerald-950/30', border: 'border-emerald-200 dark:border-emerald-800', icon: 'text-emerald-700 dark:text-emerald-300', badge: 'bg-emerald-100 dark:bg-emerald-900/50 text-emerald-800 dark:text-emerald-200' },
+  assets: { bg: 'bg-stone-50 dark:bg-stone-950/30', border: 'border-stone-200 dark:border-stone-800', icon: 'text-stone-700 dark:text-stone-300', badge: 'bg-stone-100 dark:bg-stone-900/50 text-stone-800 dark:text-stone-200' },
+  referrals: { bg: 'bg-orange-50 dark:bg-orange-950/30', border: 'border-orange-200 dark:border-orange-800', icon: 'text-orange-700 dark:text-orange-300', badge: 'bg-orange-100 dark:bg-orange-900/50 text-orange-800 dark:text-orange-200' },
+  relationships: { bg: 'bg-pink-50 dark:bg-pink-950/30', border: 'border-pink-200 dark:border-pink-800', icon: 'text-pink-700 dark:text-pink-300', badge: 'bg-pink-100 dark:bg-pink-900/50 text-pink-800 dark:text-pink-200' },
+  broadcasts: { bg: 'bg-rose-50 dark:bg-rose-950/30', border: 'border-rose-200 dark:border-rose-800', icon: 'text-rose-700 dark:text-rose-300', badge: 'bg-rose-100 dark:bg-rose-900/50 text-rose-800 dark:text-rose-200' },
 };
 
 const DEFAULT_COLORS = { bg: 'bg-gray-50 dark:bg-gray-950/30', border: 'border-gray-200 dark:border-gray-800', icon: 'text-gray-600 dark:text-gray-400', badge: 'bg-gray-100 dark:bg-gray-900/50 text-gray-700 dark:text-gray-300' };

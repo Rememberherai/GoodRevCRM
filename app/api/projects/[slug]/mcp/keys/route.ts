@@ -3,7 +3,7 @@ import { NextResponse } from 'next/server';
 import { generateApiKey } from '@/lib/mcp/auth';
 import { encrypt } from '@/lib/encryption';
 import { z } from 'zod';
-import { STANDARD_MCP_ROLES } from '@/types/mcp';
+import { COMMUNITY_MCP_ROLES, STANDARD_MCP_ROLES } from '@/types/mcp';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -12,6 +12,12 @@ interface RouteContext {
 const createKeySchema = z.object({
   name: z.string().min(1).max(100),
   role: z.enum(STANDARD_MCP_ROLES).default('member'),
+  expires_in_days: z.number().int().min(1).max(365).nullable().optional(),
+});
+
+const createCommunityKeySchema = z.object({
+  name: z.string().min(1).max(100),
+  role: z.enum(COMMUNITY_MCP_ROLES).default('staff'),
   expires_in_days: z.number().int().min(1).max(365).nullable().optional(),
 });
 
@@ -31,9 +37,6 @@ export async function GET(_request: Request, context: RouteContext) {
       .is('deleted_at', null)
       .single();
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    if (project.project_type === 'community') {
-      return NextResponse.json({ error: 'MCP keys for community projects are not enabled in this phase' }, { status: 403 });
-    }
 
     // Check membership (admin/owner only)
     const { data: membership } = await supabase
@@ -79,9 +82,6 @@ export async function POST(request: Request, context: RouteContext) {
       .is('deleted_at', null)
       .single();
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    if (project.project_type === 'community') {
-      return NextResponse.json({ error: 'MCP keys for community projects are not enabled in this phase' }, { status: 403 });
-    }
 
     // Check membership (admin/owner only)
     const { data: membership } = await supabase
@@ -96,7 +96,9 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const body = await request.json();
-    const validation = createKeySchema.safeParse(body);
+    const validation = (
+      project.project_type === 'community' ? createCommunityKeySchema : createKeySchema
+    ).safeParse(body);
     if (!validation.success) {
       return NextResponse.json({ error: 'Validation failed', details: validation.error.flatten() }, { status: 400 });
     }
@@ -154,9 +156,6 @@ export async function DELETE(request: Request, context: RouteContext) {
       .is('deleted_at', null)
       .single();
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
-    if (project.project_type === 'community') {
-      return NextResponse.json({ error: 'MCP keys for community projects are not enabled in this phase' }, { status: 403 });
-    }
 
     const { data: membership } = await supabase
       .from('project_memberships')

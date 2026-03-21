@@ -102,6 +102,7 @@ export async function POST(request: Request, context: RouteContext) {
     const adminSupabase = createAdminClient();
     const mcpContext: McpContext = {
       projectId: project.id,
+      projectType: project.project_type as 'standard' | 'community',
       userId: user.id,
       role: membership.role,
       apiKeyId: 'chat-session',

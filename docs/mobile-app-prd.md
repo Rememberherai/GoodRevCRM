@@ -1,617 +1,783 @@
-# GoodRev CRM — Mobile App PRD
+# GoodRev Mobile — Product Requirements Document
 
-**Version:** 1.0
-**Date:** 2026-03-17
+**Version:** 2.0
+**Date:** 2026-03-20
 **Status:** Draft
 
 ---
 
 ## 1. Executive Summary
 
-This PRD defines a **cross-platform mobile application** (iOS + Android) for GoodRev CRM, built with **React Native + Expo**. The mobile app provides field-ready access to both Standard CRM and Community Project types, prioritizing the workflows that happen away from a desk: intake at community centers, door-to-door outreach, on-site asset inspections, contribution logging, call/meeting notes, and pipeline updates.
+GoodRev Mobile is a **parallel Expo React Native app** that provides a native mobile experience for the GoodRev CRM platform. It is not a rewrite — it is a native client that calls the same Next.js API routes and shares the same Supabase database, auth system, TypeScript types, and Zod validators.
 
-The mobile app consumes the **existing Next.js API routes** as its backend — no new server infrastructure is required. Shared TypeScript code (types, validators, stores) is extracted into a monorepo `packages/shared` workspace, reused by both web and mobile.
+The mobile app targets field staff, contractors, and on-the-go managers who need to interact with CRM and Community Center data away from a desktop. It prioritizes the workflows that are painful on a phone browser but natural on a native app: camera-based receipt capture, GPS-aware maps, background time tracking, push notifications, and offline-capable field data entry.
+
+### Why Native (Not Responsive Web)
+
+The existing Next.js app uses Server Components, cookie-based auth, shadcn/ui (DOM-dependent), Recharts (canvas-based), Leaflet (DOM map), FullCalendar (DOM grid), TipTap (DOM editor), and a fixed sidebar (264px) + header (56px) + chat panel (360-800px resizable) layout. Making this responsive would require rewriting the layout system, replacing every chart/map/editor library, and still wouldn't give us camera, push notifications, background timers, offline support, or app store distribution. A parallel native client is less work and a better product.
+
+### What's Reusable (Zero Rewrite)
+
+| Layer | Reusable? | Notes |
+|-------|-----------|-------|
+| Supabase DB + RLS + migrations | 100% | Same database, same policies |
+| All ~300 API routes | 100% | Called over HTTP from mobile (with Bearer token adapter) |
+| Supabase Auth | 100% | JS client works natively in Expo with custom storage |
+| TypeScript types (`types/database.ts`, `types/user.ts`, `types/community.ts`) | 100% | Direct import via path alias |
+| Zod validators (`lib/validators/`) | 100% | Pure JS, no DOM dependency |
+| Permission logic (`lib/projects/community-permissions.ts`) | 100% | Pure function, importable |
+| Constants (roles, statuses, dimension colors/icons) | 100% | Pure data |
+| `react-hook-form` form logic | 95% | Same library, different `<Input>` components |
+| Zustand stores (`stores/`) | 90% | Works in RN; swap `localStorage` → `AsyncStorage` (~5 lines per store) |
+| Chat streaming logic (`hooks/use-chat.ts` SSE parsing) | 85% | SSE/fetch works in RN; extract non-DOM logic |
+| Business logic in `lib/` (accounting bridge, automation engine, etc.) | 0% | Server-side only — mobile calls API routes, doesn't run this |
+
+### What Must Be Rebuilt (The Actual Work)
+
+| Layer | Count | Why |
+|-------|-------|-----|
+| UI components (shadcn → native) | ~20 base + ~50 feature-specific | React Native has no DOM |
+| Page layouts (Next.js → Expo Router) | ~25 screens | Different routing and layout primitives |
+| Navigation (sidebar → tab bar) | 1 system | Mobile uses bottom tabs, not 264px sidebar |
+| Charts (Recharts → victory-native) | ~8 chart types | Different rendering engine |
+| Maps (Leaflet → react-native-maps) | 1 system | Web map → native map SDK |
+| Calendar (FullCalendar → RN calendars) | 1 system | DOM grid → native component |
+| Styling (Tailwind CSS → NativeWind) | All components | No raw CSS in RN (NativeWind is closest match) |
+
+**Bottom line:** ~80% of the codebase (backend, types, validators, auth, API) is reused. ~20% (the view layer) is rebuilt. But that 20% is ~100% of the mobile engineering work.
 
 ---
 
-## 2. Goals & Non-Goals
+## 2. Scope: What Gets Ported
 
-### Goals
+### 2.1 Full Port (Native Mobile Experience)
 
-- Deliver a native-feeling app on both iOS and Android from a single codebase
-- Enable field workers, volunteers, and sales reps to work offline-capable and on-the-go
-- Reuse existing API routes, Zod validators, TypeScript types, and Zustand stores
-- Support both project types: Standard CRM and Community Center
-- Ship a useful MVP in 8–10 weeks with phased feature rollout
-- Maintain feature parity for core CRUD operations (create, read, update)
-- Provide push notifications for tasks, mentions, and automation triggers
+These features are rebuilt with native UX patterns (bottom sheets, swipe gestures, haptics, camera, GPS).
 
-### Non-Goals (v1)
+| Feature | Web Source | Mobile UX | Why Mobile |
+|---------|-----------|-----------|-----------|
+| **AI Chat Assistant** | `components/chat/chat-panel.tsx` (257 lines, fixed right panel, resizable 360-800px, SSE streaming, tool call cards) | Full-screen chat with native keyboard, camera button, haptic on confirmations | Primary daily interaction; field staff live in chat |
+| **Receipt OCR / AP** | Chat tool: `receipts.process_image` → `receipts.confirm` → accounting bridge | Native camera → upload → OCR → confirmation card (Approve/Edit/Reject) | Staff buying supplies in the field |
+| **Job Management** | `app/(dashboard)/projects/[slug]/jobs/` (list + detail + time entries) | Job list with priority badges, accept/decline bottom sheet, service address → native maps | Contractors work from phones exclusively |
+| **Time Tracking** | `components/community/jobs/time-tracker.tsx` (Start/Pause/Stop/Complete) | Persistent banner timer, background task manager, clock-running local notification | Must work on-site, app backgrounded |
+| **Batch Attendance** | `components/community/programs/batch-attendance.tsx` (date picker → member grid → checkboxes → bulk save) | Tap grid (Present/Absent/Excused), optimistic save, works offline | Taken in classrooms at program time |
+| **Household Intake** | `components/community/households/new-household-dialog.tsx` (multi-step wizard) | Multi-step wizard with address autocomplete, member quick-add, tablet-optimized | Walk-ins at front desk |
+| **Program Enrollments** | Enrollment list in program detail, waiver status badges | Quick-enroll bottom sheet: select person → confirm → waiver auto-triggered | On-site enrollment at events |
+| **Dashboard** | `community-dashboard.tsx` (Recharts radar, 6 metric cards, program cards, activity feed) | ScrollView with victory-native radar, metric cards, program bars, pull-to-refresh | Quick health check on the go |
+| **People / Org Lookup** | `people-page-client.tsx` (table with search, sort, pagination, bulk actions, column picker, dispositions) | Searchable FlatList with contact cards, tap-to-call/email (no bulk actions, no column picker) | Field reference, quick lookup |
+| **Community Map** | Leaflet/react-leaflet with 4 toggleable layers, marker clustering, filter sidebar | react-native-maps with native markers, bottom sheet popups, GPS "center on me" | On-site orientation, directions |
+| **Contributions** | `donation-entry.tsx` + `time-log-entry.tsx` (two tab modes, dimension auto-inherit) | Quick-entry form: type selector → amount/hours → auto-tag dimension | Log volunteer hours on-site |
+| **Calendar** | FullCalendar day/week/month grid | react-native-calendars day/week agenda view | Daily schedule check |
+| **Push Notifications** | None (web has no push) | expo-notifications with deep linking | Job alerts, reminders, approvals |
+| **Offline Mode** | None (web requires connection) | React Query persistence + MMKV, mutation queue | Field work with spotty connectivity |
 
-- Full admin/settings management (use web app)
-- Custom report builder (use web app; mobile shows pre-built dashboards)
-- Workflow/automation editor (use web app)
-- MCP server or chat agent (web only for v1)
-- Contract template editing or e-signature builder (web only)
-- Self-service volunteer portal (future enhancement)
-- Offline-first with full sync (v1 is online-first with selective caching)
+### 2.2 Mobile-Lite (Read-Only or Simplified)
+
+| Feature | Mobile Scope | What's Cut |
+|---------|-------------|-----------|
+| **Reporting** | View pre-rendered report cards | No report builder, no custom filters, no CSV export |
+| **Grants** | View list, update status, view deadlines | No Kanban drag, no outreach, no AI writing |
+| **Settings** | Profile, notification prefs, calendar connect | No schema editor, no accounting config, no framework editor |
+| **Broadcasts** | Compose text → select audience → send | No custom filter builder |
+| **Contracts / Waivers** | View status, trigger "send for signature" | No builder, no PDF editor |
+| **Community Assets** | View list + detail with mini-map | No create/edit (use web) |
+
+### 2.3 Web-Only (Not Ported)
+
+| Feature | Why Web-Only |
+|---------|-------------|
+| **Accounting Module** (31 components) | Complex table-heavy reconciliation workflows |
+| **Workflow Builder** (React Flow canvas) | Drag-and-drop visual programming |
+| **Report Builder** (custom config) | Complex configuration, wide tables |
+| **Automation Builder** | Power-user nested forms |
+| **Sequence Builder** | Multi-step email composition |
+| **RFP Response Editor** | Long-form document editing |
+| **Contract Builder** | PDF generation, signature field placement |
+| **Custom Fields Schema Editor** | Admin-only configuration |
+| **Import/Export** | CSV file management |
+| **Deduplication** | Side-by-side comparison needs wide screen |
+| **News Monitoring** | Research tool, passive consumption |
+| **Content Library** | File management |
+| **Webhook / MCP Management** | Developer/admin tools |
+| **Opportunities / RFPs** | Standard CRM; desktop workflow |
 
 ---
 
 ## 3. Architecture
 
-### 3.1 Monorepo Structure
+### 3.1 System Diagram
+
+```
+┌──────────────────────────────┐
+│       EXPO REACT NATIVE      │
+│  ┌────────────────────────┐  │
+│  │  Expo Router (Tabs)    │  │
+│  │  ├─ Dashboard          │  │
+│  │  ├─ Households         │  │
+│  │  ├─ Programs           │  │
+│  │  ├─ Chat (AI)          │  │
+│  │  └─ More...            │  │
+│  ├────────────────────────┤  │
+│  │  Zustand Stores        │  │       ┌───────────────────────┐
+│  │  (shared logic)        │──────────│  NEXT.JS API BACKEND  │
+│  ├────────────────────────┤  │       │  ~300 REST endpoints  │
+│  │  React Query + MMKV    │  │  HTTP │  ┌─────────────────┐  │
+│  │  (cache + offline)     │──────────│  │ Supabase Client │  │
+│  ├────────────────────────┤  │       │  │ (server-side)   │  │
+│  │  Supabase JS Client    │  │       │  └────────┬────────┘  │
+│  │  (direct auth only)    │  │       └───────────┼───────────┘
+│  ├────────────────────────┤  │                   │
+│  │  expo-secure-store     │  │                   ▼
+│  │  expo-notifications    │  │       ┌───────────────────────┐
+│  │  expo-camera           │  │       │    SUPABASE (shared)  │
+│  │  react-native-maps     │  │       │  PostgreSQL + RLS     │
+│  │  expo-task-manager     │  │       │  Auth (email/OAuth)   │
+│  │  expo-haptics          │  │       │  Storage (receipts)   │
+│  └────────────────────────┘  │       └───────────────────────┘
+└──────────────────────────────┘
+```
+
+### 3.2 Data Flow
+
+**Read:** Screen → React Query hook → `api.fetch()` (injects Bearer token) → `GET /api/projects/[slug]/entity` → Supabase query → JSON → React Query cache (MMKV) → render.
+
+**Write:** Form → React Query mutation → optimistic cache update → `POST/PATCH /api/...` → on success: invalidate + refetch. On error: rollback.
+
+**Offline:** Mutation fails → queued in MMKV → "Offline — changes will sync" banner → network restored → replayed in order → cache invalidated.
+
+### 3.3 Auth Architecture
+
+**Current web auth:** Cookie-based via `@supabase/ssr`. Middleware (`middleware.ts`) creates server client from cookies, validates with `supabase.auth.getUser()`. API routes create their own client via `createClient()` in `lib/supabase/server.ts`.
+
+**Mobile auth:** Supabase JS client with `expo-secure-store` as custom storage adapter:
+
+```typescript
+// mobile/lib/supabase.ts
+import * as SecureStore from 'expo-secure-store';
+import { createClient } from '@supabase/supabase-js';
+
+export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
+  auth: {
+    storage: {
+      getItem: (key) => SecureStore.getItemAsync(key),
+      setItem: (key, value) => SecureStore.setItemAsync(key, value),
+      removeItem: (key) => SecureStore.deleteItemAsync(key),
+    },
+    autoRefreshToken: true,
+    persistSession: true,
+  },
+});
+```
+
+**API calls** use `Authorization: Bearer <access_token>`. Requires a small additive change to `middleware.ts` (see §8.1).
+
+**Login flow:**
+1. App opens → check SecureStore for existing session
+2. Valid → auto-login, navigate to project selector
+3. Expired → Supabase auto-refreshes
+4. No session → login screen (email/password)
+5. Success → session stored in SecureStore automatically
+6. Logout → `supabase.auth.signOut()` clears SecureStore
+
+**OAuth (Gmail):** Opens `expo-web-browser`, completes OAuth, deep-links back.
+
+### 3.4 Project Structure
+
+**Flat `/mobile` directory** (not monorepo). Shared code via TypeScript path aliases. Migrate to monorepo later if needed.
 
 ```
 GoodRevCRM/
-├── apps/
-│   ├── web/                  ← existing Next.js app (moved)
-│   └── mobile/               ← new Expo/React Native app
-├── packages/
-│   └── shared/
-│       ├── types/            ← from types/ (database.ts, etc.)
-│       ├── validators/       ← from lib/validators/
-│       ├── stores/           ← from stores/ (Zustand)
-│       ├── constants/        ← capital colors, icons, enums
-│       └── utils/            ← pure utility functions
-├── package.json              ← workspace root (Turborepo)
-├── turbo.json
-└── ...
+├── mobile/                          ← NEW: Expo app
+│   ├── app/                         ← Expo Router
+│   │   ├── _layout.tsx              ← Root (auth guard)
+│   │   ├── (auth)/login.tsx
+│   │   ├── (app)/
+│   │   │   ├── _layout.tsx          ← Role-based tab navigator
+│   │   │   ├── (tabs)/
+│   │   │   │   ├── index.tsx        ← Dashboard
+│   │   │   │   ├── households.tsx
+│   │   │   │   ├── programs.tsx
+│   │   │   │   ├── chat.tsx
+│   │   │   │   └── more.tsx
+│   │   │   ├── households/[id].tsx
+│   │   │   ├── programs/[id].tsx
+│   │   │   ├── programs/[id]/attendance.tsx
+│   │   │   ├── people/{index,[id]}.tsx
+│   │   │   ├── organizations/{index,[id]}.tsx
+│   │   │   ├── jobs/{index,[id]}.tsx
+│   │   │   ├── contributions/index.tsx
+│   │   │   ├── assets/{index,[id]}.tsx
+│   │   │   ├── map.tsx
+│   │   │   ├── calendar.tsx
+│   │   │   ├── reports.tsx
+│   │   │   └── settings.tsx
+│   │   └── (contractor)/            ← Contractor-only layout
+│   │       ├── _layout.tsx          ← Jobs/Timer/Chat/Profile tabs
+│   │       ├── jobs.tsx
+│   │       ├── timer.tsx
+│   │       ├── chat.tsx
+│   │       └── profile.tsx
+│   ├── components/
+│   │   ├── ui/                      ← ~20 base components
+│   │   │   ├── Button.tsx, Card.tsx, Input.tsx, Badge.tsx
+│   │   │   ├── Avatar.tsx, Skeleton.tsx, Tabs.tsx
+│   │   │   ├── BottomSheet.tsx, SearchBar.tsx, etc.
+│   │   ├── chat/                    ← 6 components
+│   │   │   ├── ChatScreen.tsx, ChatInput.tsx
+│   │   │   ├── ChatMessage.tsx, ToolCallCard.tsx
+│   │   │   ├── ReceiptConfirmation.tsx, CameraCapture.tsx
+│   │   ├── households/              ← 4 components
+│   │   ├── programs/                ← 4 components
+│   │   ├── jobs/                    ← 5 components
+│   │   ├── dashboard/               ← 4 components
+│   │   ├── contributions/           ← 2 components
+│   │   ├── map/                     ← 4 components
+│   │   └── common/                  ← 5 components
+│   ├── lib/
+│   │   ├── supabase.ts              ← SecureStore client
+│   │   ├── api-client.ts            ← Typed HTTP + Bearer
+│   │   ├── query-client.ts          ← React Query + MMKV
+│   │   └── notifications.ts         ← Push registration + handlers
+│   ├── hooks/                       ← ~10 hooks
+│   │   ├── use-auth.ts, use-chat.ts, use-timer.ts
+│   │   ├── use-households.ts, use-programs.ts, use-jobs.ts
+│   │   ├── use-contributions.ts, use-network.ts, use-project.ts
+│   ├── stores/                      ← 3 stores
+│   │   ├── auth.ts, project.ts, chat.ts
+│   ├── app.json, eas.json, package.json, tsconfig.json
+├── app/                             ← EXISTING (unchanged)
+├── components/                      ← EXISTING (unchanged)
+├── lib/                             ← EXISTING (unchanged)
+├── types/                           ← SHARED via path alias
+├── supabase/                        ← SHARED migrations
+└── package.json                     ← EXISTING (unchanged)
 ```
 
-### 3.2 Tech Stack
+---
 
-| Layer | Technology | Rationale |
+## 4. Screen Specifications
+
+### 4.1 Navigation (Role-Based Tab Bars)
+
+**Staff / Admin / Owner / Case Manager:**
+```
+[Dashboard] [Households] [Programs] [Chat] [More]
+More → People, Orgs, Assets, Contributions, Jobs, Map, Calendar, Reports, Settings
+```
+
+**Contractor:**
+```
+[My Jobs] [Timer] [Chat] [Profile]
+```
+
+**Board Viewer:**
+```
+[Dashboard] [Reports]
+```
+
+### 4.2 Dashboard
+
+**Web:** Recharts radar, 6 metric cards (4-col grid), program cards with enrollment bars, activity feed.
+
+**Mobile:**
+```
+┌─────────────────────────┐
+│ Dashboard         [⟳]   │  pull-to-refresh
+├─────────────────────────┤
+│  [  Radar Chart       ] │  victory-native polar
+│  [Metric] [Metric] →   │  horizontal scroll
+│  Programs ──────────    │
+│  │ ESL Class    ████░ │ │  enrollment bars
+│  │ Food Bank    ███░░ │ │
+│  Recent Activity ───    │
+│  │ ● New household    │ │  FlatList, infinite scroll
+│  │ ● Attendance taken │ │
+└─────────────────────────┘
+```
+
+### 4.3 Household List + Detail
+
+**Web:** Table with search, sort, pagination, bulk actions, column picker, dispositions.
+**Mobile:** Searchable FlatList → card layout. Detail has tabs: Members, Programs, Contributions, Intake (case_manager+), Timeline. [+] opens multi-step intake wizard.
+
+### 4.4 Batch Attendance
+
+**Web:** `batch-attendance.tsx` — date picker → enrolled member grid → checkboxes → bulk save.
+
+**Mobile:**
+```
+┌─────────────────────────┐
+│ ← ESL Class Attendance  │
+│  Date: [  Mar 20, 2026 ]│
+│  ┌─────────────────────┐│
+│  │ Maria M.  [✓][✗][E] ││  tap toggles P/A/E
+│  │ Carlos M. [✓][✗][E] ││  green/red/yellow
+│  │ James W.  [✓][✗][E] ││
+│  └─────────────────────┘│
+│  [Mark All Present]     │
+│  [    Save (18/25)    ] │  haptic on save
+└─────────────────────────┘
+```
+Works offline — queued for sync.
+
+### 4.5 AI Chat Assistant
+
+**Web:** Fixed right panel (360-800px, z-60, resizable drag handle), `chat-input.tsx` (1-5 row textarea), message bubbles, color-coded expandable tool call cards, SSE streaming.
+
+**Mobile:** Full-screen, no resize, native keyboard, camera button.
+```
+┌─────────────────────────┐
+│ AI Assistant     [≡] [+]│
+│  🤖 How can I help?     │
+│        User message ──┐ │
+│  Tool call card ──────┤ │
+│  │ Receipt Confirmation │
+│  │ Vendor: Home Depot  │ │
+│  │ Amount: $47.23      │ │
+│  │ [✓ OK] [✎] [✗]     │ │
+├─────────────────────────┤
+│ [Message...       ] 📷→ │  camera + send
+└─────────────────────────┘
+```
+
+**Camera flow:** Tap 📷 → `expo-image-picker` → preview → compress → presigned URL upload to Supabase Storage → send URL in chat message → SSE stream → confirmation card → approve → bill created.
+
+### 4.6 Job Management + Timer (Contractor)
+
+**Web:** Job list, detail, `time-tracker.tsx` (Start/Pause/Stop/Complete).
+
+**Mobile:**
+```
+┌─────────────────────────┐
+│ My Jobs                 │
+│ [Active][Available][Done]│
+│ ⚡ Fence Repair • 1:23:45│  persistent timer banner
+│ ┌───────────────────┐   │
+│ │ 🔴 Roof Inspection │   │  priority badge
+│ │ 123 Oak St • Mar 22│  │
+│ │ [Accept] [Decline] │   │
+│ ├───────────────────┤   │
+│ │ 🟡 Fence Repair    │   │
+│ │ ⏱ 1:23:45 [⏸][⏹]  │   │  inline timer
+│ └───────────────────┘   │
+└─────────────────────────┘
+```
+
+**Background timer:** `expo-task-manager` + MMKV state. Calculate elapsed from `started_at` timestamp (survives app kill). Local notification after X hours.
+
+### 4.7 Community Map
+
+**Web:** Leaflet/react-leaflet, 4 layers, clustering, filter sidebar.
+**Mobile:** `react-native-maps`, bottom sheet popups, GPS "center on me", filter bottom sheet.
+
+### 4.8 Contribution Entry
+
+Quick-entry bottom sheet: type selector → person → program (dimension auto-inherited) → amount/hours → save.
+
+---
+
+## 5. Technology Stack
+
+### Core
+
+| Package | Purpose |
+|---------|---------|
+| `expo` ~52 | Framework (managed workflow) |
+| `expo-router` ~4 | File-based navigation |
+| `@supabase/supabase-js` ^2.93 | Auth + API (same as web) |
+| `expo-secure-store` | Token storage |
+| `zustand` ^5.0 | State management (same as web) |
+| `@tanstack/react-query` ^5.90 | Data fetching + offline cache |
+| `react-hook-form` ^7.71 | Forms (same as web) |
+| `zod` ^4.3 | Validation (shared schemas) |
+| `date-fns` ^4.1 | Date formatting (same as web) |
+| `nativewind` ^4 | Tailwind for RN |
+| `lucide-react-native` ^0.563 | Icons (same icon set) |
+
+### Native Modules
+
+| Package | Purpose |
+|---------|---------|
+| `expo-camera`, `expo-image-picker` | Receipt capture |
+| `expo-image` | Fast cached images |
+| `expo-notifications` | Push (APNs + FCM) |
+| `expo-task-manager` | Background timer |
+| `expo-haptics` | Haptic feedback |
+| `expo-location` | GPS |
+| `expo-file-system` | Local file cache |
+| `expo-web-browser` | OAuth flows |
+| `react-native-maps` | Native maps |
+| `react-native-mmkv` | Fast KV storage |
+| `victory-native` | Charts (radar, bar) |
+| `react-native-calendars` | Calendar views |
+| `react-native-reanimated` | Animations |
+| `react-native-gesture-handler` | Gestures |
+| `@gorhom/bottom-sheet` | Bottom sheets |
+
+### Build
+
+| Tool | Purpose |
+|------|---------|
+| `eas-cli` | Build + submit + OTA update |
+| `expo-dev-client` | Custom dev builds |
+| `maestro` | E2E tests |
+
+---
+
+## 6. Component Mapping: Web → Mobile
+
+### Base UI (shadcn → Native)
+
+| Web (shadcn/Radix) | Mobile | Notes |
+|---------------------|--------|-------|
+| `<Button>` (CVA) | Pressable + NativeWind | Same variant API |
+| `<Card>` | View + NativeWind | Direct port |
+| `<Input>` | TextInput wrapper | Focus ring, error state |
+| `<Dialog>` | `@gorhom/bottom-sheet` | Dialogs → bottom sheets |
+| `<Select>` | Bottom sheet picker | |
+| `<Tabs>` | Segment control | |
+| `<Badge>`, `<Avatar>`, `<Progress>` | Direct ports | |
+| `<Table>` | FlatList + cards | Tables → card lists |
+| `<Tooltip>`, `<Popover>` | Dropped or long-press | No hover on touch |
+| `<DropdownMenu>` | Action sheet | Platform-native |
+
+### Feature Components
+
+| Web Component | Mobile | Effort |
+|---------------|--------|--------|
+| `chat-panel.tsx` (257 lines, resize handle) | Full-screen ChatScreen (no resize, + camera) | Medium |
+| `chat-message-list.tsx` (259 lines, tool cards) | Inverted FlatList, same card logic | Medium |
+| `batch-attendance.tsx` | FlatList toggle rows, haptic save | Medium |
+| `new-household-dialog.tsx` | Multi-step screen wizard | Medium |
+| `time-tracker.tsx` | TimerControls + TimerBanner + background task | High |
+| `organization/person-combobox.tsx` | EntityPicker (bottom sheet + search FlatList) | Medium |
+| Data tables (Table + pagination + bulk + columns) | FlatList + cards + infinite scroll | Medium |
+
+---
+
+## 7. API Client
+
+### Typed HTTP Client
+
+All mobile data flows through a typed client with Bearer token injection:
+
+```typescript
+class GoodRevAPI {
+  private async request<T>(path: string, options?: RequestInit): Promise<T> {
+    const { data: { session } } = await supabase.auth.getSession();
+    const response = await fetch(`${BASE_URL}${path}`, {
+      ...options,
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`,
+        ...options?.headers,
+      },
+    });
+    if (response.status === 401) {
+      await supabase.auth.refreshSession();
+      return this.request(path, options); // retry once
+    }
+    if (!response.ok) throw new APIError(response.status, await response.json());
+    return response.json();
+  }
+
+  households = {
+    list: (slug, params?) => this.request(`/api/projects/${slug}/households?${qs(params)}`),
+    get: (slug, id) => this.request(`/api/projects/${slug}/households/${id}`),
+    create: (slug, data) => this.request(`...`, { method: 'POST', body: JSON.stringify(data) }),
+    update: (slug, id, data) => this.request(`...`, { method: 'PATCH', body: JSON.stringify(data) }),
+    delete: (slug, id) => this.request(`...`, { method: 'DELETE' }),
+  };
+  programs = { /* same + attendance + enrollments */ };
+  jobs = { /* same + accept/decline/complete/pull + timeEntries */ };
+  contributions = { /* same */ };
+  chat = { stream: async function*(slug, body) { /* SSE parsing */ } };
+  dashboard = { get: (slug) => this.request(`/api/projects/${slug}/community/dashboard`) };
+  // people, organizations, assets, calendar, reports...
+}
+```
+
+### React Query Hooks
+
+```typescript
+export function useHouseholds(params?) {
+  const { slug } = useProject();
+  return useQuery({ queryKey: ['households', slug, params], queryFn: () => api.households.list(slug, params) });
+}
+export function useCreateHousehold() {
+  const { slug } = useProject();
+  const qc = useQueryClient();
+  return useMutation({
+    mutationFn: (data) => api.households.create(slug, data),
+    onSuccess: () => qc.invalidateQueries({ queryKey: ['households', slug] }),
+  });
+}
+```
+
+---
+
+## 8. Web App Prerequisites
+
+Changes to the existing Next.js app required before/during Phase M1. All are additive — zero impact on existing web functionality.
+
+### 8.1 Bearer Token Support in Middleware
+
+**File:** `middleware.ts`
+
+Add before cookie-based auth check:
+```typescript
+const authHeader = request.headers.get('Authorization');
+if (authHeader?.startsWith('Bearer ')) {
+  const token = authHeader.slice(7);
+  const { data: { user }, error } = await supabase.auth.getUser(token);
+  // Set auth context for downstream routes
+}
+```
+
+### 8.2 Push Notification Infrastructure
+
+**New migration:**
+```sql
+CREATE TABLE IF NOT EXISTS push_tokens (
+  id UUID PRIMARY KEY DEFAULT gen_random_uuid(),
+  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
+  token TEXT NOT NULL,
+  platform TEXT NOT NULL CHECK (platform IN ('ios', 'android')),
+  device_name TEXT,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  updated_at TIMESTAMPTZ NOT NULL DEFAULT now(),
+  UNIQUE(user_id, token)
+);
+ALTER TABLE push_tokens ENABLE ROW LEVEL SECURITY;
+CREATE POLICY push_tokens_own ON push_tokens FOR ALL USING (auth.uid() = user_id);
+```
+
+**New routes:** `POST/DELETE /api/auth/push-token`, `POST /api/notifications/push`
+
+**New service:** `lib/notifications/push.ts` — wraps Expo Push API. Called from job events, receipt confirmations, waiver completions, etc.
+
+### 8.3 Presigned Upload URL
+
+**New route:** `POST /api/upload/presigned-url`
+```
+Request: { filename, contentType, purpose: 'receipt' | 'document' | 'photo' }
+Response: { uploadUrl, fileUrl, path }
+```
+
+---
+
+## 9. Implementation Phases
+
+### Phase M1: Setup & Auth (2 weeks)
+
+**Goal:** App boots, authenticates, shows project list with correct role-based tabs.
+
+| # | Task |
+|---|------|
+| 1 | Initialize Expo project (SDK 52, Router, TS) |
+| 2 | Configure path aliases to `../../types`, `../../lib/validators` |
+| 3 | Install all dependencies |
+| 4 | Mobile Supabase client (SecureStore) |
+| 5 | Typed API client (Bearer auth) |
+| 6 | Auth store + hook (login/logout/restore) |
+| 7 | Login screen (react-hook-form) |
+| 8 | Root layout (auth guard) |
+| 9 | Project selector (FlatList) |
+| 10 | Project context store (selected project + role) |
+| 11 | Role-based tab layout |
+| 12 | React Query + MMKV persistence |
+| 13 | Base UI components (~10: Button, Card, Input, Badge, Avatar, Skeleton, SearchBar, BottomSheet, Tabs, EmptyState) |
+| 14 | EAS Build config (dev + preview) |
+| 15 | **[Web]** Bearer token in middleware |
+| 16 | Push notification token registration |
+| 17 | **[Web]** Push token migration + routes |
+
+### Phase M2: Dashboard & Read Views (2 weeks)
+
+**Goal:** Browse all community data.
+
+| # | Task |
+|---|------|
+| 1-5 | Dashboard (radar, metrics, programs, activity) |
+| 6-7 | Household list + detail (tabs: Members, Programs, Contributions, Intake, Timeline) |
+| 8-9 | Program list + detail |
+| 10-11 | People list + detail |
+| 12-13 | Organization list + detail |
+| 14 | Community Assets list + detail |
+| 15 | Contribution list |
+| 16 | "More" menu |
+| 17 | Pull-to-refresh, empty states, skeletons |
+| 18 | Entity picker bottom sheet |
+
+### Phase M3: Chat + Receipt OCR (3 weeks)
+
+**Goal:** Full chat with camera-based receipt processing. **Ship as "Field Assistant MVP."**
+
+| # | Task |
+|---|------|
+| 1 | Chat screen layout |
+| 2 | Message list (inverted FlatList, bubbles) |
+| 3 | Tool call cards (expandable, color-coded) |
+| 4 | Chat input (KeyboardAvoidingView) |
+| 5 | SSE streaming hook (adapted from web `use-chat.ts`) |
+| 6 | Chat store (messages, streaming, conversations) |
+| 7 | Conversation history (list, switch, create) |
+| 8 | Camera button (expo-image-picker) |
+| 9 | Image upload (compress → presigned URL → Supabase Storage) |
+| 10 | **[Web]** Presigned upload API route |
+| 11 | Receipt confirmation card (approve/edit/reject) |
+| 12 | Haptic feedback |
+| 13 | Chat settings (tool toggles) |
+| 14 | Streaming text animation |
+
+### Phase M4: CRUD Operations (2 weeks)
+
+**Goal:** Create and edit entities from mobile.
+
+| # | Task |
+|---|------|
+| 1 | Household intake wizard (multi-step) |
+| 2 | Member quick-add (search/create) |
+| 3 | Intake form (case_manager+) |
+| 4 | Program enrollment bottom sheet |
+| 5 | Batch attendance screen (tap grid) |
+| 6 | "Mark All Present" + haptic |
+| 7 | Contribution quick-entry (donation + time log) |
+| 8 | Dimension auto-inherit |
+| 9 | Quick-add person |
+| 10 | Notes/comments |
+| 11 | Waiver trigger on enrollment |
+| 12 | Optimistic mutations |
+| 13 | Offline mutation queue |
+
+### Phase M5: Contractor Portal (2 weeks)
+
+**Goal:** Contractors manage jobs + time from phone.
+
+| # | Task |
+|---|------|
+| 1 | Contractor tab layout |
+| 2 | Job list (active/available/done) |
+| 3 | Job detail |
+| 4 | Accept/decline bottom sheet |
+| 5 | Timer controls (Start/Pause/Stop/Complete) |
+| 6 | Persistent timer banner |
+| 7 | Background timer (expo-task-manager) |
+| 8 | Clock-running local notification |
+| 9 | Job completion form |
+| 10 | Contractor profile |
+| 11 | Google Calendar OAuth |
+| 12 | Push notifications (job events) |
+| 13 | **[Web]** Push service + wiring |
+| 14 | Service address → native maps |
+
+### Phase M6: Maps & Location (1 week)
+
+Map screen, 4 marker layers, clustering, popups, GPS, filters.
+
+### Phase M7: Calendar & Notifications (1 week)
+
+Calendar (day/agenda), event detail, notification deep linking, all push triggers, badge.
+
+### Phase M8: Offline & Polish (2 weeks)
+
+MMKV persistence, offline queue, network banner, sync indicators, splash/icon, dark mode, accessibility, FlatList tuning, image caching, haptics, tablet layout, error boundaries.
+
+### Phase M9: Testing & Release (1 week)
+
+Unit/component/E2E tests, physical device testing, EAS production builds, App Store/Play Store setup, screenshots, privacy policy, TestFlight/internal track, EAS Update pipeline.
+
+---
+
+## 10. Push Notification Events
+
+| Event | Recipient | Deep Link |
 |-------|-----------|-----------|
-| Framework | **Expo SDK 53+** | Managed workflow, OTA updates, EAS Build for app store submission |
-| Navigation | **Expo Router v4** | File-based routing (familiar from Next.js), deep linking |
-| UI Components | **NativeWind v4** (Tailwind for RN) | Reuse Tailwind class knowledge from web app |
-| Component Library | **React Native Paper** or **Tamagui** | Accessible, themeable native components |
-| State Management | **Zustand** | Same stores as web, zero changes needed |
-| Server State | **TanStack React Query** | Same query/mutation patterns as web |
-| Auth | **Supabase JS + expo-secure-store** | Supabase auth with secure token storage |
-| Maps | **react-native-maps** | Native MapView for Community Map (Google Maps on Android, Apple Maps on iOS) |
-| Forms | **React Hook Form + Zod** | Same form logic as web |
-| Icons | **Lucide React Native** | Same icon set as web |
-| Camera | **expo-camera** | Asset condition photos, document capture |
-| Location | **expo-location** | Auto-fill coordinates for intake, asset logging |
-| Notifications | **expo-notifications** | Push notifications via Expo Push Service |
-| Secure Storage | **expo-secure-store** | Auth tokens, API keys |
-| Image Handling | **expo-image-picker** | Photo capture and selection |
-| Haptics | **expo-haptics** | Native feedback for interactions |
-| Charts | **react-native-chart-kit** or **Victory Native** | Dashboard visualizations |
-
-### 3.3 API Communication
-
-The mobile app calls the **existing Next.js API routes** over HTTPS:
-
-```
-Mobile App  →  https://goodrevcrm.com/api/projects/[slug]/...  →  Supabase
-```
-
-- **Authentication**: Supabase auth session token sent as `Authorization: Bearer <token>` header
-- **No new API routes needed** for v1 — existing REST endpoints cover all CRUD operations
-- **API client module**: Thin wrapper around `fetch` with auth header injection, error handling, and retry logic
-- **Response caching**: TanStack Query handles cache invalidation and background refetching
-
-### 3.4 Authentication Flow
-
-```
-1. App opens → check expo-secure-store for stored session
-2. If valid session → navigate to project list
-3. If no session → show login screen
-4. Login screen offers:
-   a. Google OAuth → expo-auth-session → Supabase auth callback
-   b. Magic link (email) → Supabase sends link → deep link back to app
-5. On success → store session in expo-secure-store → navigate to projects
-6. Token refresh handled by Supabase JS client automatically
-```
+| `job.assigned` | Contractor | Job detail |
+| `job.accepted` / `declined` / `completed` | Assigning staff | Job detail |
+| `job.pulled` | Contractor | Job list |
+| `job.deadline_approaching` | Contractor | Job detail |
+| `job.inaction_warning` | Contractor | Job detail |
+| `job.clock_running` | Contractor | Timer |
+| `receipt.needs_approval` | Uploading staff | Chat |
+| `waiver.signed` | Sending staff | Enrollment |
+| `program.session_starting` | Enrolled staff | Program |
+| `grant.deadline_approaching` | Assigned staff | Grant |
+| `referral.overdue` | Case manager | Referral |
 
 ---
 
-## 4. Screens & Features
+## 11. Offline Capabilities
 
-### 4.1 Shared Screens (Both Project Types)
+**Works offline:** Browse cached data, take attendance, log hours, start/stop timer, capture receipts, create households (all queued for sync).
 
-#### Login / Onboarding
-- Google OAuth sign-in button
-- Magic link email input
-- Brief onboarding carousel for first-time users (3 slides, skippable)
+**Requires connectivity:** Chat responses (SSE), receipt OCR (server-side), push notifications, map tiles, OAuth flows.
 
-#### Project Selector
-- List of user's projects with type badge (CRM / Community)
-- Pull-to-refresh
-- Last-accessed project opens by default
-
-#### Dashboard
-- Adapts based on project type (see 4.2 and 4.3)
-- Key metrics cards (scrollable horizontal)
-- Recent activity feed (infinite scroll)
-- Quick-action FAB (floating action button): + New Person, + New Contribution/Opportunity
-
-#### People
-- Searchable, filterable list with avatar, name, org/household
-- Pull-to-refresh, infinite scroll
-- Person detail: tabs for Info, Activity, Notes, Relationships
-- Edit inline or via edit screen
-- Tap phone number → native dialer; tap email → compose
-
-#### Organizations
-- Searchable list with logo/initials, name, type
-- Org detail: tabs for Info, People, Activity, Notes
-- Edit screen
-
-#### Notes & Activity Timeline
-- Unified timeline on all entity detail screens
-- Add note with text + optional photo attachment
-- Voice-to-text input for quick notes (native speech recognition)
-
-#### Tasks
-- Task list with filters: my tasks, overdue, upcoming
-- Quick-create from any entity detail screen
-- Swipe to complete
-- Push notification for due/overdue tasks
-
-#### Notifications
-- Push notification center
-- Tap notification → deep link to relevant entity
-- Badge count on app icon
-
-#### Settings (Minimal)
-- Profile (name, avatar)
-- Notification preferences (toggle by type)
-- Default project selection
-- Logout
-- App version / support link
+**Sync:** Last-write-wins by timestamp. Mutations replayed in order. Failed replays show Discard/Retry. Global sync banner + per-item badges.
 
 ---
 
-### 4.2 Standard CRM Screens
+## 12. Risks & Mitigations
 
-#### Opportunities
-- Pipeline board view (horizontal swipe between stages) or list view (toggle)
-- Opportunity detail: value, stage, probability, linked org/person, notes
-- Drag card to change stage (long-press + drag)
-- Quick-create with minimal fields
-
-#### Calls
-- Call log list (recent calls)
-- Tap-to-call from person/org detail
-- Post-call note prompt (after call ends, prompt to log outcome)
-- Call outcome selector: connected, voicemail, no answer, etc.
-
-#### Email (Read-Only v1)
-- View Gmail-synced email threads on person/org detail
-- Tap to open in Gmail app for composing
-- Full compose in v2
-
-#### Sequences (Read-Only v1)
-- View active sequences and enrollment status
-- Pause/resume enrollments
-- Full management in v2
-
-#### Contracts (Sign Only v1)
-- View contract status
-- Share signing link via native share sheet
-- View signed PDFs
+| Risk | Mitigation |
+|------|-----------|
+| Bearer token breaks existing routes | Additive middleware change; cookie auth unchanged |
+| iOS kills background timer | expo-task-manager + MMKV state + calculate from `started_at` |
+| Unreliable SSE on mobile | Reconnection logic + "retrying" state |
+| Offline mutation conflicts | Last-write-wins; conflict UI in V2 |
+| App Store rejection | Native UI throughout; privacy manifest |
+| FlatList performance | `getItemLayout`, pagination, `windowSize` |
+| Shared type drift | Same `types/` dir; CI typecheck |
 
 ---
 
-### 4.3 Community Project Screens
-
-#### Community Dashboard
-- Capital Health Radar Chart (7-axis, interactive)
-- Key metrics: Households, Active Programs, Volunteer Hours, Contributions
-- Capital trend sparklines
-- Mini community map preview (tap to expand)
-
-#### Households
-- Searchable list with household name, address, member count
-- Household detail: members list, contribution history, program enrollments, notes
-- **Quick Intake Flow** (optimized for field use):
-  1. Household name + address (with GPS auto-fill option)
-  2. Add members (name, role in household)
-  3. Mark primary contact
-  4. Optional: needs assessment (configurable custom fields)
-  5. Optional: enroll in program immediately
-  6. Save → appears on map automatically
-- Edit household and members inline
-
-#### Contributions
-- List view with filters: type, capital, status, date range
-- Capital-colored badges on each row
-- **Quick-Log Contribution** (< 3 taps for common types):
-  - Select type (monetary / in-kind / volunteer hours / grant / service)
-  - Enter value or hours
-  - Select capital type (color-coded buttons)
-  - Link donor (person/org/household search)
-  - Link recipient or program (optional)
-  - Save
-- Contribution detail with all fields and linked entities
-
-#### Programs
-- Card list with status badge, capital dots, enrollment fraction
-- Program detail: info, enrollment list, contribution history
-- Quick-enroll: search person/household → add to program
-- Mark enrollment complete/withdrawn with swipe
-
-#### Community Assets
-- List with category icon, condition badge (color-coded)
-- Asset detail: info, location mini-map, steward, condition history
-- **Field Inspection Mode**:
-  1. Open asset from list or tap marker on map
-  2. Update condition (excellent/good/fair/poor picker)
-  3. Take photo with expo-camera
-  4. Add note describing condition
-  5. GPS auto-confirms you're on-site
-  6. Save → condition history updated
-
-#### Community Map
-- Full-screen native map (react-native-maps)
-- Layer toggles: Households, Assets, Programs, Organizations
-- Markers use same icon/color system as web
-- Cluster markers at low zoom
-- Tap marker → bottom sheet with entity summary + "View Details" link
-- Current location button (center on user's GPS)
-- Useful for: door-to-door outreach, asset inspections, identifying coverage gaps
-
-#### Relationships
-- View on person detail screen under Relationships tab
-- Add relationship: select person B, choose type, add notes
-- Visual list grouped by type
-
-#### Events / Bookings (v1 Read-Only)
-- Calendar view of upcoming events
-- Event detail with facility, time, organizer
-- Full booking management in v2
-
----
-
-## 5. Offline Capabilities (v1)
-
-v1 is **online-first** with selective caching to handle spotty connectivity:
-
-| Feature | Offline Behavior |
-|---------|-----------------|
-| Previously viewed lists | Cached, viewable offline (TanStack Query cache) |
-| Entity detail pages | Cached if previously loaded |
-| Create contribution | Queued locally, synced when online |
-| Create note | Queued locally, synced when online |
-| Quick intake (household) | Queued locally, synced when online |
-| Update asset condition | Queued locally, synced when online |
-| Maps | Cached tiles; markers require online |
-| Search | Requires online |
-| Photos | Stored locally, uploaded on reconnect |
-
-**Offline queue** implementation:
-- Pending mutations stored in `expo-secure-store` or AsyncStorage
-- On reconnect: queue processed in order with conflict detection
-- Badge indicator showing "X changes pending sync"
-- Manual "Sync Now" button in settings
-
----
-
-## 6. Push Notifications
-
-Using **Expo Push Notifications** + a lightweight push endpoint on the existing API:
-
-| Notification Type | Trigger | Deep Link |
-|------------------|---------|-----------|
-| Task due | Task due date reached | Task detail |
-| Task assigned | Task assigned to user | Task detail |
-| New contribution | Contribution created for your program | Contribution detail |
-| Program enrollment | New enrollment in your program | Program enrollment list |
-| Intake completed | New household registered (for directors) | Household detail |
-| Referral follow-up | Service referral needs follow-up | Contribution detail |
-| Opportunity stage change | Deal moved stages (CRM) | Opportunity detail |
-| Automation triggered | Automation action completed | Related entity |
-
-**Implementation:**
-1. New API route: `POST /api/push/register` — stores Expo push token per user/device
-2. New DB table: `push_tokens` (user_id, token, device_name, created_at)
-3. Push dispatch function called from existing automation engine + API routes
-4. Respect user notification preferences (stored in app, synced to DB)
-
----
-
-## 7. Navigation Structure
-
-### Standard CRM Project
-
-```
-Tab Bar:
-  Dashboard    People    Opportunities    More
-
-More Menu:
-  Organizations
-  Calls
-  Tasks
-  Email
-  Sequences
-  Contracts
-  Notifications
-  Settings
-```
-
-### Community Project
-
-```
-Tab Bar:
-  Dashboard    Households    Contribute    Map    More
-
-More Menu:
-  People
-  Organizations
-  Programs
-  Community Assets
-  Tasks
-  Notifications
-  Settings
-```
-
-- **Contribute** tab opens the Quick-Log Contribution flow directly (most common action)
-- Tab bar uses icons matching the web sidebar icons
-- Active tab highlighted with brand color
-
----
-
-## 8. Design System
-
-### Shared with Web
-
-- **Colors**: Same Tailwind palette via NativeWind
-- **Capital colors**: Same 7-capital color/icon mapping (Green/Leaf, Purple/Palette, etc.)
-- **Typography**: System fonts (SF Pro on iOS, Roboto on Android) — no custom font loading needed
-- **Icons**: Lucide React Native (same icon names as web)
-- **Spacing**: 4px grid system (matching Tailwind's spacing scale)
-
-### Mobile-Specific Patterns
-
-| Pattern | Implementation |
-|---------|---------------|
-| Pull-to-refresh | On all list screens |
-| Infinite scroll | Paginated API calls, append on scroll |
-| Swipe actions | Swipe-to-complete on tasks, swipe-to-call on people |
-| Bottom sheets | Entity previews from map markers, quick actions |
-| FAB (Floating Action Button) | Primary create action per screen |
-| Haptic feedback | On stage changes, completions, swipe actions |
-| Skeleton screens | Loading states for lists and detail pages |
-| Toast notifications | Sonner-style toasts via `react-native-toast-message` |
-| Dark mode | Follows system preference; uses same dark palette as web |
-
----
-
-## 9. Security
-
-| Concern | Mitigation |
-|---------|-----------|
-| Token storage | `expo-secure-store` (Keychain on iOS, Keystore on Android) |
-| API communication | HTTPS only; certificate pinning in production build |
-| Session expiry | Supabase auto-refresh; force re-auth if refresh fails |
-| Biometric lock | Optional biometric unlock (Face ID / fingerprint) via `expo-local-authentication` |
-| Data at rest | Offline cache encrypted via OS-level encryption (enabled by default on modern devices) |
-| RLS enforcement | Same Supabase RLS policies — mobile uses same auth tokens as web |
-| Sensitive fields | Needs assessment data never cached offline; cleared on logout |
-| Jailbreak/root detection | Warn user; optionally disable offline storage on compromised devices |
-
----
-
-## 10. Performance Targets
+## 13. Success Metrics
 
 | Metric | Target |
 |--------|--------|
-| App cold start | < 2 seconds |
-| Screen transition | < 300ms |
-| List load (first 20 items) | < 1 second |
-| Map render with 500 markers | < 2 seconds |
-| Quick-log contribution | < 3 taps + value entry |
-| Household intake flow | < 2 minutes (matching web target) |
-| Offline queue sync | < 5 seconds for 10 queued items |
-| App bundle size (iOS) | < 50 MB |
-| App bundle size (Android) | < 40 MB |
+| Cold start to first action | < 10 sec |
+| Receipt capture to confirmation | < 30 sec |
+| Batch attendance (20 people) | < 45 sec |
+| Job accept to timer start | < 15 sec |
+| Offline sync on reconnect | < 5 sec |
+| Weekly active staff on mobile | > 50% (30 days post-launch) |
+| Weekly active contractors | > 80% |
+| Crash-free rate | > 99.5% |
 
 ---
 
-## 11. Testing Strategy
+## 14. Open Decisions
 
-| Layer | Tool | Scope |
-|-------|------|-------|
-| Unit tests | Vitest | Shared validators, stores, utils |
-| Component tests | React Native Testing Library | Screen components, form logic |
-| Integration tests | Detox or Maestro | Critical flows: login, intake, contribution logging |
-| E2E (CI) | EAS Build + Maestro Cloud | Smoke tests on each PR |
-| Beta testing | Expo EAS Update | OTA updates to TestFlight (iOS) and Internal Testing (Android) |
-| Device testing | BrowserStack or physical devices | Top 5 iOS + top 5 Android devices |
-
----
-
-## 12. Deployment & Distribution
-
-### Build Pipeline
-
-```
-Code Push → GitHub Actions → EAS Build → App Store / Play Store
-                          ↘ EAS Update → OTA patch (no store review)
-```
-
-| Stage | Tool | Notes |
-|-------|------|-------|
-| CI | GitHub Actions | Lint, typecheck, unit tests on every PR |
-| Build | EAS Build | Cloud builds for iOS + Android |
-| OTA Updates | EAS Update | JS-only changes pushed without store review |
-| iOS Distribution | TestFlight → App Store | Apple review required for native changes |
-| Android Distribution | Internal Testing → Play Store | Google review required for native changes |
-| Beta Channel | Expo Dev Client | Internal testing builds with dev tools |
-
-### Environment Configuration
-
-```
-.env.development    → local API (http://localhost:3000)
-.env.staging        → staging API (https://staging.goodrevcrm.com)
-.env.production     → production API (https://goodrevcrm.com)
-```
+| # | Decision | Recommendation |
+|---|----------|---------------|
+| 1 | Flat vs monorepo | Start flat `/mobile`, migrate later |
+| 2 | UI library | NativeWind + custom (team knows Tailwind) |
+| 3 | Offline storage | MMKV + React Query persist |
+| 4 | Map provider | react-native-maps (free) |
+| 5 | Charts | victory-native (radar support) |
+| 6 | E2E testing | Maestro (YAML, CI-friendly) |
+| 7 | Bottom sheets | @gorhom/bottom-sheet |
+| 8 | Calendar | react-native-calendars |
+| 9 | Error tracking | Sentry |
 
 ---
 
-## 13. Implementation Phases
+## 15. Timeline
 
-### Phase 1: Foundation (Weeks 1–2)
+| Phase | Duration | Cumulative | Deliverable |
+|-------|----------|-----------|-------------|
+| M1: Setup & Auth | 2 weeks | Week 2 | App boots, logs in, shows projects |
+| M2: Dashboard & Reads | 2 weeks | Week 4 | Browse all community data |
+| M3: Chat + OCR | 3 weeks | Week 7 | **Field Assistant MVP** |
+| M4: CRUD | 2 weeks | Week 9 | Intake + attendance from phone |
+| M5: Contractor Portal | 2 weeks | Week 11 | Jobs + timer |
+| M6: Maps | 1 week | Week 12 | Community map + GPS |
+| M7: Calendar + Notifs | 1 week | Week 13 | Push + calendar |
+| M8: Offline + Polish | 2 weeks | Week 15 | Field-ready |
+| M9: Test + Release | 1 week | Week 16 | App Store + Play Store |
 
-- Set up monorepo with Turborepo (move web app to `apps/web/`)
-- Extract shared packages (types, validators, stores, constants)
-- Create Expo app in `apps/mobile/`
-- Configure NativeWind, React Query, Zustand
-- Implement auth flow (Google OAuth + Supabase)
-- Build project selector screen
-- Set up EAS Build + CI pipeline
-
-**Deliverable**: App that authenticates and shows project list
-
-### Phase 2: Core Shared Screens (Weeks 3–4)
-
-- Dashboard screen (basic metrics cards + activity feed)
-- People list + detail + edit
-- Organizations list + detail + edit
-- Notes/timeline on all detail screens
-- Tasks list + create + complete
-- Push notification registration
-
-**Deliverable**: Functional CRM with people, orgs, and tasks
-
-### Phase 3: Standard CRM Features (Weeks 5–6)
-
-- Opportunities pipeline board + list + detail
-- Tap-to-call + post-call note logging
-- Email thread view (read-only)
-- Sequence enrollment view (read-only)
-- Contract status view + share signing link
-- CRM-specific dashboard metrics
-
-**Deliverable**: Usable mobile CRM for sales teams
-
-### Phase 4: Community Project Features (Weeks 7–8)
-
-- Households list + detail + quick intake flow
-- Contributions list + quick-log flow
-- Programs list + detail + enrollment management
-- Community Assets list + detail + field inspection mode
-- Relationships on person detail
-- Community dashboard with capital radar chart
-- GPS auto-fill for addresses and coordinates
-
-**Deliverable**: Usable mobile app for community center staff
-
-### Phase 5: Map + Polish (Weeks 9–10)
-
-- Community Map with all layers and markers
-- Map marker tap → bottom sheet previews
-- Offline queue for contributions, notes, intake
-- Dark mode
-- Haptic feedback, skeleton screens, pull-to-refresh
-- Performance optimization and device testing
-- App store submission preparation (screenshots, metadata)
-
-**Deliverable**: Production-ready app submitted to stores
-
-### Phase 6: Post-Launch (Ongoing)
-
-- Biometric lock
-- Voice-to-text notes
-- Full email compose
-- Sequence management
-- Event/booking management
-- Barcode/QR scanning for asset tracking
-- Accessibility audit and improvements
-- Tablet/iPad optimized layouts
+**Total: ~16 weeks.** Accelerated launch: M1-M3 (7 weeks) as "GoodRev Field Assistant."
 
 ---
 
-## 14. Shared Code Reuse Estimate
-
-| Module | Web | Mobile | Shared | Reuse % |
-|--------|-----|--------|--------|---------|
-| TypeScript types | ✓ | ✓ | `packages/shared/types` | 100% |
-| Zod validators | ✓ | ✓ | `packages/shared/validators` | 100% |
-| Zustand stores | ✓ | ✓ | `packages/shared/stores` | 90% |
-| Constants (capitals, enums) | ✓ | ✓ | `packages/shared/constants` | 100% |
-| Pure utility functions | ✓ | ✓ | `packages/shared/utils` | 95% |
-| React hooks (data fetching) | ✓ | ✓ | Adapted (fetch → RN) | 70% |
-| UI components | ✓ | ✗ | None (different primitives) | 0% |
-| API routes (backend) | ✓ | Consumed | Stays in `apps/web` | N/A |
-| Navigation/routing | ✓ | ✗ | None (Expo Router) | 0% |
-
-**Overall**: ~50–60% of non-UI TypeScript code is directly reusable.
-
----
-
-## 15. API Changes Required
-
-The existing API is largely sufficient. Minimal additions needed:
-
-| Endpoint | Method | Purpose | Priority |
-|----------|--------|---------|----------|
-| `/api/push/register` | POST | Register Expo push token | Phase 2 |
-| `/api/push/unregister` | POST | Remove push token on logout | Phase 2 |
-| Modify existing mutation endpoints | — | Call push dispatch after mutations | Phase 2 |
-
-**New table:**
-
-```sql
-CREATE TABLE push_tokens (
-  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
-  user_id UUID NOT NULL REFERENCES auth.users(id) ON DELETE CASCADE,
-  project_id UUID REFERENCES projects(id) ON DELETE CASCADE,
-  token TEXT NOT NULL,
-  device_name TEXT,
-  platform TEXT CHECK (platform IN ('ios', 'android')),
-  created_at TIMESTAMPTZ DEFAULT now(),
-  updated_at TIMESTAMPTZ DEFAULT now(),
-  UNIQUE(user_id, token)
-);
-```
-
----
-
-## 16. Risks & Mitigations
-
-| Risk | Impact | Mitigation |
-|------|--------|-----------|
-| Monorepo migration breaks web app | High | Do migration in isolated branch; run full test suite before merge; keep web app functional throughout |
-| React Native map performance with many markers | Medium | Marker clustering; limit visible markers to viewport; lazy load layers |
-| Expo managed workflow limitations | Medium | Eject to bare workflow only if native modules require it; Expo SDK 53 covers most needs |
-| App store review delays | Medium | Submit early; use EAS Update for JS-only patches; maintain compliance from day one |
-| Offline sync conflicts | Medium | Last-write-wins for v1; conflict resolution UI in v2; warn users when offline |
-| NativeWind Tailwind parity gaps | Low | Fallback to StyleSheet for unsupported utilities; NativeWind v4 covers 90%+ of Tailwind |
-| Auth token refresh on mobile backgrounding | Low | Supabase JS handles refresh; test on both platforms for edge cases |
-| GPS/location permission denials | Low | Graceful fallback to manual address entry; explain value in permission prompt |
-
----
-
-## 17. Success Metrics
-
-| Metric | Target | Measurement |
-|--------|--------|-------------|
-| App store rating | ≥ 4.5 stars | App Store Connect / Play Console |
-| Field intake completion rate | ≥ 90% started → saved | Analytics event tracking |
-| Contribution quick-log time | < 30 seconds | Analytics timing |
-| Daily active users (after 3 months) | ≥ 40% of web DAU | Supabase auth logs |
-| Crash-free rate | ≥ 99.5% | Expo/Sentry crash reporting |
-| Offline queue success rate | ≥ 99% synced without error | Sync success/failure logging |
-| Push notification opt-in | ≥ 70% of mobile users | Expo push token registration rate |
-| App cold start time | < 2 seconds (p95) | Performance monitoring |
-
----
-
-## 18. Open Questions
-
-1. **App name**: "GoodRev" or "GoodRev CRM" or something distinct for community use?
-2. **App store accounts**: Are Apple Developer ($99/yr) and Google Play ($25 one-time) accounts set up?
-3. **Branding**: Do we need a separate app icon/splash for community vs. CRM, or one unified app?
-4. **Self-service portal**: Should volunteers be able to log their own hours in the mobile app, or staff-only for v1?
-5. **Tablet support**: Prioritize iPad/Android tablet layouts, or phone-first for v1?
-6. **Analytics SDK**: Mixpanel, Amplitude, PostHog, or Expo's built-in analytics?
-7. **Crash reporting**: Sentry (already popular in RN ecosystem) or Expo's built-in?
-
----
-
-*This PRD is a living document. Update as architecture decisions are finalized and user testing feedback comes in.*
+*This PRD is a living document. Update as implementation decisions are made and field feedback is received.*

@@ -79,11 +79,10 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     emitAutomationEvent({
       projectId: project.id,
-      triggerType: 'entity.updated',
-      entityType: 'person',
-      entityId: data.person_id ?? data.household_id ?? data.id,
-      data: { referral_id: data.id, status: data.status, service_type: data.service_type },
-      metadata: { community_trigger: data.status === 'completed' ? 'referral.completed' : 'referral.updated' },
+      triggerType: data.status === 'completed' ? ('referral.completed' as never) : 'entity.updated',
+      entityType: 'referral' as never,
+      entityId: data.id,
+      data: data as Record<string, unknown>,
     });
 
     return NextResponse.json({ referral: data });

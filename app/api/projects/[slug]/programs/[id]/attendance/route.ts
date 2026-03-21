@@ -108,7 +108,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     emitAutomationEvent({
       projectId: project.id,
-      triggerType: 'entity.updated',
+      triggerType: 'program.attendance.batch' as never,
       entityType: 'program_attendance',
       entityId: id,
       data: { program_id: id, date: validation.data.date, count: attendance?.length ?? 0 },

@@ -143,7 +143,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     emitAutomationEvent({
       projectId: project.id,
-      triggerType: 'entity.created',
+      triggerType: 'contribution.created' as never,
       entityType: 'contribution',
       entityId: contribution.id,
       data: contribution as Record<string, unknown>,

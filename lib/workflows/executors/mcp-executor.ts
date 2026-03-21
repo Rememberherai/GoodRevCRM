@@ -229,6 +229,7 @@ async function executeInternalTool(
   const result = await executeTool(toolName, params, {
     supabase,
     projectId,
+    projectType: 'standard',
     userId: 'system',
     role: 'member',
     apiKeyId: 'workflow-internal',

@@ -9,7 +9,7 @@ export const referralStatusSchema = z.enum([
   'closed',
 ]);
 
-export const referralSchema = z.object({
+export const referralBaseSchema = z.object({
   project_id: optionalUuidSchema,
   person_id: optionalUuidSchema,
   household_id: optionalUuidSchema,
@@ -18,7 +18,9 @@ export const referralSchema = z.object({
   status: referralStatusSchema.default('submitted'),
   outcome: nullableString(2000, 'Outcome must be 2000 characters or less'),
   notes: nullableString(5000, 'Notes must be 5000 characters or less'),
-}).superRefine((value, ctx) => {
+});
+
+export const referralSchema = referralBaseSchema.superRefine((value, ctx) => {
   if (!value.person_id && !value.household_id) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
@@ -29,4 +31,4 @@ export const referralSchema = z.object({
 });
 
 export const createReferralSchema = referralSchema;
-export const updateReferralSchema = referralSchema.partial();
+export const updateReferralSchema = referralBaseSchema.partial();

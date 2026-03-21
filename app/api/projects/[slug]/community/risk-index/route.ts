@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { computeHouseholdRiskScore, sortRiskScores, type RiskWeights } from '@/lib/community/risk-index';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -134,6 +135,17 @@ export async function POST(request: Request, context: RouteContext) {
     const body = await request.json().catch(() => ({})) as { weights?: Partial<RiskWeights> };
     const fallbackWeights = ((project.settings ?? {}) as { risk_index_weights?: Partial<RiskWeights> }).risk_index_weights;
     const scores = await computeProjectRiskScores(supabase as never, project.id, body.weights ?? fallbackWeights);
+
+    for (const score of scores.filter((item) => item.tier === 'high')) {
+      emitAutomationEvent({
+        projectId: project.id,
+        triggerType: 'risk_score.high' as never,
+        entityType: 'household',
+        entityId: score.householdId,
+        data: score as unknown as Record<string, unknown>,
+      });
+    }
+
     return NextResponse.json({ scores });
   } catch (error) {
     if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: error.status });

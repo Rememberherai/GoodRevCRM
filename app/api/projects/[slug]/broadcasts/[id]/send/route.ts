@@ -37,11 +37,10 @@ export async function POST(_request: Request, context: RouteContext) {
 
     emitAutomationEvent({
       projectId: project.id,
-      triggerType: 'entity.updated',
+      triggerType: 'broadcast.sent' as never,
       entityType: 'broadcast',
       entityId: id,
       data: { broadcast_id: id, status, sent_count: result.sentCount },
-      metadata: { community_trigger: 'broadcast.sent' },
     });
 
     return NextResponse.json({

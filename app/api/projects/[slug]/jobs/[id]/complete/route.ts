@@ -96,7 +96,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     emitAutomationEvent({
       projectId: project.id,
-      triggerType: 'entity.updated',
+      triggerType: 'job.completed' as never,
       entityType: 'job',
       entityId: job.id,
       data: { ...job, phase5_action: 'completed', total_minutes: totalMinutes },

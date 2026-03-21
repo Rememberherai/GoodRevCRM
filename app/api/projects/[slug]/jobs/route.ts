@@ -181,7 +181,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     emitAutomationEvent({
       projectId: project.id,
-      triggerType: 'entity.created',
+      triggerType: 'job.assigned' as never,
       entityType: 'job' as never,
       entityId: job.id,
       data: job as Record<string, unknown>,

@@ -79,6 +79,16 @@ export async function authenticateApiKey(
     return null;
   }
 
+  const { data: project } = await supabase
+    .from('projects')
+    .select('project_type')
+    .eq('id', apiKey.project_id)
+    .single();
+
+  if (!project) {
+    return null;
+  }
+
   // Update last_used_at (fire-and-forget)
   db
     .from('mcp_api_keys')
@@ -91,6 +101,7 @@ export async function authenticateApiKey(
 
   return {
     projectId: apiKey.project_id as string,
+    projectType: project.project_type as 'standard' | 'community',
     userId: apiKey.created_by as string,
     role: apiKey.role,
     apiKeyId: apiKey.id as string,

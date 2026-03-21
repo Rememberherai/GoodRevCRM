@@ -72,7 +72,22 @@ export type TriggerType =
   | 'booking.completed'
   | 'booking.no_show'
   // Event type events
-  | 'event_type.created';
+  | 'event_type.created'
+  // Community events
+  | 'household.created'
+  | 'household.member_added'
+  | 'program.enrollment.created'
+  | 'program.attendance.batch'
+  | 'contribution.created'
+  | 'job.assigned'
+  | 'job.accepted'
+  | 'job.declined'
+  | 'job.completed'
+  | 'contractor.onboarded'
+  | 'referral.created'
+  | 'referral.completed'
+  | 'broadcast.sent'
+  | 'risk_score.high';
 
 export type ActionType =
   | 'create_task'
@@ -127,6 +142,8 @@ export type AutomationEntityType =
   | 'program_attendance'
   | 'contribution'
   | 'community_asset'
+  | 'referral'
+  | 'relationship'
   | 'broadcast'
   | 'intake'
   | 'household_member'
@@ -341,6 +358,25 @@ export const triggerTypeGroups = {
       { type: 'booking.rescheduled' as TriggerType, label: 'Booking Rescheduled', description: 'When a booking is rescheduled to a new time' },
       { type: 'booking.completed' as TriggerType, label: 'Booking Completed', description: 'When a booking is marked as completed' },
       { type: 'booking.no_show' as TriggerType, label: 'Booking No-Show', description: 'When an invitee is marked as a no-show' },
+    ],
+  },
+  community: {
+    label: 'Community Events',
+    triggers: [
+      { type: 'household.created' as TriggerType, label: 'Household Created', description: 'When a new household is created' },
+      { type: 'household.member_added' as TriggerType, label: 'Household Member Added', description: 'When a person is added to a household' },
+      { type: 'program.enrollment.created' as TriggerType, label: 'Program Enrollment Created', description: 'When a program enrollment is created' },
+      { type: 'program.attendance.batch' as TriggerType, label: 'Program Attendance Batch', description: 'When a batch attendance save is recorded' },
+      { type: 'contribution.created' as TriggerType, label: 'Contribution Created', description: 'When a community contribution is created' },
+      { type: 'job.assigned' as TriggerType, label: 'Job Assigned', description: 'When a contractor job is assigned' },
+      { type: 'job.accepted' as TriggerType, label: 'Job Accepted', description: 'When a contractor accepts a job' },
+      { type: 'job.declined' as TriggerType, label: 'Job Declined', description: 'When a contractor declines a job' },
+      { type: 'job.completed' as TriggerType, label: 'Job Completed', description: 'When a contractor completes a job' },
+      { type: 'contractor.onboarded' as TriggerType, label: 'Contractor Onboarded', description: 'When a contractor onboarding flow completes' },
+      { type: 'referral.created' as TriggerType, label: 'Referral Created', description: 'When a referral is created' },
+      { type: 'referral.completed' as TriggerType, label: 'Referral Completed', description: 'When a referral is completed' },
+      { type: 'broadcast.sent' as TriggerType, label: 'Broadcast Sent', description: 'When a broadcast send is completed' },
+      { type: 'risk_score.high' as TriggerType, label: 'High Risk Score', description: 'When a household is flagged as high risk during recomputation' },
     ],
   },
 };

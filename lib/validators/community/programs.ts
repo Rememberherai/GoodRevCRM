@@ -34,7 +34,7 @@ export const programSchema = z.object({
 export const createProgramSchema = programSchema;
 export const updateProgramSchema = programSchema.partial();
 
-export const programEnrollmentSchema = z.object({
+export const programEnrollmentBaseSchema = z.object({
   program_id: optionalUuidSchema,
   person_id: optionalUuidSchema,
   household_id: optionalUuidSchema,
@@ -43,7 +43,9 @@ export const programEnrollmentSchema = z.object({
   enrolled_at: z.string().optional(),
   completed_at: z.string().nullable().optional(),
   notes: nullableString(2000, 'Notes must be 2000 characters or less'),
-}).superRefine((value, ctx) => {
+});
+
+export const programEnrollmentSchema = programEnrollmentBaseSchema.superRefine((value, ctx) => {
   if (!value.person_id && !value.household_id) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
