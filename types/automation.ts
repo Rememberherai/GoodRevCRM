@@ -86,10 +86,12 @@ export type TriggerType =
   | 'contractor.onboarded'
   | 'referral.created'
   | 'referral.completed'
+  | 'referral.overdue'
   | 'broadcast.sent'
   | 'grant.created'
   | 'grant.status_changed'
   | 'grant.deadline_approaching'
+  | 'job.inaction_warning'
   | 'risk_score.high';
 
 export type ActionType =
@@ -380,10 +382,12 @@ export const triggerTypeGroups = {
       { type: 'contractor.onboarded' as TriggerType, label: 'Contractor Onboarded', description: 'When a contractor onboarding flow completes' },
       { type: 'referral.created' as TriggerType, label: 'Referral Created', description: 'When a referral is created' },
       { type: 'referral.completed' as TriggerType, label: 'Referral Completed', description: 'When a referral is completed' },
+      { type: 'referral.overdue' as TriggerType, label: 'Referral Overdue', description: 'When a referral has been open for too long without resolution' },
       { type: 'broadcast.sent' as TriggerType, label: 'Broadcast Sent', description: 'When a broadcast send is completed' },
       { type: 'grant.created' as TriggerType, label: 'Grant Created', description: 'When a new grant record is created' },
       { type: 'grant.status_changed' as TriggerType, label: 'Grant Status Changed', description: 'When a grant moves to a different pipeline stage' },
       { type: 'grant.deadline_approaching' as TriggerType, label: 'Grant Deadline Approaching', description: 'When a grant deadline is within configured days' },
+      { type: 'job.inaction_warning' as TriggerType, label: 'Job Inaction Warning', description: 'When an accepted job has no time entries after configured days' },
       { type: 'risk_score.high' as TriggerType, label: 'High Risk Score', description: 'When a household is flagged as high risk during recomputation' },
     ],
   },
@@ -397,6 +401,9 @@ export const timeTriggerTypes: TriggerType[] = [
   'time.task_overdue',
   'time.close_date_approaching',
   'time.created_ago',
+  'referral.overdue',
+  'grant.deadline_approaching',
+  'job.inaction_warning',
 ];
 
 // Action type metadata for UI

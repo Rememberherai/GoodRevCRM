@@ -137,6 +137,15 @@ async function processTimeAutomation(
     case 'time.created_ago':
       matchedEntityIds = await findCreatedAgo(supabase, projectId, triggerConfig);
       break;
+    case 'referral.overdue':
+      matchedEntityIds = await findOverdueReferrals(supabase, projectId, triggerConfig);
+      break;
+    case 'grant.deadline_approaching':
+      matchedEntityIds = await findApproachingGrantDeadlines(supabase, projectId, triggerConfig);
+      break;
+    case 'job.inaction_warning':
+      matchedEntityIds = await findInactionJobs(supabase, projectId, triggerConfig);
+      break;
     default:
       return 0;
   }
@@ -201,6 +210,12 @@ function getEntityTypeForTrigger(triggerType: TriggerType, config: TriggerConfig
       return 'task';
     case 'time.close_date_approaching':
       return 'opportunity';
+    case 'referral.overdue':
+      return 'referral';
+    case 'grant.deadline_approaching':
+      return 'grant';
+    case 'job.inaction_warning':
+      return 'job';
     default:
       return 'organization';
   }
@@ -294,4 +309,83 @@ async function findCreatedAgo(
     .limit(100);
 
   return (data ?? []).map((r: { id: string }) => r.id);
+}
+
+async function findOverdueReferrals(
+  supabase: ReturnType<typeof createAdminClient>,
+  projectId: string,
+  config: TriggerConfig
+): Promise<string[]> {
+  const rawDays = config.days ?? 7;
+  const days = Math.min(Math.max(Math.floor(rawDays), 1), 365);
+  const cutoffDate = new Date(Date.now() - days * 86400000).toISOString();
+
+  const { data } = await supabase
+    .from('referrals')
+    .select('id')
+    .eq('project_id', projectId)
+    .in('status', ['submitted', 'acknowledged', 'in_progress'])
+    .lt('created_at', cutoffDate)
+    .limit(100);
+
+  return (data ?? []).map((r: { id: string }) => r.id);
+}
+
+async function findApproachingGrantDeadlines(
+  supabase: ReturnType<typeof createAdminClient>,
+  projectId: string,
+  config: TriggerConfig
+): Promise<string[]> {
+  const daysBefore = config.days_before ?? 7;
+  const now = new Date();
+  const targetDate = new Date(now.getTime() + daysBefore * 86400000);
+
+  const { data } = await supabase
+    .from('grants')
+    .select('id, loi_due_at, application_due_at, report_due_at')
+    .eq('project_id', projectId)
+    .not('status', 'in', '("awarded","declined")')
+    .limit(200);
+
+  const matchedIds: string[] = [];
+  for (const grant of data ?? []) {
+    const deadlines = [grant.loi_due_at, grant.application_due_at, grant.report_due_at].filter(Boolean);
+    for (const d of deadlines) {
+      const deadlineDate = new Date(d!);
+      if (deadlineDate >= now && deadlineDate <= targetDate) {
+        matchedIds.push(grant.id);
+        break;
+      }
+    }
+  }
+  return matchedIds;
+}
+
+async function findInactionJobs(
+  supabase: ReturnType<typeof createAdminClient>,
+  projectId: string,
+  config: TriggerConfig
+): Promise<string[]> {
+  const rawDays = config.days ?? 3;
+  const days = Math.min(Math.max(Math.floor(rawDays), 1), 365);
+  const cutoffDate = new Date(Date.now() - days * 86400000).toISOString();
+
+  const { data: jobs } = await supabase
+    .from('jobs')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('status', 'accepted')
+    .lt('updated_at', cutoffDate)
+    .limit(100);
+
+  if (!jobs || jobs.length === 0) return [];
+
+  const jobIds = jobs.map((j: { id: string }) => j.id);
+  const { data: timeEntries } = await supabase
+    .from('job_time_entries')
+    .select('job_id')
+    .in('job_id', jobIds);
+
+  const jobsWithEntries = new Set((timeEntries ?? []).map((t: { job_id: string }) => t.job_id));
+  return jobIds.filter((id: string) => !jobsWithEntries.has(id));
 }

@@ -84,10 +84,12 @@ export const triggerTypes = [
   'contractor.onboarded',
   'referral.created',
   'referral.completed',
+  'referral.overdue',
   'broadcast.sent',
   'grant.created',
   'grant.status_changed',
   'grant.deadline_approaching',
+  'job.inaction_warning',
   'risk_score.high',
 ] as const;
 
