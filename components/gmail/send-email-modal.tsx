@@ -27,8 +27,8 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Input } from '@/components/ui/input';
-import { Textarea } from '@/components/ui/textarea';
 import { Button } from '@/components/ui/button';
+import { EmailBodyEditor } from '@/components/sequences/sequence-builder/email-body-editor';
 import { Send, Loader2, AlertCircle } from 'lucide-react';
 import { toast } from 'sonner';
 
@@ -163,7 +163,7 @@ export function SendEmailModal({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="sm:max-w-[600px]">
+      <DialogContent className="sm:max-w-4xl max-h-[90vh] overflow-y-auto">
         <DialogHeader>
           <DialogTitle>Send Email</DialogTitle>
           <DialogDescription>
@@ -256,10 +256,10 @@ export function SendEmailModal({
                   <FormItem>
                     <FormLabel>Message</FormLabel>
                     <FormControl>
-                      <Textarea
-                        placeholder="Write your message..."
-                        className="min-h-[200px]"
-                        {...field}
+                      <EmailBodyEditor
+                        value={field.value}
+                        onChange={(html) => field.onChange(html)}
+                        showVariablePicker={false}
                       />
                     </FormControl>
                     <FormMessage />
