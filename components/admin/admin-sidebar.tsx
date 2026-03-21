@@ -49,7 +49,7 @@ export function AdminSidebar({ adminName, adminEmail, className }: AdminSidebarP
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex-1 p-2 space-y-1">
+      <nav className="flex-1 overflow-y-auto p-2 space-y-1">
         {navItems.map((item) => {
           const isActive =
             item.href === '/admin'

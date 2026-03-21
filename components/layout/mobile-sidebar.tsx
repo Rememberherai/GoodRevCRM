@@ -20,7 +20,7 @@ export function MobileSidebar({ children }: MobileSidebarProps) {
 
   return (
     <Sheet open={isOpen} onOpenChange={(open) => !open && close()}>
-      <SheetContent side="left" className="w-64 p-0" showCloseButton={false}>
+      <SheetContent side="left" className="w-64 p-0 gap-0" showCloseButton={false}>
         <SheetTitle className="sr-only">Navigation</SheetTitle>
         {children}
       </SheetContent>

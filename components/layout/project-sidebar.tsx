@@ -121,7 +121,7 @@ export function ProjectSidebar({ project, role, className }: ProjectSidebarProps
       </div>
 
       {/* Main Navigation */}
-      <nav className="flex-1 p-2 space-y-1">
+      <nav className="flex-1 overflow-y-auto p-2 space-y-1">
         {navItems.map((item) => {
           const href = `${basePath}${item.href}`;
           const isActive = item.href === ''
