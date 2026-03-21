@@ -1,6 +1,6 @@
 'use client';
 
-import { useRef } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import usePlacesAutocomplete, {
   getGeocode,
   getLatLng,
@@ -68,6 +68,34 @@ function parseAddressComponents(
   return { street, city, state, postal_code: postalCode, country };
 }
 
+function useGoogleMapsReady() {
+  const [isLoaded, setIsLoaded] = useState(
+    () => typeof window !== 'undefined' && !!window.google?.maps?.places
+  );
+
+  useEffect(() => {
+    if (isLoaded) return;
+
+    const check = () => {
+      if (window.google?.maps?.places) {
+        setIsLoaded(true);
+        return true;
+      }
+      return false;
+    };
+
+    if (check()) return;
+
+    const interval = setInterval(() => {
+      if (check()) clearInterval(interval);
+    }, 250);
+
+    return () => clearInterval(interval);
+  }, [isLoaded]);
+
+  return isLoaded;
+}
+
 export function AddressAutocomplete({
   value,
   onChange,
@@ -78,19 +106,28 @@ export function AddressAutocomplete({
   disabled,
 }: AddressAutocompleteProps) {
   const listRef = useRef<HTMLUListElement>(null);
+  const googleReady = useGoogleMapsReady();
 
   const {
     ready,
     suggestions: { status, data },
     setValue: setPlacesValue,
     clearSuggestions,
+    init,
   } = usePlacesAutocomplete({
     requestOptions: {
       componentRestrictions: { country: 'us' },
       types: ['address'],
     },
     debounce: 300,
+    initOnMount: false,
   });
+
+  useEffect(() => {
+    if (googleReady) {
+      init();
+    }
+  }, [googleReady, init]);
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
@@ -122,6 +159,7 @@ export function AddressAutocomplete({
     }
   };
 
+  const isReady = ready && googleReady;
   const showSuggestions = status === 'OK' && data.length > 0;
 
   return (
@@ -130,8 +168,8 @@ export function AddressAutocomplete({
         id={id}
         value={value}
         onChange={handleInput}
-        disabled={disabled || !ready}
-        placeholder={ready ? placeholder : 'Loading...'}
+        disabled={disabled || !isReady}
+        placeholder={isReady ? placeholder : 'Loading...'}
         className={className}
         autoComplete="off"
       />
