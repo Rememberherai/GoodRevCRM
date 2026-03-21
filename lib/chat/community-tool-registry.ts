@@ -1397,7 +1397,7 @@ defineCommunityTool({
     emitAutomationEvent({
       projectId: ctx.projectId,
       triggerType: 'entity.updated',
-      entityType: 'contractor_scope',
+      entityType: parsed.scope_id ? 'contractor_scope' : 'person',
       entityId: parsed.scope_id ?? parsed.contractor_id,
       data: { contractor_id: parsed.contractor_id, documents_sent: results.length, kinds: parsed.kinds },
     });

@@ -3,6 +3,17 @@ import { createClient } from '@/lib/supabase/server';
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { emitAutomationEvent } from '@/lib/automations/engine';
+import { z } from 'zod';
+
+const createBookingSchema = z.object({
+  event_type_id: z.string().uuid().optional(),
+  title: z.string().max(200).optional(),
+  start_at: z.string().min(1, 'start_at is required'),
+  end_at: z.string().min(1, 'end_at is required'),
+  invitee_name: z.string().min(1, 'invitee_name is required').max(200),
+  invitee_email: z.string().email('Valid email is required'),
+  status: z.string().max(50).optional(),
+});
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
@@ -53,15 +64,12 @@ export async function POST(request: Request, context: RouteContext) {
     if (!project || project.project_type !== 'community') return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     await requireCommunityPermission(supabase, user.id, project.id, 'community_assets', 'update');
 
-    const body = await request.json() as {
-      event_type_id?: string;
-      title?: string;
-      start_at: string;
-      end_at: string;
-      invitee_name: string;
-      invitee_email: string;
-      status?: string;
-    };
+    const raw = await request.json();
+    const validation = createBookingSchema.safeParse(raw);
+    if (!validation.success) {
+      return NextResponse.json({ error: 'Validation failed', details: validation.error.flatten() }, { status: 400 });
+    }
+    const body = validation.data;
 
     const { data: assetEventTypes } = await supabase
       .from('event_types')
