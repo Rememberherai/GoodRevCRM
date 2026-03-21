@@ -1,8 +1,10 @@
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { redirect, notFound } from 'next/navigation';
 import { ProjectSidebar } from '@/components/layout/project-sidebar';
 import { ProjectHeader } from '@/components/layout/project-header';
 import { MobileSidebar } from '@/components/layout/mobile-sidebar';
+import { AdminModeBanner } from '@/components/admin/admin-mode-banner';
 import { CallClientWrapper } from '@/components/calls/call-client-wrapper';
 import { ChatPanel } from '@/components/chat/chat-panel';
 import { LastProjectTracker } from '@/components/projects/last-project-tracker';
@@ -51,6 +53,22 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
     redirect(`/contractor/${slug}`);
   }
 
+  // Check for active admin session (uses admin client to bypass RLS)
+  let adminSession: { id: string } | null = null;
+  try {
+    const adminClient = createAdminClient();
+    const { data } = await adminClient
+      .from('system_admin_sessions')
+      .select('id')
+      .eq('admin_user_id', user.id)
+      .eq('project_id', project.id)
+      .is('exited_at', null)
+      .maybeSingle();
+    adminSession = data;
+  } catch {
+    // Silently ignore — admin banner is non-critical
+  }
+
   return (
     <CallClientWrapper>
       <div className="flex h-screen bg-background">
@@ -61,6 +79,7 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
         </MobileSidebar>
         <div className="flex flex-col flex-1 overflow-hidden min-w-0">
           <ProjectHeader project={project as Project} />
+          {adminSession && <AdminModeBanner projectId={project.id} projectName={project.name} />}
           <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
         </div>
       </div>

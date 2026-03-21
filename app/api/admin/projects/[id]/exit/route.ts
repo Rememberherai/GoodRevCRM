@@ -19,7 +19,7 @@ export async function POST(
     // Find active session
     const { data: session } = await adminClient
       .from('system_admin_sessions')
-      .select('id, membership_id')
+      .select('id, membership_id, entered_at')
       .eq('admin_user_id', user.id)
       .eq('project_id', id)
       .is('exited_at', null)
@@ -36,12 +36,26 @@ export async function POST(
       .update({ exited_at: new Date().toISOString() })
       .eq('id', session.id);
 
-    // Check if membership was created by admin (not pre-existing)
-    // We determine this by checking if there are other sessions for this membership
-    // If no other sessions reference this membership, and membership was created during admin enter,
-    // we should delete it. For simplicity, we check the membership role — admin-created ones are 'owner'.
-    // But a real owner would also be 'owner', so we need a different heuristic.
-    // For now, we DON'T delete the membership to be safe. The admin can manually leave the project.
+    // Check if membership was created by the admin enter action
+    // Compare membership created_at with session entered_at
+    // If membership was created at or after session start, it was admin-created and should be removed
+    const { data: membership } = await adminClient
+      .from('project_memberships')
+      .select('id, created_at')
+      .eq('id', session.membership_id)
+      .single();
+
+    if (membership) {
+      const memberJoinedAt = new Date(membership.created_at).getTime();
+      const sessionEnteredAt = new Date(session.entered_at).getTime();
+      // If membership was created within 5 seconds of session start, it was admin-created
+      if (memberJoinedAt >= sessionEnteredAt - 5000) {
+        await adminClient
+          .from('project_memberships')
+          .delete()
+          .eq('id', membership.id);
+      }
+    }
 
     await logAdminAction(user.id, 'exited_project', 'project', id, {}, request);
 
