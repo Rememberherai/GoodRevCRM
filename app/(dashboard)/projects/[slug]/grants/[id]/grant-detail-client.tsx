@@ -14,6 +14,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { GrantComplianceCard } from '@/components/community/reports/grant-compliance';
 import { SendEmailModal } from '@/components/gmail';
+import { PersonCombobox } from '@/components/ui/person-combobox';
+import { OrganizationCombobox } from '@/components/ui/organization-combobox';
 
 interface GrantDetail {
   id: string;
@@ -89,6 +91,8 @@ export default function GrantDetailClient() {
   const [editApplicationDueAt, setEditApplicationDueAt] = useState('');
   const [editReportDueAt, setEditReportDueAt] = useState('');
   const [editNotes, setEditNotes] = useState('');
+  const [editFunderOrgId, setEditFunderOrgId] = useState<string | null>(null);
+  const [editContactPersonId, setEditContactPersonId] = useState<string | null>(null);
 
   const populateForm = (g: GrantDetail) => {
     setEditName(g.name);
@@ -99,6 +103,8 @@ export default function GrantDetailClient() {
     setEditApplicationDueAt(g.application_due_at?.split('T')[0] ?? '');
     setEditReportDueAt(g.report_due_at?.split('T')[0] ?? '');
     setEditNotes(g.notes ?? '');
+    setEditFunderOrgId(g.funder_organization_id);
+    setEditContactPersonId(g.contact_person_id);
   };
 
   const fetchGrant = useCallback(async () => {
@@ -136,6 +142,8 @@ export default function GrantDetailClient() {
         loi_due_at: editLoiDueAt || null,
         application_due_at: editApplicationDueAt || null,
         report_due_at: editReportDueAt || null,
+        funder_organization_id: editFunderOrgId || null,
+        contact_person_id: editContactPersonId || null,
       };
       if (editAmountRequested) body.amount_requested = parseFloat(editAmountRequested);
       else body.amount_requested = null;
@@ -313,22 +321,24 @@ export default function GrantDetailClient() {
                 </div>
               </div>
 
-              {grant.funder && (
+              <div className="grid grid-cols-2 gap-4">
                 <div className="space-y-2">
-                  <Label>Funder</Label>
-                  <p className="text-sm">{grant.funder.name}</p>
+                  <Label>Funder Organization</Label>
+                  <OrganizationCombobox
+                    value={editFunderOrgId}
+                    onValueChange={setEditFunderOrgId}
+                    placeholder="Select funder..."
+                  />
                 </div>
-              )}
-
-              {grant.contact && (
                 <div className="space-y-2">
-                  <Label>Contact</Label>
-                  <p className="text-sm">
-                    {[grant.contact.first_name, grant.contact.last_name].filter(Boolean).join(' ')}
-                    {grant.contact.email && <span className="text-muted-foreground ml-2">({grant.contact.email})</span>}
-                  </p>
+                  <Label>Contact Person</Label>
+                  <PersonCombobox
+                    value={editContactPersonId}
+                    onValueChange={setEditContactPersonId}
+                    placeholder="Select contact..."
+                  />
                 </div>
-              )}
+              </div>
 
               <div className="space-y-2">
                 <Label>Notes</Label>

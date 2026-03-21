@@ -96,7 +96,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       .update(updateData)
       .eq('id', id)
       .eq('project_id', project.id)
-      .select()
+      .select(`
+        *,
+        funder:organizations!grants_funder_organization_id_fkey(id, name),
+        contact:people!grants_contact_person_id_fkey(id, first_name, last_name, email)
+      `)
       .single();
 
     if (error || !data) return NextResponse.json({ error: 'Grant not found' }, { status: 404 });
