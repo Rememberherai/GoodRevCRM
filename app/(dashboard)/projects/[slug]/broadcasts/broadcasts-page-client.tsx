@@ -178,13 +178,13 @@ export function BroadcastsPageClient() {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-4xl">
+        <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Create Broadcast</DialogTitle>
             <DialogDescription>Choose recipients, channel, and message content before sending.</DialogDescription>
           </DialogHeader>
 
-          <div className="space-y-4">
+          <div className="space-y-4 overflow-y-auto flex-1 pr-1">
             <div className="grid gap-4 md:grid-cols-[1fr_220px]">
               <div className="space-y-2">
                 <Label htmlFor="broadcast-subject">Subject</Label>
@@ -225,7 +225,7 @@ export function BroadcastsPageClient() {
             </div>
           </div>
 
-          <DialogFooter>
+          <DialogFooter className="shrink-0 pt-4 border-t">
             <Button variant="outline" onClick={() => setOpen(false)} disabled={isSaving}>Cancel</Button>
             <Button onClick={() => void handleCreate()} disabled={isSaving || !subject.trim() || !bodyText.trim()}>
               Create Draft
