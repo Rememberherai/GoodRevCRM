@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { Plus, Pencil, Trash2, Loader2, Wrench, ArrowUp, ArrowDown } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -107,6 +107,7 @@ export function ServiceTypesPanel({ currentUserRole }: ServiceTypesPanelProps) {
   const [deleteTarget, setDeleteTarget] = useState<ServiceTypeRow | null>(null);
   const [isSeeding, setIsSeeding] = useState(false);
   const canManage = currentUserRole !== 'viewer';
+  const hasAutoSeeded = useRef(false);
 
   const openCreateDialog = () => {
     if (!canManage) return;
@@ -204,6 +205,15 @@ export function ServiceTypesPanel({ currentUserRole }: ServiceTypesPanelProps) {
       setIsSeeding(false);
     }
   };
+
+  // Auto-seed defaults when the list is empty on first load
+  useEffect(() => {
+    if (!isLoading && serviceTypes.length === 0 && canManage && !hasAutoSeeded.current) {
+      hasAutoSeeded.current = true;
+      void handleSeedDefaults();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isLoading, serviceTypes.length]);
 
   if (isLoading) {
     return (
