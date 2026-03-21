@@ -4,6 +4,7 @@ import { ModuleSwitcher } from '@/components/layout/module-switcher';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UserMenu } from '@/components/layout/user-menu';
 import { NotificationBell } from '@/components/notifications/notification-bell';
+import { MobileMenuButton } from '@/components/layout/mobile-menu-button';
 import { useNotifications } from '@/hooks/use-notifications';
 import {
   Select,
@@ -34,15 +35,16 @@ export function CalendarHeader({
   } = useNotifications();
 
   return (
-    <header className="h-14 border-b bg-card flex items-center px-6">
-      <div className="flex items-center gap-4">
+    <header className="h-14 border-b bg-card flex items-center px-3 md:px-6">
+      <div className="flex items-center gap-2 md:gap-4">
+        <MobileMenuButton />
         <ModuleSwitcher />
         {projects.length > 0 && (
           <Select
             value={selectedProjectId || undefined}
             onValueChange={onProjectChange}
           >
-            <SelectTrigger className="w-[200px] h-8 text-sm">
+            <SelectTrigger className="w-[140px] sm:w-[200px] h-8 text-sm">
               <SelectValue placeholder="Select project" />
             </SelectTrigger>
             <SelectContent>

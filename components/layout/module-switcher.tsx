@@ -60,7 +60,7 @@ export function ModuleSwitcher() {
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="gap-2 font-semibold text-lg px-2">
           <ActiveIcon className="h-5 w-5" />
-          GoodRev <span className="text-muted-foreground font-normal">{activeLabel}</span>
+          <span className="hidden sm:inline">GoodRev</span> <span className="text-muted-foreground font-normal">{activeLabel}</span>
           <ChevronDown className="h-4 w-4 text-muted-foreground" />
         </Button>
       </DropdownMenuTrigger>

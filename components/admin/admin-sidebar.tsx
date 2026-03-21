@@ -32,13 +32,14 @@ const navItems: NavItem[] = [
 interface AdminSidebarProps {
   adminName: string;
   adminEmail: string;
+  className?: string;
 }
 
-export function AdminSidebar({ adminName, adminEmail }: AdminSidebarProps) {
+export function AdminSidebar({ adminName, adminEmail, className }: AdminSidebarProps) {
   const pathname = usePathname();
 
   return (
-    <aside className="w-64 border-r bg-card flex flex-col">
+    <aside className={cn("w-64 border-r bg-card hidden md:flex flex-col", className)}>
       {/* Header */}
       <div className="p-4 border-b">
         <div className="flex items-center gap-2">

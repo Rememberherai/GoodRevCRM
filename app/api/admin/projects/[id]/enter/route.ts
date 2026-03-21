@@ -48,7 +48,7 @@ export async function POST(
     if (!alreadyMember) {
       const { data: newMembership, error: memberError } = await adminClient
         .from('project_memberships')
-        .insert({ user_id: user.id, project_id: id, role: 'owner' })
+        .insert({ user_id: user.id, project_id: id, role: 'admin' })
         .select('id')
         .single();
       if (memberError) return NextResponse.json({ error: memberError.message }, { status: 500 });

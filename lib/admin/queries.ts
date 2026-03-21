@@ -173,24 +173,34 @@ export async function listUsers(params: {
 
   // Get project counts and ban status for each user
   const userIds = (data ?? []).map((u) => u.id);
-  const [membershipsResult, authUsersResult] = await Promise.all([
-    userIds.length > 0
-      ? supabase.from('project_memberships').select('user_id, project_id').in('user_id', userIds)
-      : { data: [] as { user_id: string; project_id: string }[] },
-    // Get ban status from auth.users via admin API
-    Promise.resolve({ data: [] as { id: string; banned_until?: string }[] }),
-  ]);
+  const membershipsResult = userIds.length > 0
+    ? await supabase.from('project_memberships').select('user_id, project_id').in('user_id', userIds)
+    : { data: [] as { user_id: string; project_id: string }[] };
 
   const projectCounts: Record<string, number> = {};
   for (const m of (membershipsResult.data ?? []) as { user_id: string; project_id: string }[]) {
     projectCounts[m.user_id] = (projectCounts[m.user_id] ?? 0) + 1;
   }
 
-  const bannedUsers = new Set(
-    ((authUsersResult.data ?? []) as { id: string; banned_until?: string }[])
-      .filter((u) => u.banned_until && new Date(u.banned_until) > new Date())
-      .map((u) => u.id)
-  );
+  // Get ban status from auth.users via admin API (parallelized)
+  const bannedUsers = new Set<string>();
+  if (userIds.length > 0) {
+    const banResults = await Promise.allSettled(
+      userIds.map((uid) => supabase.auth.admin.getUserById(uid))
+    );
+    for (let i = 0; i < banResults.length; i++) {
+      const result = banResults[i]!;
+      if (result.status === 'fulfilled') {
+        const bannedUntilStr = result.value.data?.user?.banned_until;
+        if (bannedUntilStr) {
+          const bannedUntil = new Date(bannedUntilStr);
+          if (bannedUntil.getFullYear() > 2900 || bannedUntil > new Date()) {
+            bannedUsers.add(userIds[i]!);
+          }
+        }
+      }
+    }
+  }
 
   const users: AdminUserListItem[] = (data ?? []).map((u) => ({
     id: u.id,
@@ -229,6 +239,18 @@ export async function getUserDetail(userId: string) {
 
   if (!userResult.data) return null;
 
+  // Check ban status
+  let isBanned = false;
+  try {
+    const { data: authUser } = await supabase.auth.admin.getUserById(userId);
+    if (authUser?.user?.banned_until) {
+      const bannedUntil = new Date(authUser.user.banned_until);
+      isBanned = bannedUntil.getFullYear() > 2900 || bannedUntil > new Date();
+    }
+  } catch {
+    // Skip if we can't fetch auth user
+  }
+
   return {
     user: {
       id: userResult.data.id,
@@ -239,7 +261,7 @@ export async function getUserDetail(userId: string) {
       created_at: userResult.data.created_at,
       project_count: (membershipsResult.data ?? []).length,
       last_active_at: null,
-      is_banned: false,
+      is_banned: isBanned,
     } as AdminUserListItem,
     memberships: (membershipsResult.data ?? []).map((m) => ({
       id: m.id,

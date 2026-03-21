@@ -4,6 +4,7 @@ import { useEffect, useState } from 'react';
 import { usePathname, useRouter } from 'next/navigation';
 import { CalendarSidebar } from '@/components/layout/calendar-sidebar';
 import { CalendarHeader } from '@/components/layout/calendar-header';
+import { MobileSidebar } from '@/components/layout/mobile-sidebar';
 import { CalendarProvider } from './calendar-context';
 import type { CalendarProfile } from '@/types/calendar';
 
@@ -58,13 +59,16 @@ export function CalendarShell({ profile, projects, children }: CalendarShellProp
   return (
     <div className="flex h-screen bg-background">
       <CalendarSidebar profileSlug={profile.slug} />
-      <div className="flex flex-col flex-1 overflow-hidden">
+      <MobileSidebar>
+        <CalendarSidebar profileSlug={profile.slug} className="flex w-full border-r-0" />
+      </MobileSidebar>
+      <div className="flex flex-col flex-1 overflow-hidden min-w-0">
         <CalendarHeader
           projects={projects}
           selectedProjectId={selectedProjectId}
           onProjectChange={setSelectedProjectId}
         />
-        <main className="flex-1 overflow-auto p-6">{wrappedChildren}</main>
+        <main className="flex-1 overflow-auto p-4 md:p-6">{wrappedChildren}</main>
       </div>
     </div>
   );

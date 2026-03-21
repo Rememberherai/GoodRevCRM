@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { AuthProvider } from '@/providers/auth-provider';
 import { AdminSidebar } from '@/components/admin/admin-sidebar';
+import { MobileSidebar } from '@/components/layout/mobile-sidebar';
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -38,7 +39,14 @@ export default async function AdminLayout({ children }: AdminLayoutProps) {
           adminName={dbUser.full_name ?? user.user_metadata?.full_name ?? 'Admin'}
           adminEmail={dbUser.email ?? user.email ?? ''}
         />
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <MobileSidebar>
+          <AdminSidebar
+            adminName={dbUser.full_name ?? user.user_metadata?.full_name ?? 'Admin'}
+            adminEmail={dbUser.email ?? user.email ?? ''}
+            className="flex w-full border-r-0"
+          />
+        </MobileSidebar>
+        <div className="flex flex-col flex-1 overflow-hidden min-w-0">
           {children}
         </div>
       </div>

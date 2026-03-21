@@ -56,39 +56,48 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
 
   const handleSoftDelete = async () => {
     setActionLoading(true);
-    const res = await fetch(`/api/admin/projects/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'soft_delete', confirm_name: confirmName }),
-    });
-    if (res.ok) {
-      const refreshRes = await fetch(`/api/admin/projects/${id}`);
-      setDetail(await refreshRes.json());
-      setConfirmName('');
+    try {
+      const res = await fetch(`/api/admin/projects/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'soft_delete', confirm_name: confirmName }),
+      });
+      if (res.ok) {
+        const refreshRes = await fetch(`/api/admin/projects/${id}`);
+        setDetail(await refreshRes.json());
+        setConfirmName('');
+      }
+    } finally {
+      setActionLoading(false);
     }
-    setActionLoading(false);
   };
 
   const handleRestore = async () => {
     setActionLoading(true);
-    await fetch(`/api/admin/projects/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action: 'restore' }),
-    });
-    const refreshRes = await fetch(`/api/admin/projects/${id}`);
-    setDetail(await refreshRes.json());
-    setActionLoading(false);
+    try {
+      await fetch(`/api/admin/projects/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'restore' }),
+      });
+      const refreshRes = await fetch(`/api/admin/projects/${id}`);
+      setDetail(await refreshRes.json());
+    } finally {
+      setActionLoading(false);
+    }
   };
 
   const handleEnterProject = async () => {
     setEnterLoading(true);
-    const res = await fetch(`/api/admin/projects/${id}/enter`, { method: 'POST' });
-    if (res.ok) {
-      const data = await res.json();
-      router.push(`/projects/${data.slug}`);
+    try {
+      const res = await fetch(`/api/admin/projects/${id}/enter`, { method: 'POST' });
+      if (res.ok) {
+        const data = await res.json();
+        router.push(`/projects/${data.slug}`);
+      }
+    } finally {
+      setEnterLoading(false);
     }
-    setEnterLoading(false);
   };
 
   if (loading) return <><AdminHeader title="Project Detail" /><main className="flex-1 p-6"><p className="text-muted-foreground">Loading...</p></main></>;

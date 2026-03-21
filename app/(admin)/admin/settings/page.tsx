@@ -77,10 +77,16 @@ export default function AdminSettingsPage() {
     });
 
     if (res.ok) {
-      setSettings((prev) => [
-        ...prev,
-        { key: newKey, value: parsedValue, updated_by: null, updated_at: new Date().toISOString() },
-      ]);
+      const newSetting = { key: newKey, value: parsedValue, updated_by: null, updated_at: new Date().toISOString() };
+      setSettings((prev) => {
+        const exists = prev.findIndex((s) => s.key === newKey);
+        if (exists >= 0) {
+          const updated = [...prev];
+          updated[exists] = newSetting;
+          return updated;
+        }
+        return [...prev, newSetting];
+      });
       setEditValues((prev) => ({ ...prev, [newKey]: newValue }));
       setNewKey('');
       setNewValue('');

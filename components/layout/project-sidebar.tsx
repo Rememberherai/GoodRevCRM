@@ -37,6 +37,7 @@ import type { ProjectRole } from '@/types/user';
 interface ProjectSidebarProps {
   project: Project;
   role?: ProjectRole;
+  className?: string;
 }
 
 interface NavItem {
@@ -81,7 +82,7 @@ const bottomNavItems: NavItem[] = [
   { title: 'Settings', href: '/settings', icon: Settings },
 ];
 
-export function ProjectSidebar({ project, role }: ProjectSidebarProps) {
+export function ProjectSidebar({ project, role, className }: ProjectSidebarProps) {
   const pathname = usePathname();
   const basePath = `/projects/${project.slug}`;
   const toggleChat = useChatStore((s) => s.toggle);
@@ -102,7 +103,7 @@ export function ProjectSidebar({ project, role }: ProjectSidebarProps) {
   const showContractorPortalLink = project.project_type === 'community' && (role === 'owner' || role === 'admin');
 
   return (
-    <aside className="w-64 border-r bg-card flex flex-col">
+    <aside className={cn("w-64 border-r bg-card hidden md:flex flex-col", className)}>
       {/* Project Name */}
       <div className="p-4 border-b">
         <Link href="/projects" className="text-sm text-muted-foreground hover:text-foreground">

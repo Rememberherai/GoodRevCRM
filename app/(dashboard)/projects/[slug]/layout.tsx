@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { redirect, notFound } from 'next/navigation';
 import { ProjectSidebar } from '@/components/layout/project-sidebar';
 import { ProjectHeader } from '@/components/layout/project-header';
+import { MobileSidebar } from '@/components/layout/mobile-sidebar';
 import { CallClientWrapper } from '@/components/calls/call-client-wrapper';
 import { ChatPanel } from '@/components/chat/chat-panel';
 import { LastProjectTracker } from '@/components/projects/last-project-tracker';
@@ -55,9 +56,12 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
       <div className="flex h-screen bg-background">
         <LastProjectTracker projectSlug={project.slug} />
         <ProjectSidebar project={project as Project} role={membership?.role as ProjectRole | undefined} />
-        <div className="flex flex-col flex-1 overflow-hidden">
+        <MobileSidebar>
+          <ProjectSidebar project={project as Project} role={membership?.role as ProjectRole | undefined} className="flex w-full border-r-0" />
+        </MobileSidebar>
+        <div className="flex flex-col flex-1 overflow-hidden min-w-0">
           <ProjectHeader project={project as Project} />
-          <main className="flex-1 overflow-auto p-6">{children}</main>
+          <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
         </div>
       </div>
       <ChatPanel projectSlug={slug} projectType={project.project_type} />

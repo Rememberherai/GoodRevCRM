@@ -58,16 +58,17 @@ const bottomNavItems = [
 
 interface CalendarSidebarProps {
   profileSlug: string;
+  className?: string;
 }
 
-export function CalendarSidebar({ profileSlug }: CalendarSidebarProps) {
+export function CalendarSidebar({ profileSlug, className }: CalendarSidebarProps) {
   const pathname = usePathname();
   const basePath = '/calendar';
   const toggleChat = useChatStore((s) => s.toggle);
   const chatOpen = useChatStore((s) => s.isOpen);
 
   return (
-    <aside className="w-64 border-r bg-card flex flex-col">
+    <aside className={cn("w-64 border-r bg-card hidden md:flex flex-col", className)}>
       {/* Booking link */}
       <div className="p-4 border-b">
         <p className="text-sm text-muted-foreground">Calendar</p>

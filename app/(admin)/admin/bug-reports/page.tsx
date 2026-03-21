@@ -178,7 +178,7 @@ export default function AdminBugReportsPage() {
                       </TableCell>
                       <TableCell>
                         <Badge className={`text-xs ${statusColors[r.status] ?? ''}`}>
-                          {r.status.replace('_', ' ')}
+                          {r.status.replace(/_/g, ' ')}
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm text-muted-foreground">
