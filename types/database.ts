@@ -7,10 +7,30 @@ export type Json =
   | Json[]
 
 export type Database = {
-  // Allows to automatically instantiate createClient with right options
-  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
-  __InternalSupabase: {
-    PostgrestVersion: "14.1"
+  graphql_public: {
+    Tables: {
+      [_ in never]: never
+    }
+    Views: {
+      [_ in never]: never
+    }
+    Functions: {
+      graphql: {
+        Args: {
+          extensions?: Json
+          operationName?: string
+          query?: string
+          variables?: Json
+        }
+        Returns: Json
+      }
+    }
+    Enums: {
+      [_ in never]: never
+    }
+    CompositeTypes: {
+      [_ in never]: never
+    }
   }
   public: {
     Tables: {
@@ -1356,12 +1376,16 @@ export type Database = {
       }
       bug_reports: {
         Row: {
+          admin_notes: string | null
+          assigned_to: string | null
           created_at: string
           description: string
           id: string
           page_url: string
+          priority: string | null
           project_id: string | null
           resolution_notes: string | null
+          resolved_at: string | null
           screenshot_path: string | null
           status: string
           updated_at: string
@@ -1369,12 +1393,16 @@ export type Database = {
           user_id: string
         }
         Insert: {
+          admin_notes?: string | null
+          assigned_to?: string | null
           created_at?: string
           description: string
           id?: string
           page_url: string
+          priority?: string | null
           project_id?: string | null
           resolution_notes?: string | null
+          resolved_at?: string | null
           screenshot_path?: string | null
           status?: string
           updated_at?: string
@@ -1382,12 +1410,16 @@ export type Database = {
           user_id: string
         }
         Update: {
+          admin_notes?: string | null
+          assigned_to?: string | null
           created_at?: string
           description?: string
           id?: string
           page_url?: string
+          priority?: string | null
           project_id?: string | null
           resolution_notes?: string | null
+          resolved_at?: string | null
           screenshot_path?: string | null
           status?: string
           updated_at?: string
@@ -1395,6 +1427,13 @@ export type Database = {
           user_id?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "bug_reports_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "bug_reports_project_id_fkey"
             columns: ["project_id"]
@@ -9874,6 +9913,135 @@ export type Database = {
           },
         ]
       }
+      system_admin_log: {
+        Row: {
+          action: string
+          admin_user_id: string
+          created_at: string
+          details: Json | null
+          id: string
+          ip_address: unknown
+          target_id: string | null
+          target_type: string
+          user_agent: string | null
+        }
+        Insert: {
+          action: string
+          admin_user_id: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip_address?: unknown
+          target_id?: string | null
+          target_type: string
+          user_agent?: string | null
+        }
+        Update: {
+          action?: string
+          admin_user_id?: string
+          created_at?: string
+          details?: Json | null
+          id?: string
+          ip_address?: unknown
+          target_id?: string | null
+          target_type?: string
+          user_agent?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_admin_log_admin_user_id_fkey"
+            columns: ["admin_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_admin_sessions: {
+        Row: {
+          admin_user_id: string
+          entered_at: string
+          exited_at: string | null
+          id: string
+          membership_id: string
+          project_id: string
+        }
+        Insert: {
+          admin_user_id: string
+          entered_at?: string
+          exited_at?: string | null
+          id?: string
+          membership_id: string
+          project_id: string
+        }
+        Update: {
+          admin_user_id?: string
+          entered_at?: string
+          exited_at?: string | null
+          id?: string
+          membership_id?: string
+          project_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_admin_sessions_admin_user_id_fkey"
+            columns: ["admin_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_admin_sessions_membership_id_fkey"
+            columns: ["membership_id"]
+            isOneToOne: false
+            referencedRelation: "project_memberships"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "system_admin_sessions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "system_admin_sessions_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      system_settings: {
+        Row: {
+          key: string
+          updated_at: string
+          updated_by: string | null
+          value: Json
+        }
+        Insert: {
+          key: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Update: {
+          key?: string
+          updated_at?: string
+          updated_by?: string | null
+          value?: Json
+        }
+        Relationships: [
+          {
+            foreignKeyName: "system_settings_updated_by_fkey"
+            columns: ["updated_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       table_column_preferences: {
         Row: {
           columns: Json
@@ -10318,6 +10486,7 @@ export type Database = {
           email: string
           full_name: string | null
           id: string
+          is_system_admin: boolean
           updated_at: string
         }
         Insert: {
@@ -10326,6 +10495,7 @@ export type Database = {
           email: string
           full_name?: string | null
           id: string
+          is_system_admin?: boolean
           updated_at?: string
         }
         Update: {
@@ -10334,6 +10504,7 @@ export type Database = {
           email?: string
           full_name?: string | null
           id?: string
+          is_system_admin?: boolean
           updated_at?: string
         }
         Relationships: []
@@ -11489,6 +11660,7 @@ export type Database = {
       }
       is_accounting_member: { Args: { company_id: string }; Returns: boolean }
       is_project_member: { Args: { project_id: string }; Returns: boolean }
+      is_system_admin: { Args: never; Returns: boolean }
       log_activity: {
         Args: {
           p_action: string
@@ -11868,6 +12040,9 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
+  graphql_public: {
+    Enums: {},
+  },
   public: {
     Enums: {
       accounting_role: ["owner", "admin", "member", "viewer"],
@@ -11927,3 +12102,4 @@ export const Constants = {
     },
   },
 } as const
+

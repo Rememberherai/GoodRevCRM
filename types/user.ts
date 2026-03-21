@@ -13,6 +13,7 @@ export interface User {
   avatar_url: string | null;
   created_at: string;
   updated_at: string;
+  is_system_admin?: boolean;
 }
 
 export interface ProjectMember {

@@ -1,7 +1,7 @@
 # System Admin Panel — Product Requirements Document
 
-**Version:** 1.0
-**Date:** 2026-03-20
+**Version:** 1.4
+**Date:** 2026-03-21
 **Status:** Draft
 
 ---
@@ -16,6 +16,7 @@ GoodRevCRM is a multi-tenant platform where each org creates its own projects wi
 - There is no system-wide activity log for security monitoring or support diagnostics
 - There is no way to deactivate a user or soft-delete an abandoned project from within the app
 - There is no audit trail for platform-level administrative actions
+- There is no way for users to report bugs from within the app, and no way for the platform operator to triage and manage those reports
 
 The Supabase dashboard provides raw database access, but it is unaudited, fragile, and bypasses every application-level safety check.
 
@@ -28,6 +29,7 @@ The Supabase dashboard provides raw database access, but it is unaudited, fragil
 - **Activity log:** `activity_log` table scoped per-project, with entity type, action, changes JSONB, IP address, user agent
 - **Project secrets:** `project_secrets` table with encrypted per-project API keys. `getProjectSecret()` in `lib/secrets.ts` checks DB first, falls back to `process.env`
 - **Service client:** `createServiceClient()` and `createAdminClient()` bypass RLS for server-side admin operations
+- **Bug reports table:** `bug_reports` table (migration `0138`) with `user_id`, `project_id`, `description`, `page_url`, `screenshot_path`, `status`, `resolution_notes`, `user_agent`. RLS allows users to insert/read their own reports only.
 
 ### What Does NOT Exist
 
@@ -38,6 +40,8 @@ The Supabase dashboard provides raw database access, but it is unaudited, fragil
 - Project management (browse all, enter as admin, soft-delete from admin)
 - System settings (API key policy, feature flags)
 - Admin audit trail (separate from project-scoped activity log)
+- Bug report triage/management UI (users can submit but no one can manage them)
+- Bug report submission UI (the table exists but there's no dialog or API route to submit)
 
 ---
 
@@ -90,7 +94,9 @@ The new policy `"System admins can view all projects"` adds a SELECT path. It ca
 
 ## 4. Database Schema
 
-### Migration: `0134_system_admin.sql`
+### Migration: `0139_system_admin.sql`
+
+> **Note:** Migration `0134` is already taken by `0134_remove_chris_auto_add.sql` and migrations `0135`–`0138` are also allocated. This migration uses the next available number.
 
 #### 4.1 System Admin Flag
 
@@ -134,10 +140,11 @@ CREATE INDEX idx_system_admin_log_created ON system_admin_log(created_at DESC);
 - `restored_project` — admin restored a soft-deleted project
 - `updated_system_setting` — admin changed a system setting
 - `viewed_project` — admin viewed project detail page (for sensitive access auditing)
+- `updated_bug_report` — admin triaged, assigned, or changed status of a bug report
 
-**`target_type` values:** `user`, `project`, `setting`
+**`target_type` values:** `user`, `project`, `setting`, `bug_report`
 
-**`target_id`:** UUID of the user or project acted upon. NULL for setting changes.
+**`target_id`:** UUID of the user, project, or bug report acted upon. NULL for setting changes.
 
 **`details` JSONB:** Freeform context. Examples:
 - `{ "setting_key": "require_project_api_keys", "old_value": false, "new_value": true }`
@@ -155,6 +162,13 @@ CREATE TABLE public.system_settings (
   updated_by UUID REFERENCES public.users(id),
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
+```
+
+```sql
+-- Auto-update updated_at on change
+CREATE TRIGGER set_system_settings_updated_at
+  BEFORE UPDATE ON public.system_settings
+  FOR EACH ROW EXECUTE FUNCTION handle_updated_at();
 ```
 
 **Seed values:**
@@ -175,9 +189,13 @@ CREATE TABLE public.system_admin_sessions (
   project_id UUID NOT NULL REFERENCES public.projects(id) ON DELETE CASCADE,
   membership_id UUID NOT NULL REFERENCES public.project_memberships(id) ON DELETE CASCADE,
   entered_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
-  exited_at TIMESTAMPTZ,
-  CONSTRAINT unique_active_admin_session UNIQUE (admin_user_id, project_id)
+  exited_at TIMESTAMPTZ
 );
+
+-- Partial unique index: only one ACTIVE (un-exited) session per admin per project
+CREATE UNIQUE INDEX idx_unique_active_admin_session
+  ON public.system_admin_sessions (admin_user_id, project_id)
+  WHERE exited_at IS NULL;
 ```
 
 **Why a separate table instead of a `metadata` JSONB column on `project_memberships`?**
@@ -188,7 +206,7 @@ CREATE TABLE public.system_admin_sessions (
 #### 4.5 RLS Policies
 
 ```sql
--- system_admin_log: only system admins can read; can only insert as self
+-- system_admin_log: only system admins can read; only system admins can insert (as self)
 ALTER TABLE public.system_admin_log ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "System admins can view admin log"
@@ -202,7 +220,13 @@ CREATE POLICY "System admins can view admin log"
 
 CREATE POLICY "System admins can insert admin log"
   ON public.system_admin_log FOR INSERT
-  WITH CHECK (admin_user_id = auth.uid());
+  WITH CHECK (
+    admin_user_id = auth.uid()
+    AND EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND is_system_admin = TRUE
+    )
+  );
 
 -- system_settings: only system admins can read/write
 ALTER TABLE public.system_settings ENABLE ROW LEVEL SECURITY;
@@ -268,7 +292,78 @@ $$;
 
 This mirrors the existing `is_project_member()` pattern. Available for future RLS policies or SQL-level checks.
 
-#### 4.7 Indexes Summary
+#### 4.7 Bug Reports RLS Extension (in `0139_system_admin.sql`)
+
+The `bug_reports` table (migration `0138`, already applied) ships with user-scoped RLS (users can insert/read their own reports). The system admin migration adds an admin policy so the admin panel can manage all reports, plus triage columns for admin workflows:
+
+```sql
+-- System admins can view and manage all bug reports
+CREATE POLICY "System admins can manage all bug reports"
+  ON public.bug_reports FOR ALL
+  USING (
+    EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND is_system_admin = TRUE
+    )
+  );
+```
+
+Additionally, add columns for admin triage:
+
+```sql
+ALTER TABLE public.bug_reports
+  ADD COLUMN IF NOT EXISTS priority TEXT DEFAULT 'medium'
+    CHECK (priority IN ('low', 'medium', 'high', 'critical')),
+  ADD COLUMN IF NOT EXISTS assigned_to UUID REFERENCES public.users(id) ON DELETE SET NULL,
+  ADD COLUMN IF NOT EXISTS admin_notes TEXT,
+  ADD COLUMN IF NOT EXISTS resolved_at TIMESTAMPTZ;
+
+CREATE INDEX IF NOT EXISTS idx_bug_reports_priority ON public.bug_reports(priority);
+CREATE INDEX IF NOT EXISTS idx_bug_reports_assigned_to ON public.bug_reports(assigned_to);
+```
+
+#### 4.8 Supabase Storage: `bug-screenshots` Bucket
+
+The bug report feature requires a Storage bucket for screenshot uploads. This is created via the Supabase dashboard or migration:
+
+```sql
+-- Create the storage bucket (if using SQL migration)
+INSERT INTO storage.buckets (id, name, public)
+VALUES ('bug-screenshots', 'bug-screenshots', false)
+ON CONFLICT (id) DO NOTHING;
+
+-- Storage RLS: users can upload screenshots (scoped to their own user_id path)
+CREATE POLICY "Users can upload bug screenshots"
+  ON storage.objects FOR INSERT
+  WITH CHECK (
+    bucket_id = 'bug-screenshots'
+    AND auth.uid() IS NOT NULL
+    AND (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Storage RLS: users can read their own screenshots
+CREATE POLICY "Users can read own bug screenshots"
+  ON storage.objects FOR SELECT
+  USING (
+    bucket_id = 'bug-screenshots'
+    AND (storage.foldername(name))[1] = auth.uid()::text
+  );
+
+-- Storage RLS: system admins can read all bug screenshots
+CREATE POLICY "System admins can read all bug screenshots"
+  ON storage.objects FOR SELECT
+  USING (
+    bucket_id = 'bug-screenshots'
+    AND EXISTS (
+      SELECT 1 FROM public.users
+      WHERE id = auth.uid() AND is_system_admin = TRUE
+    )
+  );
+```
+
+**Upload path convention:** `bug-screenshots/{user_id}/{uuid}.{ext}` — scopes uploads per-user for RLS.
+
+#### 4.9 Indexes Summary
 
 | Table | Index | Purpose |
 |-------|-------|---------|
@@ -276,7 +371,9 @@ This mirrors the existing `is_project_member()` pattern. Available for future RL
 | `system_admin_log` | `(action)` | Filter by action type |
 | `system_admin_log` | `(target_type, target_id)` | Filter by target |
 | `system_admin_log` | `(created_at DESC)` | Chronological listing |
-| `system_admin_sessions` | Unique `(admin_user_id, project_id)` | Prevent duplicate sessions |
+| `system_admin_sessions` | Unique `(admin_user_id, project_id) WHERE exited_at IS NULL` | Prevent duplicate active sessions (partial index allows re-entry after exit) |
+| `bug_reports` | `(priority)` | Filter by priority in admin triage |
+| `bug_reports` | `(assigned_to)` | Filter by assignee in admin triage |
 
 ---
 
@@ -307,7 +404,7 @@ export interface SystemAdminLog {
   id: string;
   admin_user_id: string;
   action: SystemAdminAction;
-  target_type: 'user' | 'project' | 'setting';
+  target_type: 'user' | 'project' | 'setting' | 'bug_report';
   target_id: string | null;
   details: Record<string, unknown>;
   ip_address: string | null;
@@ -323,7 +420,8 @@ export type SystemAdminAction =
   | 'soft_deleted_project'
   | 'restored_project'
   | 'updated_system_setting'
-  | 'viewed_project';
+  | 'viewed_project'
+  | 'updated_bug_report';
 
 export interface SystemSetting {
   key: string;
@@ -351,6 +449,9 @@ export interface AdminStats {
     community: number;
   };
   projects_missing_api_key: number;
+  open_bug_reports: number;
+  signups_by_week: Array<{ week: string; count: number }>;
+  projects_by_week: Array<{ week: string; count: number }>;
 }
 
 export interface AdminUserListItem {
@@ -363,6 +464,23 @@ export interface AdminUserListItem {
   project_count: number;
   last_active_at: string | null;
   is_banned: boolean;
+}
+
+export interface AdminBugReportListItem {
+  id: string;
+  description: string;
+  page_url: string;
+  screenshot_path: string | null;
+  status: 'open' | 'in_progress' | 'resolved' | 'closed';
+  priority: 'low' | 'medium' | 'high' | 'critical';
+  reporter: { id: string; full_name: string | null; email: string };
+  project: { id: string; name: string; slug: string } | null;
+  assigned_to: { id: string; full_name: string | null; email: string } | null;
+  admin_notes: string | null;
+  resolution_notes: string | null;
+  user_agent: string | null;
+  created_at: string;
+  resolved_at: string | null;
 }
 
 export interface AdminProjectListItem {
@@ -415,7 +533,7 @@ export async function requireSystemAdmin(
 export async function logAdminAction(
   adminUserId: string,
   action: SystemAdminAction,
-  targetType: 'user' | 'project' | 'setting',
+  targetType: 'user' | 'project' | 'setting' | 'bug_report',
   targetId: string | null,
   details: Record<string, unknown>,
   request?: NextRequest  // extracts IP + user agent
@@ -481,6 +599,20 @@ export async function getSystemActivity(params: {
 }): Promise<{ entries: Array<ActivityEntry>; total: number }>;
 
 export async function getActiveSessions(adminUserId: string): Promise<AdminSession[]>;
+
+export async function listBugReports(params: {
+  search?: string;
+  filter_status?: 'open' | 'in_progress' | 'resolved' | 'closed';
+  filter_priority?: 'low' | 'medium' | 'high' | 'critical';
+  filter_assigned_to?: string;
+  filter_project_id?: string;
+  sort_by?: 'created_at' | 'priority' | 'status';
+  sort_dir?: 'asc' | 'desc';
+  page?: number;
+  limit?: number;
+}): Promise<{ bug_reports: AdminBugReportListItem[]; total: number }>;
+
+export async function getBugReportDetail(id: string): Promise<AdminBugReportListItem>;
 ```
 
 ### 6.3 Admin Validators
@@ -527,8 +659,38 @@ export const adminUserActionSchema = z.object({
   action: z.enum(['deactivate', 'reactivate']),
 });
 
-export const adminProjectActionSchema = z.object({
-  action: z.enum(['soft_delete', 'restore']),
+export const adminProjectActionSchema = z.discriminatedUnion('action', [
+  z.object({ action: z.literal('soft_delete'), confirm_name: z.string() }),
+  z.object({ action: z.literal('restore') }),
+]);
+
+export const adminBugReportListSchema = z.object({
+  search: z.string().optional(),
+  filter_status: z.enum(['open', 'in_progress', 'resolved', 'closed']).optional(),
+  filter_priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  filter_assigned_to: z.string().uuid().optional(),
+  filter_project_id: z.string().uuid().optional(),
+  sort_by: z.enum(['created_at', 'priority', 'status']).optional(),
+  sort_dir: z.enum(['asc', 'desc']).optional(),
+  page: z.coerce.number().int().min(0).optional().default(0),
+  limit: z.coerce.number().int().min(1).max(100).optional().default(25),
+});
+
+export const adminBugReportUpdateSchema = z.object({
+  status: z.enum(['open', 'in_progress', 'resolved', 'closed']).optional(),
+  priority: z.enum(['low', 'medium', 'high', 'critical']).optional(),
+  assigned_to: z.string().uuid().nullable().optional(),
+  admin_notes: z.string().optional(),
+  resolution_notes: z.string().optional(),
+});
+
+// User-facing (not admin) — validates POST /api/bug-reports body
+export const bugReportSubmitSchema = z.object({
+  description: z.string().min(10, 'Please describe the issue in at least 10 characters'),
+  page_url: z.string().url(),
+  screenshot_path: z.string().optional(),
+  user_agent: z.string(),
+  project_id: z.string().uuid().nullable().optional(),
 });
 
 export const adminSettingUpdateSchema = z.object({
@@ -548,9 +710,10 @@ export async function getProjectSecret(
   projectId: string,
   keyName: SecretKeyName
 ): Promise<string | null> {
+  const supabase = createAdminClient();
+
   // Step 1: Check project_secrets table (existing, unchanged)
   try {
-    const supabase = createAdminClient();
     const { data } = await supabase
       .from('project_secrets')
       .select('encrypted_value')
@@ -566,9 +729,18 @@ export async function getProjectSecret(
   }
 
   // Step 2 (NEW): Check if env var fallback is allowed for this key
-  const policyKey = keyName.replace('_api_key', '');  // e.g. 'openrouter'
+  // Map secret key names to policy keys. Only keys with a policy entry are checked.
+  const POLICY_KEY_MAP: Partial<Record<SecretKeyName, string>> = {
+    openrouter_api_key: 'openrouter',
+  };
+  const policyKey = POLICY_KEY_MAP[keyName];
+  if (!policyKey) {
+    // This secret type has no policy — always allow env var fallback
+    const envVar = SECRET_KEYS[keyName].envVar;
+    return process.env[envVar] || null;
+  }
+
   try {
-    const supabase = createAdminClient();
     const { data: setting } = await supabase
       .from('system_settings')
       .select('value')
@@ -640,6 +812,8 @@ app/(admin)/
       page.tsx                  ← project list
       [id]/
         page.tsx                ← project detail
+    bug-reports/
+      page.tsx                  ← bug report triage
     activity/
       page.tsx                  ← system-wide audit log
     settings/
@@ -664,6 +838,7 @@ Server component:
 Dashboard
 Users
 Projects
+Bug Reports
 Activity Log
 Settings
 ──────────────────
@@ -704,7 +879,14 @@ Include `is_system_admin` in the auth context so all components can check admin 
 
 ### 9.1 Admin Dashboard (`/admin`)
 
-**Stats cards (top row):**
+**Top of page — stale session alert (conditional, renders FIRST):**
+
+If the current admin has any `system_admin_sessions` with `exited_at IS NULL` and `entered_at < NOW() - INTERVAL '24 hours'`:
+- Amber alert card: "You have active admin sessions older than 24 hours:"
+- List of project names, each with an "Exit" button
+- This is the first thing the admin sees — stale sessions are a data integrity concern and must not be buried below charts.
+
+**Stats cards (first row):**
 
 | Metric | Query | Icon |
 |--------|-------|------|
@@ -728,12 +910,6 @@ Uses existing chart library if present, or simple CSS bars.
 
 Table showing the last 20 entries from `system_admin_log`:
 - Timestamp, Admin Name, Action, Target, Details
-
-**Fifth row — stale session alert (conditional):**
-
-If the current admin has any `system_admin_sessions` with `exited_at IS NULL` and `entered_at < NOW() - INTERVAL '24 hours'`:
-- Amber alert card: "You have active admin sessions in: [Project A], [Project B]"
-- Each project name is a link with an "Exit" button next to it
 
 ### 9.2 Users Page (`/admin/users`)
 
@@ -882,6 +1058,118 @@ Click a row → expandable panel showing full `changes` / `details` JSONB format
 - Table of users with `is_system_admin = true`: name, email, granted date (approximated from `updated_at`)
 - Informational text: "System admin access is managed via CLI. Run: `npx tsx scripts/set-system-admin.ts grant user@example.com`"
 
+### 9.8 Bug Report Submission (User-Facing)
+
+This is the only part of the bug reporting feature that lives **outside** the admin panel. Every logged-in user can submit bug reports from anywhere in the app.
+
+**Trigger:** A persistent "Report Bug" button accessible from:
+- The user menu dropdown (Bug icon, below "Settings", above "Log out")
+- A floating action button (bottom-right corner, semi-transparent, optional — can be toggled off via system setting)
+
+**Bug Report Dialog (`components/bug-report-dialog.tsx`):**
+
+A modal dialog (reuses existing `Dialog` component pattern) with:
+
+| Field | Type | Required | Auto-populated |
+|-------|------|----------|----------------|
+| Description | Textarea | Yes | No |
+| Screenshot | File upload (image) | No | No |
+| Page URL | Hidden input | Yes | `window.location.href` |
+| User Agent | Hidden input | Yes | `navigator.userAgent` |
+| Project | Hidden input | No | Current project ID if user is inside a project, null otherwise |
+
+**Screenshot capture flow:**
+1. User clicks "Attach Screenshot"
+2. Two options: (a) upload an image file, or (b) capture current screen via `navigator.mediaDevices.getDisplayMedia()` (browser permitting — fallback to file upload only)
+3. Image uploaded to Supabase Storage bucket `bug-screenshots/` via presigned URL
+4. `screenshot_path` stored on the bug report record
+
+**Submission flow:**
+1. User fills in description, optionally attaches screenshot
+2. Clicks "Submit"
+3. `POST /api/bug-reports` — creates record in `bug_reports` table with `status: 'open'`, `priority: 'medium'` (default)
+4. Toast: "Bug report submitted. Thank you!"
+5. Dialog closes
+
+**User's own bug reports:** Users can view their submitted reports in a simple list at `/settings/bug-reports` (or a tab on the existing settings page). Shows: description (truncated), status badge, submitted date. Read-only — users cannot edit or delete their reports after submission.
+
+**API route: `POST /api/bug-reports`**
+
+```typescript
+// Body: { description: string, screenshot_path?: string, page_url: string, user_agent: string, project_id?: string }
+// Auth: any logged-in user
+// Uses regular client (RLS enforces user_id = auth.uid())
+```
+
+**API route: `GET /api/bug-reports`**
+
+```typescript
+// Returns current user's own bug reports (RLS-enforced)
+// Sorted by created_at DESC
+// Used by the user settings view
+```
+
+### 9.9 Bug Reports Page — Admin (`/admin/bug-reports`)
+
+The admin view for triaging, prioritizing, and resolving all bug reports across all users.
+
+**DataTable columns:**
+
+| Column | Source | Sortable | Filterable |
+|--------|--------|----------|------------|
+| ID | `bug_reports.id` (truncated UUID) | — | — |
+| Reporter | `users.full_name` + `users.email` via `user_id` join | Yes | Search |
+| Project | `projects.name` via `project_id` join (or "—" if null) | — | Filter: dropdown |
+| Description | `bug_reports.description` (truncated to 100 chars) | — | Search |
+| Page URL | `bug_reports.page_url` (truncated, linkable) | — | — |
+| Status | `bug_reports.status` | — | Filter: open/in_progress/resolved/closed |
+| Priority | `bug_reports.priority` | Yes | Filter: low/medium/high/critical |
+| Assigned To | `users.full_name` via `assigned_to` join | — | Filter: dropdown of admin users |
+| Submitted | `bug_reports.created_at` | Yes (default: newest first) | Date range |
+| Screenshot | Thumbnail/icon if `screenshot_path` is set | — | — |
+
+Search bar: filters by reporter name/email or description text.
+Pagination: 25 per page, server-side.
+
+**Bug report detail (inline expandable row or side panel):**
+
+Clicking a row expands it (or opens a side panel) showing:
+- Full description
+- Screenshot (if attached) — click to view full size
+- Page URL (clickable link)
+- User agent (for debugging browser-specific issues)
+- Reporter info (name, email, link to admin user detail)
+- Project info (name, link to admin project detail) or "No project context"
+- Timeline: created → status changes → resolved
+
+**Admin actions on a bug report:**
+
+| Action | Field updated | Notes |
+|--------|--------------|-------|
+| Set Priority | `priority` | Dropdown: low, medium, high, critical |
+| Set Status | `status` | Dropdown: open, in_progress, resolved, closed |
+| Assign | `assigned_to` | Dropdown of system admin users |
+| Add Admin Notes | `admin_notes` | Textarea — internal notes, not visible to the reporter |
+| Add Resolution Notes | `resolution_notes` | Textarea — explains the fix. Visible to the reporter in their settings view. |
+| Resolve | `status` → `resolved`, `resolved_at` → NOW() | Shortcut that sets both fields |
+| Close | `status` → `closed` | For reports that are duplicates, not actionable, or won't fix |
+
+All admin actions on bug reports are logged to `system_admin_log` with `target_type: 'bug_report'` and `target_id: bug_report.id`.
+
+**Dashboard integration:**
+
+Add to the admin dashboard (§9.1):
+- A stat card: "Open Bug Reports" — count of `bug_reports WHERE status = 'open'`
+- In the stats API response, include `open_bug_reports` count
+
+**API routes:**
+
+`GET /api/admin/bug-reports` — paginated list with search, filter, sort. Uses service client.
+
+`GET /api/admin/bug-reports/[id]` — full detail with reporter info, project info, screenshot URL.
+
+`PATCH /api/admin/bug-reports/[id]` — update status, priority, assigned_to, admin_notes, resolution_notes. Logged to `system_admin_log`.
+
 ---
 
 ## 10. "Enter Project" / "Exit Project" — Detailed Flow
@@ -898,9 +1186,9 @@ Steps:
 1. Verify admin via `requireSystemAdmin(userId)`
 2. Fetch project by ID (including soft-deleted — admin can enter deleted projects to inspect)
 3. Check if admin already has a membership in this project:
-   - **If yes (real membership):** Skip membership creation. Check if there's an active admin session:
+   - **If yes (real membership):** Skip membership creation. Fetch the existing `membership_id`. Check if there's an active admin session:
      - If session exists: return `{ slug, already_member: true, existing_session: true }`
-     - If no session: create session record, return `{ slug, already_member: true }`
+     - If no session: create `system_admin_sessions` row using the existing `membership_id`, return `{ slug, already_member: true }`
    - **If no:** Create `project_memberships` row with `role: 'owner'`. Create `system_admin_sessions` row with `membership_id`. Return `{ slug }`.
 4. Log to `system_admin_log`: action `entered_project`, target_type `project`, target_id, details include project name/slug
 5. Client redirects to `/projects/[slug]`
@@ -956,7 +1244,7 @@ return (
 Steps:
 1. Verify admin via `requireSystemAdmin(userId)`
 2. Find the active admin session: `system_admin_sessions WHERE admin_user_id = userId AND project_id = projectId AND exited_at IS NULL`
-3. If no session found: return `{ error: 'No active admin session' }` (idempotent — not an error if already exited)
+3. If no session found: return `{ success: true }` with 200 (idempotent — safe to call even if already exited, no-op)
 4. Fetch the `membership_id` from the session
 5. Check if the membership existed before the admin entered:
    - Query `system_admin_sessions.entered_at` and compare with `project_memberships.joined_at`
@@ -1014,6 +1302,7 @@ Response:
   "new_users_30d": 5,
   "projects_by_type": { "standard": 9, "community": 3 },
   "projects_missing_api_key": 4,
+  "open_bug_reports": 3,
   "signups_by_week": [{ "week": "2026-03-10", "count": 2 }, ...],
   "projects_by_week": [{ "week": "2026-03-10", "count": 1 }, ...]
 }
@@ -1029,17 +1318,23 @@ Query (via service client):
 ```sql
 SELECT u.*,
   COUNT(DISTINCT pm.project_id) as project_count,
-  MAX(al.created_at) as last_active_at
+  la.last_active_at
 FROM users u
 LEFT JOIN project_memberships pm ON pm.user_id = u.id
-LEFT JOIN activity_log al ON al.user_id = u.id
+LEFT JOIN LATERAL (
+  SELECT MAX(al.created_at) as last_active_at
+  FROM activity_log al
+  WHERE al.user_id = u.id
+) la ON true
 WHERE ($search IS NULL OR (u.email ILIKE '%' || $search || '%' OR u.full_name ILIKE '%' || $search || '%'))
-GROUP BY u.id
+GROUP BY u.id, la.last_active_at
 ORDER BY {sort_column} {sort_dir}
 LIMIT $limit OFFSET $page * $limit
 ```
 
-Ban status: fetched via `supabase.auth.admin.getUserById()` for each user in the result set (or batched if Supabase admin API supports it).
+> **Performance note:** The `LATERAL` subquery computes `last_active_at` per-user without a full cartesian join on `activity_log`. If `activity_log` grows large, consider adding a materialized `last_active_at` column on `users` updated by trigger, or caching at the application layer.
+
+Ban status: fetched via `supabase.auth.admin.getUserById()` for each user in the result set (or batched via `supabase.auth.admin.listUsers()` if the result set is small).
 
 Response:
 ```json
@@ -1169,7 +1464,86 @@ Response:
 }
 ```
 
-### 11.7 Settings
+### 11.7 Bug Reports (Admin)
+
+**`GET /api/admin/bug-reports`**
+
+Query params: validated by `adminBugReportListSchema` (search, filter_status, filter_priority, filter_assigned_to, filter_project_id, sort_by, sort_dir, page, limit).
+
+Query joins `users` (reporter), `projects` (context), `users` again (assigned_to). Uses service client.
+
+Response:
+```json
+{
+  "bug_reports": [
+    {
+      "id": "...",
+      "description": "The batch attendance grid doesn't save when...",
+      "page_url": "/projects/acme/programs/123/attendance",
+      "screenshot_path": "bug-screenshots/abc123.png",
+      "status": "open",
+      "priority": "high",
+      "reporter": { "id": "...", "full_name": "Jane Doe", "email": "jane@example.com" },
+      "project": { "id": "...", "name": "Acme Community Center", "slug": "acme" },
+      "assigned_to": null,
+      "admin_notes": null,
+      "resolution_notes": null,
+      "user_agent": "Mozilla/5.0...",
+      "created_at": "2026-03-21T10:15:00Z",
+      "resolved_at": null
+    }
+  ],
+  "total": 12,
+  "page": 0,
+  "limit": 25
+}
+```
+
+**`GET /api/admin/bug-reports/[id]`**
+
+Full detail including screenshot URL (signed if using Supabase Storage).
+
+**`PATCH /api/admin/bug-reports/[id]`**
+
+Body (all optional):
+```json
+{
+  "status": "in_progress",
+  "priority": "critical",
+  "assigned_to": "uuid-of-admin",
+  "admin_notes": "Looks like a race condition in batch save",
+  "resolution_notes": "Fixed in commit abc123"
+}
+```
+
+When `status` is set to `resolved`, `resolved_at` is auto-set to `NOW()` if not already set.
+
+Logged to `system_admin_log` with `target_type: 'bug_report'`, details include old and new values for changed fields.
+
+### 11.8 Bug Reports (User-Facing)
+
+**`POST /api/bug-reports`**
+
+Not an admin route — uses regular Supabase client (RLS-enforced). Any logged-in user.
+
+Body:
+```json
+{
+  "description": "The attendance grid won't save",
+  "page_url": "/projects/acme/programs/123/attendance",
+  "screenshot_path": "bug-screenshots/abc123.png",
+  "user_agent": "Mozilla/5.0...",
+  "project_id": "uuid-or-null"
+}
+```
+
+Returns: `{ "id": "...", "status": "open", "created_at": "..." }`
+
+**`GET /api/bug-reports`**
+
+Returns current user's own reports (RLS-enforced). Sorted by `created_at DESC`.
+
+### 11.9 Settings
 
 **`GET /api/admin/settings`**
 
@@ -1236,7 +1610,7 @@ Updates a single setting. Logged to `system_admin_log` with old and new values i
 
 | File | Purpose |
 |------|---------|
-| `supabase/migrations/0134_system_admin.sql` | All schema changes: column, tables, RLS, indexes, function, seeds |
+| `supabase/migrations/0139_system_admin.sql` | All schema changes: column, tables, RLS, indexes, function, seeds |
 
 **Scripts:**
 
@@ -1271,7 +1645,10 @@ Updates a single setting. Logged to `system_admin_log` with old and new values i
 | `app/api/admin/projects/[id]/exit/route.ts` | POST | Exit project, cleanup membership |
 | `app/api/admin/sessions/route.ts` | GET | Active admin sessions |
 | `app/api/admin/activity/route.ts` | GET | System-wide activity log |
+| `app/api/admin/bug-reports/route.ts` | GET | Paginated bug report list (admin) |
+| `app/api/admin/bug-reports/[id]/route.ts` | GET, PATCH | Bug report detail, triage/resolve |
 | `app/api/admin/settings/route.ts` | GET, PATCH | System settings CRUD |
+| `app/api/bug-reports/route.ts` | GET, POST | User-facing: submit + list own reports |
 
 **Pages:**
 
@@ -1283,6 +1660,7 @@ Updates a single setting. Logged to `system_admin_log` with old and new values i
 | `app/(admin)/admin/users/[id]/page.tsx` | User detail |
 | `app/(admin)/admin/projects/page.tsx` | Project list |
 | `app/(admin)/admin/projects/[id]/page.tsx` | Project detail |
+| `app/(admin)/admin/bug-reports/page.tsx` | Bug report triage |
 | `app/(admin)/admin/activity/page.tsx` | System-wide audit log |
 | `app/(admin)/admin/settings/page.tsx` | System settings |
 
@@ -1296,8 +1674,10 @@ Updates a single setting. Logged to `system_admin_log` with old and new values i
 | `components/admin/admin-stats-cards.tsx` | Dashboard stat cards |
 | `components/admin/admin-user-table.tsx` | Users DataTable |
 | `components/admin/admin-project-table.tsx` | Projects DataTable |
+| `components/admin/admin-bug-report-table.tsx` | Bug reports DataTable |
 | `components/admin/admin-activity-table.tsx` | Activity log DataTable |
 | `components/admin/admin-stale-sessions-alert.tsx` | Stale session warning |
+| `components/bug-report-dialog.tsx` | User-facing bug report submission dialog |
 
 ### 13.2 Modified Files
 
@@ -1307,9 +1687,10 @@ Updates a single setting. Logged to `system_admin_log` with old and new values i
 | `types/database.ts` | Regenerated after migration | Minimal — additive |
 | `hooks/use-auth.ts` | Fetch + expose `isSystemAdmin` | Low — one additional column |
 | `providers/auth-provider.tsx` | Include `is_system_admin` in context | Low — additive |
-| `components/layout/user-menu.tsx` | Add "Admin Panel" link for system admins | Low — conditional render |
+| `components/layout/user-menu.tsx` | Add "Admin Panel" link + "Report Bug" link for all users | Low — conditional render |
 | `app/(dashboard)/projects/[slug]/layout.tsx` | Check for admin session, render banner | Low — conditional, no-op for non-admins |
 | `lib/secrets.ts` | Add API key policy check in `getProjectSecret()` | Medium — gated behind default-off setting |
+| `supabase/migrations/0138_bug_reports.sql` | No modification — already applied. Admin RLS policy + triage columns are added in `0139_system_admin.sql` instead. | None |
 
 ---
 
@@ -1318,7 +1699,7 @@ Updates a single setting. Logged to `system_admin_log` with old and new values i
 ### Phase 1: Database + Auth Foundation
 
 **Scope:**
-- Write and apply migration `0134_system_admin.sql`
+- Write and apply migration `0139_system_admin.sql`
 - Regenerate TypeScript types (`types/database.ts`)
 - Create `types/admin.ts`
 - Add `is_system_admin` to `User` interface in `types/user.ts`
@@ -1345,7 +1726,8 @@ Updates a single setting. Logged to `system_admin_log` with old and new values i
 - `requireSystemAdmin()` throws `SystemAdminError` for non-admin users
 - `requireSystemAdmin()` passes silently for admin users
 - `logAdminAction()` inserts row into `system_admin_log` with correct fields
-- `system_admin_log` RLS: query as non-admin user returns 0 rows
+- `system_admin_log` RLS (SELECT): query as non-admin user returns 0 rows
+- `system_admin_log` RLS (INSERT): non-admin user cannot insert rows (even with their own `auth.uid()` as `admin_user_id`)
 - `system_settings` RLS: query as non-admin user returns 0 rows
 - `system_admin_sessions` RLS: query as non-admin user returns 0 rows
 - New projects RLS policy: admin user can SELECT all projects (including ones they're not a member of)
@@ -1517,16 +1899,23 @@ Updates a single setting. Logged to `system_admin_log` with old and new values i
 
 ---
 
-### Phase 5: Activity Log + System Settings
+### Phase 5: Activity Log + System Settings + Bug Reports
 
 **Scope:**
 - Create `app/api/admin/activity/route.ts` (GET)
 - Create `app/api/admin/settings/route.ts` (GET, PATCH)
+- Create `app/api/admin/bug-reports/route.ts` (GET)
+- Create `app/api/admin/bug-reports/[id]/route.ts` (GET, PATCH)
+- Create `app/api/bug-reports/route.ts` (GET, POST — user-facing)
 - Create `components/admin/admin-activity-table.tsx`
+- Create `components/admin/admin-bug-report-table.tsx`
+- Create `components/bug-report-dialog.tsx` (user-facing submission dialog)
 - Create `app/(admin)/admin/activity/page.tsx`
+- Create `app/(admin)/admin/bug-reports/page.tsx`
 - Create `app/(admin)/admin/settings/page.tsx`
-- Add `getSystemActivity()` to `lib/admin/queries.ts`
+- Add `getSystemActivity()`, `listBugReports()`, `getBugReportDetail()` to `lib/admin/queries.ts`
 - Modify `lib/secrets.ts` — add API key policy check
+- Admin RLS policy + triage columns for `bug_reports` are included in `0139_system_admin.sql` (not modifying the already-applied `0138`)
 
 **Dependencies:** Phase 2 (needs admin layout)
 
@@ -1534,6 +1923,9 @@ Updates a single setting. Logged to `system_admin_log` with old and new values i
 - System-wide activity log with filters
 - System settings page with API key policy toggle
 - API key policy enforcement in `getProjectSecret()`
+- Bug report submission dialog accessible from user menu (all users)
+- Bug report triage page in admin panel
+- Admin can set priority, assign, add notes, resolve/close bug reports
 
 **Phase 5 Tests:**
 - `GET /api/admin/activity` returns entries from all projects (service client bypasses RLS)
@@ -1566,15 +1958,51 @@ Updates a single setting. Logged to `system_admin_log` with old and new values i
 - Activity log expandable rows show full JSON details
 - Settings page renders all tabs
 - Settings API key policy toggle works end-to-end
+- **Bug report submission (user-facing):**
+  - `POST /api/bug-reports` creates a report with `status: 'open'`, `priority: 'medium'`
+  - `POST /api/bug-reports` rejects unauthenticated requests (401)
+  - `POST /api/bug-reports` validates required fields (description, page_url)
+  - `GET /api/bug-reports` returns only the current user's reports (RLS-enforced)
+  - User A cannot see User B's bug reports
+  - Bug report dialog renders and submits successfully
+  - Screenshot upload stores file in Supabase Storage `bug-screenshots/{user_id}/` path
+  - Storage RLS: user can read their own screenshots but not other users' screenshots
+  - Storage RLS: system admin can read all screenshots in the bucket
+  - `project_id` is auto-populated when submitting from inside a project, null otherwise
+- **Bug report triage (admin):**
+  - `GET /api/admin/bug-reports` returns all bug reports across all users
+  - `GET /api/admin/bug-reports` returns 403 for non-admin
+  - Search by reporter name/email works
+  - Search by description text works
+  - Filter by status works (open/in_progress/resolved/closed)
+  - Filter by priority works (low/medium/high/critical)
+  - Filter by assigned_to works
+  - Filter by project works
+  - Sort by created_at, priority works
+  - Pagination works correctly
+  - `GET /api/admin/bug-reports/[id]` returns full detail with reporter + project info
+  - `GET /api/admin/bug-reports/[id]` returns 404 for non-existent report
+  - `PATCH /api/admin/bug-reports/[id]` updates status, logged to `system_admin_log`
+  - `PATCH /api/admin/bug-reports/[id]` updates priority, logged
+  - `PATCH /api/admin/bug-reports/[id]` assigns to admin user, logged
+  - `PATCH /api/admin/bug-reports/[id]` adds admin_notes (not visible to reporter)
+  - `PATCH /api/admin/bug-reports/[id]` adds resolution_notes (visible to reporter)
+  - Setting status to `resolved` auto-sets `resolved_at` to NOW()
+  - `PATCH /api/admin/bug-reports/[id]` returns 403 for non-admin
+  - Admin dashboard shows "Open Bug Reports" count in stats
+  - Bug reports RLS: admin can read all reports; regular user can only read own
+  - Bug report page renders with correct columns and filters
 
 ---
 
 ### Phase 6: Polish + Integration
 
 **Scope:**
-- Modify `components/layout/user-menu.tsx` — add "Admin Panel" link
+- Modify `components/layout/user-menu.tsx` — add "Admin Panel" link + "Report Bug" link (all users)
 - Modify `hooks/use-auth.ts` — fetch + expose `isSystemAdmin`
 - Modify `providers/auth-provider.tsx` — include in context
+- Wire up `BugReportDialog` to user menu (all users) and optionally a floating button
+- Add user's own bug report list to settings page (or a new tab)
 - Add empty states for all admin tables
 - Add loading skeletons for all admin pages
 - Add error boundaries for admin pages
@@ -1586,6 +2014,8 @@ Updates a single setting. Logged to `system_admin_log` with old and new values i
 
 **Deliverables:**
 - Admin panel is fully accessible from the user menu
+- Bug report submission accessible from user menu for all users
+- Users can view their own submitted bug reports in settings
 - All pages have proper loading states, empty states, and error handling
 - Pages are responsive on tablet screens
 - Breadcrumbs work correctly on all pages
@@ -1593,6 +2023,10 @@ Updates a single setting. Logged to `system_admin_log` with old and new values i
 **Phase 6 Tests:**
 - User menu shows "Admin Panel" link with Shield icon for system admin users
 - User menu does NOT show "Admin Panel" for non-admin users
+- User menu shows "Report Bug" link for ALL logged-in users
+- Bug report dialog opens from user menu
+- User's own bug reports list renders in settings with status badges
+- Users can see `resolution_notes` on their resolved reports (but not `admin_notes`)
 - `useAuth()` hook exposes `isSystemAdmin` correctly for admin users
 - `useAuth()` hook exposes `isSystemAdmin` as `false` for non-admin users
 - All admin pages render loading skeletons before data loads
@@ -1652,7 +2086,94 @@ Intentionally excluded to keep scope tight:
 | Cost separation | API key policy can enforce per-project keys, eliminating shared LLM costs |
 | Zero regression | All existing tests pass; standard and community projects behave identically to before |
 | Clean exit | Admin can exit a project cleanly, removing temporary membership without affecting pre-existing memberships |
+| Bug report pipeline | Users can submit bugs from anywhere in the app; admin can triage, prioritize, assign, and resolve them |
+
+---
+
+## 18. Self-Critique & Open Questions
+
+This section documents known weaknesses, assumptions that may be wrong, and decisions that may need revisiting.
+
+### 18.1 Architectural Concerns
+
+**`system_admin_sessions` adds complexity to the "Enter Project" flow.**
+The enter/exit flow requires creating a membership, creating a session, checking for pre-existing memberships on exit, and cleaning up stale sessions. This is 4-5 database operations for what is conceptually "let me look at this project." An alternative would be to bypass project membership entirely and have admin API routes that accept a `project_id` parameter and query via service client — but that would mean the admin can't use the normal project UI (sidebar, dashboard, chat panel), which defeats the purpose. The current design is more complex but gives the admin the real user experience, which is what you need for diagnosing issues. **Decision: keep the current design, but monitor stale session frequency.**
+
+**RLS policy accumulation on the `projects` table.**
+Adding `"System admins can view all projects"` is the 4th or 5th SELECT policy on `projects`. Postgres evaluates all policies with OR logic, so more policies = more work per query. At current scale (dozens of projects) this is irrelevant. At 10,000+ projects it could matter. **Mitigation: the `is_system_admin` check is a single indexed boolean lookup — it's fast. Revisit only if query plans show degradation.**
+
+**The `getProjectSecret()` modification is the riskiest change.**
+It introduces a database query to `system_settings` on every AI API call (chat, research, sequences, etc.). Even though it's a single-row lookup on a tiny table, it adds latency to every LLM request path. **Mitigation: consider caching the policy value in-memory with a short TTL (30s-60s) so we don't hit the DB on every call. The system_settings table changes extremely rarely.**
+
+### 18.2 Security Gaps
+
+**No admin session expiry enforcement.**
+The stale session alert is a UI nudge, not a hard cutoff. If an admin enters a project and never visits the admin dashboard again, the membership persists forever. **Consider: a cron job that auto-closes sessions older than 48 hours and removes the associated membership. This would require the scheduler infrastructure.**
+
+**The CLI-only admin grant is secure but inconvenient.**
+If you need to grant admin access urgently and don't have CLI/server access (e.g., you're on your phone), you can't do it. **Consider: a future "admin invite" flow where an existing admin can send a time-limited admin grant link — but this is V2 territory and introduces its own risks.**
+
+**Bug report screenshots could contain sensitive data.**
+A screenshot of a household intake form, risk scores, or contractor documents could end up in the `bug-screenshots` bucket. This bucket should have restricted access (admin-only read, user-only write for their own uploads), but the data itself is now outside the RLS boundary. **Mitigation: (1) Supabase Storage policies should restrict read access to the uploader + system admins, (2) screenshots should be auto-deleted after the bug report is closed (configurable retention), (3) the bug report dialog should show a warning: "Screenshots may be reviewed by the system administrator."**
+
+### 18.3 UX Concerns
+
+**The admin panel is a completely separate layout.**
+This means navigating between "admin mode" and "normal CRM mode" requires a full page navigation (not a tab or panel). For an admin who frequently switches between managing the platform and using their own project, this could feel clunky. **Consider: whether the admin panel should be a slide-over panel accessible from anywhere, rather than a separate route group. Counter-argument: the admin panel has its own tables, filters, and pagination state — a panel would be too cramped. Keep the separate layout.**
+
+**Bug report dialog has no categorization.**
+The current spec has only `description` — no category dropdown (UI bug, data issue, performance, feature request, etc.). This means the admin has to read every report to understand what it's about. **Consider: adding an optional `category` field to the submission dialog. Counter-argument: categories add friction to the submission flow, and most small teams will have so few bug reports that categorization isn't worth the overhead. Defer to V2 if volume warrants it.**
+
+**Users can't see admin_notes on their bug reports.**
+This is intentional (admin notes may contain internal context like "this is a known Supabase issue" or "low priority, user is overreacting"). But it means users get no feedback between submission and resolution unless the admin writes `resolution_notes`. **Consider: adding a `status_message` field that the admin can optionally fill in — something like "We're investigating this" — that IS visible to the reporter. This gives users feedback without exposing internal notes.**
+
+### 18.4 Missing Features That May Be Needed Sooner Than Expected
+
+**No email notifications for bug reports.**
+When a user submits a bug, the admin only finds out by visiting the admin dashboard and seeing the count. At low volume this is fine. If you have 10 orgs submitting bugs, you'll want email or Slack notifications. **Mitigation: the admin dashboard shows the open count, and the system_admin_log records submissions. A future webhook or email integration could notify on new reports.**
+
+**No bulk actions on bug reports.**
+If 5 users report the same bug, the admin has to close each one individually. **Consider: a "close as duplicate of X" action that links reports together, or multi-select + bulk status update. Defer to V2.**
+
+**No way to communicate back to the bug reporter.**
+The `resolution_notes` field is one-way (admin → user). There's no comment thread or back-and-forth. If the admin needs more information ("Can you reproduce this?" "What browser?"), they have to reach out via email manually. **Consider: a simple comment thread on bug reports (both admin and user can post). This adds significant complexity. Defer to V2 — for now, the admin can email the user directly (they have the reporter's email).**
+
+### 18.5 Assumptions That May Be Wrong
+
+| Assumption | Risk if wrong | Fallback |
+|------------|--------------|----------|
+| System admin is always the platform deployer | If a non-technical person needs admin access, the CLI grant is a barrier | Add an admin invite flow in V2 |
+| 24-hour stale session threshold is reasonable | If admins routinely work in projects for days, they'll get false alerts | Make the threshold configurable in system settings |
+| Users will actually submit bug reports via the dialog | Users may prefer to message you directly | The dialog is low-cost to build and doesn't hurt if unused |
+| One admin panel is enough (no per-org admin) | If orgs want their own admin view of their projects | This is a different feature (org-level admin, not system admin) — out of scope |
+| `navigator.mediaDevices.getDisplayMedia()` works for screenshots | Some browsers/contexts block screen capture | File upload fallback is always available |
+| Supabase Storage is the right place for bug screenshots | Storage policies may be tricky to configure correctly | Could use the same cloud storage used for receipt images instead |
+
+### 18.6 What I'd Cut If Scope Needs to Shrink
+
+Priority order of what to **keep** (cut from the bottom up):
+
+1. **Keep:** Database foundation (is_system_admin, system_admin_log, system_settings) — everything depends on this
+2. **Keep:** Admin dashboard + project list + enter/exit project — this is the core value proposition
+3. **Keep:** User list + deactivate/reactivate — essential for managing a multi-tenant platform
+4. **Keep:** API key policy in system settings — solves the shared LLM cost problem
+5. **Cut last:** Bug report submission dialog — nice-to-have, users can email instead
+6. **Cut before that:** Bug report admin triage page — can review reports via Supabase dashboard initially
+7. **Cut before that:** Activity log page — can query `activity_log` and `system_admin_log` via Supabase dashboard
+8. **Cut before that:** Admin settings page beyond API key policy — deployment info and admin user list are informational
 
 ---
 
 *This PRD is a living document. It will be updated as implementation reveals edge cases or design refinements.*
+
+---
+
+## Changelog
+
+| Version | Date | Changes |
+|---------|------|---------|
+| 1.0 | 2026-03-21 | Initial PRD: admin panel with dashboard, user/project management, enter/exit flow, activity log, settings, CLI scripts |
+| 1.1 | 2026-03-21 | Added bug report submission + admin triage (§9.8, §9.9, §11.7, §11.8). Added self-critique section (§18). Updated dashboard stats to include open bug reports. |
+| 1.2 | 2026-03-21 | Editorial pass: fixed migration number to `0139` (conflict with existing `0134`). Clarified `0138` is already applied. Added `bug_report` target_type, `updated_bug_report` action, `AdminBugReportListItem` type, bug report validators and query signatures, `open_bug_reports` in stats. |
+| 1.3 | 2026-03-21 | Correctness pass: partial unique index for admin sessions, synced TS types with schema, discriminated union for project actions, added `bugReportSubmitSchema`, reused admin client in `getProjectSecret()`. |
+| 1.4 | 2026-03-21 | QA + staff eng review. **Security:** fixed `system_admin_log` INSERT RLS — non-admins could previously insert rows; now requires `is_system_admin = TRUE`. **Performance:** replaced unbounded `LEFT JOIN activity_log` in users list with `LATERAL` subquery + added perf note. **Data integrity:** added `handle_updated_at()` trigger on `system_settings`; moved stale session alert to top of dashboard (was buried in fifth row); fixed exit-project idempotency (returns 200 success, not error, when no session exists); clarified enter-project uses existing `membership_id` when admin already has membership. **Spec gaps:** added Supabase Storage bucket + RLS policies for `bug-screenshots/` with per-user path scoping; added `priority` and `assigned_to` indexes on `bug_reports`; replaced brittle `keyName.replace('_api_key', '')` with explicit `POLICY_KEY_MAP` so non-API-key secrets skip policy check entirely. Added RLS INSERT test for `system_admin_log` and storage RLS tests. |
