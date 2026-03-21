@@ -57,7 +57,7 @@ const dashboardConfigBaseSchema = z.object({
   min_count_threshold: z.number().int().min(3).max(100).default(5),
   excluded_categories: excludedCategoriesSchema,
   access_type: publicDashboardAccessTypeSchema.default('public'),
-  password: z.string().min(8).max(200).optional(),
+  password: z.preprocess((val) => (val === '' ? undefined : val), z.string().min(8).max(200).optional()),
   data_freshness: publicDashboardDataFreshnessSchema.default('live'),
   snapshot_data: jsonObjectSchema.nullable().optional(),
   date_range_type: publicDashboardDateRangeTypeSchema.default('rolling'),

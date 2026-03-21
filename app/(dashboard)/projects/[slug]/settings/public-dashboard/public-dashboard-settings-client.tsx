@@ -74,6 +74,16 @@ export function PublicDashboardSettingsClient() {
     }
   }
 
+  function buildPayload(source: EditablePublicDashboardConfig) {
+    // Strip client-only fields (id) and normalize empty strings
+    const { id: _id, password, hero_image_url, ...rest } = source;
+    return {
+      ...rest,
+      hero_image_url: hero_image_url || null,
+      ...(password ? { password } : {}),
+    };
+  }
+
   async function saveConfig() {
     if (!draft) return;
     const url = draft.id
@@ -83,15 +93,17 @@ export function PublicDashboardSettingsClient() {
     const response = await fetch(url, {
       method,
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(draft),
+      body: JSON.stringify(buildPayload(draft)),
     });
-    const data = await response.json() as { config?: ConfigRecord; error?: string };
+    const data = await response.json() as { config?: ConfigRecord; error?: string; details?: { fieldErrors?: Record<string, string[]> } };
     if (response.ok && data.config) {
       setSelectedId(data.config.id);
       await loadConfigs(data.config.id);
       toast.success('Dashboard saved');
     } else {
-      toast.error(data.error ?? 'Failed to save dashboard');
+      const fieldErrors = data.details?.fieldErrors;
+      const detail = fieldErrors ? Object.entries(fieldErrors).map(([k, v]) => `${k}: ${v.join(', ')}`).join('; ') : '';
+      toast.error(detail || data.error || 'Failed to save dashboard');
     }
   }
 
@@ -103,7 +115,7 @@ export function PublicDashboardSettingsClient() {
 
       // If the config hasn't been saved yet, create it with the new status
       if (!configId) {
-        const createPayload = { ...draft, status };
+        const createPayload = buildPayload({ ...draft, status });
         const createResponse = await fetch(`/api/projects/${slug}/public-dashboard`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -127,7 +139,7 @@ export function PublicDashboardSettingsClient() {
       const response = await fetch(`/api/projects/${slug}/public-dashboard/${configId}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify(nextDraft),
+        body: JSON.stringify(buildPayload(nextDraft)),
       });
       const data = await response.json() as { config?: ConfigRecord; error?: string };
       if (response.ok && data.config) {
