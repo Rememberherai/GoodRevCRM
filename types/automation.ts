@@ -127,6 +127,7 @@ export type AutomationEntityType =
   | 'program_attendance'
   | 'contribution'
   | 'community_asset'
+  | 'broadcast'
   | 'intake'
   | 'household_member'
   | 'job'

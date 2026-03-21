@@ -69,6 +69,7 @@ import { useDispositions } from '@/hooks/use-dispositions';
 import { DISPOSITION_COLOR_MAP, type DispositionColor } from '@/types/disposition';
 import { useOutreachGuard } from '@/hooks/use-outreach-guard';
 import { NewScopeDialog } from '@/components/community/contractors/new-scope-dialog';
+import { PersonRelationshipsTab } from '@/components/community/people/person-relationships-tab';
 
 interface PersonDetailClientProps {
   personId: string;
@@ -609,6 +610,12 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
             <MessageSquare className="h-4 w-4" />
             Comments
           </TabsTrigger>
+          {projectType === 'community' && (
+            <TabsTrigger value="relationships" className="gap-2">
+              <Users className="h-4 w-4" />
+              Relationships
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Info Tab */}
@@ -979,6 +986,12 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
             </CardContent>
           </Card>
         </TabsContent>
+
+        {projectType === 'community' && (
+          <TabsContent value="relationships" className="space-y-6">
+            <PersonRelationshipsTab personId={personId} />
+          </TabsContent>
+        )}
       </Tabs>
 
       <AlertDialog open={showDeleteDialog} onOpenChange={setShowDeleteDialog}>

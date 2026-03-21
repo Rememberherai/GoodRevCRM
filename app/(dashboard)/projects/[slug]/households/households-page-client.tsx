@@ -9,6 +9,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { NewHouseholdDialog } from '@/components/community/households/new-household-dialog';
+import { RiskExplainability } from '@/components/community/households/risk-explainability';
 
 interface HouseholdListItem {
   id: string;
@@ -30,6 +31,19 @@ interface HouseholdListResponse {
   };
 }
 
+interface RiskScoreRecord {
+  householdId: string;
+  householdName?: string | null;
+  score: number;
+  tier: 'low' | 'medium' | 'high';
+  contributions: Array<{
+    key: string;
+    label: string;
+    weight: number;
+    active: boolean;
+  }>;
+}
+
 export function HouseholdsPageClient() {
   const params = useParams();
   const slug = params.slug as string;
@@ -41,6 +55,7 @@ export function HouseholdsPageClient() {
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [riskScores, setRiskScores] = useState<Record<string, RiskScoreRecord>>({});
 
   const loadHouseholds = useCallback(async (nextPage: number, nextSearch: string) => {
     setIsLoading(true);
@@ -77,6 +92,17 @@ export function HouseholdsPageClient() {
   useEffect(() => {
     void loadHouseholds(1, search);
   }, [loadHouseholds, search]);
+
+  useEffect(() => {
+    const loadRiskScores = async () => {
+      const response = await fetch(`/api/projects/${slug}/community/risk-index`);
+      if (!response.ok) return;
+      const data = await response.json() as { scores?: RiskScoreRecord[] };
+      setRiskScores(Object.fromEntries((data.scores ?? []).map((score) => [score.householdId, score])));
+    };
+
+    void loadRiskScores();
+  }, [slug]);
 
   const emptyMessage = useMemo(() => {
     if (search.trim()) {
@@ -153,26 +179,37 @@ export function HouseholdsPageClient() {
           ) : (
             <div className="space-y-3">
               {households.map((household) => (
-                <Link
-                  key={household.id}
-                  href={`/projects/${slug}/households/${household.id}`}
-                  className="block rounded-lg border p-4 transition-colors hover:bg-accent"
-                >
+                <div key={household.id} className="rounded-lg border p-4 transition-colors hover:bg-accent">
                   <div className="flex flex-col gap-3 md:flex-row md:items-center md:justify-between">
-                    <div className="space-y-1">
+                    <Link
+                      href={`/projects/${slug}/households/${household.id}`}
+                      className="block flex-1 space-y-1"
+                    >
                       <div className="font-medium">{household.name}</div>
                       <div className="text-sm text-muted-foreground">
                         {[household.address_city, household.address_state].filter(Boolean).join(', ') || 'No location yet'}
                       </div>
-                    </div>
+                    </Link>
                     <div className="flex flex-wrap gap-2">
                       <Badge variant="secondary">{household.member_count} members</Badge>
                       {household.household_size !== null && (
                         <Badge variant="outline">Size {household.household_size}</Badge>
                       )}
+                      {(() => {
+                        const riskScore = riskScores[household.id];
+                        if (!riskScore) return null;
+                        return (
+                          <>
+                            <Badge variant={riskScore.tier === 'high' ? 'destructive' : 'secondary'}>
+                              Risk {riskScore.score}
+                            </Badge>
+                            <RiskExplainability score={riskScore} />
+                          </>
+                        );
+                      })()}
                     </div>
                   </div>
-                </Link>
+                </div>
               ))}
             </div>
           )}

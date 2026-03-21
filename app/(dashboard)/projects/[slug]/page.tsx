@@ -11,6 +11,7 @@ import { ProgramCards } from '@/components/community/dashboard/program-cards';
 import { ActivityFeed } from '@/components/community/dashboard/activity-feed';
 import { MiniMap } from '@/components/community/dashboard/mini-map';
 import { PopulationImpact } from '@/components/community/dashboard/population-impact';
+import { RiskAlertsPanel } from '@/components/community/dashboard/risk-alerts-panel';
 import { getCommunityDashboardData } from '@/lib/community/dashboard';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ProjectRole } from '@/types/user';
@@ -75,6 +76,7 @@ export default async function ProjectDashboard({ params }: ProjectDashboardProps
         {canSeeDetail && (
           <>
             <MiniMap center={dashboardData.miniMap.center} points={dashboardData.miniMap.points} />
+            <RiskAlertsPanel />
             <div className="grid gap-6 xl:grid-cols-2">
               <ProgramCards programs={dashboardData.programs} />
               <ActivityFeed items={dashboardData.recentActivity} />

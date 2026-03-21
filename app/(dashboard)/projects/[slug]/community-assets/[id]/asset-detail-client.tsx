@@ -7,6 +7,8 @@ import { ArrowLeft, Building2, MapPin } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { AssetCalendar } from '@/components/community/assets/asset-calendar';
 
 interface AssetDetail {
   id: string;
@@ -131,20 +133,33 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
         </Card>
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle>Asset Details</CardTitle>
-          <CardDescription>Description, notes, and supporting context.</CardDescription>
-        </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="text-sm text-muted-foreground">{asset.description || 'No description provided.'}</div>
-          {asset.notes && (
-            <div className="rounded-lg border p-4 text-sm text-muted-foreground">
-              {asset.notes}
-            </div>
-          )}
-        </CardContent>
-      </Card>
+      <Tabs defaultValue="details">
+        <TabsList>
+          <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="calendar">Calendar</TabsTrigger>
+        </TabsList>
+
+        <TabsContent value="details" className="pt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle>Asset Details</CardTitle>
+              <CardDescription>Description, notes, and supporting context.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              <div className="text-sm text-muted-foreground">{asset.description || 'No description provided.'}</div>
+              {asset.notes && (
+                <div className="rounded-lg border p-4 text-sm text-muted-foreground">
+                  {asset.notes}
+                </div>
+              )}
+            </CardContent>
+          </Card>
+        </TabsContent>
+
+        <TabsContent value="calendar" className="pt-4">
+          <AssetCalendar assetId={asset.id} />
+        </TabsContent>
+      </Tabs>
     </div>
   );
 }

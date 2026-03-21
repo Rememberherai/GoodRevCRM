@@ -22,6 +22,9 @@ import {
   HardHat,
   BriefcaseBusiness,
   Map,
+  SendToBack,
+  Megaphone,
+  Globe,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -60,11 +63,14 @@ const communityNavItems: NavItem[] = [
   { title: 'People', href: '/people', icon: Users },
   { title: 'Organizations', href: '/organizations', icon: Building2 },
   { title: 'Programs', href: '/programs', icon: CalendarRange },
+  { title: 'Referrals', href: '/referrals', icon: SendToBack },
   { title: 'Contractors', href: '/contractors', icon: HardHat },
   { title: 'Jobs', href: '/jobs', icon: BriefcaseBusiness },
   { title: 'Contributions', href: '/contributions', icon: HandCoins },
+  { title: 'Broadcasts', href: '/broadcasts', icon: Megaphone },
   { title: 'Community Assets', href: '/community-assets', icon: Building2 },
   { title: 'Community Map', href: '/community-map', icon: Map },
+  { title: 'Public Dashboard', href: '/settings/public-dashboard', icon: Globe },
   { title: 'Reporting', href: '/reports', icon: BarChart3 },
 ];
 
@@ -85,6 +91,8 @@ export function ProjectSidebar({ project, role }: ProjectSidebarProps) {
       navItems = communityNavItems.filter((item) => item.title === 'Dashboard' || item.title === 'Reporting');
     } else if (role === 'contractor') {
       navItems = [];
+    } else if (role !== 'owner' && role !== 'admin') {
+      navItems = communityNavItems.filter((item) => item.title !== 'Public Dashboard');
     }
   }
 

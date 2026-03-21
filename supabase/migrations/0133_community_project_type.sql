@@ -588,7 +588,7 @@ BEGIN
 
   IF v_role IN ('owner', 'admin') THEN
     RETURN (
-      (p_resource IN ('households', 'intake', 'programs', 'contributions', 'community_assets', 'referrals', 'grants', 'jobs', 'assistant_ap')
+      (p_resource IN ('households', 'intake', 'programs', 'contributions', 'community_assets', 'referrals', 'relationships', 'broadcasts', 'grants', 'jobs', 'assistant_ap')
         AND p_action IN ('view', 'create', 'update', 'delete'))
       OR (p_resource = 'risk_scores' AND p_action IN ('view', 'update'))
       OR (p_resource = 'dashboard' AND p_action = 'view')
@@ -600,7 +600,7 @@ BEGIN
 
   IF v_role = 'staff' THEN
     RETURN (
-      (p_resource IN ('households', 'programs', 'contributions', 'community_assets', 'referrals')
+      (p_resource IN ('households', 'programs', 'contributions', 'community_assets', 'referrals', 'relationships', 'broadcasts')
         AND p_action IN ('view', 'create', 'update', 'delete'))
       OR (p_resource = 'grants' AND p_action = 'view')
       OR (p_resource = 'jobs' AND p_action IN ('view', 'create', 'update', 'delete'))
@@ -612,7 +612,7 @@ BEGIN
 
   IF v_role = 'case_manager' THEN
     RETURN (
-      (p_resource IN ('households', 'intake', 'programs', 'contributions', 'community_assets', 'referrals')
+      (p_resource IN ('households', 'intake', 'programs', 'contributions', 'community_assets', 'referrals', 'relationships', 'broadcasts')
         AND p_action IN ('view', 'create', 'update', 'delete'))
       OR (p_resource = 'grants' AND p_action = 'view')
       OR (p_resource = 'jobs' AND p_action = 'view')
@@ -1116,14 +1116,14 @@ CREATE POLICY referrals_access ON public.referrals
 DROP POLICY IF EXISTS relationships_access ON public.relationships;
 CREATE POLICY relationships_access ON public.relationships
   FOR ALL
-  USING (public.community_current_role(project_id) IN ('owner', 'admin', 'staff', 'case_manager'))
-  WITH CHECK (public.community_current_role(project_id) IN ('owner', 'admin', 'staff', 'case_manager'));
+  USING (public.community_has_permission(project_id, 'relationships', 'view'))
+  WITH CHECK (public.community_has_permission(project_id, 'relationships', 'create'));
 
 DROP POLICY IF EXISTS broadcasts_access ON public.broadcasts;
 CREATE POLICY broadcasts_access ON public.broadcasts
   FOR ALL
-  USING (public.community_current_role(project_id) IN ('owner', 'admin', 'staff', 'case_manager'))
-  WITH CHECK (public.community_current_role(project_id) IN ('owner', 'admin', 'staff', 'case_manager'));
+  USING (public.community_has_permission(project_id, 'broadcasts', 'view'))
+  WITH CHECK (public.community_has_permission(project_id, 'broadcasts', 'create'));
 
 DROP POLICY IF EXISTS public_dashboard_configs_access ON public.public_dashboard_configs;
 CREATE POLICY public_dashboard_configs_access ON public.public_dashboard_configs

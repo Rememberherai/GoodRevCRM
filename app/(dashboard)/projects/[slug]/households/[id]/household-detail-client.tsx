@@ -9,6 +9,7 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { HouseholdMembersTab } from '@/components/community/households/household-members-tab';
+import { NewReferralDialog } from '@/components/community/referrals/new-referral-dialog';
 
 interface HouseholdMemberRecord {
   id: string;
@@ -55,6 +56,7 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [canViewIntake, setCanViewIntake] = useState(false);
+  const [showReferralDialog, setShowReferralDialog] = useState(false);
 
   const loadHousehold = useCallback(async () => {
     setIsLoading(true);
@@ -196,6 +198,7 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="programs">Programs</TabsTrigger>
           <TabsTrigger value="contributions">Contributions</TabsTrigger>
+          <TabsTrigger value="referrals">Referrals</TabsTrigger>
           {canViewIntake && <TabsTrigger value="intake">Intake</TabsTrigger>}
         </TabsList>
 
@@ -237,6 +240,23 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
           </Card>
         </TabsContent>
 
+        <TabsContent value="referrals" className="pt-4">
+          <Card>
+            <CardHeader className="flex flex-row items-center justify-between gap-4">
+              <div>
+                <CardTitle>Referrals</CardTitle>
+                <CardDescription>
+                  Create and follow community service handoffs for this household.
+                </CardDescription>
+              </div>
+              <Button size="sm" onClick={() => setShowReferralDialog(true)}>New Referral</Button>
+            </CardHeader>
+            <CardContent className="text-sm text-muted-foreground">
+              Use the referrals workspace to monitor partner acknowledgements, in-progress services, and completed outcomes tied to this household.
+            </CardContent>
+          </Card>
+        </TabsContent>
+
         {canViewIntake && (
           <TabsContent value="intake" className="pt-4">
             <Card>
@@ -271,6 +291,13 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
           </TabsContent>
         )}
       </Tabs>
+
+      <NewReferralDialog
+        open={showReferralDialog}
+        onOpenChange={setShowReferralDialog}
+        initialHouseholdId={household.id}
+        onCreated={() => setShowReferralDialog(false)}
+      />
     </div>
   );
 }

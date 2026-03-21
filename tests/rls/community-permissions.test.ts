@@ -44,8 +44,10 @@ describe('Community RLS Migration Coverage', () => {
   it('uses community_assets consistently and prevents contractor job deletes', () => {
     const sql = fs.readFileSync(migrationPath, 'utf8');
 
-    expect(sql).toContain("p_resource IN ('households', 'programs', 'contributions', 'community_assets', 'referrals')");
+    expect(sql).toContain("p_resource IN ('households', 'programs', 'contributions', 'community_assets', 'referrals', 'relationships', 'broadcasts')");
     expect(sql).toContain("public.community_has_permission(project_id, 'community_assets', 'view')");
+    expect(sql).toContain("public.community_has_permission(project_id, 'relationships', 'view')");
+    expect(sql).toContain("public.community_has_permission(project_id, 'broadcasts', 'view')");
     expect(sql).toContain('CREATE POLICY jobs_delete ON public.jobs');
     expect(sql).not.toContain('CREATE POLICY jobs_write ON public.jobs');
   });
