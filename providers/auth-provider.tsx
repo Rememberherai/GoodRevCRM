@@ -9,6 +9,7 @@ interface AuthContextType {
   session: Session | null;
   isLoading: boolean;
   isAuthenticated: boolean;
+  isSystemAdmin: boolean;
 }
 
 const AuthContext = createContext<AuthContextType>({
@@ -16,15 +17,26 @@ const AuthContext = createContext<AuthContextType>({
   session: null,
   isLoading: true,
   isAuthenticated: false,
+  isSystemAdmin: false,
 });
 
 export function AuthProvider({ children }: { children: ReactNode }) {
   const [user, setUser] = useState<User | null>(null);
   const [session, setSession] = useState<Session | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [isSystemAdmin, setIsSystemAdmin] = useState(false);
 
   useEffect(() => {
     const supabase = createClient();
+
+    const fetchAdminStatus = async (userId: string) => {
+      const { data } = await supabase
+        .from('users')
+        .select('is_system_admin')
+        .eq('id', userId)
+        .single();
+      return data?.is_system_admin ?? false;
+    };
 
     // Get initial session
     const getInitialSession = async () => {
@@ -34,6 +46,10 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) {
+        const adminStatus = await fetchAdminStatus(session.user.id);
+        setIsSystemAdmin(adminStatus);
+      }
       setIsLoading(false);
     };
 
@@ -42,9 +58,15 @@ export function AuthProvider({ children }: { children: ReactNode }) {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
+      if (session?.user) {
+        const adminStatus = await fetchAdminStatus(session.user.id);
+        setIsSystemAdmin(adminStatus);
+      } else {
+        setIsSystemAdmin(false);
+      }
       setIsLoading(false);
     });
 
@@ -60,6 +82,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
         session,
         isLoading,
         isAuthenticated: !!user,
+        isSystemAdmin,
       }}
     >
       {children}

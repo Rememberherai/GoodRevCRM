@@ -8,6 +8,7 @@ interface AuthState {
   user: User | null;
   session: Session | null;
   isLoading: boolean;
+  isSystemAdmin: boolean;
 }
 
 export function useAuth() {
@@ -15,6 +16,7 @@ export function useAuth() {
     user: null,
     session: null,
     isLoading: true,
+    isSystemAdmin: false,
   });
 
   const supabase = createClient();
@@ -26,10 +28,21 @@ export function useAuth() {
         data: { session },
       } = await supabase.auth.getSession();
 
+      let isSystemAdmin = false;
+      if (session?.user) {
+        const { data } = await supabase
+          .from('users')
+          .select('is_system_admin')
+          .eq('id', session.user.id)
+          .single();
+        isSystemAdmin = data?.is_system_admin ?? false;
+      }
+
       setState({
         user: session?.user ?? null,
         session,
         isLoading: false,
+        isSystemAdmin,
       });
     };
 
@@ -38,11 +51,22 @@ export function useAuth() {
     // Listen for auth changes
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange((_event, session) => {
+    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+      let isSystemAdmin = false;
+      if (session?.user) {
+        const { data } = await supabase
+          .from('users')
+          .select('is_system_admin')
+          .eq('id', session.user.id)
+          .single();
+        isSystemAdmin = data?.is_system_admin ?? false;
+      }
+
       setState({
         user: session?.user ?? null,
         session,
         isLoading: false,
+        isSystemAdmin,
       });
     });
 
@@ -77,6 +101,7 @@ export function useAuth() {
     session: state.session,
     isLoading: state.isLoading,
     isAuthenticated: !!state.user,
+    isSystemAdmin: state.isSystemAdmin,
     signOut,
     signInWithGoogle,
   };

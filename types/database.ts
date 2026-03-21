@@ -11121,6 +11121,8 @@ export type Database = {
         Args: { p_reconciliation_id: string }
         Returns: string
       }
+      count_active_projects_7d: { Args: never; Returns: number }
+      count_projects_missing_api_key: { Args: never; Returns: number }
       create_bill:
         | {
             Args: {
@@ -11718,6 +11720,13 @@ export type Database = {
         }
         Returns: Json
       }
+      projects_by_week: {
+        Args: never
+        Returns: {
+          count: number
+          week: string
+        }[]
+      }
       queue_webhook_delivery: {
         Args: { p_event_type: string; p_payload: Json; p_webhook_id: string }
         Returns: string
@@ -11817,6 +11826,13 @@ export type Database = {
       set_primary_quote: {
         Args: { p_project_id: string; p_quote_id: string }
         Returns: undefined
+      }
+      signups_by_week: {
+        Args: never
+        Returns: {
+          count: number
+          week: string
+        }[]
       }
       update_draft_bill: {
         Args: { p_bill_id: string; p_lines?: Json; p_patch?: Json }

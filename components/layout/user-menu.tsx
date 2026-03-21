@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter } from 'next/navigation';
-import { LogOut, Settings, User } from 'lucide-react';
+import { LogOut, Settings, Shield, User } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -16,7 +16,7 @@ import {
 import { Skeleton } from '@/components/ui/skeleton';
 
 export function UserMenu() {
-  const { user, isLoading, signOut } = useAuth();
+  const { user, isLoading, isSystemAdmin, signOut } = useAuth();
   const router = useRouter();
 
   const handleSignOut = async () => {
@@ -70,6 +70,12 @@ export function UserMenu() {
           </div>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
+        {isSystemAdmin && (
+          <DropdownMenuItem onClick={() => router.push('/admin')}>
+            <Shield className="mr-2 h-4 w-4" />
+            <span>Admin Panel</span>
+          </DropdownMenuItem>
+        )}
         <DropdownMenuItem onClick={() => router.push('/settings')}>
           <User className="mr-2 h-4 w-4" />
           <span>Profile</span>
