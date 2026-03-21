@@ -10,6 +10,7 @@ import { UserMenu } from '@/components/layout/user-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { ModuleSwitcher } from '@/components/layout/module-switcher';
 import { NewProjectDialog } from '@/components/projects/new-project-dialog';
+import { Badge } from '@/components/ui/badge';
 import type { Database } from '@/types/database';
 
 type Project = Database['public']['Tables']['projects']['Row'];
@@ -85,9 +86,20 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
                   </div>
                 </CardHeader>
                 <CardContent>
-                  <p className="text-xs text-muted-foreground">
-                    Created {new Date(project.created_at).toLocaleDateString()}
-                  </p>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      Created {new Date(project.created_at).toLocaleDateString()}
+                    </p>
+                    <Badge
+                      className={
+                        project.project_type === 'community'
+                          ? 'bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25 border-0'
+                          : 'bg-blue-500/15 text-blue-500 hover:bg-blue-500/25 border-0'
+                      }
+                    >
+                      {project.project_type === 'community' ? 'Community' : 'Sales'}
+                    </Badge>
+                  </div>
                 </CardContent>
               </Card>
             ))}
