@@ -26,6 +26,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Loader2, CheckCircle2, AlertTriangle } from 'lucide-react';
+import { AddressAutocomplete, type AddressResult } from '@/components/ui/address-autocomplete';
 
 interface PersonFormProps {
   person?: Person;
@@ -48,6 +49,8 @@ export function PersonForm({ person, organizationId, onSuccess, onCancel }: Pers
   const {
     register,
     handleSubmit,
+    setValue,
+    watch,
     formState: { errors },
   } = useForm<CreatePersonInput>({
     resolver: zodResolver(personSchema),
@@ -341,9 +344,17 @@ export function PersonForm({ person, organizationId, onSuccess, onCancel }: Pers
         <CardContent className="space-y-4">
           <div className="space-y-2">
             <Label htmlFor="address_street">Street Address</Label>
-            <Input
+            <AddressAutocomplete
               id="address_street"
-              {...register('address_street')}
+              value={watch('address_street') ?? ''}
+              onChange={(val) => setValue('address_street', val)}
+              onSelect={(result: AddressResult) => {
+                setValue('address_street', result.street);
+                setValue('address_city', result.city);
+                setValue('address_state', result.state);
+                setValue('address_postal_code', result.postal_code);
+                setValue('address_country', result.country);
+              }}
               placeholder="123 Main St"
             />
             {errors.address_street && (

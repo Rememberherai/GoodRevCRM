@@ -25,6 +25,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { createCommunityAssetSchema } from '@/lib/validators/community/assets';
+import { AddressAutocomplete, type AddressResult } from '@/components/ui/address-autocomplete';
 
 interface DimensionOption {
   id: string;
@@ -205,7 +206,17 @@ export function NewAssetDialog({
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="asset-address">Street Address</Label>
-            <Input id="asset-address" value={addressStreet} onChange={(event) => setAddressStreet(event.target.value)} placeholder="123 Main St" />
+            <AddressAutocomplete
+              id="asset-address"
+              value={addressStreet}
+              onChange={setAddressStreet}
+              onSelect={(result: AddressResult) => {
+                setAddressStreet(result.street);
+                setAddressCity(result.city);
+                setAddressState(result.state);
+              }}
+              placeholder="Start typing an address..."
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="asset-city">City</Label>

@@ -32,6 +32,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { LogoUpload } from '@/components/ui/logo-upload';
+import { AddressAutocomplete, type AddressResult } from '@/components/ui/address-autocomplete';
 import { CustomFieldsRenderer } from '@/components/forms/custom-fields-renderer';
 import { AddFieldDialog } from '@/components/schema/add-field-dialog';
 
@@ -320,9 +321,17 @@ export function OrganizationForm({ organization, onSuccess, onCancel }: Organiza
 
           <div className="space-y-2">
             <Label htmlFor="address_street">Street Address</Label>
-            <Input
+            <AddressAutocomplete
               id="address_street"
-              {...register('address_street')}
+              value={watch('address_street') ?? ''}
+              onChange={(val) => setValue('address_street', val)}
+              onSelect={(result: AddressResult) => {
+                setValue('address_street', result.street);
+                setValue('address_city', result.city);
+                setValue('address_state', result.state);
+                setValue('address_postal_code', result.postal_code);
+                setValue('address_country', result.country);
+              }}
               placeholder="123 Main Street"
             />
             {errors.address_street && (
