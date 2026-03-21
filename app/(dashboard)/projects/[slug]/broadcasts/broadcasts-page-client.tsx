@@ -43,6 +43,7 @@ export function BroadcastsPageClient() {
   const [filterCriteria, setFilterCriteria] = useState<RecipientFilterValue>({});
   const [isSaving, setIsSaving] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
+  const [signatureHtml, setSignatureHtml] = useState<string | null>(null);
 
   const loadBroadcasts = useCallback(async () => {
     setIsLoading(true);
@@ -64,6 +65,23 @@ export function BroadcastsPageClient() {
   useEffect(() => {
     void loadBroadcasts();
   }, [loadBroadcasts]);
+
+  // Fetch default signature once
+  useEffect(() => {
+    const fetchSig = async () => {
+      try {
+        const res = await fetch(`/api/projects/${slug}/signatures`);
+        if (res.ok) {
+          const data = await res.json();
+          const defaultSig = (data.data ?? []).find((s: { is_default: boolean }) => s.is_default);
+          setSignatureHtml(defaultSig?.content_html ?? null);
+        }
+      } catch {
+        // non-critical
+      }
+    };
+    void fetchSig();
+  }, [slug]);
 
   const previewCount = useMemo(() => Object.values(filterCriteria).reduce((sum, value) => sum + (value?.length ?? 0), 0), [filterCriteria]);
 
@@ -130,7 +148,12 @@ export function BroadcastsPageClient() {
             </p>
           </div>
         </div>
-        <Button onClick={() => setOpen(true)}>
+        <Button onClick={() => {
+          if (signatureHtml) {
+            setBodyHtml(`<p></p><br/><div data-signature="true">${signatureHtml}</div>`);
+          }
+          setOpen(true);
+        }}>
           <Plus className="mr-2 h-4 w-4" />
           New Broadcast
         </Button>

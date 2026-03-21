@@ -73,7 +73,6 @@ export function SendEmailModal({
   const [connections, setConnections] = useState<GmailConnectionOption[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [signatureHtml, setSignatureHtml] = useState<string | null>(null);
 
   const form = useForm<SendEmailFormData>({
     resolver: zodResolver(sendEmailFormSchema),
@@ -116,7 +115,11 @@ export function SendEmailModal({
         if (res.ok) {
           const data = await res.json();
           const defaultSig = (data.data ?? []).find((s: { is_default: boolean }) => s.is_default);
-          setSignatureHtml(defaultSig?.content_html ?? null);
+          const sigHtml = defaultSig?.content_html ?? null;
+          // Pre-populate editor with signature at bottom
+          if (sigHtml && !form.getValues('body_html')) {
+            form.setValue('body_html', `<p></p><br/><div data-signature="true">${sigHtml}</div>`);
+          }
         }
       } catch {
         // Signature preview is non-critical
@@ -266,16 +269,6 @@ export function SendEmailModal({
                   </FormItem>
                 )}
               />
-
-              {signatureHtml && (
-                <div>
-                  <p className="text-xs text-muted-foreground mb-1 font-medium">Signature (auto-appended):</p>
-                  <div
-                    className="border rounded p-2 bg-white text-sm text-black [&_*]:!text-black"
-                    dangerouslySetInnerHTML={{ __html: signatureHtml }}
-                  />
-                </div>
-              )}
 
               <div className="flex justify-end gap-2 pt-4">
                 <Button
