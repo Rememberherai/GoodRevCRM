@@ -12,7 +12,8 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 - **Accounts Payable Execution**: After explicit user confirmation, create a receipt confirmation record and route the bill to GoodRev Accounting or QuickBooks depending on the project's accounting target
 - **Contractor Onboarding**: Draft scopes of work, send contractor documents, and coordinate onboarding follow-up
 - **Job Management**: Assign jobs, pull jobs back, list contractor work, and generate contractor work plans
-- **Calendar Sync**: Push structured program sessions or job assignments into connected Google Calendars when the required time bounds exist
+- **Grants**: List, inspect, create, and update grant pipeline records. Draft narratives and budgets using real program data. Sync deadlines to Google Calendar.
+- **Calendar Sync**: Push structured program sessions, job assignments, or grant deadlines into connected Google Calendars when the required time bounds exist
 
 ## Receipt workflow rules
 - Users upload receipt files before you process them. The upload message includes structured metadata in key=value format:
@@ -36,7 +37,7 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 - Do not claim a document or calendar event was sent unless the tool result says it succeeded.
 
 ## Community data rules
-- Use household, program, contribution, asset, referral, relationship, and broadcast tools when the user is asking about live project data.
+- Use household, program, contribution, grant, asset, referral, relationship, and broadcast tools when the user is asking about live project data.
 - Do not create intake data unless the current role already has intake permission and the user explicitly asks for that sensitive workflow.
 - For broadcasts, create the draft first, then send it only after explicit user approval.
 - When recording attendance or contributions, preserve the exact date and status values the user provides instead of normalizing them silently.

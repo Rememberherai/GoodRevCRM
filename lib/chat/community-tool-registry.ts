@@ -6,7 +6,7 @@ import { extractReceiptData } from '@/lib/assistant/ocr';
 import { createBill } from '@/lib/assistant/accounting-bridge';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createReceiptConfirmationSchema } from '@/lib/validators/community/receipts';
-import { syncJobAssignment, syncProgramSession } from '@/lib/assistant/calendar-bridge';
+import { syncJobAssignment, syncProgramSession, syncGrantDeadline } from '@/lib/assistant/calendar-bridge';
 import { checkContractorScopeMatch, formatWorkPlanLines } from '@/lib/community/jobs';
 import { createProjectNotification } from '@/lib/community/notifications';
 import { sendContractorDocuments, type ContractorDocumentKind } from '@/lib/community/contractor-documents';
@@ -35,6 +35,9 @@ import {
 import {
   createBroadcastSchema,
 } from '@/lib/validators/community/broadcasts';
+import {
+  grantSchema,
+} from '@/lib/validators/community/grants';
 import { sendBroadcast } from '@/lib/community/broadcasts';
 import type { ProjectRole } from '@/types/user';
 import type { Database, Json } from '@/types/database';
@@ -209,6 +212,26 @@ const relationshipsCreateToolSchema = relationshipBaseSchema.omit({ project_id: 
 const broadcastsCreateToolSchema = createBroadcastSchema.omit({ project_id: true });
 const broadcastsSendToolSchema = z.object({
   id: z.string().uuid(),
+});
+
+const grantsListSchema = paginatedListSchema.extend({
+  status: z.string().optional(),
+  funder_organization_id: z.string().uuid().optional(),
+});
+const grantsCreateToolSchema = grantSchema.omit({ project_id: true });
+const grantsUpdateToolSchema = grantSchema.partial().omit({ project_id: true }).extend({
+  id: z.string().uuid(),
+});
+const grantDraftNarrativeSchema = z.object({
+  grant_id: z.string().uuid(),
+  focus_areas: z.array(z.string()).optional(),
+});
+const grantDraftBudgetSchema = z.object({
+  grant_id: z.string().uuid(),
+});
+const calendarSyncGrantSchema = z.object({
+  grant_id: z.string().uuid(),
+  deadline_type: z.enum(['loi', 'application', 'report']),
 });
 
 function paginate(page: number, limit: number) {
@@ -1791,6 +1814,246 @@ defineCommunityTool({
   handler: async (params, _ctx) => {
     const parsed = calendarSyncJobSchema.parse(params);
     const result = await syncJobAssignment(parsed.job_id);
+    return JSON.stringify(result);
+  },
+});
+
+// ── Grant Management ──
+
+defineCommunityTool({
+  name: 'grants.list',
+  description: 'List community grants with optional filters by status or funder.',
+  resource: 'grants',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: grantsListSchema,
+  handler: async (params, ctx) => {
+    const parsed = grantsListSchema.parse(params);
+    const admin = createAdminClient();
+    const { offset, to } = paginate(parsed.page, parsed.limit);
+    let query = admin
+      .from('grants')
+      .select('*, funder:organizations!grants_funder_organization_id_fkey(id, name)', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('updated_at', { ascending: false })
+      .range(offset, to);
+    if (parsed.search) query = query.or(`name.ilike.%${parsed.search}%,notes.ilike.%${parsed.search}%`);
+    if (parsed.status) query = query.eq('status', parsed.status);
+    if (parsed.funder_organization_id) query = query.eq('funder_organization_id', parsed.funder_organization_id);
+    const { data, error, count } = await query;
+    if (error) throw communityError(`Failed to list grants: ${error.message}`);
+    return JSON.stringify({
+      grants: data ?? [],
+      pagination: { page: parsed.page, limit: parsed.limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / parsed.limit) },
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.get',
+  description: 'Get a single grant record by ID.',
+  resource: 'grants',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: entityGetSchema,
+  handler: async (params, ctx) => {
+    const parsed = entityGetSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('grants')
+      .select('*, funder:organizations!grants_funder_organization_id_fkey(id, name), contact:people!grants_contact_person_id_fkey(id, first_name, last_name, email)')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id)
+      .single();
+    if (error || !data) throw communityError(`Grant not found: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify(data);
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.create',
+  description: 'Create a new grant record for tracking a funding opportunity through the pipeline.',
+  resource: 'grants',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: grantsCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = grantsCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('grants')
+      .insert({ ...parsed, project_id: ctx.projectId })
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to create grant: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'grant.created' as never,
+      entityType: 'grant' as never,
+      entityId: data.id,
+      data: data as unknown as Record<string, unknown>,
+    });
+    return JSON.stringify({ grant: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.update',
+  description: 'Update an existing grant record (status, amounts, deadlines, notes).',
+  resource: 'grants',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: grantsUpdateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = grantsUpdateToolSchema.parse(params);
+    const { id, ...updates } = parsed;
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('grants')
+      .update(updates)
+      .eq('project_id', ctx.projectId)
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to update grant: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'grant' as never,
+      entityId: data.id,
+      data: data as unknown as Record<string, unknown>,
+    });
+    return JSON.stringify({ grant: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.draft_narrative',
+  description: 'Draft a grant narrative using real program data, attendance metrics, and impact dimensions from the project.',
+  resource: 'grants',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: grantDraftNarrativeSchema,
+  handler: async (params, ctx) => {
+    const parsed = grantDraftNarrativeSchema.parse(params);
+    const admin = createAdminClient();
+
+    const { data: grant } = await admin
+      .from('grants')
+      .select('*, funder:organizations!grants_funder_organization_id_fkey(id, name)')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.grant_id)
+      .single();
+    if (!grant) throw communityError('Grant not found');
+
+    const { data: programs } = await admin
+      .from('programs')
+      .select('id, name, description, status, capacity, target_dimensions')
+      .eq('project_id', ctx.projectId)
+      .in('status', ['active', 'completed']);
+
+    const programIds = (programs ?? []).map((p) => p.id);
+    const { data: enrollments } = programIds.length > 0
+      ? await admin.from('program_enrollments').select('person_id, program_id').in('program_id', programIds)
+      : { data: [] };
+    const { data: attendance } = programIds.length > 0
+      ? await admin.from('program_attendance').select('person_id, hours, program_id').in('program_id', programIds)
+      : { data: [] };
+
+    const { data: contributions } = await admin
+      .from('contributions')
+      .select('type, value, hours')
+      .eq('project_id', ctx.projectId);
+
+    const uniqueParticipants = new Set((enrollments ?? []).map((e) => e.person_id).filter(Boolean));
+    const totalHours = (attendance ?? []).reduce((sum, a) => sum + (a.hours ?? 0), 0);
+    const totalContribValue = (contributions ?? []).reduce((sum, c) => sum + (c.value ?? 0), 0);
+
+    return JSON.stringify({
+      grant: { name: grant.name, status: grant.status, amount_requested: grant.amount_requested, funder: grant.funder },
+      programs: (programs ?? []).map((p) => ({ name: p.name, description: p.description, status: p.status, capacity: p.capacity })),
+      metrics: {
+        unduplicated_participants: uniqueParticipants.size,
+        total_program_hours: Math.round(totalHours * 100) / 100,
+        total_contribution_value: totalContribValue,
+        program_count: (programs ?? []).length,
+      },
+      instruction: 'Use this data to draft a compelling grant narrative. Focus on impact, community need, and measurable outcomes.',
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.draft_budget',
+  description: 'Pull actual program costs and contribution data to help draft a grant budget.',
+  resource: 'grants',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: grantDraftBudgetSchema,
+  handler: async (params, ctx) => {
+    const parsed = grantDraftBudgetSchema.parse(params);
+    const admin = createAdminClient();
+
+    const { data: grant } = await admin
+      .from('grants')
+      .select('id, name, amount_requested, amount_awarded')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.grant_id)
+      .single();
+    if (!grant) throw communityError('Grant not found');
+
+    const { data: contributions } = await admin
+      .from('contributions')
+      .select('type, description, value, hours, date, program:programs!contributions_program_id_fkey(name)')
+      .eq('project_id', ctx.projectId)
+      .order('date', { ascending: false })
+      .limit(200);
+
+    const byType: Record<string, { count: number; total_value: number; total_hours: number }> = {};
+    for (const c of contributions ?? []) {
+      const t = c.type ?? 'unknown';
+      if (!byType[t]) byType[t] = { count: 0, total_value: 0, total_hours: 0 };
+      byType[t].count++;
+      byType[t].total_value += c.value ?? 0;
+      byType[t].total_hours += c.hours ?? 0;
+    }
+
+    return JSON.stringify({
+      grant: { name: grant.name, amount_requested: grant.amount_requested, amount_awarded: grant.amount_awarded },
+      contribution_summary: byType,
+      recent_contributions: (contributions ?? []).slice(0, 20),
+      instruction: 'Use this financial data to draft a grant budget. Include line items, match amounts, and in-kind contributions.',
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'calendar.sync_grant',
+  description: 'Push a grant deadline (LOI, application, or report) to a connected Google Calendar.',
+  resource: 'grants',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff'],
+  parameters: calendarSyncGrantSchema,
+  handler: async (params, _ctx) => {
+    const parsed = calendarSyncGrantSchema.parse(params);
+    const admin = createAdminClient();
+    const { data: grant } = await admin
+      .from('grants')
+      .select('loi_due_at, application_due_at, report_due_at')
+      .eq('id', parsed.grant_id)
+      .single();
+    if (!grant) throw communityError('Grant not found');
+
+    const dateMap: Record<string, string | null> = {
+      loi: grant.loi_due_at,
+      application: grant.application_due_at,
+      report: grant.report_due_at,
+    };
+    const date = dateMap[parsed.deadline_type];
+    if (!date) throw communityError(`No ${parsed.deadline_type} deadline set on this grant`);
+
+    const dateStr = date.split('T')[0] ?? date;
+    const result = await syncGrantDeadline(parsed.grant_id, parsed.deadline_type, dateStr);
     return JSON.stringify(result);
   },
 });

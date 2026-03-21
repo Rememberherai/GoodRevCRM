@@ -85,6 +85,9 @@ export const triggerTypes = [
   'referral.created',
   'referral.completed',
   'broadcast.sent',
+  'grant.created',
+  'grant.status_changed',
+  'grant.deadline_approaching',
   'risk_score.high',
 ] as const;
 
@@ -150,6 +153,7 @@ export const automationEntityTypes = [
   'job',
   'contractor_scope',
   'receipt_confirmation',
+  'grant',
 ] as const;
 
 const conditionValueSchema = z.union([

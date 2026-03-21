@@ -3,6 +3,7 @@
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import {
+  Award,
   Building2,
   Users,
   Target,
@@ -67,6 +68,7 @@ const communityNavItems: NavItem[] = [
   { title: 'Contractors', href: '/contractors', icon: HardHat },
   { title: 'Jobs', href: '/jobs', icon: BriefcaseBusiness },
   { title: 'Contributions', href: '/contributions', icon: HandCoins },
+  { title: 'Grants', href: '/grants', icon: Award },
   { title: 'Broadcasts', href: '/broadcasts', icon: Megaphone },
   { title: 'Community Assets', href: '/community-assets', icon: Building2 },
   { title: 'Community Map', href: '/community-map', icon: Map },

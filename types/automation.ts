@@ -87,6 +87,9 @@ export type TriggerType =
   | 'referral.created'
   | 'referral.completed'
   | 'broadcast.sent'
+  | 'grant.created'
+  | 'grant.status_changed'
+  | 'grant.deadline_approaching'
   | 'risk_score.high';
 
 export type ActionType =
@@ -149,7 +152,8 @@ export type AutomationEntityType =
   | 'household_member'
   | 'job'
   | 'contractor_scope'
-  | 'receipt_confirmation';
+  | 'receipt_confirmation'
+  | 'grant';
 
 export type ExecutionStatus =
   | 'success'
@@ -377,6 +381,9 @@ export const triggerTypeGroups = {
       { type: 'referral.created' as TriggerType, label: 'Referral Created', description: 'When a referral is created' },
       { type: 'referral.completed' as TriggerType, label: 'Referral Completed', description: 'When a referral is completed' },
       { type: 'broadcast.sent' as TriggerType, label: 'Broadcast Sent', description: 'When a broadcast send is completed' },
+      { type: 'grant.created' as TriggerType, label: 'Grant Created', description: 'When a new grant record is created' },
+      { type: 'grant.status_changed' as TriggerType, label: 'Grant Status Changed', description: 'When a grant moves to a different pipeline stage' },
+      { type: 'grant.deadline_approaching' as TriggerType, label: 'Grant Deadline Approaching', description: 'When a grant deadline is within configured days' },
       { type: 'risk_score.high' as TriggerType, label: 'High Risk Score', description: 'When a household is flagged as high risk during recomputation' },
     ],
   },

@@ -180,3 +180,51 @@ export async function syncJobAssignment(jobId: string) {
     integrationId: integration.id,
   };
 }
+
+export async function syncGrantDeadline(grantId: string, deadlineType: 'loi' | 'application' | 'report', date: string) {
+  const admin = createAdminClient();
+  const { data: grant } = await admin
+    .from('grants')
+    .select('id, project_id, name, assigned_to')
+    .eq('id', grantId)
+    .single();
+
+  if (!grant) {
+    throw new Error('Grant not found');
+  }
+
+  const { data: project } = await admin
+    .from('projects')
+    .select('calendar_sync_enabled')
+    .eq('id', grant.project_id)
+    .single();
+
+  if (!project?.calendar_sync_enabled) {
+    return { synced: false, reason: 'Calendar sync is disabled for this project' };
+  }
+
+  const integration = await findProjectCalendarIntegration(grant.project_id, grant.assigned_to);
+  if (!integration) {
+    return { synced: false, reason: 'No connected Google Calendar integration is available for this project' };
+  }
+
+  const typeLabels: Record<string, string> = {
+    loi: 'LOI Deadline',
+    application: 'Application Deadline',
+    report: 'Report Deadline',
+  };
+
+  const accessToken = await ensureFreshToken(integration.id);
+  const event = await createEvent(accessToken, integration.calendar_id ?? 'primary', {
+    summary: `${typeLabels[deadlineType] ?? 'Deadline'}: ${grant.name}`,
+    description: `Grant deadline for "${grant.name}" — ${typeLabels[deadlineType] ?? deadlineType}`,
+    start: { dateTime: `${date}T09:00:00`, timeZone: DEFAULT_TIME_ZONE },
+    end: { dateTime: `${date}T10:00:00`, timeZone: DEFAULT_TIME_ZONE },
+  });
+
+  return {
+    synced: true,
+    eventId: event.id,
+    integrationId: integration.id,
+  };
+}
