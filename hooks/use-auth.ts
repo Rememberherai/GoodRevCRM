@@ -22,28 +22,30 @@ export function useAuth() {
   const supabase = createClient();
 
   useEffect(() => {
-    // Get initial session
+    // Get initial session — set auth state immediately, fetch admin status in background
     const getInitialSession = async () => {
       const {
         data: { session },
       } = await supabase.auth.getSession();
 
-      let isSystemAdmin = false;
-      if (session?.user) {
-        const { data } = await supabase
-          .from('users')
-          .select('is_system_admin')
-          .eq('id', session.user.id)
-          .single();
-        isSystemAdmin = data?.is_system_admin ?? false;
-      }
-
       setState({
         user: session?.user ?? null,
         session,
         isLoading: false,
-        isSystemAdmin,
+        isSystemAdmin: false,
       });
+
+      // Fetch admin status in background without blocking auth
+      if (session?.user) {
+        supabase
+          .from('users')
+          .select('is_system_admin')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data }) => {
+            setState((prev) => ({ ...prev, isSystemAdmin: data?.is_system_admin ?? false }));
+          });
+      }
     };
 
     getInitialSession();

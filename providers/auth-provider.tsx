@@ -38,7 +38,7 @@ export function AuthProvider({ children }: { children: ReactNode }) {
       return data?.is_system_admin ?? false;
     };
 
-    // Get initial session
+    // Get initial session — set auth state immediately, fetch admin status in background
     const getInitialSession = async () => {
       const {
         data: { session },
@@ -46,11 +46,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) {
-        const adminStatus = await fetchAdminStatus(session.user.id);
-        setIsSystemAdmin(adminStatus);
-      }
       setIsLoading(false);
+
+      // Fetch admin status in background without blocking auth
+      if (session?.user) {
+        fetchAdminStatus(session.user.id).then(setIsSystemAdmin);
+      }
     };
 
     getInitialSession();
