@@ -4,6 +4,7 @@ import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { createTimeEntrySchema, updateTimeEntrySchema } from '@/lib/validators/community/contractors';
 import { computeTimeEntryDurationMinutes } from '@/lib/community/jobs';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
@@ -135,6 +136,7 @@ export async function POST(request: Request, context: RouteContext) {
       .eq('project_id', project.id)
       .eq('id', id);
 
+    emitAutomationEvent({ projectId: project.id, triggerType: 'entity.created', entityType: 'job', entityId: id, data: { job_id: id, time_entry: entry } as unknown as Record<string, unknown> });
     return NextResponse.json({ entry }, { status: 201 });
   } catch (error) {
     if (error instanceof ProjectAccessError) {
@@ -231,6 +233,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         .eq('id', id);
     }
 
+    emitAutomationEvent({ projectId: project.id, triggerType: 'entity.updated', entityType: 'job', entityId: id, data: { job_id: id, time_entry: updatedEntry } as unknown as Record<string, unknown> });
     return NextResponse.json({ entry: updatedEntry });
   } catch (error) {
     if (error instanceof ProjectAccessError) {

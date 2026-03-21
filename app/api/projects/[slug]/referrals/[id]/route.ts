@@ -104,6 +104,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     const { error } = await supabase.from('referrals').delete().eq('id', id).eq('project_id', project.id);
     if (error) throw error;
+    emitAutomationEvent({ projectId: project.id, triggerType: 'entity.deleted', entityType: 'referral', entityId: id, data: { id, project_id: project.id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: error.status });

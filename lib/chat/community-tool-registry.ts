@@ -1284,6 +1284,14 @@ defineCommunityTool({
         })
         .eq('id', confirmation.id);
 
+      emitAutomationEvent({
+        projectId: ctx.projectId,
+        triggerType: 'entity.created',
+        entityType: 'receipt_confirmation',
+        entityId: confirmation.id,
+        data: { ...confirmation, status: 'executed', external_bill_id: result.externalBillId } as unknown as Record<string, unknown>,
+      });
+
       return JSON.stringify({
         receipt_confirmation_id: confirmation.id,
         status: 'executed',
@@ -1350,6 +1358,14 @@ defineCommunityTool({
       .eq('project_id', ctx.projectId)
       .eq('id', parsed.contractor_id);
 
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.created',
+      entityType: 'contractor_scope',
+      entityId: scope.id,
+      data: scope as unknown as Record<string, unknown>,
+    });
+
     return JSON.stringify({
       scope_id: scope.id,
       status: scope.status,
@@ -1376,6 +1392,14 @@ defineCommunityTool({
       requestedBy: ctx.userId,
       scopeId: parsed.scope_id ?? null,
       kinds: parsed.kinds as ContractorDocumentKind[],
+    });
+
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'contractor_scope',
+      entityId: parsed.scope_id ?? parsed.contractor_id,
+      data: { contractor_id: parsed.contractor_id, documents_sent: results.length, kinds: parsed.kinds },
     });
 
     return JSON.stringify({ results });
@@ -1573,6 +1597,14 @@ defineCommunityTool({
       throw new Error(`Failed to pull job: ${error?.message ?? 'unknown error'}`);
     }
 
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'job',
+      entityId: job.id,
+      data: job as unknown as Record<string, unknown>,
+    });
+
     return JSON.stringify({ job_id: job.id, status: job.status });
   },
 });
@@ -1742,7 +1774,7 @@ defineCommunityTool({
   action: 'update',
   roles: ['owner', 'admin', 'staff', 'case_manager'],
   parameters: calendarSyncProgramSchema,
-  handler: async (params) => {
+  handler: async (params, _ctx) => {
     const parsed = calendarSyncProgramSchema.parse(params);
     const result = await syncProgramSession(parsed.program_id);
     return JSON.stringify(result);
@@ -1756,7 +1788,7 @@ defineCommunityTool({
   action: 'update',
   roles: ['owner', 'admin', 'staff'],
   parameters: calendarSyncJobSchema,
-  handler: async (params) => {
+  handler: async (params, _ctx) => {
     const parsed = calendarSyncJobSchema.parse(params);
     const result = await syncJobAssignment(parsed.job_id);
     return JSON.stringify(result);

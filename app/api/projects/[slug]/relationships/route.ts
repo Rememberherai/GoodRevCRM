@@ -4,6 +4,7 @@ import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { createRelationshipSchema } from '@/lib/validators/community/relationships';
 import { buildInfluencerScores } from '@/lib/community/social-network';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -83,6 +84,7 @@ export async function POST(request: Request, context: RouteContext) {
       .single();
 
     if (error || !data) throw error ?? new Error('Failed to create relationship');
+    emitAutomationEvent({ projectId: project.id, triggerType: 'entity.created', entityType: 'relationship', entityId: data.id, data: data as unknown as Record<string, unknown> });
     return NextResponse.json({ relationship: data }, { status: 201 });
   } catch (error) {
     if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: error.status });

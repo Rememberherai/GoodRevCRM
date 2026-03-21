@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { updateRelationshipSchema } from '@/lib/validators/community/relationships';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 import type { Database } from '@/types/database';
 
 interface RouteContext {
@@ -74,6 +75,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       .single();
 
     if (error || !data) return NextResponse.json({ error: 'Relationship not found' }, { status: 404 });
+    emitAutomationEvent({ projectId: project.id, triggerType: 'entity.updated', entityType: 'relationship', entityId: id, data: data as unknown as Record<string, unknown> });
     return NextResponse.json({ relationship: data });
   } catch (error) {
     if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: error.status });
@@ -93,6 +95,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     const { error } = await supabase.from('relationships').delete().eq('id', id).eq('project_id', project.id);
     if (error) throw error;
+    emitAutomationEvent({ projectId: project.id, triggerType: 'entity.deleted', entityType: 'relationship', entityId: id, data: { id, project_id: project.id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: error.status });

@@ -24,10 +24,17 @@ export function registerCommunityContractorTools(server: McpServer, getContext: 
       tool.description,
       getToolShape(tool),
       async (params) => {
-        const result = await tool.handler(params as Record<string, unknown>, getContext());
-        return {
-          content: [{ type: 'text' as const, text: result }],
-        };
+        try {
+          const result = await tool.handler(params as Record<string, unknown>, getContext());
+          return {
+            content: [{ type: 'text' as const, text: result }],
+          };
+        } catch (err) {
+          return {
+            content: [{ type: 'text' as const, text: JSON.stringify({ error: err instanceof Error ? err.message : 'Tool execution failed' }) }],
+            isError: true,
+          };
+        }
       }
     );
   }

@@ -4,6 +4,7 @@ import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { createBroadcastSchema } from '@/lib/validators/community/broadcasts';
 import { resolveBroadcastRecipients } from '@/lib/community/broadcasts';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 import type { Database, Json } from '@/types/database';
 
 interface RouteContext {
@@ -64,6 +65,7 @@ export async function POST(request: Request, context: RouteContext) {
       .single();
 
     if (error || !data) throw error ?? new Error('Failed to create broadcast');
+    emitAutomationEvent({ projectId: project.id, triggerType: 'entity.created', entityType: 'broadcast', entityId: data.id, data: data as unknown as Record<string, unknown> });
     return NextResponse.json({ broadcast: data, recipient_count: recipientPreview.length }, { status: 201 });
   } catch (error) {
     if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: error.status });

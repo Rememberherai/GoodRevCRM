@@ -4,6 +4,7 @@ import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { updateBroadcastSchema } from '@/lib/validators/community/broadcasts';
 import { resolveBroadcastRecipients } from '@/lib/community/broadcasts';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 import type { Database, Json } from '@/types/database';
 
 interface RouteContext {
@@ -69,6 +70,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       .single();
 
     if (error || !data) return NextResponse.json({ error: 'Broadcast not found' }, { status: 404 });
+    emitAutomationEvent({ projectId: project.id, triggerType: 'entity.updated', entityType: 'broadcast', entityId: id, data: data as unknown as Record<string, unknown> });
     const recipients = await resolveBroadcastRecipients(project.id, data.filter_criteria);
     return NextResponse.json({ broadcast: data, recipient_count: recipients.length });
   } catch (error) {
@@ -89,6 +91,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     const { error } = await supabase.from('broadcasts').delete().eq('id', id).eq('project_id', project.id);
     if (error) throw error;
+    emitAutomationEvent({ projectId: project.id, triggerType: 'entity.deleted', entityType: 'broadcast', entityId: id, data: { id, project_id: project.id } });
     return NextResponse.json({ success: true });
   } catch (error) {
     if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: error.status });

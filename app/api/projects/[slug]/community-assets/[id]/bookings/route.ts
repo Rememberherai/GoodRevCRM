@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
@@ -124,6 +125,7 @@ export async function POST(request: Request, context: RouteContext) {
       .single();
 
     if (error || !data) throw error ?? new Error('Failed to create booking');
+    emitAutomationEvent({ projectId: project.id, triggerType: 'booking.created' as never, entityType: 'booking', entityId: data.id, data: data as unknown as Record<string, unknown> });
     return NextResponse.json({ booking: data }, { status: 201 });
   } catch (error) {
     if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: error.status });

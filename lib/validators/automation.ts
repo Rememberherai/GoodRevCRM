@@ -149,6 +149,7 @@ export const automationEntityTypes = [
   'household_member',
   'job',
   'contractor_scope',
+  'receipt_confirmation',
 ] as const;
 
 const conditionValueSchema = z.union([

@@ -148,7 +148,8 @@ export type AutomationEntityType =
   | 'intake'
   | 'household_member'
   | 'job'
-  | 'contractor_scope';
+  | 'contractor_scope'
+  | 'receipt_confirmation';
 
 export type ExecutionStatus =
   | 'success'
