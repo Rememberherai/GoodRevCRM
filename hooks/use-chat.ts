@@ -103,6 +103,8 @@ const MUTATING_TOOLS = new Set([
   'calendar_cancel_booking', 'calendar_update_profile', 'calendar_update_availability',
   'calendar_add_event_type_member', 'calendar_remove_event_type_member',
   'dispositions_create', 'dispositions_update', 'dispositions_delete',
+  'service_types.create', 'service_types.update', 'service_types.delete',
+  'service_types_create', 'service_types_update', 'service_types_delete',
 ]);
 
 function normalizeToolName(toolName: string) {

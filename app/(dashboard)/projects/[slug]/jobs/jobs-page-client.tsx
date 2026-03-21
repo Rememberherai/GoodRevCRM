@@ -11,6 +11,8 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
+import { ServiceTypeSelect } from '@/components/ui/service-type-select';
+import { useServiceTypes } from '@/hooks/use-service-types';
 
 interface ContractorOption {
   id: string;
@@ -45,6 +47,7 @@ const EMPTY_FORM = {
   desired_start: '',
   deadline: '',
   service_category: '',
+  service_type_id: null as string | null,
   service_address: '',
   notes: '',
 };
@@ -58,6 +61,7 @@ export function JobsPageClient() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const { serviceTypes } = useServiceTypes();
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -106,7 +110,8 @@ export function JobsPageClient() {
         priority: form.priority,
         desired_start: form.desired_start ? new Date(form.desired_start).toISOString() : null,
         deadline: form.deadline ? new Date(form.deadline).toISOString() : null,
-        service_category: form.service_category || null,
+        service_category: serviceTypes.find((st) => st.id === form.service_type_id)?.name ?? (form.service_category || null),
+        service_type_id: form.service_type_id || null,
         service_address: form.service_address || null,
         notes: form.notes || null,
       };
@@ -196,8 +201,11 @@ export function JobsPageClient() {
             </select>
           </div>
           <div className="space-y-2">
-            <Label htmlFor="job-service-category">Service Category</Label>
-            <Input id="job-service-category" value={form.service_category} onChange={(event) => setForm((current) => ({ ...current, service_category: event.target.value }))} />
+            <Label>Service Type</Label>
+            <ServiceTypeSelect
+              value={form.service_type_id}
+              onChange={(id) => setForm((current) => ({ ...current, service_type_id: id }))}
+            />
           </div>
           <div className="space-y-2">
             <Label htmlFor="job-desired-start">Desired Start</Label>

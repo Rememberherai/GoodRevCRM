@@ -5,10 +5,11 @@ import { useParams } from 'next/navigation';
 import { Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
-import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
+import { ServiceTypeSelect } from '@/components/ui/service-type-select';
+import { useServiceTypes } from '@/hooks/use-service-types';
 
 interface OptionRecord {
   id: string;
@@ -31,7 +32,8 @@ export function NewReferralDialog({ open, onOpenChange, initialHouseholdId, onCr
   const [personId, setPersonId] = useState('none');
   const [householdId, setHouseholdId] = useState(initialHouseholdId ?? 'none');
   const [partnerOrganizationId, setPartnerOrganizationId] = useState('none');
-  const [serviceType, setServiceType] = useState('');
+  const [serviceTypeId, setServiceTypeId] = useState<string | null>(null);
+  const { serviceTypes } = useServiceTypes();
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -76,8 +78,8 @@ export function NewReferralDialog({ open, onOpenChange, initialHouseholdId, onCr
   }, [initialHouseholdId, open]);
 
   const isValid = useMemo(() => {
-    return serviceType.trim().length > 0 && (personId !== 'none' || householdId !== 'none');
-  }, [householdId, personId, serviceType]);
+    return !!serviceTypeId && (personId !== 'none' || householdId !== 'none');
+  }, [householdId, personId, serviceTypeId]);
 
   async function handleSubmit() {
     if (!isValid) return;
@@ -92,7 +94,8 @@ export function NewReferralDialog({ open, onOpenChange, initialHouseholdId, onCr
           person_id: personId === 'none' ? null : personId,
           household_id: householdId === 'none' ? null : householdId,
           partner_organization_id: partnerOrganizationId === 'none' ? null : partnerOrganizationId,
-          service_type: serviceType.trim(),
+          service_type: serviceTypes.find((st) => st.id === serviceTypeId)?.name ?? 'Other',
+          service_type_id: serviceTypeId,
           notes: notes.trim() || null,
         }),
       });
@@ -104,7 +107,7 @@ export function NewReferralDialog({ open, onOpenChange, initialHouseholdId, onCr
       setPersonId('none');
       setHouseholdId(initialHouseholdId ?? 'none');
       setPartnerOrganizationId('none');
-      setServiceType('');
+      setServiceTypeId(null);
       setNotes('');
       onOpenChange(false);
       onCreated();
@@ -165,12 +168,11 @@ export function NewReferralDialog({ open, onOpenChange, initialHouseholdId, onCr
           </div>
 
           <div className="space-y-2">
-            <Label htmlFor="service-type">Service Type</Label>
-            <Input
-              id="service-type"
-              value={serviceType}
-              onChange={(event) => setServiceType(event.target.value)}
-              placeholder="Food assistance, counseling, employment, transportation..."
+            <Label>Service Type</Label>
+            <ServiceTypeSelect
+              value={serviceTypeId}
+              onChange={setServiceTypeId}
+              placeholder="Select service type..."
             />
           </div>
 

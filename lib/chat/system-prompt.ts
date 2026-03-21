@@ -98,6 +98,7 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 - **Accounting**: List invoices, bills, chart of accounts, journal entries, and recurring transactions; get invoice details; record payments against invoices
 - **Calendar/Scheduling**: List and manage event types; list and view bookings; cancel bookings; update calendar profile and availability; get public booking links for event types; manage team members on event types (add/remove/list); view round robin assignment statistics
 - **Dispositions**: Manage dispositions (status categories like Prospect, Customer, Partner) for organizations and people — list, create, update, delete; assign via disposition_id when creating/updating orgs or people
+- **Service Types**: Manage service types (shared categories like Plumbing, Electrical, HVAC) used across jobs, contractors, and referrals — list, create, update, delete
 - **API Keys (Secrets)**: List, set, and delete project API keys (admin only) — OpenRouter, FullEnrich, News API, Census
 
 ## Guidelines

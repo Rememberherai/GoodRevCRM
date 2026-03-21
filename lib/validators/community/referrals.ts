@@ -15,6 +15,7 @@ export const referralBaseSchema = z.object({
   household_id: optionalUuidSchema,
   partner_organization_id: optionalUuidSchema,
   service_type: z.string().min(1, 'Service type is required').max(200, 'Service type must be 200 characters or less'),
+  service_type_id: z.string().uuid().nullable().optional(),
   status: referralStatusSchema.default('submitted'),
   outcome: nullableString(2000, 'Outcome must be 2000 characters or less'),
   notes: nullableString(5000, 'Notes must be 5000 characters or less'),

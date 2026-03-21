@@ -155,7 +155,8 @@ export type AutomationEntityType =
   | 'job'
   | 'contractor_scope'
   | 'receipt_confirmation'
-  | 'grant';
+  | 'grant'
+  | 'service_type';
 
 export type ExecutionStatus =
   | 'success'

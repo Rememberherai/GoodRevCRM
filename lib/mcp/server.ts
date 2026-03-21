@@ -14,6 +14,7 @@ import { registerQuoteTools } from './tools/quotes';
 import { registerDispositionTools } from './tools/dispositions';
 import { registerCommunityTools } from './tools/community';
 import { registerCommunityContractorTools } from './tools/contractors';
+import { registerServiceTypeTools } from './tools/service-types';
 import type { McpContext } from '@/types/mcp';
 
 const SERVER_NAME = 'goodrev-crm';
@@ -34,6 +35,7 @@ export function createMcpServer(getContext: () => McpContext): McpServer {
   if (context.projectType === 'community') {
     registerCommunityTools(server, getContext);
     registerCommunityContractorTools(server, getContext);
+    registerServiceTypeTools(server, getContext);
     registerCommunityResources(server, getContext);
     registerCommunityPrompts(server);
     return server;

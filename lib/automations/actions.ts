@@ -65,6 +65,7 @@ const entityTableMap: Record<AutomationEntityType, string> = {
   contractor_scope: 'contractor_scopes',
   receipt_confirmation: 'receipt_confirmations',
   grant: 'grants',
+  service_type: 'service_types',
 };
 
 /**

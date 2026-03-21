@@ -2058,6 +2058,148 @@ defineCommunityTool({
   },
 });
 
+// ──────────────── Service Types ────────────────
+
+const serviceTypeSchema = z.object({
+  name: z.string().min(1).max(50),
+  color: z.enum(['gray', 'blue', 'green', 'red', 'yellow', 'purple', 'orange', 'pink']).default('gray'),
+  is_active: z.boolean().default(true),
+  sort_order: z.number().int().min(0).default(0),
+});
+
+defineCommunityTool({
+  name: 'service_types.list',
+  description: 'List service types configured for the project (shared across jobs, contractors, and referrals)',
+  parameters: z.object({}),
+  resource: 'settings',
+  action: 'view',
+  handler: async (_params, ctx) => {
+    const { data, error } = await ctx.supabase
+      .from('service_types')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .order('sort_order', { ascending: true });
+    if (error) throw communityError(`Failed to list service types: ${error.message}`);
+    return JSON.stringify({ serviceTypes: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'service_types.create',
+  description: 'Create a new service type for categorizing jobs, contractors, and referrals',
+  parameters: serviceTypeSchema,
+  resource: 'settings',
+  action: 'update',
+  handler: async (params, ctx) => {
+    const parsed = serviceTypeSchema.parse(params);
+    const { data, error } = await ctx.supabase
+      .from('service_types')
+      .insert({
+        ...parsed,
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+      })
+      .select()
+      .single();
+    if (error) throw communityError(`Failed to create service type: ${error.message}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.created',
+      entityType: 'service_type',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    }).catch((e) => console.error('Automation event error:', e));
+    return JSON.stringify(data);
+  },
+});
+
+defineCommunityTool({
+  name: 'service_types.update',
+  description: 'Update an existing service type',
+  parameters: z.object({
+    id: z.string().uuid(),
+    name: z.string().min(1).max(50).optional(),
+    color: z.enum(['gray', 'blue', 'green', 'red', 'yellow', 'purple', 'orange', 'pink']).optional(),
+    is_active: z.boolean().optional(),
+    sort_order: z.number().int().min(0).optional(),
+  }),
+  resource: 'settings',
+  action: 'update',
+  handler: async (params, ctx) => {
+    const { id, ...updates } = params as { id: string; [key: string]: unknown };
+    const { data, error } = await ctx.supabase
+      .from('service_types')
+      .update(updates)
+      .eq('id', id as string)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .select()
+      .single();
+    if (error) throw communityError(`Failed to update service type: ${error.message}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'service_type',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    }).catch((e) => console.error('Automation event error:', e));
+    return JSON.stringify(data);
+  },
+});
+
+defineCommunityTool({
+  name: 'service_types.delete',
+  description: 'Delete a service type (soft delete). Records using it will have their service type cleared.',
+  parameters: z.object({
+    id: z.string().uuid(),
+  }),
+  resource: 'settings',
+  action: 'update',
+  handler: async (params, ctx) => {
+    const { id } = params as { id: string };
+    const { data, error } = await ctx.supabase
+      .from('service_types')
+      .update({ deleted_at: new Date().toISOString() })
+      .eq('id', id)
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .select()
+      .single();
+    if (error) throw communityError(`Failed to delete service type: ${error.message}`);
+    // Null out references
+    await ctx.supabase.from('jobs').update({ service_type_id: null }).eq('service_type_id', id);
+    await ctx.supabase.from('referrals').update({ service_type_id: null }).eq('service_type_id', id);
+    // Remove from contractor_scopes service_type_ids arrays
+    const { data: scopes } = await ctx.supabase
+      .from('contractor_scopes')
+      .select('id, service_type_ids')
+      .contains('service_type_ids', [id]);
+    if (scopes && scopes.length > 0) {
+      await Promise.all(
+        scopes.map((scope) =>
+          ctx.supabase
+            .from('contractor_scopes')
+            .update({
+              service_type_ids: (scope.service_type_ids as string[]).filter(
+                (stId) => stId !== id
+              ),
+            })
+            .eq('id', scope.id)
+        )
+      );
+    }
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.deleted',
+      entityType: 'service_type',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    }).catch((e) => console.error('Automation event error:', e));
+    return JSON.stringify({ success: true });
+  },
+});
+
 function getAllowedTools(role?: ProjectRole) {
   if (!role) return tools;
   return tools.filter((tool) => {

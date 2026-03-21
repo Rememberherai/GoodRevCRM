@@ -105,6 +105,7 @@ export async function POST(request: Request, context: RouteContext) {
       end_date: validation.data.end_date ?? null,
       compensation_terms: validation.data.compensation_terms ?? null,
       service_categories: validation.data.service_categories,
+      service_type_ids: validation.data.service_type_ids,
       certifications: validation.data.certifications,
       service_area_radius_miles: validation.data.service_area_radius_miles ?? null,
       home_base_latitude: validation.data.home_base_latitude ?? null,

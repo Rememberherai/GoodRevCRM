@@ -137,6 +137,7 @@ export async function POST(request: Request, context: RouteContext) {
       deadline: validation.data.deadline ?? null,
       service_address: validation.data.service_address ?? null,
       service_category: validation.data.service_category ?? null,
+      service_type_id: validation.data.service_type_id ?? null,
       required_certifications: validation.data.required_certifications,
       service_latitude: validation.data.service_latitude ?? null,
       service_longitude: validation.data.service_longitude ?? null,

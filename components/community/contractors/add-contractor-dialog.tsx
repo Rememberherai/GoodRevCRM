@@ -1,14 +1,13 @@
 'use client';
 
-import { useCallback, useEffect, useRef, useState } from 'react';
+import { useState } from 'react';
 import { toast } from 'sonner';
-import { X } from 'lucide-react';
-import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { Separator } from '@/components/ui/separator';
+import { ServiceTypeMultiSelect } from '@/components/ui/service-type-select';
 import {
   Dialog,
   DialogContent,
@@ -35,96 +34,10 @@ export function AddContractorDialog({ open, onOpenChange, projectSlug, onCreated
   // Scope fields
   const [scopeTitle, setScopeTitle] = useState('');
   const [scopeDescription, setScopeDescription] = useState('');
-  const [categories, setCategories] = useState<string[]>([]);
-  const [categoryInput, setCategoryInput] = useState('');
-  const [suggestions, setSuggestions] = useState<string[]>([]);
-  const [showSuggestions, setShowSuggestions] = useState(false);
-  const [highlightedIndex, setHighlightedIndex] = useState(-1);
-  const [allCategories, setAllCategories] = useState<string[]>([]);
+  const [serviceTypeIds, setServiceTypeIds] = useState<string[]>([]);
   const [compensationTerms, setCompensationTerms] = useState('');
 
   const [submitting, setSubmitting] = useState(false);
-  const inputRef = useRef<HTMLInputElement>(null);
-
-  // Fetch existing categories
-  useEffect(() => {
-    if (!open) return;
-    const fetchCategories = async () => {
-      try {
-        const response = await fetch(`/api/projects/${projectSlug}/contractor-scopes`);
-        if (!response.ok) return;
-        const data = await response.json() as { scopes?: Array<{ service_categories: string[] | null }> };
-        const cats = new Set<string>();
-        (data.scopes ?? []).forEach((scope) => {
-          (scope.service_categories ?? []).forEach((cat) => cats.add(cat.toLowerCase()));
-        });
-        setAllCategories(Array.from(cats).sort());
-      } catch {
-        // non-critical
-      }
-    };
-    void fetchCategories();
-  }, [open, projectSlug]);
-
-  // Filter suggestions
-  useEffect(() => {
-    if (!categoryInput.trim()) {
-      setSuggestions([]);
-      setShowSuggestions(false);
-      return;
-    }
-    const query = categoryInput.toLowerCase();
-    const filtered = allCategories.filter(
-      (cat) => cat.includes(query) && !categories.some((c) => c.toLowerCase() === cat)
-    );
-    setSuggestions(filtered);
-    setShowSuggestions(filtered.length > 0);
-    setHighlightedIndex(-1);
-  }, [categoryInput, allCategories, categories]);
-
-  const addCategory = useCallback((value: string) => {
-    const trimmed = value.trim().toLowerCase();
-    if (!trimmed) return;
-    if (categories.some((c) => c.toLowerCase() === trimmed)) {
-      setCategoryInput('');
-      return;
-    }
-    setCategories((prev) => [...prev, trimmed]);
-    setCategoryInput('');
-    setShowSuggestions(false);
-    inputRef.current?.focus();
-  }, [categories]);
-
-  const removeCategory = useCallback((index: number) => {
-    setCategories((prev) => prev.filter((_, i) => i !== index));
-  }, []);
-
-  const handleCategoryKeyDown = (e: React.KeyboardEvent<HTMLInputElement>) => {
-    if (e.key === 'Enter') {
-      e.preventDefault();
-      const highlighted = suggestions[highlightedIndex];
-      if (highlightedIndex >= 0 && highlighted) {
-        addCategory(highlighted);
-      } else if (categoryInput.trim()) {
-        addCategory(categoryInput);
-      }
-    } else if (e.key === ',' || e.key === 'Tab') {
-      if (categoryInput.trim()) {
-        e.preventDefault();
-        addCategory(categoryInput);
-      }
-    } else if (e.key === 'Backspace' && !categoryInput && categories.length > 0) {
-      removeCategory(categories.length - 1);
-    } else if (e.key === 'ArrowDown') {
-      e.preventDefault();
-      setHighlightedIndex((prev) => Math.min(prev + 1, suggestions.length - 1));
-    } else if (e.key === 'ArrowUp') {
-      e.preventDefault();
-      setHighlightedIndex((prev) => Math.max(prev - 1, -1));
-    } else if (e.key === 'Escape') {
-      setShowSuggestions(false);
-    }
-  };
 
   const resetForm = () => {
     setFirstName('');
@@ -133,8 +46,7 @@ export function AddContractorDialog({ open, onOpenChange, projectSlug, onCreated
     setPhone('');
     setScopeTitle('');
     setScopeDescription('');
-    setCategories([]);
-    setCategoryInput('');
+    setServiceTypeIds([]);
     setCompensationTerms('');
   };
 
@@ -184,7 +96,8 @@ export function AddContractorDialog({ open, onOpenChange, projectSlug, onCreated
           contractor_id: personId,
           title: scopeTitle.trim(),
           description: scopeDescription.trim() || null,
-          service_categories: categories,
+          service_categories: [],
+          service_type_ids: serviceTypeIds,
           compensation_terms: compensationTerms.trim() || null,
         }),
       });
@@ -295,60 +208,12 @@ export function AddContractorDialog({ open, onOpenChange, projectSlug, onCreated
             </div>
 
             <div className="space-y-2">
-              <Label>Service Categories</Label>
-              <div className="flex flex-wrap items-center gap-1.5 rounded-md border px-3 py-2 min-h-[40px] focus-within:ring-2 focus-within:ring-ring focus-within:ring-offset-2">
-                {categories.map((cat, i) => (
-                  <Badge key={cat} variant="secondary" className="gap-1 pl-2 pr-1">
-                    {cat}
-                    <button
-                      type="button"
-                      onClick={() => removeCategory(i)}
-                      className="ml-0.5 rounded-full p-0.5 hover:bg-muted-foreground/20"
-                    >
-                      <X className="h-3 w-3" />
-                    </button>
-                  </Badge>
-                ))}
-                <div className="relative flex-1 min-w-[120px]">
-                  <input
-                    ref={inputRef}
-                    value={categoryInput}
-                    onChange={(e) => setCategoryInput(e.target.value)}
-                    onKeyDown={handleCategoryKeyDown}
-                    onFocus={() => {
-                      if (suggestions.length > 0) setShowSuggestions(true);
-                    }}
-                    onBlur={() => {
-                      setTimeout(() => setShowSuggestions(false), 150);
-                    }}
-                    placeholder={categories.length === 0 ? 'Type to add...' : ''}
-                    className="w-full bg-transparent text-sm outline-none placeholder:text-muted-foreground"
-                  />
-                  {showSuggestions && (
-                    <div className="absolute left-0 top-full z-50 mt-1 w-56 rounded-md border bg-popover p-1 shadow-md">
-                      {suggestions.map((suggestion, i) => (
-                        <button
-                          key={suggestion}
-                          type="button"
-                          className={`w-full rounded-sm px-2 py-1.5 text-left text-sm transition-colors ${
-                            i === highlightedIndex ? 'bg-accent text-accent-foreground' : 'hover:bg-accent hover:text-accent-foreground'
-                          }`}
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            addCategory(suggestion);
-                          }}
-                          onMouseEnter={() => setHighlightedIndex(i)}
-                        >
-                          {suggestion}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              <p className="text-xs text-muted-foreground">
-                Press Enter or comma to add.
-              </p>
+              <Label>Service Types</Label>
+              <ServiceTypeMultiSelect
+                value={serviceTypeIds}
+                onChange={setServiceTypeIds}
+                placeholder="Select service types..."
+              />
             </div>
 
             <div className="space-y-2">
