@@ -361,16 +361,26 @@ export default function GrantDetailClient() {
                 <CardTitle>Outreach History</CardTitle>
                 <CardDescription>Communication with grantor contacts</CardDescription>
               </div>
-              {grant.contact?.email && (
-                <Button size="sm" onClick={() => setShowSendEmail(true)}>
+              {grant.contact && (
+                <Button
+                  size="sm"
+                  onClick={() => setShowSendEmail(true)}
+                  disabled={!grant.contact.email}
+                  title={!grant.contact.email ? 'Contact person has no email address' : undefined}
+                >
                   <Mail className="mr-1 h-4 w-4" /> Send Email
                 </Button>
               )}
             </CardHeader>
             <CardContent>
-              {!grant.contact?.email && (
+              {!grant.contact && (
                 <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground mb-4">
-                  Add a contact person with an email address to this grant to send outreach emails.
+                  Add a contact person to this grant on the Info tab to send outreach emails.
+                </div>
+              )}
+              {grant.contact && !grant.contact.email && (
+                <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground mb-4">
+                  The contact person does not have an email address. Add one to their profile to send outreach.
                 </div>
               )}
               {outreach.length === 0 ? (
