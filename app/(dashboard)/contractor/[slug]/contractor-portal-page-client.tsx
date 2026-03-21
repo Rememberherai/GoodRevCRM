@@ -89,9 +89,12 @@ export function ContractorPortalPageClient({
 
   return (
     <div className="space-y-6">
-      <div>
-        <h2 className="text-3xl font-bold tracking-tight">My Jobs</h2>
-        <p className="text-sm text-muted-foreground">Track accepted work, start the clock, and pick up authorized open jobs.</p>
+      <div className="rounded-xl border bg-card p-6">
+        <h2 className="text-3xl font-bold tracking-tight">Welcome to your Contractor Portal</h2>
+        <p className="mt-1 text-muted-foreground">
+          This is your hub for managing assigned work. Accept or decline jobs, track your time, and
+          pick up available open jobs below.
+        </p>
       </div>
 
       <Card>

@@ -26,6 +26,7 @@ import {
   SendToBack,
   Megaphone,
   Globe,
+  ExternalLink,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -98,6 +99,8 @@ export function ProjectSidebar({ project, role }: ProjectSidebarProps) {
     }
   }
 
+  const showContractorPortalLink = project.project_type === 'community' && (role === 'owner' || role === 'admin');
+
   return (
     <aside className="w-64 border-r bg-card flex flex-col">
       {/* Project Name */}
@@ -141,6 +144,20 @@ export function ProjectSidebar({ project, role }: ProjectSidebarProps) {
           );
         })}
       </nav>
+
+      {/* Contractor Portal Link (admin only) */}
+      {showContractorPortalLink && (
+        <div className="px-2 pb-1">
+          <Link
+            href={`/contractor/${project.slug}`}
+            target="_blank"
+            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium text-muted-foreground hover:text-foreground hover:bg-accent transition-colors"
+          >
+            <ExternalLink className="h-4 w-4" />
+            View Contractor Portal
+          </Link>
+        </div>
+      )}
 
       {/* Bottom Navigation */}
       <div className="p-2 border-t space-y-1">

@@ -1,7 +1,8 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { BarChart3, HandCoins, Home, Loader2, Users } from 'lucide-react';
+import Link from 'next/link';
+import { BarChart3, ExternalLink, Globe, HandCoins, Home, Loader2, Settings, Users } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProgramPerformanceReportView } from '@/components/community/reports/program-performance';
@@ -9,6 +10,7 @@ import { ContributionSummaryReportView } from '@/components/community/reports/co
 import { HouseholdDemographicsReportView } from '@/components/community/reports/household-demographics';
 import { VolunteerImpactReportView } from '@/components/community/reports/volunteer-impact';
 import { ContractorHoursReportView } from '@/components/community/reports/contractor-hours';
+import { Button } from '@/components/ui/button';
 
 interface ProgramPerformanceReport {
   program_id: string;
@@ -93,15 +95,32 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <BarChart3 className="h-5 w-5" />
+      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <BarChart3 className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Community Reporting</h2>
+            <p className="text-sm text-muted-foreground">
+              Funder-facing summaries for programs, households, contributions, and volunteer impact.
+            </p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Community Reporting</h2>
-          <p className="text-sm text-muted-foreground">
-            Funder-facing summaries for programs, households, contributions, and volunteer impact.
-          </p>
+        <div className="flex flex-wrap gap-2">
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/projects/${projectSlug}/settings/public-dashboard`}>
+              <Settings className="mr-2 h-4 w-4" />
+              Configure Public Dashboard
+            </Link>
+          </Button>
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/public/${projectSlug}`} target="_blank">
+              <Globe className="mr-2 h-4 w-4" />
+              View Public Dashboard
+              <ExternalLink className="ml-1 h-3 w-3" />
+            </Link>
+          </Button>
         </div>
       </div>
 
