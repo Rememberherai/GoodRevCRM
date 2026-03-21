@@ -79,21 +79,24 @@ export default function AdminBugReportsPage() {
   const handleSave = async () => {
     if (!selected) return;
     setSaving(true);
-    const res = await fetch(`/api/admin/bug-reports/${selected.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({
-        status: editStatus,
-        priority: editPriority,
-        admin_notes: editNotes || undefined,
-        resolution_notes: editResolution || undefined,
-      }),
-    });
-    if (res.ok) {
-      setSelected(null);
-      fetchReports();
+    try {
+      const res = await fetch(`/api/admin/bug-reports/${selected.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          status: editStatus,
+          priority: editPriority,
+          admin_notes: editNotes || undefined,
+          resolution_notes: editResolution || undefined,
+        }),
+      });
+      if (res.ok) {
+        setSelected(null);
+        fetchReports();
+      }
+    } finally {
+      setSaving(false);
     }
-    setSaving(false);
   };
 
   const totalPages = Math.ceil(total / 25);

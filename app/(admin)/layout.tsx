@@ -1,9 +1,17 @@
+import type { Metadata } from 'next';
 import { redirect } from 'next/navigation';
 import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { AuthProvider } from '@/providers/auth-provider';
 import { AdminSidebar } from '@/components/admin/admin-sidebar';
 import { MobileSidebar } from '@/components/layout/mobile-sidebar';
+
+export const metadata: Metadata = {
+  title: {
+    template: '%s | Admin | GoodRev',
+    default: 'Admin | GoodRev',
+  },
+};
 
 interface AdminLayoutProps {
   children: React.ReactNode;

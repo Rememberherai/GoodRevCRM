@@ -49,25 +49,29 @@ export default function AdminUserDetailPage({ params }: { params: Promise<{ id: 
 
   const handleAction = async (action: 'deactivate' | 'reactivate') => {
     setActionLoading(true);
-    await fetch(`/api/admin/users/${id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ action }),
-    });
-    // Refresh data
-    const res = await fetch(`/api/admin/users/${id}`);
-    setDetail(await res.json());
-    setActionLoading(false);
+    try {
+      await fetch(`/api/admin/users/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action }),
+      });
+      const res = await fetch(`/api/admin/users/${id}`);
+      setDetail(await res.json());
+    } finally {
+      setActionLoading(false);
+    }
   };
 
-  if (loading) return <><AdminHeader title="User Detail" /><main className="flex-1 p-6"><p className="text-muted-foreground">Loading...</p></main></>;
-  if (!detail) return <><AdminHeader title="User Detail" /><main className="flex-1 p-6"><p className="text-muted-foreground">User not found</p></main></>;
+  const headerBreadcrumbs = [{ label: 'Users', href: '/admin/users' }];
+
+  if (loading) return <><AdminHeader title="User Detail" breadcrumbs={headerBreadcrumbs} /><main className="flex-1 p-6"><p className="text-muted-foreground">Loading...</p></main></>;
+  if (!detail) return <><AdminHeader title="User Detail" breadcrumbs={headerBreadcrumbs} /><main className="flex-1 p-6"><p className="text-muted-foreground">User not found</p></main></>;
 
   const { user, memberships, connections } = detail;
 
   return (
     <>
-      <AdminHeader title={user.full_name ?? user.email} />
+      <AdminHeader title={user.full_name ?? user.email} breadcrumbs={headerBreadcrumbs} />
       <main className="flex-1 overflow-auto p-6 space-y-6">
         {/* Profile card */}
         <Card>

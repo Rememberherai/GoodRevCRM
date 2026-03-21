@@ -100,14 +100,16 @@ export default function AdminProjectDetailPage({ params }: { params: Promise<{ i
     }
   };
 
-  if (loading) return <><AdminHeader title="Project Detail" /><main className="flex-1 p-6"><p className="text-muted-foreground">Loading...</p></main></>;
-  if (!detail) return <><AdminHeader title="Project Detail" /><main className="flex-1 p-6"><p className="text-muted-foreground">Project not found</p></main></>;
+  const headerBreadcrumbs = [{ label: 'Projects', href: '/admin/projects' }];
+
+  if (loading) return <><AdminHeader title="Project Detail" breadcrumbs={headerBreadcrumbs} /><main className="flex-1 p-6"><p className="text-muted-foreground">Loading...</p></main></>;
+  if (!detail) return <><AdminHeader title="Project Detail" breadcrumbs={headerBreadcrumbs} /><main className="flex-1 p-6"><p className="text-muted-foreground">Project not found</p></main></>;
 
   const { project, owner, members } = detail;
 
   return (
     <>
-      <AdminHeader title={project.name} />
+      <AdminHeader title={project.name} breadcrumbs={headerBreadcrumbs} />
       <main className="flex-1 overflow-auto p-6 space-y-6">
         {/* Project info card */}
         <Card>

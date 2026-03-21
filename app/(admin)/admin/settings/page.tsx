@@ -39,59 +39,65 @@ export default function AdminSettingsPage() {
 
   const handleSave = async (key: string) => {
     setSaving(key);
-    let parsedValue: unknown = editValues[key];
     try {
-      parsedValue = JSON.parse(editValues[key] ?? '');
-    } catch {
-      // keep as string
-    }
+      let parsedValue: unknown = editValues[key];
+      try {
+        parsedValue = JSON.parse(editValues[key] ?? '');
+      } catch {
+        // keep as string
+      }
 
-    const res = await fetch('/api/admin/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key, value: parsedValue }),
-    });
+      const res = await fetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key, value: parsedValue }),
+      });
 
-    if (res.ok) {
-      setSettings((prev) =>
-        prev.map((s) => (s.key === key ? { ...s, value: parsedValue, updated_at: new Date().toISOString() } : s))
-      );
+      if (res.ok) {
+        setSettings((prev) =>
+          prev.map((s) => (s.key === key ? { ...s, value: parsedValue, updated_at: new Date().toISOString() } : s))
+        );
+      }
+    } finally {
+      setSaving(null);
     }
-    setSaving(null);
   };
 
   const handleAdd = async () => {
     if (!newKey.trim()) return;
     setSaving('__new__');
-    let parsedValue: unknown = newValue;
     try {
-      parsedValue = JSON.parse(newValue);
-    } catch {
-      // keep as string
-    }
+      let parsedValue: unknown = newValue;
+      try {
+        parsedValue = JSON.parse(newValue);
+      } catch {
+        // keep as string
+      }
 
-    const res = await fetch('/api/admin/settings', {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ key: newKey, value: parsedValue }),
-    });
-
-    if (res.ok) {
-      const newSetting = { key: newKey, value: parsedValue, updated_by: null, updated_at: new Date().toISOString() };
-      setSettings((prev) => {
-        const exists = prev.findIndex((s) => s.key === newKey);
-        if (exists >= 0) {
-          const updated = [...prev];
-          updated[exists] = newSetting;
-          return updated;
-        }
-        return [...prev, newSetting];
+      const res = await fetch('/api/admin/settings', {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ key: newKey, value: parsedValue }),
       });
-      setEditValues((prev) => ({ ...prev, [newKey]: newValue }));
-      setNewKey('');
-      setNewValue('');
+
+      if (res.ok) {
+        const newSetting = { key: newKey, value: parsedValue, updated_by: null, updated_at: new Date().toISOString() };
+        setSettings((prev) => {
+          const exists = prev.findIndex((s) => s.key === newKey);
+          if (exists >= 0) {
+            const updated = [...prev];
+            updated[exists] = newSetting;
+            return updated;
+          }
+          return [...prev, newSetting];
+        });
+        setEditValues((prev) => ({ ...prev, [newKey]: newValue }));
+        setNewKey('');
+        setNewValue('');
+      }
+    } finally {
+      setSaving(null);
     }
-    setSaving(null);
   };
 
   if (loading) return <><AdminHeader title="Settings" /><main className="flex-1 p-6"><p className="text-muted-foreground">Loading...</p></main></>;

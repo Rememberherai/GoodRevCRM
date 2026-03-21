@@ -1,7 +1,8 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
-import { LogOut, Settings, Shield, User } from 'lucide-react';
+import { useRouter, usePathname } from 'next/navigation';
+import { useState } from 'react';
+import { Bug, LogOut, Settings, Shield, User } from 'lucide-react';
 import { useAuth } from '@/hooks/use-auth';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
 import { Button } from '@/components/ui/button';
@@ -14,10 +15,13 @@ import {
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
 import { Skeleton } from '@/components/ui/skeleton';
+import { BugReportModal } from '@/components/bug-report/bug-report-modal';
 
 export function UserMenu() {
   const { user, isLoading, isSystemAdmin, signOut } = useAuth();
   const router = useRouter();
+  const pathname = usePathname();
+  const [bugReportOpen, setBugReportOpen] = useState(false);
 
   const handleSignOut = async () => {
     await signOut();
@@ -46,6 +50,7 @@ export function UserMenu() {
     : user.email?.slice(0, 2).toUpperCase() ?? 'U';
 
   return (
+    <>
     <DropdownMenu>
       <DropdownMenuTrigger asChild>
         <Button variant="ghost" className="relative h-8 w-8 rounded-full">
@@ -84,6 +89,10 @@ export function UserMenu() {
           <Settings className="mr-2 h-4 w-4" />
           <span>Settings</span>
         </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => setBugReportOpen(true)}>
+          <Bug className="mr-2 h-4 w-4" />
+          <span>Report a Bug</span>
+        </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem onClick={handleSignOut}>
           <LogOut className="mr-2 h-4 w-4" />
@@ -91,5 +100,7 @@ export function UserMenu() {
         </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
+    <BugReportModal open={bugReportOpen} onOpenChange={setBugReportOpen} pageUrl={pathname} />
+    </>
   );
 }
