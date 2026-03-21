@@ -1,10 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState } from 'react';
-import usePlacesAutocomplete, {
-  getGeocode,
-  getLatLng,
-} from 'use-places-autocomplete';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import { Input } from '@/components/ui/input';
 import { cn } from '@/lib/utils';
 
@@ -27,6 +23,11 @@ interface AddressAutocompleteProps {
   id?: string;
   className?: string;
   disabled?: boolean;
+}
+
+interface Prediction {
+  place_id: string;
+  description: string;
 }
 
 function parseAddressComponents(
@@ -68,34 +69,6 @@ function parseAddressComponents(
   return { street, city, state, postal_code: postalCode, country };
 }
 
-function useGoogleMapsReady() {
-  const [isLoaded, setIsLoaded] = useState(
-    () => typeof window !== 'undefined' && !!window.google?.maps?.places
-  );
-
-  useEffect(() => {
-    if (isLoaded) return;
-
-    const check = () => {
-      if (window.google?.maps?.places) {
-        setIsLoaded(true);
-        return true;
-      }
-      return false;
-    };
-
-    if (check()) return;
-
-    const interval = setInterval(() => {
-      if (check()) clearInterval(interval);
-    }, 250);
-
-    return () => clearInterval(interval);
-  }, [isLoaded]);
-
-  return isLoaded;
-}
-
 export function AddressAutocomplete({
   value,
   onChange,
@@ -105,89 +78,136 @@ export function AddressAutocomplete({
   className,
   disabled,
 }: AddressAutocompleteProps) {
-  const listRef = useRef<HTMLUListElement>(null);
-  const googleReady = useGoogleMapsReady();
+  const [predictions, setPredictions] = useState<Prediction[]>([]);
+  const [isReady, setIsReady] = useState(false);
+  const [showDropdown, setShowDropdown] = useState(false);
+  const serviceRef = useRef<google.maps.places.AutocompleteService | null>(null);
+  const geocoderRef = useRef<google.maps.Geocoder | null>(null);
+  const debounceRef = useRef<ReturnType<typeof setTimeout>>(undefined);
+  const wrapperRef = useRef<HTMLDivElement>(null);
 
-  const {
-    ready,
-    suggestions: { status, data },
-    setValue: setPlacesValue,
-    clearSuggestions,
-    init,
-  } = usePlacesAutocomplete({
-    requestOptions: {
-      componentRestrictions: { country: 'us' },
-      types: ['address'],
-    },
-    debounce: 300,
-    initOnMount: false,
-  });
-
+  // Poll for Google Maps readiness and init services
   useEffect(() => {
-    if (googleReady) {
-      init();
+    const check = () => {
+      if (window.google?.maps?.places?.AutocompleteService) {
+        serviceRef.current = new window.google.maps.places.AutocompleteService();
+        geocoderRef.current = new window.google.maps.Geocoder();
+        setIsReady(true);
+        return true;
+      }
+      return false;
+    };
+
+    if (check()) return;
+
+    const interval = setInterval(() => {
+      if (check()) clearInterval(interval);
+    }, 500);
+
+    return () => clearInterval(interval);
+  }, []);
+
+  // Close dropdown on outside click
+  useEffect(() => {
+    const handleClick = (e: MouseEvent) => {
+      if (wrapperRef.current && !wrapperRef.current.contains(e.target as Node)) {
+        setShowDropdown(false);
+      }
+    };
+    document.addEventListener('mousedown', handleClick);
+    return () => document.removeEventListener('mousedown', handleClick);
+  }, []);
+
+  const fetchPredictions = useCallback((input: string) => {
+    if (!serviceRef.current || input.length < 3) {
+      setPredictions([]);
+      setShowDropdown(false);
+      return;
     }
-  }, [googleReady, init]);
+
+    serviceRef.current.getPlacePredictions(
+      {
+        input,
+        componentRestrictions: { country: 'us' },
+        types: ['address'],
+      },
+      (results, status) => {
+        if (status === google.maps.places.PlacesServiceStatus.OK && results) {
+          setPredictions(
+            results.map((r) => ({ place_id: r.place_id, description: r.description }))
+          );
+          setShowDropdown(true);
+        } else {
+          setPredictions([]);
+          setShowDropdown(false);
+        }
+      }
+    );
+  }, []);
 
   const handleInput = (e: React.ChangeEvent<HTMLInputElement>) => {
     const val = e.target.value;
     onChange(val);
-    setPlacesValue(val);
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => fetchPredictions(val), 300);
   };
 
-  const handleSelect = async (description: string) => {
-    onChange(description);
-    setPlacesValue(description, false);
-    clearSuggestions();
+  const handleSelect = async (prediction: Prediction) => {
+    onChange(prediction.description);
+    setPredictions([]);
+    setShowDropdown(false);
+
+    if (!geocoderRef.current) return;
 
     try {
-      const results = await getGeocode({ address: description });
-      const firstResult = results[0];
-      if (!firstResult) return;
+      const response = await geocoderRef.current.geocode({ placeId: prediction.place_id });
+      const result = response.results[0];
+      if (!result) return;
 
-      const { lat, lng } = await getLatLng(firstResult);
-      const parsed = parseAddressComponents(firstResult.address_components);
+      const parsed = parseAddressComponents(result.address_components);
+      const lat = result.geometry.location.lat();
+      const lng = result.geometry.location.lng();
 
       onSelect({
         ...parsed,
         lat,
         lng,
-        formatted: description,
+        formatted: prediction.description,
       });
     } catch (error) {
       console.error('Geocode error:', error);
     }
   };
 
-  const isReady = ready && googleReady;
-  const showSuggestions = status === 'OK' && data.length > 0;
-
   return (
-    <div className="relative">
+    <div className="relative" ref={wrapperRef}>
       <Input
         id={id}
         value={value}
         onChange={handleInput}
+        onFocus={() => {
+          if (predictions.length > 0) setShowDropdown(true);
+        }}
         disabled={disabled || !isReady}
         placeholder={isReady ? placeholder : 'Loading...'}
         className={className}
         autoComplete="off"
       />
-      {showSuggestions && (
+      {showDropdown && predictions.length > 0 && (
         <ul
-          ref={listRef}
           className={cn(
             'absolute z-50 mt-1 w-full rounded-md border bg-popover shadow-md',
             'max-h-60 overflow-auto'
           )}
         >
-          {data.map(({ place_id, description }) => (
+          {predictions.map((prediction) => (
             <li
-              key={place_id}
-              onClick={() => void handleSelect(description)}
+              key={prediction.place_id}
+              onClick={() => void handleSelect(prediction)}
               className="cursor-pointer px-3 py-2 text-sm hover:bg-accent hover:text-accent-foreground"
             >
-              {description}
+              {prediction.description}
             </li>
           ))}
         </ul>
