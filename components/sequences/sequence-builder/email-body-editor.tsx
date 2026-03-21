@@ -24,13 +24,14 @@ import { cn } from '@/lib/utils';
 interface EmailBodyEditorProps {
   value: string;
   onChange: (html: string, text: string) => void;
+  showVariablePicker?: boolean;
 }
 
 function stripHtml(html: string): string {
   return html.replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim();
 }
 
-export function EmailBodyEditor({ value, onChange }: EmailBodyEditorProps) {
+export function EmailBodyEditor({ value, onChange, showVariablePicker = true }: EmailBodyEditorProps) {
   const isUpdatingFromProp = useRef(false);
   const [mode, setMode] = useState<'visual' | 'html'>('visual');
 
@@ -110,7 +111,7 @@ export function EmailBodyEditor({ value, onChange }: EmailBodyEditorProps) {
             <TabsTrigger value="visual">Visual</TabsTrigger>
             <TabsTrigger value="html">HTML</TabsTrigger>
           </TabsList>
-          <VariablePicker onInsert={insertVariable} />
+          {showVariablePicker && <VariablePicker onInsert={insertVariable} />}
         </div>
 
         <TabsContent value="visual" className="mt-0 space-y-2">

@@ -9,9 +9,9 @@ import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, D
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
-import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
 import { RecipientFilter } from '@/components/community/broadcasts/recipient-filter';
+import { EmailBodyEditor } from '@/components/sequences/sequence-builder/email-body-editor';
 
 interface BroadcastRecord {
   id: string;
@@ -37,7 +37,8 @@ export function BroadcastsPageClient() {
   const [error, setError] = useState<string | null>(null);
   const [open, setOpen] = useState(false);
   const [subject, setSubject] = useState('');
-  const [body, setBody] = useState('');
+  const [bodyHtml, setBodyHtml] = useState('');
+  const [bodyText, setBodyText] = useState('');
   const [channel, setChannel] = useState<'email' | 'sms' | 'both'>('email');
   const [filterCriteria, setFilterCriteria] = useState<RecipientFilterValue>({});
   const [isSaving, setIsSaving] = useState(false);
@@ -75,7 +76,8 @@ export function BroadcastsPageClient() {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           subject,
-          body,
+          body: bodyText,
+          body_html: bodyHtml,
           channel,
           filter_criteria: filterCriteria,
         }),
@@ -86,7 +88,8 @@ export function BroadcastsPageClient() {
       }
       setOpen(false);
       setSubject('');
-      setBody('');
+      setBodyHtml('');
+      setBodyText('');
       setChannel('email');
       setFilterCriteria({});
       await loadBroadcasts();
@@ -195,16 +198,20 @@ export function BroadcastsPageClient() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="email">Email</SelectItem>
-                    <SelectItem value="sms">SMS</SelectItem>
-                    <SelectItem value="both">Both</SelectItem>
+                    <SelectItem value="sms" disabled className="text-muted-foreground">SMS (coming soon)</SelectItem>
+                    <SelectItem value="both" disabled className="text-muted-foreground">Both (coming soon)</SelectItem>
                   </SelectContent>
                 </Select>
               </div>
             </div>
 
             <div className="space-y-2">
-              <Label htmlFor="broadcast-body">Message</Label>
-              <Textarea id="broadcast-body" rows={6} value={body} onChange={(event) => setBody(event.target.value)} />
+              <Label>Message</Label>
+              <EmailBodyEditor
+                value={bodyHtml}
+                onChange={(html, text) => { setBodyHtml(html); setBodyText(text); }}
+                showVariablePicker={false}
+              />
             </div>
 
             <div className="space-y-3">
@@ -220,7 +227,7 @@ export function BroadcastsPageClient() {
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={isSaving}>Cancel</Button>
-            <Button onClick={() => void handleCreate()} disabled={isSaving || !subject.trim() || !body.trim()}>
+            <Button onClick={() => void handleCreate()} disabled={isSaving || !subject.trim() || !bodyText.trim()}>
               Create Draft
             </Button>
           </DialogFooter>

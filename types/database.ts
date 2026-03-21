@@ -2299,6 +2299,7 @@ export type Database = {
       broadcasts: {
         Row: {
           body: string
+          body_html: string | null
           channel: string
           created_at: string
           created_by: string | null
@@ -2314,6 +2315,7 @@ export type Database = {
         }
         Insert: {
           body: string
+          body_html?: string | null
           channel: string
           created_at?: string
           created_by?: string | null
@@ -2329,6 +2331,7 @@ export type Database = {
         }
         Update: {
           body?: string
+          body_html?: string | null
           channel?: string
           created_at?: string
           created_by?: string | null

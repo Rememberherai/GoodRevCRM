@@ -150,7 +150,7 @@ export async function sendBroadcast(
             {
               to: recipient.email,
               subject: broadcast.subject,
-              body_html: `<p>${escapeHtml(broadcast.body).replace(/\n/g, '<br />')}</p>`,
+              body_html: broadcast.body_html || `<p>${escapeHtml(broadcast.body).replace(/\n/g, '<br />')}</p>`,
               body_text: broadcast.body,
               person_id: recipient.person_id,
             },
