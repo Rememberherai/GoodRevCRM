@@ -85,6 +85,7 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
                 <ToolGroup name="Grants" tools={['list', 'get', 'create', 'update', 'draft_narrative', 'draft_budget']} />
                 <ToolGroup name="Calendar Sync" tools={['sync_program', 'sync_job', 'sync_grant']} />
                 <ToolGroup name="Service Types" tools={['list', 'create', 'update', 'delete']} />
+                <ToolGroup name="Bug Reports" tools={['list', 'update_status']} />
               </>
             ) : (
               <>
@@ -135,6 +136,7 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
                 <ToolGroup name="Accounting" tools={['list_invoices', 'get_invoice', 'list_bills', 'list_accounts', 'list_journal_entries', 'list_recurring', 'record_payment']} />
                 <ToolGroup name="Calendar" tools={['list_event_types', 'get_event_type', 'create_event_type', 'update_event_type', 'delete_event_type', 'list_bookings', 'get_booking', 'cancel_booking', 'update_profile', 'get_booking_link', 'list_availability_schedules', 'update_availability', 'list_event_type_members', 'add_event_type_member', 'remove_event_type_member', 'get_round_robin_stats']} />
                 <ToolGroup name="Dispositions" tools={['list', 'create', 'update', 'delete']} />
+                <ToolGroup name="Bug Reports" tools={['list', 'update_status']} />
               </>
             )}
           </div>

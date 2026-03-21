@@ -5,6 +5,7 @@ import { UserMenu } from '@/components/layout/user-menu';
 import { ModuleSwitcher } from '@/components/layout/module-switcher';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { ProcessQueueButton } from '@/components/layout/process-queue-button';
+import { BugReportButton } from '@/components/bug-report/bug-report-button';
 import { SearchTrigger } from '@/components/search';
 import { useNotifications } from '@/hooks/use-notifications';
 import type { Project } from '@/types/project';
@@ -32,6 +33,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
         <SearchTrigger projectSlug={project.slug} />
       </div>
       <div className="flex items-center gap-4">
+        <BugReportButton />
         <ProcessQueueButton />
         <ThemeToggle />
         <NotificationBell

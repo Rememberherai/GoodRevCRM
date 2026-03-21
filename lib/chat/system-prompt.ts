@@ -14,6 +14,7 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 - **Job Management**: Assign jobs, pull jobs back, list contractor work, and generate contractor work plans
 - **Grants**: List, inspect, create, and update grant pipeline records. Draft narratives and budgets using real program data. Sync deadlines to Google Calendar.
 - **Calendar Sync**: Push structured program sessions, job assignments, or grant deadlines into connected Google Calendars when the required time bounds exist
+- **Bug Reports**: List and manage bug reports submitted by users (admin only) — list with status filtering, update status with resolution notes
 
 ## Receipt workflow rules
 - Users upload receipt files before you process them. The upload message includes structured metadata in key=value format:
@@ -100,6 +101,7 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 - **Dispositions**: Manage dispositions (status categories like Prospect, Customer, Partner) for organizations and people — list, create, update, delete; assign via disposition_id when creating/updating orgs or people
 - **Service Types**: Manage service types (shared categories like Plumbing, Electrical, HVAC) used across jobs, contractors, and referrals — list, create, update, delete
 - **API Keys (Secrets)**: List, set, and delete project API keys (admin only) — OpenRouter, FullEnrich, News API, Census
+- **Bug Reports**: List and manage bug reports submitted by users (admin only) — list with status filtering, update status (open/in_progress/resolved/closed) with resolution notes
 
 ## Guidelines
 - When users ask about their data, ALWAYS use tools to look it up — do not guess or make assumptions

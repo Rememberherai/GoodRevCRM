@@ -1354,6 +1354,70 @@ export type Database = {
           },
         ]
       }
+      bug_reports: {
+        Row: {
+          created_at: string
+          description: string
+          id: string
+          page_url: string
+          project_id: string | null
+          resolution_notes: string | null
+          screenshot_path: string | null
+          status: string
+          updated_at: string
+          user_agent: string | null
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          description: string
+          id?: string
+          page_url: string
+          project_id?: string | null
+          resolution_notes?: string | null
+          screenshot_path?: string | null
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          description?: string
+          id?: string
+          page_url?: string
+          project_id?: string | null
+          resolution_notes?: string | null
+          screenshot_path?: string | null
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "bug_reports_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "bug_reports_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "bug_reports_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       calendar_integrations: {
         Row: {
           access_token: string

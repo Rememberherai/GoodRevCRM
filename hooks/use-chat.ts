@@ -105,6 +105,7 @@ const MUTATING_TOOLS = new Set([
   'dispositions_create', 'dispositions_update', 'dispositions_delete',
   'service_types.create', 'service_types.update', 'service_types.delete',
   'service_types_create', 'service_types_update', 'service_types_delete',
+  'bug_reports.update_status', 'bug_reports_update_status',
 ]);
 
 function normalizeToolName(toolName: string) {
