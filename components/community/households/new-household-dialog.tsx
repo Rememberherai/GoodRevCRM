@@ -24,6 +24,7 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { createHouseholdSchema } from '@/lib/validators/community/households';
+import { AddressAutocomplete, type AddressResult } from '@/components/ui/address-autocomplete';
 
 interface PersonOption {
   id: string;
@@ -67,6 +68,10 @@ export function NewHouseholdDialog({
   const [addressStreet, setAddressStreet] = useState('');
   const [addressCity, setAddressCity] = useState('');
   const [addressState, setAddressState] = useState('');
+  const [addressPostalCode, setAddressPostalCode] = useState('');
+  const [addressCountry, setAddressCountry] = useState('');
+  const [latitude, setLatitude] = useState<number | null>(null);
+  const [longitude, setLongitude] = useState<number | null>(null);
   const [householdSize, setHouseholdSize] = useState('');
   const [notes, setNotes] = useState('');
   const [members, setMembers] = useState<MemberDraft[]>([]);
@@ -103,6 +108,10 @@ export function NewHouseholdDialog({
     setAddressStreet('');
     setAddressCity('');
     setAddressState('');
+    setAddressPostalCode('');
+    setAddressCountry('');
+    setLatitude(null);
+    setLongitude(null);
     setHouseholdSize('');
     setNotes('');
     setMembers([]);
@@ -150,6 +159,11 @@ export function NewHouseholdDialog({
       address_street: addressStreet || null,
       address_city: addressCity || null,
       address_state: addressState || null,
+      address_postal_code: addressPostalCode || null,
+      address_country: addressCountry || null,
+      latitude,
+      longitude,
+      geocoded_status: latitude ? 'success' as const : 'pending' as const,
       household_size: householdSize ? Number(householdSize) : null,
       notes: notes || null,
       members,
@@ -225,7 +239,21 @@ export function NewHouseholdDialog({
             </div>
             <div className="sm:col-span-2 space-y-2">
               <Label htmlFor="household-address-street">Street Address</Label>
-              <Input id="household-address-street" value={addressStreet} onChange={(event) => setAddressStreet(event.target.value)} placeholder="123 Main St" />
+              <AddressAutocomplete
+                id="household-address-street"
+                value={addressStreet}
+                onChange={setAddressStreet}
+                onSelect={(result: AddressResult) => {
+                  setAddressStreet(result.street);
+                  setAddressCity(result.city);
+                  setAddressState(result.state);
+                  setAddressPostalCode(result.postal_code);
+                  setAddressCountry(result.country);
+                  setLatitude(result.lat);
+                  setLongitude(result.lng);
+                }}
+                placeholder="Start typing an address..."
+              />
             </div>
             <div className="space-y-2">
               <Label htmlFor="household-address-city">City</Label>
@@ -234,6 +262,10 @@ export function NewHouseholdDialog({
             <div className="space-y-2">
               <Label htmlFor="household-address-state">State</Label>
               <Input id="household-address-state" value={addressState} onChange={(event) => setAddressState(event.target.value)} placeholder="CO" />
+            </div>
+            <div className="space-y-2">
+              <Label htmlFor="household-address-postal">Zip Code</Label>
+              <Input id="household-address-postal" value={addressPostalCode} onChange={(event) => setAddressPostalCode(event.target.value)} placeholder="80202" />
             </div>
             <div className="space-y-2">
               <Label htmlFor="household-size">Household Size</Label>
