@@ -178,7 +178,7 @@ export function BroadcastsPageClient() {
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
-        <DialogContent className="max-w-6xl max-h-[90vh] flex flex-col">
+        <DialogContent className="sm:max-w-6xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Create Broadcast</DialogTitle>
             <DialogDescription>Choose recipients, channel, and message content before sending.</DialogDescription>
