@@ -48,26 +48,28 @@ export function useAuth() {
 
     getInitialSession();
 
-    // Listen for auth changes
+    // Listen for auth changes — set auth state synchronously, fetch admin status in background
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
-      let isSystemAdmin = false;
-      if (session?.user) {
-        const { data } = await supabase
-          .from('users')
-          .select('is_system_admin')
-          .eq('id', session.user.id)
-          .single();
-        isSystemAdmin = data?.is_system_admin ?? false;
-      }
-
-      setState({
+    } = supabase.auth.onAuthStateChange((_event, session) => {
+      setState((prev) => ({
         user: session?.user ?? null,
         session,
         isLoading: false,
-        isSystemAdmin,
-      });
+        isSystemAdmin: session?.user ? prev.isSystemAdmin : false,
+      }));
+
+      // Fetch admin status in background without blocking auth flow
+      if (session?.user) {
+        supabase
+          .from('users')
+          .select('is_system_admin')
+          .eq('id', session.user.id)
+          .single()
+          .then(({ data }) => {
+            setState((prev) => ({ ...prev, isSystemAdmin: data?.is_system_admin ?? false }));
+          });
+      }
     });
 
     return () => {

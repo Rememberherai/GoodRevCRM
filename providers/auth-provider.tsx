@@ -55,19 +55,21 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
     getInitialSession();
 
-    // Listen for auth changes
+    // Listen for auth changes — set auth state synchronously, fetch admin status in background
     const {
       data: { subscription },
-    } = supabase.auth.onAuthStateChange(async (_event, session) => {
+    } = supabase.auth.onAuthStateChange((_event, session) => {
       setSession(session);
       setUser(session?.user ?? null);
-      if (session?.user) {
-        const adminStatus = await fetchAdminStatus(session.user.id);
-        setIsSystemAdmin(adminStatus);
-      } else {
+      if (!session?.user) {
         setIsSystemAdmin(false);
       }
       setIsLoading(false);
+
+      // Fetch admin status in background without blocking auth flow
+      if (session?.user) {
+        fetchAdminStatus(session.user.id).then(setIsSystemAdmin);
+      }
     });
 
     return () => {
