@@ -82,6 +82,28 @@ export function PersonCombobox({
     return () => clearTimeout(timeoutId);
   }, [open, search, projectSlug]);
 
+  // Fetch selected person details if we have a value but no selectedPerson
+  React.useEffect(() => {
+    if (value && !selectedPerson && projectSlug) {
+      const fetchSelectedPerson = async () => {
+        try {
+          const response = await fetch(
+            `/api/projects/${projectSlug}/people/${value}`
+          );
+          if (response.ok) {
+            const data = await response.json();
+            setSelectedPerson(data.person || data);
+          }
+        } catch (error) {
+          console.error('Failed to fetch selected person:', error);
+        }
+      };
+      fetchSelectedPerson();
+    } else if (!value) {
+      setSelectedPerson(null);
+    }
+  }, [value, selectedPerson, projectSlug]);
+
   const handleSelect = (personId: string) => {
     const person = people.find((p) => p.id === personId);
     if (person) {
