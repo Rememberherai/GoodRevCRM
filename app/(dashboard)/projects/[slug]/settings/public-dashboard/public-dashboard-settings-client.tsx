@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { toast } from 'sonner';
 import { Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -35,6 +36,7 @@ export function PublicDashboardSettingsClient() {
   const [configs, setConfigs] = useState<ConfigRecord[]>([]);
   const [selectedId, setSelectedId] = useState<string | null>(null);
   const [draft, setDraft] = useState<EditablePublicDashboardConfig | null>(null);
+  const [saving, setSaving] = useState(false);
 
   const loadConfigs = useCallback(async (selectId?: string | null) => {
     const response = await fetch(`/api/projects/${slug}/public-dashboard`);
@@ -83,23 +85,60 @@ export function PublicDashboardSettingsClient() {
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(draft),
     });
-    const data = await response.json() as { config?: ConfigRecord };
+    const data = await response.json() as { config?: ConfigRecord; error?: string };
     if (response.ok && data.config) {
       setSelectedId(data.config.id);
       await loadConfigs(data.config.id);
+      toast.success('Dashboard saved');
+    } else {
+      toast.error(data.error ?? 'Failed to save dashboard');
     }
   }
 
   async function handleStatusChange(status: ConfigRecord['status']) {
-    if (!draft?.id) return;
-    const nextDraft = { ...draft, status };
-    setDraft(nextDraft);
-    await fetch(`/api/projects/${slug}/public-dashboard/${draft.id}`, {
-      method: 'PATCH',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify(nextDraft),
-    });
-    await loadConfigs(draft.id);
+    if (!draft) return;
+    setSaving(true);
+    try {
+      let configId = draft.id;
+
+      // If the config hasn't been saved yet, create it with the new status
+      if (!configId) {
+        const createPayload = { ...draft, status };
+        const createResponse = await fetch(`/api/projects/${slug}/public-dashboard`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(createPayload),
+        });
+        const createData = await createResponse.json() as { config?: ConfigRecord; error?: string };
+        if (!createResponse.ok || !createData.config) {
+          toast.error(createData.error ?? 'Failed to save dashboard');
+          return;
+        }
+        configId = createData.config.id;
+        setSelectedId(configId);
+        setDraft({ ...draft, id: configId, status });
+        await loadConfigs(configId);
+        toast.success(`Dashboard ${status}`);
+        return;
+      }
+
+      const nextDraft = { ...draft, status };
+      setDraft(nextDraft);
+      const response = await fetch(`/api/projects/${slug}/public-dashboard/${configId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(nextDraft),
+      });
+      const data = await response.json() as { config?: ConfigRecord; error?: string };
+      if (response.ok && data.config) {
+        await loadConfigs(configId);
+        toast.success(`Dashboard ${status}`);
+      } else {
+        toast.error(data.error ?? 'Failed to update status');
+      }
+    } finally {
+      setSaving(false);
+    }
   }
 
   return (
@@ -143,7 +182,7 @@ export function PublicDashboardSettingsClient() {
         </Card>
 
         <div className="space-y-6">
-          <PublishControls status={draft?.status ?? 'draft'} onStatusChange={(status) => void handleStatusChange(status)} />
+          <PublishControls status={draft?.status ?? 'draft'} disabled={saving} onStatusChange={(status) => void handleStatusChange(status)} />
           <ConfigEditor config={draft} onChange={setDraft} onSave={() => void saveConfig()} />
           <ShareLinks configId={draft?.id} />
         </div>

@@ -44,7 +44,9 @@ export default async function ContractorLayout({ children, params }: ContractorL
     redirect('/projects');
   }
 
-  if (membership.role !== 'contractor') {
+  const isAdmin = membership.role === 'owner' || membership.role === 'admin';
+
+  if (membership.role !== 'contractor' && !isAdmin) {
     redirect(`/projects/${slug}`);
   }
 
