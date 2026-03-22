@@ -32,11 +32,11 @@ export function PublicDashboardView({
   ];
 
   return (
-    <div className="min-h-screen bg-slate-50">
+    <div className="min-h-screen bg-background">
       <div className="mx-auto max-w-6xl space-y-6 px-4 py-10">
-        <div className="rounded-3xl bg-white p-8 shadow-sm">
+        <div className="rounded-3xl border bg-card p-8 shadow-sm">
           <div className="space-y-2">
-            <h1 className="text-4xl font-bold tracking-tight">{config.title}</h1>
+            <h1 className="text-4xl font-bold tracking-tight text-foreground">{config.title}</h1>
             {config.description && <p className="max-w-3xl text-sm text-muted-foreground">{config.description}</p>}
           </div>
         </div>

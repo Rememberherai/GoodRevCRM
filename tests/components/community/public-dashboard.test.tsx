@@ -32,6 +32,6 @@ describe('public dashboard widgets', () => {
 
     expect(screen.getByText('Contribution Totals')).toBeInTheDocument();
     expect(screen.getByText('monetary')).toBeInTheDocument();
-    expect(screen.getByText('3 records • $1200.00')).toBeInTheDocument();
+    expect(screen.getByText('3 records • $1,200')).toBeInTheDocument();
   });
 });

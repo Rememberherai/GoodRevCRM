@@ -22,7 +22,7 @@ export function PublicBarChart({
             <div key={item.label} className="space-y-1">
               <div className="flex items-center justify-between text-sm">
                 <span>{item.label}</span>
-                <span>{item.value}</span>
+                <span>${item.value.toLocaleString()}</span>
               </div>
               <div className="h-3 rounded-full bg-muted">
                 <div

@@ -18,9 +18,9 @@ export function PublicContributionSummary({
         ) : (
           items.map((item) => (
             <div key={item.type} className="rounded-lg border p-4">
-              <div className="font-medium">{item.type.replace(/_/g, ' ')}</div>
+              <div className="font-medium capitalize">{item.type.replace(/_/g, ' ')}</div>
               <div className="text-sm text-muted-foreground">
-                {item.count} records • ${item.totalValue.toFixed(2)}
+                {item.count.toLocaleString()} records • ${item.totalValue.toLocaleString(undefined, { minimumFractionDigits: 0, maximumFractionDigits: 0 })}
               </div>
             </div>
           ))

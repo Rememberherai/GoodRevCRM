@@ -16,7 +16,7 @@ export function PublicMetricCard({
         {metrics.map((metric) => (
           <div key={metric.label} className="rounded-lg border p-4">
             <div className="text-sm text-muted-foreground">{metric.label}</div>
-            <div className="mt-2 text-2xl font-bold">{metric.value}</div>
+            <div className="mt-2 text-2xl font-bold">{metric.value.toLocaleString()}</div>
           </div>
         ))}
       </CardContent>

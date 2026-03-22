@@ -20,7 +20,7 @@ export function PublicProgramSummary({
             <div key={item.name} className="rounded-lg border p-4">
               <div className="font-medium">{item.name}</div>
               <div className="text-sm text-muted-foreground">
-                {item.status} • {item.enrollmentCount} enrollments • {item.attendanceCount} attendance records
+                <span className="capitalize">{item.status}</span> • {item.enrollmentCount.toLocaleString()} enrollments • {item.attendanceCount.toLocaleString()} attendance records
               </div>
             </div>
           ))
