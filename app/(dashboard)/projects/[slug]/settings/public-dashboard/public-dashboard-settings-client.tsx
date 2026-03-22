@@ -1,9 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
+import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
-import { Plus } from 'lucide-react';
+import { Eye, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { ConfigEditor, type EditablePublicDashboardConfig } from '@/components/community/public-dashboard/config-editor';
@@ -160,10 +161,18 @@ export function PublicDashboardSettingsClient() {
           <h2 className="text-2xl font-bold">Public Dashboard</h2>
           <p className="text-sm text-muted-foreground">Configure unauthenticated, aggregate-only community impact pages.</p>
         </div>
-        <Button onClick={() => void createConfig()}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Dashboard
-        </Button>
+        <div className="flex gap-2">
+          <Button variant="outline" asChild>
+            <Link href={`/projects/${slug}/public-dashboard-preview`}>
+              <Eye className="mr-2 h-4 w-4" />
+              View Sample Preview
+            </Link>
+          </Button>
+          <Button onClick={() => void createConfig()}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Dashboard
+          </Button>
+        </div>
       </div>
 
       <div className="grid gap-6 lg:grid-cols-[280px_1fr]">

@@ -40,13 +40,13 @@ describe('Community Project Phase 7', () => {
   });
 
   it('adds the dashboard V2 mini-map and population impact widgets', () => {
-    const dashboardPage = readProjectFile('app', '(dashboard)', 'projects', '[slug]', 'page.tsx');
+    const dashboardClient = readProjectFile('components', 'community', 'dashboard', 'community-dashboard-client.tsx');
     const dashboardLib = readProjectFile('lib', 'community', 'dashboard.ts');
     const miniMap = readProjectFile('components', 'community', 'dashboard', 'mini-map.tsx');
     const populationImpact = readProjectFile('components', 'community', 'dashboard', 'population-impact.tsx');
 
-    expect(dashboardPage).toContain('<PopulationImpact');
-    expect(dashboardPage).toContain('<MiniMap');
+    expect(dashboardClient).toContain('<PopulationImpact');
+    expect(dashboardClient).toContain('<MiniMap');
     expect(dashboardLib).toContain('community_population_denominator');
     expect(dashboardLib).toContain('miniMap');
     expect(miniMap).toContain('Community Coverage');

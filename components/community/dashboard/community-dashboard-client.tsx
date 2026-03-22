@@ -1,7 +1,10 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
+import Link from 'next/link';
 import { startOfYear } from 'date-fns';
+import { Eye } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { MetricsCards } from '@/components/community/dashboard/metrics-cards';
 import { ImpactRadar } from '@/components/community/dashboard/impact-radar';
@@ -104,6 +107,19 @@ export function CommunityDashboardClient({
 
       {canSeeDetail && (
         <>
+          <div className="flex items-center justify-between rounded-xl border border-dashed p-4">
+            <div>
+              <div className="font-medium">Public Dashboard Preview</div>
+              <div className="text-sm text-muted-foreground">See what a fully-populated public dashboard looks like with sample data.</div>
+            </div>
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/projects/${projectSlug}/public-dashboard-preview`}>
+                <Eye className="mr-2 h-4 w-4" />
+                View Sample
+              </Link>
+            </Button>
+          </div>
+
           <MiniMap center={data.miniMap.center} points={data.miniMap.points} />
           <RiskAlertsPanel />
           <div className="grid gap-6 xl:grid-cols-2">
