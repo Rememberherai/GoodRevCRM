@@ -22,6 +22,8 @@ interface ServiceAreaSettings {
   service_area_zip_codes: string[];
   census_total_households: number | null;
   household_denominator_override: number | null;
+  census_total_population: number | null;
+  community_population_denominator: number | null;
 }
 
 const EMPTY_SETTINGS: ServiceAreaSettings = {
@@ -30,6 +32,8 @@ const EMPTY_SETTINGS: ServiceAreaSettings = {
   service_area_zip_codes: [],
   census_total_households: null,
   household_denominator_override: null,
+  census_total_population: null,
+  community_population_denominator: null,
 };
 
 const US_STATES = [
@@ -64,6 +68,8 @@ export function ServiceAreaPanel({ slug }: { slug: string }) {
         service_area_zip_codes: projectSettings.service_area_zip_codes || [],
         census_total_households: projectSettings.census_total_households ?? null,
         household_denominator_override: projectSettings.household_denominator_override ?? null,
+        census_total_population: projectSettings.census_total_population ?? null,
+        community_population_denominator: projectSettings.community_population_denominator ?? null,
       });
     } catch {
       // silently fail
@@ -118,14 +124,27 @@ export function ServiceAreaPanel({ slug }: { slug: string }) {
         throw new Error(data.error || 'Census lookup failed');
       }
 
-      const data = await res.json() as { results: HouseholdCountResult[]; total: number };
+      const data = await res.json() as { results: HouseholdCountResult[]; total: number; totalPopulation: number };
       setCensusResults(data.results);
 
-      // Auto-save the census total (silent — we show our own toast below)
-      const updated = { ...settings, census_total_households: data.total };
+      // Determine if population denominator was manually overridden (differs from old census value)
+      const hasManualPopOverride =
+        settings.community_population_denominator !== null &&
+        settings.community_population_denominator !== settings.census_total_population;
+
+      // Auto-save entries, type, and census totals (silent — we show our own toast below)
+      const updated = {
+        ...settings,
+        census_total_households: data.total,
+        census_total_population: data.totalPopulation,
+        // Update population denominator from census unless user has a manual override
+        community_population_denominator: hasManualPopOverride
+          ? settings.community_population_denominator
+          : data.totalPopulation,
+      };
       await saveSettings(updated, { silent: true });
 
-      toast.success(`Found ${data.total.toLocaleString()} households across ${data.results.length} area(s)`);
+      toast.success(`Found ${data.total.toLocaleString()} households and ${data.totalPopulation.toLocaleString()} people across ${data.results.length} area(s)`);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Census lookup failed');
     } finally {
@@ -181,7 +200,8 @@ export function ServiceAreaPanel({ slug }: { slug: string }) {
     setSettings(updated);
   };
 
-  const effectiveDenominator = settings.household_denominator_override ?? settings.census_total_households;
+  const effectiveHouseholdDenominator = settings.household_denominator_override ?? settings.census_total_households;
+  const effectivePopulationDenominator = settings.community_population_denominator ?? settings.census_total_population;
   const hasEntries =
     settings.service_area_type === 'municipality'
       ? settings.service_area_municipalities.length > 0
@@ -203,8 +223,8 @@ export function ServiceAreaPanel({ slug }: { slug: string }) {
         <CardHeader>
           <CardTitle>Service Area</CardTitle>
           <CardDescription>
-            Define your community&apos;s service area to calculate household impact percentage.
-            The total number of households is fetched from the US Census Bureau (ACS 5-year estimates).
+            Define your community&apos;s service area to calculate impact percentages.
+            Population and household totals are fetched from the US Census Bureau (ACS 5-year estimates).
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-6">
@@ -330,55 +350,97 @@ export function ServiceAreaPanel({ slug }: { slug: string }) {
               {censusResults.map((r, i) => (
                 <div key={i} className="flex justify-between text-sm">
                   <span className="text-muted-foreground">{r.name}</span>
-                  <span>{r.households.toLocaleString()} households</span>
+                  <span>{r.population.toLocaleString()} people &middot; {r.households.toLocaleString()} households</span>
                 </div>
               ))}
               <div className="flex justify-between text-sm font-medium border-t pt-2">
                 <span>Total</span>
-                <span>{censusResults.reduce((s, r) => s + r.households, 0).toLocaleString()}</span>
+                <span>
+                  {censusResults.reduce((s, r) => s + r.population, 0).toLocaleString()} people &middot;{' '}
+                  {censusResults.reduce((s, r) => s + r.households, 0).toLocaleString()} households
+                </span>
               </div>
             </div>
           )}
         </CardContent>
       </Card>
 
-      {/* Override card */}
+      {/* Denominators card */}
       <Card>
         <CardHeader>
-          <CardTitle>Household Denominator</CardTitle>
+          <CardTitle>Impact Denominators</CardTitle>
           <CardDescription>
-            The total households figure used to calculate impact percentage.
-            Override the census value if you have more accurate data.
+            Census values used to calculate household and population impact percentages.
+            Override with more accurate data if available.
           </CardDescription>
         </CardHeader>
-        <CardContent className="space-y-4">
-          <div className="grid gap-4 sm:grid-cols-2">
-            <div className="space-y-1">
-              <Label className="text-xs text-muted-foreground">Census Value</Label>
-              <div className="text-lg font-medium">
-                {settings.census_total_households !== null
-                  ? settings.census_total_households.toLocaleString()
-                  : 'Not fetched'}
+        <CardContent className="space-y-6">
+          {/* Households */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Households</Label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Census Value</Label>
+                <div className="text-lg font-medium">
+                  {settings.census_total_households !== null
+                    ? settings.census_total_households.toLocaleString()
+                    : 'Not fetched'}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Manual Override</Label>
+                <Input
+                  type="number"
+                  value={settings.household_denominator_override ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value ? Number(e.target.value) : null;
+                    setSettings({ ...settings, household_denominator_override: val });
+                  }}
+                  placeholder="Leave empty to use census value"
+                />
               </div>
             </div>
-            <div className="space-y-1">
-              <Label>Manual Override</Label>
-              <Input
-                type="number"
-                value={settings.household_denominator_override ?? ''}
-                onChange={(e) => {
-                  const val = e.target.value ? Number(e.target.value) : null;
-                  setSettings({ ...settings, household_denominator_override: val });
-                }}
-                placeholder="Leave empty to use census value"
-              />
+            <div className="text-sm text-muted-foreground">
+              Effective: <span className="font-medium text-foreground">
+                {effectiveHouseholdDenominator !== null ? effectiveHouseholdDenominator.toLocaleString() : 'Not set'}
+              </span>
             </div>
           </div>
-          <div className="text-sm text-muted-foreground">
-            Effective denominator: <span className="font-medium text-foreground">
-              {effectiveDenominator !== null ? effectiveDenominator.toLocaleString() : 'Not set'}
-            </span>
+
+          <div className="border-t" />
+
+          {/* Population */}
+          <div className="space-y-3">
+            <Label className="text-sm font-medium">Population</Label>
+            <div className="grid gap-4 sm:grid-cols-2">
+              <div className="space-y-1">
+                <Label className="text-xs text-muted-foreground">Census Value</Label>
+                <div className="text-lg font-medium">
+                  {settings.census_total_population !== null
+                    ? settings.census_total_population.toLocaleString()
+                    : 'Not fetched'}
+                </div>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Manual Override</Label>
+                <Input
+                  type="number"
+                  value={settings.community_population_denominator ?? ''}
+                  onChange={(e) => {
+                    const val = e.target.value ? Number(e.target.value) : null;
+                    setSettings({ ...settings, community_population_denominator: val });
+                  }}
+                  placeholder="Leave empty to use census value"
+                />
+              </div>
+            </div>
+            <div className="text-sm text-muted-foreground">
+              Effective: <span className="font-medium text-foreground">
+                {effectivePopulationDenominator !== null ? effectivePopulationDenominator.toLocaleString() : 'Not set'}
+              </span>
+            </div>
           </div>
+
           <Button variant="outline" onClick={() => saveSettings(settings)} disabled={isSaving}>
             {isSaving && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
             Save

@@ -19,7 +19,7 @@ export function PopulationImpact({ servedPeople, denominator, percentage }: Popu
         </div>
         <div className="text-sm text-muted-foreground">
           {denominator === null
-            ? 'Set `community_population_denominator` in project settings to calculate this metric.'
+            ? 'Configure service area in project settings to calculate this metric.'
             : `${servedPeople.toLocaleString()} of ${denominator.toLocaleString()} people served`}
         </div>
       </CardContent>

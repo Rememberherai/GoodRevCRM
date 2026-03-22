@@ -272,12 +272,15 @@ export async function getCommunityDashboardData(
   const projectSettings = (projectResult?.data?.settings ?? {}) as {
     default_map_center?: { latitude?: number; longitude?: number; zoom?: number };
     community_population_denominator?: number;
+    census_total_population?: number;
     household_denominator_override?: number;
     census_total_households?: number;
   };
   const denominator = typeof projectSettings.community_population_denominator === 'number'
     ? projectSettings.community_population_denominator
-    : null;
+    : typeof projectSettings.census_total_population === 'number'
+      ? projectSettings.census_total_population
+      : null;
   const percentage = denominator && denominator > 0
     ? (uniqueVisitors / denominator) * 100
     : null;

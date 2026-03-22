@@ -71,7 +71,8 @@ export async function POST(request: Request, context: RouteContext) {
       }
       const results = await fetchHouseholdsByPlaces(municipalities, project.id);
       const total = results.reduce((sum, r) => sum + r.households, 0);
-      return NextResponse.json({ results, total });
+      const totalPopulation = results.reduce((sum, r) => sum + r.population, 0);
+      return NextResponse.json({ results, total, totalPopulation });
     }
 
     if (type === 'zip_codes') {
@@ -80,7 +81,8 @@ export async function POST(request: Request, context: RouteContext) {
       }
       const results = await fetchHouseholdsByZipCodes(zipCodes, project.id);
       const total = results.reduce((sum, r) => sum + r.households, 0);
-      return NextResponse.json({ results, total });
+      const totalPopulation = results.reduce((sum, r) => sum + r.population, 0);
+      return NextResponse.json({ results, total, totalPopulation });
     }
 
     return NextResponse.json({ error: 'Invalid type' }, { status: 400 });

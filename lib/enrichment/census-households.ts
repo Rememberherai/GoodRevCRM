@@ -38,6 +38,7 @@ const STATE_ABBREVIATIONS: Record<string, string> = {
 export interface HouseholdCountResult {
   name: string;
   households: number;
+  population: number;
 }
 
 const censusResponseSchema = z.array(z.array(z.string()));
@@ -91,7 +92,7 @@ async function fetchStatePlaceHouseholds(
 
   const apiKey = await getApiKey(projectId);
   const keyParam = apiKey ? `&key=${apiKey}` : '';
-  const url = `https://api.census.gov/data/2023/acs/acs5?get=NAME,B11001_001E&for=place:*&in=state:${stateFips}${keyParam}`;
+  const url = `https://api.census.gov/data/2023/acs/acs5?get=NAME,B11001_001E,B01003_001E&for=place:*&in=state:${stateFips}${keyParam}`;
 
   try {
     const response = await fetch(url);
@@ -111,6 +112,7 @@ async function fetchStatePlaceHouseholds(
     const entries: HouseholdCountResult[] = rows.map(row => ({
       name: row[0] || '',
       households: parseInt(row[1] || '0', 10) || 0,
+      population: parseInt(row[2] || '0', 10) || 0,
     }));
 
     placeHouseholdCache.set(cacheKey, { data: entries, fetchedAt: new Date() });
@@ -220,7 +222,7 @@ export async function fetchHouseholdsByZipCodes(
 
   // Census API allows querying multiple ZCTAs at once
   const zctas = zipCodes.join(',');
-  const url = `https://api.census.gov/data/2023/acs/acs5?get=NAME,B11001_001E&for=zip%20code%20tabulation%20area:${zctas}${keyParam}`;
+  const url = `https://api.census.gov/data/2023/acs/acs5?get=NAME,B11001_001E,B01003_001E&for=zip%20code%20tabulation%20area:${zctas}${keyParam}`;
 
   try {
     const response = await fetch(url);
@@ -240,6 +242,7 @@ export async function fetchHouseholdsByZipCodes(
     return rows.map(row => ({
       name: row[0] || '',
       households: parseInt(row[1] || '0', 10) || 0,
+      population: parseInt(row[2] || '0', 10) || 0,
     }));
   } catch (error) {
     console.error('[Census Households] Failed to fetch ZCTA data:', error);
