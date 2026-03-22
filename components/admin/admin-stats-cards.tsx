@@ -8,14 +8,14 @@ interface AdminStatsCardsProps {
   stats: AdminStats;
 }
 
-interface StatCardProps {
+export interface StatCardProps {
   title: string;
   value: number;
   icon: React.ComponentType<{ className?: string }>;
   description?: string;
 }
 
-function StatCard({ title, value, icon: Icon, description }: StatCardProps) {
+export function StatCard({ title, value, icon: Icon, description }: StatCardProps) {
   return (
     <Card>
       <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">

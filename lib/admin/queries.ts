@@ -1,5 +1,11 @@
 import { createAdminClient } from '@/lib/supabase/admin';
-import type { AdminStats, AdminUserListItem, AdminProjectListItem, AdminBugReportListItem } from '@/types/admin';
+import type {
+  AdminStats,
+  AdminUserListItem,
+  AdminProjectListItem,
+  AdminBugReportListItem,
+  AdminUserDetail,
+} from '@/types/admin';
 
 /**
  * Fetches aggregate stats for the admin dashboard.
@@ -224,10 +230,28 @@ export async function listUsers(params: {
   return { users, total: count ?? 0 };
 }
 
-export async function getUserDetail(userId: string) {
+export async function getUserDetail(userId: string): Promise<AdminUserDetail | null> {
   const supabase = createAdminClient();
 
-  const [userResult, membershipsResult, gmailResult, telnyxResult] = await Promise.all([
+  const [
+    userResult,
+    membershipsResult,
+    gmailResult,
+    telnyxResult,
+    // New enrichment queries
+    latestSessionResult,
+    activityCountResult,
+    emailsSyncedResult,
+    emailsSentResult,
+    callsCountResult,
+    bugReportsCountResult,
+    bugReportsResult,
+    aiUsageResult,
+    recentActivityResult,
+    recentSessionsResult,
+    settingsResult,
+  ] = await Promise.all([
+    // Original queries
     supabase.from('users').select('id, email, full_name, avatar_url, is_system_admin, created_at').eq('id', userId).single(),
     supabase
       .from('project_memberships')
@@ -235,21 +259,93 @@ export async function getUserDetail(userId: string) {
       .eq('user_id', userId),
     supabase.from('gmail_connections').select('email').eq('user_id', userId).limit(1),
     supabase.from('telnyx_connections').select('phone_number').eq('user_id', userId).limit(1),
+    // Latest session
+    supabase
+      .from('user_sessions')
+      .select('id, last_active_at, ip_address, user_agent, project_id, created_at, projects(name)')
+      .eq('user_id', userId)
+      .order('last_active_at', { ascending: false })
+      .limit(1),
+    // Activity count
+    supabase.from('activity_log').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+    // Emails synced count
+    supabase.from('emails').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+    // Emails sent count
+    supabase.from('sent_emails').select('*', { count: 'exact', head: true }).eq('created_by', userId),
+    // Calls count
+    supabase.from('calls').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+    // Bug reports count
+    supabase.from('bug_reports').select('*', { count: 'exact', head: true }).eq('user_id', userId),
+    // Bug reports rows (limit 10)
+    supabase
+      .from('bug_reports')
+      .select('id, description, status, priority, created_at, projects(name)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(10),
+    // AI usage rows (for client-side aggregation)
+    supabase
+      .from('ai_usage_log')
+      .select('total_tokens, prompt_tokens, completion_tokens')
+      .eq('user_id', userId),
+    // Recent activity (limit 15)
+    supabase
+      .from('activity_log')
+      .select('id, action, entity_type, entity_id, created_at, projects(name)')
+      .eq('user_id', userId)
+      .order('created_at', { ascending: false })
+      .limit(15),
+    // Recent sessions (limit 10)
+    supabase
+      .from('user_sessions')
+      .select('id, last_active_at, ip_address, user_agent, project_id, created_at, projects(name)')
+      .eq('user_id', userId)
+      .order('last_active_at', { ascending: false })
+      .limit(10),
+    // User settings
+    supabase
+      .from('user_settings')
+      .select('theme, timezone, date_format, time_format, notifications_email, notifications_push, notifications_digest')
+      .eq('user_id', userId)
+      .maybeSingle(),
   ]);
 
   if (!userResult.data) return null;
 
-  // Check ban status
+  // Check ban status + get last_sign_in_at from auth
   let isBanned = false;
+  let lastSignInAt: string | null = null;
   try {
     const { data: authUser } = await supabase.auth.admin.getUserById(userId);
     if (authUser?.user?.banned_until) {
       const bannedUntil = new Date(authUser.user.banned_until);
       isBanned = bannedUntil.getFullYear() > 2900 || bannedUntil > new Date();
     }
+    lastSignInAt = authUser?.user?.last_sign_in_at ?? null;
   } catch {
     // Skip if we can't fetch auth user
   }
+
+  // Map latest session
+  const latestSessionRow = (latestSessionResult.data ?? [])[0] ?? null;
+  const latestSession = latestSessionRow ? {
+    id: latestSessionRow.id,
+    last_active_at: latestSessionRow.last_active_at,
+    ip_address: latestSessionRow.ip_address,
+    user_agent: latestSessionRow.user_agent,
+    project_id: latestSessionRow.project_id,
+    project_name: (latestSessionRow.projects as unknown as { name: string } | null)?.name ?? null,
+    created_at: latestSessionRow.created_at,
+  } : null;
+
+  // Aggregate AI usage client-side
+  const aiRows = aiUsageResult.data ?? [];
+  const aiUsage = {
+    request_count: aiRows.length,
+    total_tokens: aiRows.reduce((sum, r) => sum + (r.total_tokens ?? 0), 0),
+    prompt_tokens: aiRows.reduce((sum, r) => sum + (r.prompt_tokens ?? 0), 0),
+    completion_tokens: aiRows.reduce((sum, r) => sum + (r.completion_tokens ?? 0), 0),
+  };
 
   return {
     user: {
@@ -260,7 +356,7 @@ export async function getUserDetail(userId: string) {
       is_system_admin: userResult.data.is_system_admin,
       created_at: userResult.data.created_at,
       project_count: (membershipsResult.data ?? []).length,
-      last_active_at: null,
+      last_active_at: latestSession?.last_active_at ?? null,
       is_banned: isBanned,
     } as AdminUserListItem,
     memberships: (membershipsResult.data ?? []).map((m) => ({
@@ -273,6 +369,50 @@ export async function getUserDetail(userId: string) {
       gmail: (gmailResult.data ?? []).length > 0 ? gmailResult.data![0]!.email : null,
       telnyx: (telnyxResult.data ?? []).length > 0 ? telnyxResult.data![0]!.phone_number : null,
     },
+    last_sign_in_at: lastSignInAt,
+    latest_session: latestSession,
+    usage_stats: {
+      total_actions: activityCountResult.count ?? 0,
+      emails_synced: emailsSyncedResult.count ?? 0,
+      emails_sent: emailsSentResult.count ?? 0,
+      calls_made: callsCountResult.count ?? 0,
+      bug_reports_filed: bugReportsCountResult.count ?? 0,
+    },
+    ai_usage: aiUsage,
+    recent_sessions: (recentSessionsResult.data ?? []).map((s) => ({
+      id: s.id,
+      last_active_at: s.last_active_at,
+      ip_address: s.ip_address,
+      user_agent: s.user_agent,
+      project_id: s.project_id,
+      project_name: (s.projects as unknown as { name: string } | null)?.name ?? null,
+      created_at: s.created_at,
+    })),
+    recent_bug_reports: (bugReportsResult.data ?? []).map((r) => ({
+      id: r.id,
+      description: r.description,
+      status: r.status,
+      priority: r.priority,
+      project_name: (r.projects as unknown as { name: string } | null)?.name ?? null,
+      created_at: r.created_at,
+    })),
+    recent_activity: (recentActivityResult.data ?? []).map((a) => ({
+      id: a.id,
+      action: a.action,
+      entity_type: a.entity_type,
+      entity_id: a.entity_id,
+      project_name: (a.projects as unknown as { name: string } | null)?.name ?? null,
+      created_at: a.created_at,
+    })),
+    settings: settingsResult.data ? {
+      theme: settingsResult.data.theme,
+      timezone: settingsResult.data.timezone,
+      date_format: settingsResult.data.date_format,
+      time_format: settingsResult.data.time_format,
+      notifications_email: settingsResult.data.notifications_email,
+      notifications_push: settingsResult.data.notifications_push,
+      notifications_digest: settingsResult.data.notifications_digest,
+    } : null,
   };
 }
 

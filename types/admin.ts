@@ -82,6 +82,83 @@ export interface AdminProjectListItem {
   has_api_key: boolean;
 }
 
+// User detail enrichment types
+
+export interface AdminUserUsageStats {
+  total_actions: number;
+  emails_synced: number;
+  emails_sent: number;
+  calls_made: number;
+  bug_reports_filed: number;
+}
+
+export interface AdminUserAIUsage {
+  request_count: number;
+  total_tokens: number;
+  prompt_tokens: number;
+  completion_tokens: number;
+}
+
+export interface AdminUserSession {
+  id: string;
+  last_active_at: string;
+  ip_address: string | null;
+  user_agent: string | null;
+  project_id: string | null;
+  project_name: string | null;
+  created_at: string;
+}
+
+export interface AdminUserBugReport {
+  id: string;
+  description: string;
+  status: string;
+  priority: string | null;
+  project_name: string | null;
+  created_at: string;
+}
+
+export interface AdminUserActivity {
+  id: string;
+  action: string;
+  entity_type: string;
+  entity_id: string;
+  project_name: string | null;
+  created_at: string | null;
+}
+
+export interface AdminUserSettings {
+  theme: string | null;
+  timezone: string | null;
+  date_format: string | null;
+  time_format: string | null;
+  notifications_email: boolean | null;
+  notifications_push: boolean | null;
+  notifications_digest: string | null;
+}
+
+export interface AdminUserDetail {
+  user: AdminUserListItem;
+  memberships: Array<{
+    id: string;
+    role: string;
+    joined_at: string;
+    project: { id: string; name: string; slug: string; project_type: string };
+  }>;
+  connections: {
+    gmail: string | null;
+    telnyx: string | null;
+  };
+  last_sign_in_at: string | null;
+  latest_session: AdminUserSession | null;
+  usage_stats: AdminUserUsageStats;
+  ai_usage: AdminUserAIUsage;
+  recent_sessions: AdminUserSession[];
+  recent_bug_reports: AdminUserBugReport[];
+  recent_activity: AdminUserActivity[];
+  settings: AdminUserSettings | null;
+}
+
 export interface AdminBugReportListItem {
   id: string;
   description: string;
