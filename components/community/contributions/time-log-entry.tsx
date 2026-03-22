@@ -142,7 +142,7 @@ export function TimeLogEntry({
       <DialogContent className="sm:max-w-[720px]">
         <DialogHeader>
           <DialogTitle>New Time Log</DialogTitle>
-          <DialogDescription>Log volunteer hours or service time with optional program linkage.</DialogDescription>
+          <DialogDescription>Log work hours or service time with optional program linkage.</DialogDescription>
         </DialogHeader>
 
         <div className="grid gap-4 sm:grid-cols-2">
@@ -151,7 +151,7 @@ export function TimeLogEntry({
             <Select value={type} onValueChange={(value: typeof type) => setType(value)}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
-                <SelectItem value="volunteer_hours">Volunteer Hours</SelectItem>
+                <SelectItem value="volunteer_hours">Work Hours</SelectItem>
                 <SelectItem value="service">Service</SelectItem>
               </SelectContent>
             </Select>

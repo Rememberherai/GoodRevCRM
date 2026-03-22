@@ -1,13 +1,14 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getCommunityDashboardData } from '@/lib/community/dashboard';
+import type { CommunityDashboardDateRange } from '@/lib/community/dashboard';
 import type { ProjectRole } from '@/types/user';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
 }
 
-export async function GET(_request: Request, context: RouteContext) {
+export async function GET(request: Request, context: RouteContext) {
   try {
     const { slug } = await context.params;
     const supabase = await createClient();
@@ -46,11 +47,21 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Not a project member' }, { status: 403 });
     }
 
+    // Parse optional date range from query params
+    const url = new URL(request.url);
+    const startDate = url.searchParams.get('startDate');
+    const endDate = url.searchParams.get('endDate');
+    let dateRange: CommunityDashboardDateRange | undefined;
+    if (startDate && endDate) {
+      dateRange = { startDate, endDate };
+    }
+
     const dashboardData = await getCommunityDashboardData(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase as any,
       project.id,
-      membership.role as ProjectRole
+      membership.role as ProjectRole,
+      dateRange
     );
 
     return NextResponse.json({

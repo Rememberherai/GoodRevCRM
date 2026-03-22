@@ -63,7 +63,7 @@ export function ContributionsPageClient() {
           </div>
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Contributions</h2>
-            <p className="text-sm text-muted-foreground">Track donations, grants, volunteer hours, and service activity.</p>
+            <p className="text-sm text-muted-foreground">Track donations, grants, work hours, and service activity.</p>
           </div>
         </div>
         <div className="flex gap-2">
@@ -96,7 +96,7 @@ export function ContributionsPageClient() {
         <TabsContent value="time-log" className="pt-4">
           <ContributionListCard
             title="Time Log"
-            description="Volunteer hours and service delivery records."
+            description="Work hours and service delivery records."
             items={timeLogs}
             isLoading={isLoading}
             error={error}

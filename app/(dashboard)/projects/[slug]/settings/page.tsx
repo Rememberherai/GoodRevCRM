@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug, Plug2, KeyRound, Clock, Package, Tag, Wrench } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug, Plug2, KeyRound, Clock, Package, Tag, Wrench, MapPin } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
@@ -51,6 +51,7 @@ import { SchedulerPanel } from '@/components/settings/scheduler-panel';
 import { ProductsCatalogPanel } from '@/components/settings/products-catalog-panel';
 import { DispositionsPanel } from '@/components/settings/dispositions-panel';
 import { ServiceTypesPanel } from '@/components/settings/service-types-panel';
+import { ServiceAreaPanel } from '@/components/settings/service-area-panel';
 import type { ProjectRole } from '@/types/user';
 import type { ProjectType } from '@/types/project';
 
@@ -302,6 +303,12 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             <Package className="h-4 w-4" />
             Products
           </TabsTrigger>
+          {(currentProject?.project_type as ProjectType | undefined) === 'community' && (
+            <TabsTrigger value="service-area" className="gap-2">
+              <MapPin className="h-4 w-4" />
+              Service Area
+            </TabsTrigger>
+          )}
         </TabsList>
 
         <TabsContent value="general" className="space-y-6 mt-6">
@@ -519,6 +526,12 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
         <TabsContent value="products" className="space-y-6 mt-6">
           <ProductsCatalogPanel slug={slug} currentUserRole={currentUserRole} />
         </TabsContent>
+
+        {(currentProject?.project_type as ProjectType | undefined) === 'community' && (
+          <TabsContent value="service-area" className="space-y-6 mt-6">
+            <ServiceAreaPanel slug={slug} />
+          </TabsContent>
+        )}
 
       </Tabs>
     </div>

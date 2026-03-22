@@ -2200,6 +2200,49 @@ defineCommunityTool({
   },
 });
 
+// --- Census Household Lookup ---
+
+defineCommunityTool({
+  name: 'census.lookup_households',
+  description: 'Look up the total number of households in a service area using the US Census Bureau API. Supports municipality (city + state) or ZIP code lookups.',
+  resource: 'households',
+  action: 'view',
+  roles: ['owner', 'admin'],
+  parameters: z.object({
+    type: z.enum(['municipality', 'zip_codes']).describe('Lookup type: municipality for city/state, zip_codes for ZIP codes'),
+    municipalities: z.array(z.object({
+      city: z.string().min(1),
+      state: z.string().min(2).max(2),
+    })).optional().describe('List of municipalities (required when type is municipality)'),
+    zip_codes: z.array(z.string().regex(/^\d{5}$/)).optional().describe('List of 5-digit ZIP codes (required when type is zip_codes)'),
+  }),
+  handler: async (params, ctx) => {
+    const { type, municipalities, zip_codes } = params as {
+      type: 'municipality' | 'zip_codes';
+      municipalities?: Array<{ city: string; state: string }>;
+      zip_codes?: string[];
+    };
+
+    const { fetchHouseholdsByPlaces, fetchHouseholdsByZipCodes } = await import('@/lib/enrichment/census-households');
+
+    if (type === 'municipality') {
+      if (!municipalities || municipalities.length === 0) {
+        return JSON.stringify({ error: 'At least one municipality is required' });
+      }
+      const results = await fetchHouseholdsByPlaces(municipalities, ctx.projectId);
+      const total = results.reduce((sum, r) => sum + r.households, 0);
+      return JSON.stringify({ results, total });
+    }
+
+    if (!zip_codes || zip_codes.length === 0) {
+      return JSON.stringify({ error: 'At least one ZIP code is required' });
+    }
+    const results = await fetchHouseholdsByZipCodes(zip_codes, ctx.projectId);
+    const total = results.reduce((sum, r) => sum + r.households, 0);
+    return JSON.stringify({ results, total });
+  },
+});
+
 function getAllowedTools(role?: ProjectRole) {
   if (!role) return tools;
   return tools.filter((tool) => {

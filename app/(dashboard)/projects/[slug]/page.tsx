@@ -5,13 +5,7 @@ import { CompanyContextCard } from '@/components/projects/company-context-card';
 import { DashboardActivityCenter } from '@/components/dashboard/activity-center';
 import { AnalyticsDashboard } from '@/components/dashboard/analytics-dashboard';
 import { NewsHeadlines } from '@/components/dashboard/news-headlines';
-import { MetricsCards } from '@/components/community/dashboard/metrics-cards';
-import { ImpactRadar } from '@/components/community/dashboard/impact-radar';
-import { ProgramCards } from '@/components/community/dashboard/program-cards';
-import { ActivityFeed } from '@/components/community/dashboard/activity-feed';
-import { MiniMap } from '@/components/community/dashboard/mini-map';
-import { PopulationImpact } from '@/components/community/dashboard/population-impact';
-import { RiskAlertsPanel } from '@/components/community/dashboard/risk-alerts-panel';
+import { CommunityDashboardClient } from '@/components/community/dashboard/community-dashboard-client';
 import { getCommunityDashboardData } from '@/lib/community/dashboard';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ProjectRole } from '@/types/user';
@@ -50,40 +44,27 @@ export default async function ProjectDashboard({ params }: ProjectDashboardProps
     : { data: null };
 
   if (project?.project_type === 'community') {
+    // Default to YTD so server data matches client's initial date range
+    const now = new Date();
+    const ytdRange = {
+      startDate: `${now.getFullYear()}-01-01`,
+      endDate: now.toISOString().slice(0, 10),
+    };
     const dashboardData = await getCommunityDashboardData(
       // eslint-disable-next-line @typescript-eslint/no-explicit-any
       supabase as any,
       projectId,
-      (membership?.role as ProjectRole | undefined) ?? 'viewer'
+      (membership?.role as ProjectRole | undefined) ?? 'viewer',
+      ytdRange
     );
     const canSeeDetail = membership?.role !== 'board_viewer' && membership?.role !== 'contractor';
 
     return (
-      <div className="space-y-6">
-        <div>
-          <h2 className="text-2xl font-bold">Community Dashboard</h2>
-          <p className="text-muted-foreground">
-            Aggregate community metrics and impact framework tracking.
-          </p>
-        </div>
-
-        <MetricsCards metrics={dashboardData.metrics} />
-
-        <PopulationImpact {...dashboardData.populationImpact} />
-
-        <ImpactRadar dimensions={dashboardData.dimensions} />
-
-        {canSeeDetail && (
-          <>
-            <MiniMap center={dashboardData.miniMap.center} points={dashboardData.miniMap.points} />
-            <RiskAlertsPanel />
-            <div className="grid gap-6 xl:grid-cols-2">
-              <ProgramCards programs={dashboardData.programs} />
-              <ActivityFeed items={dashboardData.recentActivity} />
-            </div>
-          </>
-        )}
-      </div>
+      <CommunityDashboardClient
+        projectSlug={slug}
+        initialData={dashboardData}
+        canSeeDetail={canSeeDetail}
+      />
     );
   }
 

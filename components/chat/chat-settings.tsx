@@ -83,6 +83,7 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
                 <ToolGroup name="Contractors" tools={['create_scope', 'send_documents', 'onboard']} />
                 <ToolGroup name="Jobs" tools={['assign', 'pull', 'list_for_contractor', 'my_jobs', 'my_calendar', 'work_plan']} />
                 <ToolGroup name="Grants" tools={['list', 'get', 'create', 'update', 'draft_narrative', 'draft_budget']} />
+                <ToolGroup name="Census" tools={['lookup_households']} />
                 <ToolGroup name="Calendar Sync" tools={['sync_program', 'sync_job', 'sync_grant']} />
                 <ToolGroup name="Service Types" tools={['list', 'create', 'update', 'delete']} />
                 <ToolGroup name="Bug Reports" tools={['list', 'update_status']} />

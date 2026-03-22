@@ -13,6 +13,7 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 - **Contractor Onboarding**: Draft scopes of work, send contractor documents, and coordinate onboarding follow-up
 - **Job Management**: Assign jobs, pull jobs back, list contractor work, and generate contractor work plans
 - **Grants**: List, inspect, create, and update grant pipeline records. Draft narratives and budgets using real program data. Sync deadlines to Google Calendar.
+- **Census**: Look up total households in a service area by municipality or ZIP code using the US Census Bureau API (ACS 5-year estimates)
 - **Calendar Sync**: Push structured program sessions, job assignments, or grant deadlines into connected Google Calendars when the required time bounds exist
 - **Bug Reports**: List and manage bug reports submitted by users (admin only) — list with status filtering, update status with resolution notes
 

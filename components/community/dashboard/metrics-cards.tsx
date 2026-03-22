@@ -8,7 +8,7 @@ interface MetricsCardsProps {
 const metricConfig = [
   { key: 'totalHouseholds', title: 'Households', description: 'Total registered households' },
   { key: 'activePrograms', title: 'Active Programs', description: 'Programs currently running' },
-  { key: 'volunteerHours', title: 'Volunteer Hours', description: 'Hours logged this period' },
+  { key: 'volunteerHours', title: 'Work Hours', description: 'Hours logged this period' },
   { key: 'contributionsValue', title: 'Contributions', description: 'Total recorded value' },
   { key: 'attendanceCount', title: 'Attendance', description: 'Program attendance records' },
   { key: 'uniqueVisitors', title: 'Unique Visitors', description: 'Distinct people served' },

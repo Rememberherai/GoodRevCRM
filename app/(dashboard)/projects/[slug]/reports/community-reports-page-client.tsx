@@ -103,7 +103,7 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
           <div>
             <h2 className="text-3xl font-bold tracking-tight">Community Reporting</h2>
             <p className="text-sm text-muted-foreground">
-              Funder-facing summaries for programs, households, contributions, and volunteer impact.
+              Funder-facing summaries for programs, households, contributions, and work hours impact.
             </p>
           </div>
         </div>
@@ -177,8 +177,8 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
             </Card>
             <Card>
               <CardHeader className="pb-2">
-                <CardTitle className="text-sm">Volunteer Hours</CardTitle>
-                <CardDescription>Logged service and volunteer time</CardDescription>
+                <CardTitle className="text-sm">Work Hours</CardTitle>
+                <CardDescription>Logged service and work time</CardDescription>
               </CardHeader>
               <CardContent>
                 <div className="flex items-center gap-2 text-2xl font-semibold">

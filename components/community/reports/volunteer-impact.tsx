@@ -12,8 +12,8 @@ export function VolunteerImpactReportView({ data }: { data?: VolunteerImpactRepo
     return (
       <Card>
         <CardHeader>
-          <CardTitle>Volunteer Impact</CardTitle>
-          <CardDescription>No volunteer data yet.</CardDescription>
+          <CardTitle>Work Hours Impact</CardTitle>
+          <CardDescription>No work hours data yet.</CardDescription>
         </CardHeader>
       </Card>
     );
@@ -23,11 +23,11 @@ export function VolunteerImpactReportView({ data }: { data?: VolunteerImpactRepo
     <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
       <Card>
         <CardHeader>
-          <CardTitle>Volunteer Totals</CardTitle>
-          <CardDescription>Hours, estimated value, and participating volunteers.</CardDescription>
+          <CardTitle>Work Hours Totals</CardTitle>
+          <CardDescription>Hours, estimated value, and participating workers.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-3 sm:grid-cols-3">
-          <Metric label="Volunteers" value={data.total_volunteers.toLocaleString()} />
+          <Metric label="Workers" value={data.total_volunteers.toLocaleString()} />
           <Metric label="Hours" value={data.total_hours.toFixed(1)} />
           <Metric label="Estimated Value" value={`$${data.estimated_value.toFixed(2)}`} />
         </CardContent>
@@ -36,18 +36,18 @@ export function VolunteerImpactReportView({ data }: { data?: VolunteerImpactRepo
       <Card>
         <CardHeader>
           <CardTitle>By Program</CardTitle>
-          <CardDescription>Volunteer distribution across programs.</CardDescription>
+          <CardDescription>Work hours distribution across programs.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {data.by_program.length === 0 ? (
             <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
-              No volunteer program activity yet.
+              No work hours program activity yet.
             </div>
           ) : data.by_program.map((row) => (
             <div key={row.program_id} className="rounded-lg border p-3">
               <div className="font-medium">{row.program_name}</div>
               <div className="mt-1 text-sm text-muted-foreground">
-                {row.hours.toFixed(1)} hours • {row.volunteers} volunteers
+                {row.hours.toFixed(1)} hours • {row.volunteers} workers
               </div>
             </div>
           ))}

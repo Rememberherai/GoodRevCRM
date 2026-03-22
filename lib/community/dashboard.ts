@@ -54,6 +54,11 @@ export interface CommunityDashboardData {
     denominator: number | null;
     percentage: number | null;
   };
+  householdImpact: {
+    registeredHouseholds: number;
+    denominator: number | null;
+    percentage: number | null;
+  };
 }
 
 const ZERO_METRICS: CommunityDashboardMetrics = {
@@ -76,13 +81,28 @@ function fallbackDimensions(): CommunityDashboardDimension[] {
   }));
 }
 
+export interface CommunityDashboardDateRange {
+  startDate: string; // ISO date string YYYY-MM-DD
+  endDate: string;   // ISO date string YYYY-MM-DD
+}
+
 export async function getCommunityDashboardData(
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   supabase: any,
   projectId: string,
-  role: ProjectRole
+  role: ProjectRole,
+  dateRange?: CommunityDashboardDateRange
 ): Promise<CommunityDashboardData> {
   const canSeeDetail = role !== 'board_viewer' && role !== 'contractor';
+
+  // Build date-filtered contribution queries
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  function applyDateFilter(query: any) {
+    if (dateRange) {
+      return query.gte('date', dateRange.startDate).lte('date', dateRange.endDate);
+    }
+    return query;
+  }
 
   const [
     householdsResult,
@@ -98,8 +118,8 @@ export async function getCommunityDashboardData(
     supabase.from('households').select('id', { count: 'exact', head: true }).eq('project_id', projectId).is('deleted_at', null),
     supabase.from('programs').select('id', { count: 'exact', head: true }).eq('project_id', projectId).eq('status', 'active'),
     supabase.from('programs').select('id, name, status, capacity').eq('project_id', projectId).order('created_at', { ascending: false }).limit(canSeeDetail ? 5 : 200),
-    supabase.from('contributions').select('hours').eq('project_id', projectId).eq('type', 'volunteer_hours'),
-    supabase.from('contributions').select('value').eq('project_id', projectId),
+    applyDateFilter(supabase.from('contributions').select('hours').eq('project_id', projectId).eq('type', 'volunteer_hours')),
+    applyDateFilter(supabase.from('contributions').select('value').eq('project_id', projectId)),
     canSeeDetail
       ? supabase.from('households').select('id, name, created_at').eq('project_id', projectId).is('deleted_at', null).order('created_at', { ascending: false }).limit(3)
       : Promise.resolve({ data: [], error: null }),
@@ -155,7 +175,13 @@ export async function getCommunityDashboardData(
   const [enrollmentsResult, attendanceResult, recentEnrollmentsResult] = programIds.length > 0
     ? await Promise.all([
         supabase.from('program_enrollments').select('program_id').in('program_id', programIds),
-        supabase.from('program_attendance').select('id, person_id').in('program_id', programIds),
+        (() => {
+          let q = supabase.from('program_attendance').select('id, person_id').in('program_id', programIds);
+          if (dateRange) {
+            q = q.gte('date', dateRange.startDate).lte('date', dateRange.endDate);
+          }
+          return q;
+        })(),
         canSeeDetail
           ? supabase.from('program_enrollments').select('id, program_id, created_at').in('program_id', programIds).order('created_at', { ascending: false }).limit(3)
           : Promise.resolve({ data: [], error: null }),
@@ -246,6 +272,8 @@ export async function getCommunityDashboardData(
   const projectSettings = (projectResult?.data?.settings ?? {}) as {
     default_map_center?: { latitude?: number; longitude?: number; zoom?: number };
     community_population_denominator?: number;
+    household_denominator_override?: number;
+    census_total_households?: number;
   };
   const denominator = typeof projectSettings.community_population_denominator === 'number'
     ? projectSettings.community_population_denominator
@@ -254,10 +282,23 @@ export async function getCommunityDashboardData(
     ? (uniqueVisitors / denominator) * 100
     : null;
 
+  // Household impact
+  const totalHouseholds = householdsResult.error ? 0 : (householdsResult.count ?? 0);
+  const householdDenominator =
+    typeof projectSettings.household_denominator_override === 'number'
+      ? projectSettings.household_denominator_override
+      : typeof projectSettings.census_total_households === 'number'
+        ? projectSettings.census_total_households
+        : null;
+  const householdPercentage =
+    householdDenominator && householdDenominator > 0
+      ? (totalHouseholds / householdDenominator) * 100
+      : null;
+
   return {
     dimensions,
     metrics: {
-      totalHouseholds: householdsResult.error ? ZERO_METRICS.totalHouseholds : (householdsResult.count ?? 0),
+      totalHouseholds,
       activePrograms: activeProgramsResult.error ? ZERO_METRICS.activePrograms : (activeProgramsResult.count ?? 0),
       volunteerHours,
       contributionsValue,
@@ -274,6 +315,11 @@ export async function getCommunityDashboardData(
       servedPeople: uniqueVisitors,
       denominator,
       percentage,
+    },
+    householdImpact: {
+      registeredHouseholds: totalHouseholds,
+      denominator: householdDenominator,
+      percentage: householdPercentage,
     },
   };
 }
