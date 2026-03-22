@@ -145,7 +145,7 @@ export function DateRangePicker({ value, onChange, className }: DateRangePickerP
           </div>
 
           {/* Calendar */}
-          <div className="p-3">
+          <div className="relative p-3">
             <Calendar
               mode="range"
               selected={calendarValue}
