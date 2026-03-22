@@ -87,9 +87,20 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
   const [currentUserRole, setCurrentUserRole] = useState<ProjectRole>('member');
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const router = useRouter();
-  const { currentProject, updateProject, removeProject } = useProjectStore();
+  const { currentProject, setCurrentProject, updateProject, removeProject } = useProjectStore();
   const { user } = useAuth();
   const currentUserId = user?.id ?? '';
+
+  // Hydrate project store if not already loaded (needed for project_type checks)
+  useEffect(() => {
+    if (currentProject?.slug === slug) return;
+    fetch(`/api/projects/${slug}`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (data?.project) setCurrentProject(data.project);
+      })
+      .catch(() => {});
+  }, [slug, currentProject?.slug, setCurrentProject]);
 
   const fetchMembers = useCallback(async () => {
     try {
@@ -179,6 +190,17 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
       description: currentProject?.description ?? '',
     },
   });
+
+  // Reset form when project data loads
+  useEffect(() => {
+    if (currentProject) {
+      form.reset({
+        name: currentProject.name ?? '',
+        slug: currentProject.slug ?? slug,
+        description: currentProject.description ?? '',
+      });
+    }
+  }, [currentProject, form, slug]);
 
   const onSubmit = async (values: UpdateProjectInput) => {
     setIsLoading(true);
