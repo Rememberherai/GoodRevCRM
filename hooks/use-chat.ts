@@ -74,7 +74,7 @@ const MUTATING_TOOLS = new Set([
   'schema_create', 'schema_update', 'schema_delete',
   'webhooks_create', 'webhooks_update', 'webhooks_delete',
   'reports_create', 'reports_delete',
-  'reports_create_custom', 'reports_run',
+  'reports_create_custom', 'reports_update_custom', 'reports_run',
   'templates_create', 'templates_update', 'templates_delete',
   'drafts_create', 'drafts_update', 'drafts_delete',
   'rfp_questions_create', 'rfp_questions_update', 'rfp_questions_delete',

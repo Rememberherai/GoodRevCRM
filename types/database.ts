@@ -10996,6 +10996,10 @@ export type Database = {
       }
     }
     Functions: {
+      _build_report_join: {
+        Args: { p_primary: string; p_related: string }
+        Returns: string
+      }
       _resolve_report_fk: {
         Args: { p_primary: string; p_related: string }
         Returns: string

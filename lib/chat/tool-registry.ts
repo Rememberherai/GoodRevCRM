@@ -4502,6 +4502,96 @@ defineTool({
   },
 });
 
+defineTool({
+  name: 'reports.update_custom',
+  description: 'Update an existing custom report. Can change name, description, visibility, or the report config (columns, filters, groupBy, aggregations, etc.).',
+  minRole: 'member',
+  parameters: z.object({
+    report_id: z.string().uuid().describe('Report ID to update'),
+    name: z.string().min(1).max(255).optional().describe('New report name'),
+    description: z.string().max(1000).optional().describe('New description'),
+    primaryObject: z.string().optional().describe('Primary table name'),
+    columns: z.array(z.object({
+      objectName: z.string(),
+      fieldName: z.string(),
+      alias: z.string().optional(),
+      aggregation: z.enum(['sum', 'avg', 'count', 'min', 'max', 'count_distinct']).optional(),
+    })).optional(),
+    filters: z.array(z.object({
+      objectName: z.string(),
+      fieldName: z.string(),
+      operator: z.enum(['eq', 'neq', 'gt', 'gte', 'lt', 'lte', 'like', 'ilike', 'in', 'is_null', 'is_not_null', 'between']),
+      value: z.unknown().optional(),
+      value2: z.unknown().optional(),
+    })).optional(),
+    groupBy: z.array(z.string()).optional(),
+    aggregations: z.array(z.object({
+      objectName: z.string(),
+      fieldName: z.string(),
+      function: z.enum(['sum', 'avg', 'count', 'min', 'max', 'count_distinct']),
+      alias: z.string(),
+    })).optional(),
+    orderBy: z.array(z.object({ field: z.string(), direction: z.enum(['asc', 'desc']) })).optional(),
+    chartType: z.enum(['table', 'bar', 'line', 'pie', 'funnel']).optional(),
+    is_public: z.boolean().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const { report_id, name, description, is_public, ...configFields } = params as {
+      report_id: string; name?: string; description?: string; is_public?: boolean;
+      primaryObject?: string; columns?: unknown[]; filters?: unknown[];
+      groupBy?: string[]; aggregations?: unknown[]; orderBy?: unknown[]; chartType?: string;
+    };
+
+    // Fetch existing report
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existing, error: fetchError } = await (ctx.supabase as any)
+      .from('report_definitions')
+      .select('config')
+      .eq('id', report_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+
+    if (fetchError || !existing) throw new Error('Report not found');
+
+    // Build update payload
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const updates: Record<string, any> = {};
+    if (name !== undefined) updates.name = name;
+    if (description !== undefined) updates.description = description;
+    if (is_public !== undefined) updates.is_public = is_public;
+
+    // Merge config: only override provided fields
+    const hasConfigUpdate = Object.keys(configFields).some((k) => (configFields as Record<string, unknown>)[k] !== undefined);
+    if (hasConfigUpdate) {
+      updates.config = { ...existing.config, ...Object.fromEntries(
+        Object.entries(configFields).filter(([, v]) => v !== undefined)
+      ) };
+    }
+
+    if (Object.keys(updates).length === 0) {
+      throw new Error('No fields to update. Provide at least one of: name, description, is_public, or config fields.');
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (ctx.supabase as any)
+      .from('report_definitions')
+      .update(updates)
+      .eq('id', report_id)
+      .eq('project_id', ctx.projectId)
+      .select()
+      .single();
+
+    if (error) throw new Error(`Failed to update report: ${error.message}`);
+
+    return JSON.stringify({
+      success: true,
+      report_id: data.id,
+      name: data.name,
+      message: `Report "${data.name}" updated successfully.`,
+    });
+  },
+});
+
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 // OpenRouter requires tool names matching ^[a-zA-Z0-9_-]{1,64}$ (no dots)

@@ -25,6 +25,7 @@ import { FieldSelector } from './field-selector';
 import { FilterBuilder } from './filter-builder';
 import { GroupAggregate } from './group-aggregate';
 import { ChartConfigPanel } from './chart-config';
+import { OrderByConfig } from './order-by-config';
 import { ReportPreview } from './report-preview';
 import { TemplatePicker } from './template-picker';
 import type { ReportColumn } from '@/lib/reports/types';
@@ -57,6 +58,8 @@ export function ReportBuilder({ projectSlug, editReportId }: ReportBuilderProps)
     filters,
     groupBy,
     aggregations,
+    orderBy,
+    limit,
     chartType,
     chartConfig,
     reportName,
@@ -193,6 +196,13 @@ export function ReportBuilder({ projectSlug, editReportId }: ReportBuilderProps)
     );
   }
 
+  // Memoize the config to avoid re-building on every render
+  const currentConfig = React.useMemo(
+    () => store.buildConfig(),
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+    [primaryObject, columns, filters, groupBy, aggregations, orderBy, limit, chartType, chartConfig]
+  );
+
   const canProceed = (() => {
     switch (step) {
       case 0:
@@ -318,6 +328,35 @@ export function ReportBuilder({ projectSlug, editReportId }: ReportBuilderProps)
                 onChartConfigChange={store.setChartConfig}
               />
 
+              <OrderByConfig
+                orderBy={orderBy}
+                columns={columns}
+                groupBy={groupBy}
+                aggregations={aggregations}
+                onOrderByChange={store.setOrderBy}
+              />
+
+              {/* Row limit */}
+              <div className="border rounded-lg p-4 space-y-2">
+                <Label className="text-sm font-semibold">Row Limit</Label>
+                <Input
+                  type="number"
+                  min={1}
+                  max={10000}
+                  value={limit}
+                  onChange={(e) => {
+                    const val = parseInt(e.target.value, 10);
+                    if (!isNaN(val) && val >= 1 && val <= 10000) {
+                      store.setLimit(val);
+                    }
+                  }}
+                  className="w-40"
+                />
+                <p className="text-xs text-muted-foreground">
+                  Maximum rows to return (default: 500, max: 10,000)
+                </p>
+              </div>
+
               {/* Save configuration */}
               <div className="border rounded-lg p-4 space-y-4">
                 <h3 className="text-lg font-semibold">Save Report</h3>
@@ -407,6 +446,8 @@ export function ReportBuilder({ projectSlug, editReportId }: ReportBuilderProps)
             chartConfig={chartConfig}
             aggregations={aggregations}
             onRefresh={runPreview}
+            projectSlug={projectSlug}
+            config={currentConfig}
           />
         </div>
       </div>

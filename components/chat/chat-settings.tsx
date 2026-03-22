@@ -111,7 +111,7 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
                 <ToolGroup name="News" tools={['list_keywords', 'create_keyword', 'delete_keyword', 'list_articles', 'update_article']} />
                 <ToolGroup name="Custom Fields" tools={['list', 'create', 'update', 'delete']} />
                 <ToolGroup name="Webhooks" tools={['list', 'get', 'create', 'update', 'delete']} />
-                <ToolGroup name="Reports" tools={['list', 'get', 'create', 'delete', 'run', 'forecasting', 'activity_conversions']} />
+                <ToolGroup name="Reports" tools={['list', 'get', 'create', 'create_custom', 'update_custom', 'delete', 'run', 'get_schema', 'preview', 'forecasting', 'activity_conversions']} />
                 <ToolGroup name="Activity" tools={['list', 'follow_ups']} />
                 <ToolGroup name="Research" tools={['list', 'get']} />
                 <ToolGroup name="Widgets" tools={['list', 'create', 'update', 'delete']} />

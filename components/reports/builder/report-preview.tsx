@@ -1,7 +1,7 @@
 'use client';
 
 import * as React from 'react';
-import { Loader2, AlertCircle, Table, BarChart3, RefreshCw } from 'lucide-react';
+import { Loader2, AlertCircle, Table, BarChart3, RefreshCw, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import {
@@ -19,7 +19,7 @@ import {
   ResponsiveContainer,
   Legend,
 } from 'recharts';
-import type { CustomReportResult, CustomChartType, ChartConfig, ReportAggregation } from '@/lib/reports/types';
+import type { CustomReportResult, CustomChartType, ChartConfig, ReportAggregation, CustomReportConfig } from '@/lib/reports/types';
 
 interface ReportPreviewProps {
   result: CustomReportResult | null;
@@ -29,6 +29,8 @@ interface ReportPreviewProps {
   chartConfig: ChartConfig;
   aggregations?: ReportAggregation[];
   onRefresh: () => void;
+  projectSlug?: string;
+  config?: CustomReportConfig | null;
 }
 
 const CHART_COLORS = [
@@ -314,14 +316,43 @@ export function ReportPreview({
   chartConfig,
   aggregations,
   onRefresh,
+  projectSlug,
+  config,
 }: ReportPreviewProps) {
   const [viewMode, setViewMode] = React.useState<'chart' | 'table'>(
     chartType === 'table' ? 'table' : 'chart'
   );
+  const [exporting, setExporting] = React.useState(false);
 
   React.useEffect(() => {
     setViewMode(chartType === 'table' ? 'table' : 'chart');
   }, [chartType]);
+
+  const handleExportCsv = async () => {
+    if (!projectSlug || !config) return;
+    setExporting(true);
+    try {
+      const res = await fetch(`/api/projects/${projectSlug}/reports/export`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(config),
+      });
+      if (!res.ok) return;
+      const blob = await res.blob();
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.href = url;
+      a.download = res.headers.get('Content-Disposition')?.match(/filename="(.+)"/)?.[1] ?? 'report.csv';
+      document.body.appendChild(a);
+      a.click();
+      a.remove();
+      URL.revokeObjectURL(url);
+    } catch {
+      // Download failed silently
+    } finally {
+      setExporting(false);
+    }
+  };
 
   return (
     <div className="space-y-3">
@@ -361,6 +392,18 @@ export function ReportPreview({
                 Table
               </Button>
             </>
+          )}
+          {projectSlug && config && result && result.rows.length > 0 && (
+            <Button
+              variant="ghost"
+              size="sm"
+              className="h-7 text-xs"
+              onClick={handleExportCsv}
+              disabled={exporting}
+            >
+              <Download className={`h-3 w-3 mr-1 ${exporting ? 'animate-pulse' : ''}`} />
+              CSV
+            </Button>
           )}
           <Button
             variant="ghost"

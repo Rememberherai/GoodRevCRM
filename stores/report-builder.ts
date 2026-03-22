@@ -203,24 +203,38 @@ export const useReportBuilderStore = create<ReportBuilderState>((set, get) => ({
   removeGroupBy: (field) =>
     set((s) => {
       const newGroupBy = s.groupBy.filter((f) => f !== field);
-      // Clear aggregations when last groupBy is removed (aggregations without groupBy are invalid)
+      // Clear aggregations and orderBy when last groupBy is removed (aggregations without groupBy are invalid)
       if (newGroupBy.length === 0) {
-        return { groupBy: newGroupBy, aggregations: [] };
+        return { groupBy: newGroupBy, aggregations: [], orderBy: [] };
       }
-      return { groupBy: newGroupBy };
+      // Remove any orderBy entries that reference the removed groupBy field
+      const newOrderBy = s.orderBy.filter((o) => o.field !== field);
+      return { groupBy: newGroupBy, orderBy: newOrderBy };
     }),
 
   // Aggregations
   addAggregation: (agg) =>
     set((s) => ({ aggregations: [...s.aggregations, agg] })),
   removeAggregation: (index) =>
-    set((s) => ({
-      aggregations: s.aggregations.filter((_, i) => i !== index),
-    })),
+    set((s) => {
+      const removed = s.aggregations[index];
+      const aggregations = s.aggregations.filter((_, i) => i !== index);
+      // Clean up any orderBy referencing the removed aggregation's alias
+      const orderBy = removed
+        ? s.orderBy.filter((o) => o.field !== removed.alias)
+        : s.orderBy;
+      return { aggregations, orderBy };
+    }),
   updateAggregation: (index, agg) =>
-    set((s) => ({
-      aggregations: s.aggregations.map((a, i) => (i === index ? agg : a)),
-    })),
+    set((s) => {
+      const old = s.aggregations[index];
+      const aggregations = s.aggregations.map((a, i) => (i === index ? agg : a));
+      // If alias changed, update any orderBy referencing the old alias
+      const orderBy = old && old.alias !== agg.alias
+        ? s.orderBy.map((o) => o.field === old.alias ? { ...o, field: agg.alias } : o)
+        : s.orderBy;
+      return { aggregations, orderBy };
+    }),
 
   // Order, limit, chart
   setOrderBy: (orderBy) => set({ orderBy }),
@@ -300,9 +314,14 @@ export const useReportBuilderStore = create<ReportBuilderState>((set, get) => ({
       );
       const alias = `${fn}_${fieldName}`;
       if (idx >= 0) {
+        const oldAlias = s.aggregations[idx]!.alias;
         const updated = [...s.aggregations];
         updated[idx] = { ...updated[idx]!, function: fn, alias };
-        return { aggregations: updated };
+        // Update orderBy if alias changed
+        const orderBy = oldAlias !== alias
+          ? s.orderBy.map((o) => o.field === oldAlias ? { ...o, field: alias } : o)
+          : s.orderBy;
+        return { aggregations: updated, orderBy };
       }
       return {
         aggregations: [
@@ -313,12 +332,18 @@ export const useReportBuilderStore = create<ReportBuilderState>((set, get) => ({
     }),
 
   removeFieldAggregation: (objectName, fieldName) =>
-    set((s) => ({
-      // Remove ALL aggregations for this field (user is unchecking the field entirely)
-      aggregations: s.aggregations.filter(
-        (a) => !(a.objectName === objectName && a.fieldName === fieldName)
-      ),
-    })),
+    set((s) => {
+      // Collect aliases of aggregations being removed so we can clean orderBy
+      const removedAliases = s.aggregations
+        .filter((a) => a.objectName === objectName && a.fieldName === fieldName)
+        .map((a) => a.alias);
+      return {
+        aggregations: s.aggregations.filter(
+          (a) => !(a.objectName === objectName && a.fieldName === fieldName)
+        ),
+        orderBy: s.orderBy.filter((o) => !removedAliases.includes(o.field)),
+      };
+    }),
 
   // Reset
   reset: () => set(initialState),

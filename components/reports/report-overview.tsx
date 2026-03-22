@@ -15,10 +15,32 @@ import {
   Globe,
   Lock,
   Plus,
+  MoreHorizontal,
+  Pencil,
+  Copy,
+  Trash2,
+  Play,
 } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuSeparator,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from '@/components/ui/alert-dialog';
 import type { AnalyticsData } from '@/types/analytics';
 import type { ReportDefinition } from '@/types/report';
 import { reportTypeLabels } from '@/types/report';
@@ -106,24 +128,73 @@ export function ReportOverview({ projectSlug, data, onTabChange }: ReportOvervie
   const router = useRouter();
   const [savedReports, setSavedReports] = React.useState<ReportDefinition[]>([]);
   const [reportsLoading, setReportsLoading] = React.useState(true);
+  const [deleteTarget, setDeleteTarget] = React.useState<ReportDefinition | null>(null);
+
+  const loadReports = React.useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${projectSlug}/reports`);
+      if (res.ok) {
+        const json = await res.json();
+        setSavedReports(json.data ?? json.reports ?? []);
+      }
+    } catch {
+      // Silently fail - saved reports are optional
+    } finally {
+      setReportsLoading(false);
+    }
+  }, [projectSlug]);
 
   // Fetch saved reports
   React.useEffect(() => {
-    async function loadReports() {
-      try {
-        const res = await fetch(`/api/projects/${projectSlug}/reports`);
-        if (res.ok) {
-          const json = await res.json();
-          setSavedReports(json.data ?? json.reports ?? []);
-        }
-      } catch {
-        // Silently fail - saved reports are optional
-      } finally {
-        setReportsLoading(false);
-      }
-    }
     loadReports();
-  }, [projectSlug]);
+  }, [loadReports]);
+
+  const handleDuplicate = async (report: ReportDefinition) => {
+    try {
+      const res = await fetch(`/api/projects/${projectSlug}/reports`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          name: `Copy of ${report.name}`,
+          description: report.description || null,
+          report_type: report.report_type,
+          config: report.config,
+          is_public: report.is_public,
+        }),
+      });
+      if (res.ok) {
+        loadReports();
+      }
+    } catch {
+      // Silently fail
+    }
+  };
+
+  const handleDelete = async (report: ReportDefinition) => {
+    try {
+      const res = await fetch(`/api/projects/${projectSlug}/reports/${report.id}`, {
+        method: 'DELETE',
+      });
+      if (res.ok) {
+        setSavedReports((prev) => prev.filter((r) => r.id !== report.id));
+      }
+    } catch {
+      // Silently fail
+    } finally {
+      setDeleteTarget(null);
+    }
+  };
+
+  const handleRun = async (report: ReportDefinition) => {
+    try {
+      await fetch(`/api/projects/${projectSlug}/reports/${report.id}`, {
+        method: 'POST',
+      });
+      loadReports();
+    } catch {
+      // Silently fail
+    }
+  };
 
   // Calculate summary stats for the cards
   const totalPipeline = data.pipeline.reduce((sum, s) => sum + Number(s.total_value), 0);
@@ -295,6 +366,7 @@ export function ReportOverview({ projectSlug, data, onTabChange }: ReportOvervie
                   <th className="text-left py-3 px-4 font-medium">Schedule</th>
                   <th className="text-left py-3 px-4 font-medium">Visibility</th>
                   <th className="text-right py-3 px-4 font-medium">Last Run</th>
+                  <th className="w-10" />
                 </tr>
               </thead>
               <tbody>
@@ -356,6 +428,41 @@ export function ReportOverview({ projectSlug, data, onTabChange }: ReportOvervie
                         ? new Date(report.last_run_at).toLocaleDateString()
                         : 'Never'}
                     </td>
+                    <td className="py-3 px-2" onClick={(e) => e.stopPropagation()}>
+                      <DropdownMenu>
+                        <DropdownMenuTrigger asChild>
+                          <Button variant="ghost" size="sm" className="h-7 w-7 p-0">
+                            <MoreHorizontal className="h-4 w-4" />
+                          </Button>
+                        </DropdownMenuTrigger>
+                        <DropdownMenuContent align="end">
+                          {report.report_type === 'custom' && (
+                            <DropdownMenuItem
+                              onClick={() => router.push(`/projects/${projectSlug}/reports/builder?edit=${report.id}`)}
+                            >
+                              <Pencil className="h-3.5 w-3.5 mr-2" />
+                              Edit
+                            </DropdownMenuItem>
+                          )}
+                          <DropdownMenuItem onClick={() => handleRun(report)}>
+                            <Play className="h-3.5 w-3.5 mr-2" />
+                            Run
+                          </DropdownMenuItem>
+                          <DropdownMenuItem onClick={() => handleDuplicate(report)}>
+                            <Copy className="h-3.5 w-3.5 mr-2" />
+                            Duplicate
+                          </DropdownMenuItem>
+                          <DropdownMenuSeparator />
+                          <DropdownMenuItem
+                            className="text-destructive focus:text-destructive"
+                            onClick={() => setDeleteTarget(report)}
+                          >
+                            <Trash2 className="h-3.5 w-3.5 mr-2" />
+                            Delete
+                          </DropdownMenuItem>
+                        </DropdownMenuContent>
+                      </DropdownMenu>
+                    </td>
                   </tr>
                 ))}
               </tbody>
@@ -363,6 +470,27 @@ export function ReportOverview({ projectSlug, data, onTabChange }: ReportOvervie
           </div>
         )}
       </div>
+
+      {/* Delete confirmation dialog */}
+      <AlertDialog open={!!deleteTarget} onOpenChange={(open) => !open && setDeleteTarget(null)}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Delete Report</AlertDialogTitle>
+            <AlertDialogDescription>
+              Are you sure you want to delete &ldquo;{deleteTarget?.name}&rdquo;? This action cannot be undone.
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel>Cancel</AlertDialogCancel>
+            <AlertDialogAction
+              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
+              onClick={() => deleteTarget && handleDelete(deleteTarget)}
+            >
+              Delete
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
     </div>
   );
 }
