@@ -88,7 +88,7 @@ export function ServiceAreaPanel({ slug }: { slug: string }) {
       const res = await fetch(`/api/projects/${slug}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ settings: updated }),
+        body: JSON.stringify({ settings: { ...updated, default_map_center: null } }),
       });
       if (!res.ok) {
         throw new Error('Failed to save settings');

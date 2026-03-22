@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       name,
       slug,
       description: description ?? null,
-      settings: settings ?? {},
+      settings: (settings ?? {}) as Database['public']['Tables']['projects']['Row']['settings'],
       owner_id: user.id,
     };
 

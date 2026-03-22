@@ -10,12 +10,13 @@ export const companyContextSchema = z.object({
 
 export type CompanyContext = z.infer<typeof companyContextSchema>;
 
-// Project settings schema
+// Project settings schema — passthrough allows community-specific fields
+// (service_area_*, census_*, default_map_center, etc.) to survive validation
 export const projectSettingsSchema = z.object({
   company_context: companyContextSchema.optional(),
   customRoles: z.array(z.string().min(1).max(100)).max(50).optional(),
   quotes_enabled: z.boolean().optional(),
-});
+}).passthrough();
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 

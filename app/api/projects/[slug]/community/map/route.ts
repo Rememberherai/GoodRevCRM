@@ -11,6 +11,7 @@ import {
   type OrganizationMapPoint,
   type ProgramMapPoint,
 } from '@/lib/community/map';
+import { geocodeAddress } from '@/lib/community/geocoding';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -196,13 +197,51 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const settings = (project.settings ?? {}) as {
       default_map_center?: { latitude?: number; longitude?: number; zoom?: number };
+      service_area_type?: 'municipality' | 'zip_codes';
+      service_area_municipalities?: Array<{ city: string; state: string }>;
+      service_area_zip_codes?: string[];
     };
 
+    // Compute center from data points first
+    let center = computeMapCenter(
+      [households, assets, programs, organizations],
+      settings.default_map_center
+    );
+
+    // If no data points and no explicit default_map_center, try to derive
+    // center from the configured service area
+    const hasDataPoints = households.length + assets.length + programs.length + organizations.length > 0;
+    const hasExplicitCenter = settings.default_map_center?.latitude != null;
+
+    if (!hasDataPoints && !hasExplicitCenter) {
+      let geocoded: { latitude: number; longitude: number } | null = null;
+
+      if (settings.service_area_type === 'municipality' && settings.service_area_municipalities?.length) {
+        const first = settings.service_area_municipalities[0]!;
+        const result = await geocodeAddress({ city: first.city, state: first.state, country: 'US' });
+        if (result) geocoded = result;
+      } else if (settings.service_area_type === 'zip_codes' && settings.service_area_zip_codes?.length) {
+        const result = await geocodeAddress({ postalCode: settings.service_area_zip_codes[0]!, country: 'US' });
+        if (result) geocoded = result;
+      }
+
+      if (geocoded) {
+        center = { latitude: geocoded.latitude, longitude: geocoded.longitude, zoom: 11 };
+        // Cache for future map loads so we don't re-geocode
+        await supabase
+          .from('projects')
+          .update({
+            settings: {
+              ...(project.settings as Record<string, unknown> ?? {}),
+              default_map_center: center,
+            },
+          })
+          .eq('id', project.id);
+      }
+    }
+
     const data: CommunityMapData = {
-      center: computeMapCenter(
-        [households, assets, programs, organizations],
-        settings.default_map_center
-      ),
+      center,
       households,
       assets,
       programs,
