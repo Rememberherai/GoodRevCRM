@@ -245,7 +245,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
       </div>
 
       <Tabs defaultValue="general">
-        <TabsList className="overflow-x-auto max-w-full">
+        <TabsList className="flex flex-wrap h-auto gap-1">
           <TabsTrigger value="general" className="gap-2">
             <Settings className="h-4 w-4" />
             General
