@@ -432,7 +432,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
   );
 
   return (
-    <div className="max-w-4xl">
+    <div>
       <div className="mb-6">
         <h2 className="text-2xl font-bold">Settings</h2>
         <p className="text-muted-foreground">
@@ -441,7 +441,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
       </div>
 
       {isCommunity ? (
-        /* ── Community project layout ── */
+        /* ── Community project layout (8 tabs, single row) ── */
         <Tabs defaultValue="general">
           <TabsList className="flex flex-wrap h-auto gap-1">
             <TabsTrigger value="general" className="gap-2">
@@ -469,17 +469,9 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
               <Plug className="h-4 w-4" />
               Integrations
             </TabsTrigger>
-            <TabsTrigger value="scheduler" className="gap-2">
-              <Clock className="h-4 w-4" />
-              Scheduler
-            </TabsTrigger>
-            <TabsTrigger value="dispositions" className="gap-2">
+            <TabsTrigger value="data-labels" className="gap-2">
               <Tag className="h-4 w-4" />
-              Dispositions
-            </TabsTrigger>
-            <TabsTrigger value="service-types" className="gap-2">
-              <Wrench className="h-4 w-4" />
-              Service Types
+              Data & Labels
             </TabsTrigger>
             <TabsTrigger value="service-area" className="gap-2">
               <MapPin className="h-4 w-4" />
@@ -498,37 +490,76 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             {membersContent}
           </TabsContent>
 
-          {/* Research + Contact Discovery merged */}
-          <TabsContent value="research" className="space-y-6 mt-6">
-            <ResearchSettingsPanel slug={slug} />
-            <ContactProvidersSettings slug={slug} />
+          {/* Research + Contact Discovery — sub-tabs */}
+          <TabsContent value="research" className="mt-6">
+            <Tabs defaultValue="research-settings">
+              <TabsList>
+                <TabsTrigger value="research-settings">Research</TabsTrigger>
+                <TabsTrigger value="contact-discovery">Contact Discovery</TabsTrigger>
+              </TabsList>
+              <TabsContent value="research-settings" className="space-y-6 mt-4">
+                <ResearchSettingsPanel slug={slug} />
+              </TabsContent>
+              <TabsContent value="contact-discovery" className="space-y-6 mt-4">
+                <ContactProvidersSettings slug={slug} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
-          <TabsContent value="automation" className="space-y-6 mt-6">
-            <AutomationPanel slug={slug} />
+          {/* Automation + Scheduler — sub-tabs */}
+          <TabsContent value="automation" className="mt-6">
+            <Tabs defaultValue="automations">
+              <TabsList>
+                <TabsTrigger value="automations">Automations</TabsTrigger>
+                <TabsTrigger value="scheduler">Scheduler</TabsTrigger>
+              </TabsList>
+              <TabsContent value="automations" className="space-y-6 mt-4">
+                <AutomationPanel slug={slug} />
+              </TabsContent>
+              <TabsContent value="scheduler" className="space-y-6 mt-4">
+                <SchedulerPanel slug={slug} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="duplicates" className="space-y-6 mt-6">
             <DuplicatesPanel slug={slug} />
           </TabsContent>
 
-          {/* MCP + API Keys + API Connections merged */}
-          <TabsContent value="integrations" className="space-y-6 mt-6">
-            <McpSettingsPanel slug={slug} />
-            <ProjectSecretsPanel slug={slug} />
-            <ApiConnectionsPanel slug={slug} />
+          {/* Integrations — sub-tabs */}
+          <TabsContent value="integrations" className="mt-6">
+            <Tabs defaultValue="mcp">
+              <TabsList>
+                <TabsTrigger value="mcp">MCP</TabsTrigger>
+                <TabsTrigger value="api-keys">API Keys</TabsTrigger>
+                <TabsTrigger value="connections">Connections</TabsTrigger>
+              </TabsList>
+              <TabsContent value="mcp" className="space-y-6 mt-4">
+                <McpSettingsPanel slug={slug} />
+              </TabsContent>
+              <TabsContent value="api-keys" className="space-y-6 mt-4">
+                <ProjectSecretsPanel slug={slug} />
+              </TabsContent>
+              <TabsContent value="connections" className="space-y-6 mt-4">
+                <ApiConnectionsPanel slug={slug} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
-          <TabsContent value="scheduler" className="space-y-6 mt-6">
-            <SchedulerPanel slug={slug} />
-          </TabsContent>
-
-          <TabsContent value="dispositions" className="space-y-6 mt-6">
-            <DispositionsPanel currentUserRole={currentUserRole} />
-          </TabsContent>
-
-          <TabsContent value="service-types" className="space-y-6 mt-6">
-            <ServiceTypesPanel currentUserRole={currentUserRole} />
+          {/* Data & Labels — sub-tabs */}
+          <TabsContent value="data-labels" className="mt-6">
+            <Tabs defaultValue="dispositions">
+              <TabsList>
+                <TabsTrigger value="dispositions">Dispositions</TabsTrigger>
+                <TabsTrigger value="service-types">Service Types</TabsTrigger>
+              </TabsList>
+              <TabsContent value="dispositions" className="space-y-6 mt-4">
+                <DispositionsPanel currentUserRole={currentUserRole} />
+              </TabsContent>
+              <TabsContent value="service-types" className="space-y-6 mt-4">
+                <ServiceTypesPanel currentUserRole={currentUserRole} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="service-area" className="space-y-6 mt-6">
