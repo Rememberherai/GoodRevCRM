@@ -2,12 +2,13 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Award, Plus, List, LayoutGrid } from 'lucide-react';
+import { Award, Globe, Plus, List, LayoutGrid } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NewGrantDialog } from '@/components/community/grants/new-grant-dialog';
+import { DiscoverGrantsDialog } from '@/components/community/grants/discover-grants-dialog';
 
 interface GrantRecord {
   id: string;
@@ -34,6 +35,8 @@ const GRANT_STATUSES = [
   { value: 'submitted', label: 'Submitted', color: 'bg-yellow-100 text-yellow-700 dark:bg-yellow-900 dark:text-yellow-300' },
   { value: 'under_review', label: 'Under Review', color: 'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300' },
   { value: 'awarded', label: 'Awarded', color: 'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300' },
+  { value: 'active', label: 'Active', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' },
+  { value: 'closed', label: 'Closed', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
   { value: 'declined', label: 'Declined', color: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' },
 ] as const;
 
@@ -42,9 +45,16 @@ function formatCurrency(amount: number | null) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
 }
 
+/** Parse date string as local time (avoids UTC off-by-one for date-only strings like YYYY-MM-DD). */
+function parseLocalDate(dateStr: string) {
+  // If it's a date-only string, append T00:00:00 to parse as local time
+  if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return new Date(dateStr + 'T00:00:00');
+  return new Date(dateStr);
+}
+
 function formatDate(dateStr: string | null) {
   if (!dateStr) return null;
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  return parseLocalDate(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 function getStatusConfig(status: string) {
@@ -57,15 +67,18 @@ function getNextDeadline(grant: GrantRecord) {
     { type: 'LOI', date: grant.loi_due_at },
     { type: 'Application', date: grant.application_due_at },
     { type: 'Report', date: grant.report_due_at },
-  ].filter((d) => d.date && new Date(d.date) >= now);
+  ].filter((d) => d.date && parseLocalDate(d.date) >= now);
 
-  deadlines.sort((a, b) => new Date(a.date!).getTime() - new Date(b.date!).getTime());
+  deadlines.sort((a, b) => parseLocalDate(a.date!).getTime() - parseLocalDate(b.date!).getTime());
   return deadlines[0] ?? null;
 }
 
 function isOverdue(dateStr: string | null) {
   if (!dateStr) return false;
-  return new Date(dateStr) < new Date();
+  // A deadline is overdue after end-of-day (not at start-of-day)
+  const deadline = parseLocalDate(dateStr);
+  deadline.setHours(23, 59, 59, 999);
+  return deadline < new Date();
 }
 
 export default function GrantsPageClient() {
@@ -75,10 +88,11 @@ export default function GrantsPageClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showNewDialog, setShowNewDialog] = useState(false);
+  const [showDiscoverDialog, setShowDiscoverDialog] = useState(false);
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
 
-  const fetchGrants = useCallback(async () => {
-    setIsLoading(true);
+  const fetchGrants = useCallback(async (showLoading = true) => {
+    if (showLoading) setIsLoading(true);
     setError(null);
     try {
       const res = await fetch(`/api/projects/${slug}/grants?limit=100`);
@@ -88,7 +102,7 @@ export default function GrantsPageClient() {
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch grants');
     } finally {
-      setIsLoading(false);
+      if (showLoading) setIsLoading(false);
     }
   }, [slug]);
 
@@ -105,9 +119,10 @@ export default function GrantsPageClient() {
         const json = await res.json() as { error?: string };
         throw new Error(json.error ?? 'Failed to update status');
       }
-      await fetchGrants();
+      await fetchGrants(false);
     } catch (err) {
       console.error('Failed to update grant status:', err);
+      setError(err instanceof Error ? err.message : 'Failed to update status');
     }
   };
 
@@ -143,6 +158,10 @@ export default function GrantsPageClient() {
             <List className="mr-1 h-4 w-4" />
             List
           </Button>
+          <Button variant="outline" onClick={() => setShowDiscoverDialog(true)}>
+            <Globe className="mr-2 h-4 w-4" />
+            Discover Federal
+          </Button>
           <Button onClick={() => setShowNewDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
             New Grant
@@ -166,8 +185,8 @@ export default function GrantsPageClient() {
         </div>
       )}
 
-      {/* Content */}
-      {!isLoading && !error && (
+      {/* Content — keep showing stale data even if a background refresh failed */}
+      {!isLoading && (
         viewMode === 'kanban' ? (
           <KanbanView
             grants={grants}
@@ -186,6 +205,11 @@ export default function GrantsPageClient() {
         open={showNewDialog}
         onOpenChange={setShowNewDialog}
         onCreated={fetchGrants}
+      />
+      <DiscoverGrantsDialog
+        open={showDiscoverDialog}
+        onOpenChange={setShowDiscoverDialog}
+        onImported={fetchGrants}
       />
     </div>
   );
@@ -273,7 +297,9 @@ function GrantCard({
 }) {
   const nextDeadline = getNextDeadline(grant);
   const currentIdx = GRANT_STATUSES.findIndex((s) => s.value === grant.status);
-  const nextStatus = currentIdx >= 0 && currentIdx < 3 ? GRANT_STATUSES[currentIdx + 1] : null;
+  // Allow advancing through pipeline statuses (up to but not including closed/declined)
+  const pipelineEnd = GRANT_STATUSES.findIndex((s) => s.value === 'closed');
+  const nextStatus = currentIdx >= 0 && currentIdx < pipelineEnd - 1 ? GRANT_STATUSES[currentIdx + 1] : null;
 
   return (
     <Card

@@ -4322,56 +4322,252 @@ export type Database = {
           },
         ]
       }
+      grant_documents: {
+        Row: {
+          created_at: string
+          document_type: string
+          file_name: string
+          file_path: string
+          file_size_bytes: number | null
+          grant_id: string
+          id: string
+          is_required: boolean
+          is_submitted: boolean
+          label: string
+          mime_type: string | null
+          notes: string | null
+          project_id: string
+          updated_at: string
+          uploaded_by: string | null
+          version: number
+        }
+        Insert: {
+          created_at?: string
+          document_type: string
+          file_name: string
+          file_path: string
+          file_size_bytes?: number | null
+          grant_id: string
+          id?: string
+          is_required?: boolean
+          is_submitted?: boolean
+          label: string
+          mime_type?: string | null
+          notes?: string | null
+          project_id: string
+          updated_at?: string
+          uploaded_by?: string | null
+          version?: number
+        }
+        Update: {
+          created_at?: string
+          document_type?: string
+          file_name?: string
+          file_path?: string
+          file_size_bytes?: number | null
+          grant_id?: string
+          id?: string
+          is_required?: boolean
+          is_submitted?: boolean
+          label?: string
+          mime_type?: string | null
+          notes?: string | null
+          project_id?: string
+          updated_at?: string
+          uploaded_by?: string | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grant_documents_grant_id_fkey"
+            columns: ["grant_id"]
+            isOneToOne: false
+            referencedRelation: "grants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grant_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "grant_documents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grant_documents_uploaded_by_fkey"
+            columns: ["uploaded_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grant_report_schedules: {
+        Row: {
+          created_at: string
+          document_id: string | null
+          due_date: string
+          grant_id: string
+          id: string
+          notes: string | null
+          project_id: string
+          report_type: string
+          status: string
+          submitted_at: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          document_id?: string | null
+          due_date: string
+          grant_id: string
+          id?: string
+          notes?: string | null
+          project_id: string
+          report_type: string
+          status?: string
+          submitted_at?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string | null
+          due_date?: string
+          grant_id?: string
+          id?: string
+          notes?: string | null
+          project_id?: string
+          report_type?: string
+          status?: string
+          submitted_at?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grant_report_schedules_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "grant_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grant_report_schedules_grant_id_fkey"
+            columns: ["grant_id"]
+            isOneToOne: false
+            referencedRelation: "grants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grant_report_schedules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "grant_report_schedules_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       grants: {
         Row: {
+          agreement_status: string | null
           amount_awarded: number | null
           amount_requested: number | null
           application_due_at: string | null
           assigned_to: string | null
+          award_number: string | null
+          award_period_end: string | null
+          award_period_start: string | null
+          closeout_date: string | null
           contact_person_id: string | null
+          contract_document_id: string | null
           created_at: string
+          funder_grant_id: string | null
           funder_organization_id: string | null
           id: string
+          indirect_cost_rate: number | null
           loi_due_at: string | null
+          match_required: number | null
+          match_type: string | null
           name: string
           notes: string | null
+          program_id: string | null
           project_id: string
           report_due_at: string | null
           status: string
+          total_award_amount: number | null
           updated_at: string
         }
         Insert: {
+          agreement_status?: string | null
           amount_awarded?: number | null
           amount_requested?: number | null
           application_due_at?: string | null
           assigned_to?: string | null
+          award_number?: string | null
+          award_period_end?: string | null
+          award_period_start?: string | null
+          closeout_date?: string | null
           contact_person_id?: string | null
+          contract_document_id?: string | null
           created_at?: string
+          funder_grant_id?: string | null
           funder_organization_id?: string | null
           id?: string
+          indirect_cost_rate?: number | null
           loi_due_at?: string | null
+          match_required?: number | null
+          match_type?: string | null
           name: string
           notes?: string | null
+          program_id?: string | null
           project_id: string
           report_due_at?: string | null
           status?: string
+          total_award_amount?: number | null
           updated_at?: string
         }
         Update: {
+          agreement_status?: string | null
           amount_awarded?: number | null
           amount_requested?: number | null
           application_due_at?: string | null
           assigned_to?: string | null
+          award_number?: string | null
+          award_period_end?: string | null
+          award_period_start?: string | null
+          closeout_date?: string | null
           contact_person_id?: string | null
+          contract_document_id?: string | null
           created_at?: string
+          funder_grant_id?: string | null
           funder_organization_id?: string | null
           id?: string
+          indirect_cost_rate?: number | null
           loi_due_at?: string | null
+          match_required?: number | null
+          match_type?: string | null
           name?: string
           notes?: string | null
+          program_id?: string | null
           project_id?: string
           report_due_at?: string | null
           status?: string
+          total_award_amount?: number | null
           updated_at?: string
         }
         Relationships: [
@@ -4390,10 +4586,24 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "grants_contract_document_id_fkey"
+            columns: ["contract_document_id"]
+            isOneToOne: false
+            referencedRelation: "contract_documents"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "grants_funder_organization_id_fkey"
             columns: ["funder_organization_id"]
             isOneToOne: false
             referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grants_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
             referencedColumns: ["id"]
           },
           {

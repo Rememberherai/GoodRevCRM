@@ -233,6 +233,51 @@ const calendarSyncGrantSchema = z.object({
   grant_id: z.string().uuid(),
   deadline_type: z.enum(['loi', 'application', 'report']),
 });
+const grantDocumentsListSchema = z.object({
+  grant_id: z.string().uuid(),
+});
+const grantDocumentUpdateSchema = z.object({
+  grant_id: z.string().uuid(),
+  document_id: z.string().uuid(),
+  label: z.string().min(1).max(200).optional(),
+  is_required: z.boolean().optional(),
+  is_submitted: z.boolean().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+});
+const grantSearchFederalSchema = z.object({
+  keyword: z.string().min(1).describe('Search keywords for federal grant opportunities'),
+  fundingCategories: z.string().optional().describe('Funding category code (e.g. "CD" for Community Development, "HL" for Health)'),
+  eligibilities: z.string().optional().describe('Eligibility code (e.g. "25" for Nonprofits 501(c)(3))'),
+  rows: z.number().int().min(1).max(50).default(15),
+});
+const grantImportFederalSchema = z.object({
+  title: z.string().min(1),
+  number: z.string().min(1),
+  agencyCode: z.string().optional(),
+  openDate: z.string().optional(),
+  closeDate: z.string().optional(),
+  oppStatus: z.string().optional(),
+  id: z.string().optional(),
+});
+const grantReportsListSchema = z.object({
+  grant_id: z.string().uuid(),
+});
+const grantReportCreateSchema = z.object({
+  grant_id: z.string().uuid(),
+  report_type: z.enum(['progress', 'financial', 'final', 'interim', 'annual', 'closeout', 'other']),
+  title: z.string().min(1).max(200),
+  due_date: z.string().min(1),
+  notes: z.string().max(2000).nullable().optional(),
+});
+const grantReportUpdateSchema = z.object({
+  grant_id: z.string().uuid(),
+  report_id: z.string().uuid(),
+  status: z.enum(['upcoming', 'in_progress', 'submitted', 'accepted', 'revision_requested']).optional(),
+  title: z.string().min(1).max(200).optional(),
+  due_date: z.string().optional(),
+  document_id: z.string().uuid().nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+});
 
 function paginate(page: number, limit: number) {
   const offset = (page - 1) * limit;
@@ -1837,7 +1882,10 @@ defineCommunityTool({
       .eq('project_id', ctx.projectId)
       .order('updated_at', { ascending: false })
       .range(offset, to);
-    if (parsed.search) query = query.or(`name.ilike.%${parsed.search}%,notes.ilike.%${parsed.search}%`);
+    if (parsed.search) {
+      const sanitized = parsed.search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""');
+      query = query.or(`name.ilike."%${sanitized}%",notes.ilike."%${sanitized}%"`);
+    }
     if (parsed.status) query = query.eq('status', parsed.status);
     if (parsed.funder_organization_id) query = query.eq('funder_organization_id', parsed.funder_organization_id);
     const { data, error, count } = await query;
@@ -1908,6 +1956,16 @@ defineCommunityTool({
     const parsed = grantsUpdateToolSchema.parse(params);
     const { id, ...updates } = parsed;
     const admin = createAdminClient();
+
+    // Fetch existing grant to detect status/agreement transitions and provide previousData
+    const { data: existing } = await admin
+      .from('grants')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .eq('id', id)
+      .single();
+    if (!existing) throw communityError('Grant not found');
+
     const { data, error } = await admin
       .from('grants')
       .update(updates)
@@ -1916,12 +1974,55 @@ defineCommunityTool({
       .select('*')
       .single();
     if (error || !data) throw communityError(`Failed to update grant: ${error?.message ?? 'unknown error'}`);
+
+    // Detect agreement_status → executed
+    if (updates.agreement_status === 'executed' && existing.agreement_status !== 'executed') {
+      emitAutomationEvent({
+        projectId: ctx.projectId,
+        triggerType: 'grant.agreement_executed' as never,
+        entityType: 'grant' as never,
+        entityId: data.id,
+        data: data as unknown as Record<string, unknown>,
+      });
+    }
+
+    // Detect status change
+    const statusChanged = updates.status && updates.status !== existing.status;
+    if (statusChanged) {
+      emitAutomationEvent({
+        projectId: ctx.projectId,
+        triggerType: 'grant.status_changed' as never,
+        entityType: 'grant' as never,
+        entityId: data.id,
+        data: data as unknown as Record<string, unknown>,
+        previousData: { status: existing.status },
+      });
+    }
+
+    // Auto-create contribution when status transitions to 'awarded'
+    if (statusChanged && updates.status === 'awarded' && data.amount_awarded) {
+      await admin
+        .from('contributions')
+        .insert({
+          project_id: ctx.projectId,
+          type: 'grant',
+          status: 'received',
+          description: `Grant Award: ${data.name}`,
+          value: data.amount_awarded,
+          currency: 'USD',
+          donor_organization_id: data.funder_organization_id,
+          grant_id: data.id,
+          date: new Date().toISOString().slice(0, 10),
+        });
+    }
+
     emitAutomationEvent({
       projectId: ctx.projectId,
       triggerType: 'entity.updated',
       entityType: 'grant' as never,
       entityId: data.id,
       data: data as unknown as Record<string, unknown>,
+      previousData: existing as unknown as Record<string, unknown>,
     });
     return JSON.stringify({ grant: data });
   },
@@ -2034,13 +2135,14 @@ defineCommunityTool({
   action: 'update',
   roles: ['owner', 'admin', 'staff'],
   parameters: calendarSyncGrantSchema,
-  handler: async (params, _ctx) => {
+  handler: async (params, ctx) => {
     const parsed = calendarSyncGrantSchema.parse(params);
     const admin = createAdminClient();
     const { data: grant } = await admin
       .from('grants')
       .select('loi_due_at, application_due_at, report_due_at')
       .eq('id', parsed.grant_id)
+      .eq('project_id', ctx.projectId)
       .single();
     if (!grant) throw communityError('Grant not found');
 
@@ -2055,6 +2157,226 @@ defineCommunityTool({
     const dateStr = date.split('T')[0] ?? date;
     const result = await syncGrantDeadline(parsed.grant_id, parsed.deadline_type, dateStr);
     return JSON.stringify(result);
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.list_documents',
+  description: 'List all documents attached to a grant (narratives, budgets, support letters, etc.).',
+  resource: 'grants',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: grantDocumentsListSchema,
+  handler: async (params, ctx) => {
+    const parsed = grantDocumentsListSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('grant_documents')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .eq('grant_id', parsed.grant_id)
+      .order('created_at', { ascending: false });
+    if (error) throw communityError(`Failed to list grant documents: ${error.message}`);
+    return JSON.stringify({ documents: data ?? [] });
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.update_document',
+  description: 'Update a grant document\'s metadata (label, required/submitted flags, notes).',
+  resource: 'grants',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff'],
+  parameters: grantDocumentUpdateSchema,
+  handler: async (params, ctx) => {
+    const parsed = grantDocumentUpdateSchema.parse(params);
+    const { grant_id, document_id, ...updates } = parsed;
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('grant_documents')
+      .update(updates)
+      .eq('project_id', ctx.projectId)
+      .eq('grant_id', grant_id)
+      .eq('id', document_id)
+      .select()
+      .single();
+    if (error || !data) throw communityError(`Failed to update document: ${error?.message ?? 'not found'}`);
+    return JSON.stringify({ document: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.list_reports',
+  description: 'List the report schedule for a grant (progress, financial, final reports with due dates and statuses).',
+  resource: 'grants',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: grantReportsListSchema,
+  handler: async (params, ctx) => {
+    const parsed = grantReportsListSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('grant_report_schedules')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .eq('grant_id', parsed.grant_id)
+      .order('due_date', { ascending: true });
+    if (error) throw communityError(`Failed to list reports: ${error.message}`);
+    return JSON.stringify({ reports: data ?? [] });
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.create_report',
+  description: 'Add a report to a grant\'s reporting schedule (e.g. quarterly progress report due on a specific date).',
+  resource: 'grants',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff'],
+  parameters: grantReportCreateSchema,
+  handler: async (params, ctx) => {
+    const parsed = grantReportCreateSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('grant_report_schedules')
+      .insert({
+        grant_id: parsed.grant_id,
+        project_id: ctx.projectId,
+        report_type: parsed.report_type,
+        title: parsed.title,
+        due_date: parsed.due_date,
+        status: 'upcoming',
+        notes: parsed.notes ?? null,
+      })
+      .select()
+      .single();
+    if (error || !data) throw communityError(`Failed to create report: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify({ report: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.update_report',
+  description: 'Update a grant report\'s status, due date, or link a document to it.',
+  resource: 'grants',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff'],
+  parameters: grantReportUpdateSchema,
+  handler: async (params, ctx) => {
+    const parsed = grantReportUpdateSchema.parse(params);
+    const { grant_id, report_id, ...updates } = parsed;
+    const admin = createAdminClient();
+
+    // Auto-set submitted_at when marking as submitted
+    const updateData: Record<string, unknown> = { ...updates };
+    // Check existing status (scoped to project) for submitted_at auto-set
+    const { data: existing } = await admin
+      .from('grant_report_schedules')
+      .select('status')
+      .eq('id', report_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (updates.status === 'submitted' && existing && existing.status !== 'submitted') {
+      updateData.submitted_at = new Date().toISOString();
+    }
+
+    const { data, error } = await admin
+      .from('grant_report_schedules')
+      .update(updateData)
+      .eq('project_id', ctx.projectId)
+      .eq('grant_id', grant_id)
+      .eq('id', report_id)
+      .select()
+      .single();
+    if (error || !data) throw communityError(`Failed to update report: ${error?.message ?? 'not found'}`);
+
+    if (updates.status === 'submitted' && existing && existing.status !== 'submitted') {
+      emitAutomationEvent({
+        projectId: ctx.projectId,
+        triggerType: 'grant.report_submitted' as never,
+        entityType: 'grant' as never,
+        entityId: grant_id,
+        data: { report: data as unknown as Record<string, unknown>, grant_id },
+      });
+    }
+
+    return JSON.stringify({ report: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.search_federal',
+  description: 'Search Grants.gov for federal funding opportunities by keyword, category, or eligibility type. Returns up to 15 results by default.',
+  resource: 'grants',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: grantSearchFederalSchema,
+  handler: async (params) => {
+    const parsed = grantSearchFederalSchema.parse(params);
+    const { searchGrantsGov } = await import('@/lib/community/grants-gov');
+    const result = await searchGrantsGov({
+      keyword: parsed.keyword,
+      fundingCategories: parsed.fundingCategories,
+      eligibilities: parsed.eligibilities,
+      rows: parsed.rows,
+    });
+    return JSON.stringify({
+      hitCount: result.hitCount,
+      opportunities: result.opportunities.map(opp => ({
+        ...opp,
+        grants_gov_url: `https://www.grants.gov/search-results-detail/${opp.id}`,
+      })),
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.import_federal',
+  description: 'Import a federal opportunity from Grants.gov into the grant pipeline as a new grant in "researching" status.',
+  resource: 'grants',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff'],
+  parameters: grantImportFederalSchema,
+  handler: async (params, ctx) => {
+    const parsed = grantImportFederalSchema.parse(params);
+    const { mapOpportunityToGrant } = await import('@/lib/community/grants-gov');
+    const grantData = mapOpportunityToGrant({
+      id: parsed.id ?? '',
+      number: parsed.number,
+      title: parsed.title,
+      agencyCode: parsed.agencyCode ?? '',
+      openDate: parsed.openDate ?? '',
+      closeDate: parsed.closeDate ?? '',
+      oppStatus: parsed.oppStatus ?? '',
+    });
+    const admin = createAdminClient();
+
+    // Check for duplicate import
+    if (grantData.funder_grant_id) {
+      const { data: existing } = await admin
+        .from('grants')
+        .select('id, name')
+        .eq('project_id', ctx.projectId)
+        .eq('funder_grant_id', grantData.funder_grant_id)
+        .maybeSingle();
+      if (existing) {
+        throw communityError(`This opportunity has already been imported as "${existing.name}"`);
+      }
+    }
+
+    const { data, error } = await admin
+      .from('grants')
+      .insert({ ...grantData, project_id: ctx.projectId })
+      .select()
+      .single();
+    if (error || !data) throw communityError(`Failed to import: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'grant.created' as never,
+      entityType: 'grant' as never,
+      entityId: data.id,
+      data: data as unknown as Record<string, unknown>,
+    });
+    return JSON.stringify({ grant: data });
   },
 });
 

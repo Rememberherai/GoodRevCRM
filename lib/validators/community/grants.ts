@@ -7,8 +7,14 @@ export const grantStatusSchema = z.enum([
   'submitted',
   'under_review',
   'awarded',
+  'active',
+  'closed',
   'declined',
 ]);
+
+export const grantMatchTypeSchema = z.enum(['cash', 'in_kind', 'either']);
+
+export const grantAgreementStatusSchema = z.enum(['pending', 'executed', 'amended', 'expired']);
 
 export const grantSchema = z.object({
   project_id: optionalUuidSchema,
@@ -23,6 +29,19 @@ export const grantSchema = z.object({
   application_due_at: z.string().nullable().optional(),
   report_due_at: z.string().nullable().optional(),
   notes: nullableString(5000, 'Notes must be 5000 characters or less'),
+  // Post-award fields
+  award_number: z.string().max(100, 'Award number must be 100 characters or less').nullable().optional(),
+  funder_grant_id: z.string().max(100, 'Funder grant ID must be 100 characters or less').nullable().optional(),
+  award_period_start: z.string().nullable().optional(),
+  award_period_end: z.string().nullable().optional(),
+  total_award_amount: z.number().nonnegative().nullable().optional(),
+  match_required: z.number().nonnegative().nullable().optional(),
+  match_type: grantMatchTypeSchema.nullable().optional(),
+  indirect_cost_rate: z.number().min(0).max(1).nullable().optional(),
+  agreement_status: grantAgreementStatusSchema.nullable().optional(),
+  closeout_date: z.string().nullable().optional(),
+  program_id: optionalUuidSchema,
+  contract_document_id: optionalUuidSchema,
 });
 
 export const createGrantSchema = grantSchema;

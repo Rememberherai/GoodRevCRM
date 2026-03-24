@@ -2,16 +2,18 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
-import { createGrantSchema } from '@/lib/validators/community/grants';
+import { searchGrantsGov, mapOpportunityToGrant } from '@/lib/community/grants-gov';
 import { emitAutomationEvent } from '@/lib/automations/engine';
-import type { Database } from '@/types/database';
-
-type GrantInsert = Database['public']['Tables']['grants']['Insert'];
+import type { GrantsGovSearchParams, GrantsGovOpportunity } from '@/lib/community/grants-gov';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
 }
 
+/**
+ * GET: Search Grants.gov for federal opportunities
+ * Query params: q, agencies, fundingCategories, eligibilities, oppStatuses, rows
+ */
 export async function GET(request: Request, context: RouteContext) {
   try {
     const { slug } = await context.params;
@@ -31,45 +33,37 @@ export async function GET(request: Request, context: RouteContext) {
     await requireCommunityPermission(supabase, user.id, project.id, 'grants', 'view');
 
     const { searchParams } = new URL(request.url);
-    const rawPage = parseInt(searchParams.get('page') ?? '1', 10);
-    const rawLimit = parseInt(searchParams.get('limit') ?? '50', 10);
-    const page = Math.max(isNaN(rawPage) ? 1 : rawPage, 1);
-    const limit = Math.min(Math.max(isNaN(rawLimit) ? 50 : rawLimit, 1), 100);
-    const status = searchParams.get('status');
-    const funderId = searchParams.get('funder_organization_id');
-    const assignedTo = searchParams.get('assigned_to');
-    const offset = (page - 1) * limit;
+    const params: GrantsGovSearchParams = {
+      keyword: searchParams.get('q') ?? undefined,
+      agencies: searchParams.get('agencies') ?? undefined,
+      fundingCategories: searchParams.get('fundingCategories') ?? undefined,
+      eligibilities: searchParams.get('eligibilities') ?? undefined,
+      oppStatuses: searchParams.get('oppStatuses') ?? undefined,
+      rows: parseInt(searchParams.get('rows') ?? '25', 10),
+    };
 
-    let query = supabase
-      .from('grants')
-      .select(`
-        *,
-        funder:organizations!grants_funder_organization_id_fkey(id, name),
-        contact:people!grants_contact_person_id_fkey(id, first_name, last_name)
-      `, { count: 'exact' })
-      .eq('project_id', project.id)
-      .order('updated_at', { ascending: false })
-      .range(offset, offset + limit - 1);
+    if (!params.keyword) {
+      return NextResponse.json({ error: 'Search keyword (q) is required' }, { status: 400 });
+    }
 
-    if (status) query = query.eq('status', status);
-    if (funderId) query = query.eq('funder_organization_id', funderId);
-    if (assignedTo) query = query.eq('assigned_to', assignedTo);
-
-    const { data, error, count } = await query;
-    if (error) throw error;
+    const result = await searchGrantsGov(params);
 
     return NextResponse.json({
-      grants: data ?? [],
-      pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) },
+      hitCount: result.hitCount,
+      opportunities: result.opportunities,
     });
   } catch (error) {
     if (error instanceof ProjectAccessError)
       return NextResponse.json({ error: error.message }, { status: error.status });
-    console.error('Error in GET /api/projects/[slug]/grants:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error in GET /api/projects/[slug]/grants/discover:', error);
+    return NextResponse.json({ error: 'Failed to search Grants.gov' }, { status: 500 });
   }
 }
 
+/**
+ * POST: Import a Grants.gov opportunity as a new grant in the pipeline
+ * Body: { opportunity: GrantsGovOpportunity }
+ */
 export async function POST(request: Request, context: RouteContext) {
   try {
     const { slug } = await context.params;
@@ -88,35 +82,38 @@ export async function POST(request: Request, context: RouteContext) {
 
     await requireCommunityPermission(supabase, user.id, project.id, 'grants', 'create');
 
-    const body = await request.json();
-    const validation = createGrantSchema.safeParse(body);
-    if (!validation.success) {
+    const body = await request.json() as { opportunity?: GrantsGovOpportunity };
+    if (!body.opportunity?.title || !body.opportunity?.number) {
+      return NextResponse.json({ error: 'Opportunity data is required' }, { status: 400 });
+    }
+
+    const grantData = mapOpportunityToGrant(body.opportunity);
+
+    // Check for duplicate import
+    const { data: existing } = await supabase
+      .from('grants')
+      .select('id, name')
+      .eq('project_id', project.id)
+      .eq('funder_grant_id', grantData.funder_grant_id)
+      .maybeSingle();
+    if (existing) {
       return NextResponse.json(
-        { error: 'Validation failed', details: validation.error.flatten() },
-        { status: 400 },
+        { error: `This opportunity has already been imported as "${existing.name}"`, existing_grant_id: existing.id },
+        { status: 409 },
       );
     }
 
-    const insertData: GrantInsert = {
-      ...validation.data,
-      project_id: project.id,
-    };
-
     const { data, error } = await supabase
       .from('grants')
-      .insert(insertData)
+      .insert({
+        ...grantData,
+        project_id: project.id,
+      })
       .select()
       .single();
 
     if (error || !data) throw error ?? new Error('Failed to create grant');
 
-    emitAutomationEvent({
-      projectId: project.id,
-      triggerType: 'entity.created',
-      entityType: 'grant' as never,
-      entityId: data.id,
-      data: data as unknown as Record<string, unknown>,
-    });
     emitAutomationEvent({
       projectId: project.id,
       triggerType: 'grant.created' as never,
@@ -129,7 +126,7 @@ export async function POST(request: Request, context: RouteContext) {
   } catch (error) {
     if (error instanceof ProjectAccessError)
       return NextResponse.json({ error: error.message }, { status: error.status });
-    console.error('Error in POST /api/projects/[slug]/grants:', error);
-    return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
+    console.error('Error in POST /api/projects/[slug]/grants/discover:', error);
+    return NextResponse.json({ error: 'Failed to import opportunity' }, { status: 500 });
   }
 }

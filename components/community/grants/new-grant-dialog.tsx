@@ -21,6 +21,8 @@ const STATUSES = [
   { value: 'submitted', label: 'Submitted' },
   { value: 'under_review', label: 'Under Review' },
   { value: 'awarded', label: 'Awarded' },
+  { value: 'active', label: 'Active' },
+  { value: 'closed', label: 'Closed' },
   { value: 'declined', label: 'Declined' },
 ];
 

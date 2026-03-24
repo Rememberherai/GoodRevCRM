@@ -91,6 +91,11 @@ export type TriggerType =
   | 'grant.created'
   | 'grant.status_changed'
   | 'grant.deadline_approaching'
+  | 'grant.document_uploaded'
+  | 'grant.agreement_executed'
+  | 'grant.report_submitted'
+  | 'grant.report_due_soon'
+  | 'grant.report_overdue'
   | 'job.inaction_warning'
   | 'risk_score.high';
 
@@ -388,6 +393,11 @@ export const triggerTypeGroups = {
       { type: 'grant.created' as TriggerType, label: 'Grant Created', description: 'When a new grant record is created' },
       { type: 'grant.status_changed' as TriggerType, label: 'Grant Status Changed', description: 'When a grant moves to a different pipeline stage' },
       { type: 'grant.deadline_approaching' as TriggerType, label: 'Grant Deadline Approaching', description: 'When a grant deadline is within configured days' },
+      { type: 'grant.document_uploaded' as TriggerType, label: 'Grant Document Uploaded', description: 'When a document is attached to a grant' },
+      { type: 'grant.agreement_executed' as TriggerType, label: 'Grant Agreement Executed', description: 'When a grant agreement status changes to executed' },
+      { type: 'grant.report_submitted' as TriggerType, label: 'Grant Report Submitted', description: 'When a grant report is marked as submitted' },
+      { type: 'grant.report_due_soon' as TriggerType, label: 'Grant Report Due Soon', description: 'When a grant report is due within configured days' },
+      { type: 'grant.report_overdue' as TriggerType, label: 'Grant Report Overdue', description: 'When a grant report is past its due date' },
       { type: 'job.inaction_warning' as TriggerType, label: 'Job Inaction Warning', description: 'When an accepted job has no time entries after configured days' },
       { type: 'risk_score.high' as TriggerType, label: 'High Risk Score', description: 'When a household is flagged as high risk during recomputation' },
     ],
@@ -404,6 +414,8 @@ export const timeTriggerTypes: TriggerType[] = [
   'time.created_ago',
   'referral.overdue',
   'grant.deadline_approaching',
+  'grant.report_due_soon',
+  'grant.report_overdue',
   'job.inaction_warning',
 ];
 

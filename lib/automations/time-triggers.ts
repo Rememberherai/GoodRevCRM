@@ -50,6 +50,7 @@ const entityTableMap: Record<string, string> = {
   contractor_scope: 'contractor_scopes',
   receipt_confirmation: 'receipt_confirmations',
   grant: 'grants',
+  grant_report_schedule: 'grant_report_schedules',
 };
 
 /**
@@ -143,6 +144,12 @@ async function processTimeAutomation(
     case 'grant.deadline_approaching':
       matchedEntityIds = await findApproachingGrantDeadlines(supabase, projectId, triggerConfig);
       break;
+    case 'grant.report_due_soon':
+      matchedEntityIds = await findApproachingGrantReports(supabase, projectId, triggerConfig);
+      break;
+    case 'grant.report_overdue':
+      matchedEntityIds = await findOverdueGrantReports(supabase, projectId);
+      break;
     case 'job.inaction_warning':
       matchedEntityIds = await findInactionJobs(supabase, projectId, triggerConfig);
       break;
@@ -214,6 +221,9 @@ function getEntityTypeForTrigger(triggerType: TriggerType, config: TriggerConfig
       return 'referral';
     case 'grant.deadline_approaching':
       return 'grant';
+    case 'grant.report_due_soon':
+    case 'grant.report_overdue':
+      return 'grant_report_schedule';
     case 'job.inaction_warning':
       return 'job';
     default:
@@ -344,21 +354,63 @@ async function findApproachingGrantDeadlines(
     .from('grants')
     .select('id, loi_due_at, application_due_at, report_due_at')
     .eq('project_id', projectId)
-    .not('status', 'in', '("awarded","declined")')
+    .not('status', 'in', '("closed","declined")')
     .limit(200);
+
+  // Normalize to date-only comparison (avoid UTC vs local mismatch for date-only strings)
+  const todayStr = now.toISOString().slice(0, 10);
+  const targetStr = targetDate.toISOString().slice(0, 10);
 
   const matchedIds: string[] = [];
   for (const grant of data ?? []) {
     const deadlines = [grant.loi_due_at, grant.application_due_at, grant.report_due_at].filter(Boolean);
     for (const d of deadlines) {
-      const deadlineDate = new Date(d!);
-      if (deadlineDate >= now && deadlineDate <= targetDate) {
+      const dateStr = typeof d === 'string' ? d.slice(0, 10) : '';
+      if (dateStr >= todayStr && dateStr <= targetStr) {
         matchedIds.push(grant.id);
         break;
       }
     }
   }
   return matchedIds;
+}
+
+async function findApproachingGrantReports(
+  supabase: ReturnType<typeof createAdminClient>,
+  projectId: string,
+  config: TriggerConfig
+): Promise<string[]> {
+  const daysBefore = config.days_before ?? 7;
+  const now = new Date();
+  const targetDate = new Date(now.getTime() + daysBefore * 86400000);
+
+  const { data } = await supabase
+    .from('grant_report_schedules')
+    .select('id, due_date, status')
+    .eq('project_id', projectId)
+    .in('status', ['upcoming', 'in_progress'])
+    .gte('due_date', now.toISOString().slice(0, 10))
+    .lte('due_date', targetDate.toISOString().slice(0, 10))
+    .limit(200);
+
+  return (data ?? []).map((r: { id: string }) => r.id);
+}
+
+async function findOverdueGrantReports(
+  supabase: ReturnType<typeof createAdminClient>,
+  projectId: string,
+): Promise<string[]> {
+  const now = new Date().toISOString().slice(0, 10);
+
+  const { data } = await supabase
+    .from('grant_report_schedules')
+    .select('id')
+    .eq('project_id', projectId)
+    .in('status', ['upcoming', 'in_progress'])
+    .lt('due_date', now)
+    .limit(200);
+
+  return (data ?? []).map((r: { id: string }) => r.id);
 }
 
 async function findInactionJobs(

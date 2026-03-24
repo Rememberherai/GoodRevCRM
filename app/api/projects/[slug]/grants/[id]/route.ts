@@ -69,10 +69,10 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     await requireCommunityPermission(supabase, user.id, project.id, 'grants', 'update');
 
-    // Fetch existing grant to detect status changes
+    // Fetch existing grant to detect status/agreement changes
     const { data: existingGrant } = await supabase
       .from('grants')
-      .select('status')
+      .select('*')
       .eq('id', id)
       .eq('project_id', project.id)
       .single();
@@ -104,6 +104,17 @@ export async function PATCH(request: Request, context: RouteContext) {
       .single();
 
     if (error || !data) return NextResponse.json({ error: 'Grant not found' }, { status: 404 });
+
+    // Detect agreement status change → emit agreement executed trigger
+    if (validation.data.agreement_status === 'executed' && existingGrant.agreement_status !== 'executed') {
+      emitAutomationEvent({
+        projectId: project.id,
+        triggerType: 'grant.agreement_executed' as never,
+        entityType: 'grant' as never,
+        entityId: id,
+        data: data as unknown as Record<string, unknown>,
+      });
+    }
 
     // Detect status change → emit specific trigger
     const statusChanged = validation.data.status && validation.data.status !== existingGrant.status;
@@ -145,7 +156,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       entityType: 'grant' as never,
       entityId: id,
       data: data as unknown as Record<string, unknown>,
-      previousData: validation.data as Record<string, unknown>,
+      previousData: existingGrant as unknown as Record<string, unknown>,
     });
 
     return NextResponse.json({ grant: data });
@@ -174,6 +185,19 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     await requireCommunityPermission(supabase, user.id, project.id, 'grants', 'delete');
+
+    // Clean up storage files before deleting (CASCADE will remove grant_documents rows)
+    const { data: docs } = await supabase
+      .from('grant_documents')
+      .select('file_path')
+      .eq('grant_id', id)
+      .eq('project_id', project.id);
+    if (docs && docs.length > 0) {
+      const paths = docs.map((d) => d.file_path).filter(Boolean);
+      if (paths.length > 0) {
+        await supabase.storage.from('grant-documents').remove(paths);
+      }
+    }
 
     const { error } = await supabase.from('grants').delete().eq('id', id).eq('project_id', project.id);
     if (error) throw error;
