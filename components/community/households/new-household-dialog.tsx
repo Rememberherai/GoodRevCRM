@@ -346,9 +346,9 @@ export function NewHouseholdDialog({
                 </Button>
               </div>
               {showAddWarning && (
-                <div className="flex items-center gap-2 rounded-md border border-orange-300 bg-orange-50 p-2.5 text-sm text-orange-800 dark:border-orange-500/30 dark:bg-orange-950/30 dark:text-orange-300">
-                  <AlertTriangle className="h-4 w-4 shrink-0" />
-                  You have a person selected but haven&apos;t added them yet. Click <strong>Add</strong> to include them as a member.
+                <div className="flex items-center gap-2.5 rounded-md border border-orange-400/50 bg-orange-500/10 px-3 py-2 text-sm text-orange-300">
+                  <AlertTriangle className="h-4 w-4 shrink-0 text-orange-400" />
+                  <span>Don&apos;t forget to press <strong className="font-semibold text-orange-200">Add</strong> first!</span>
                 </div>
               )}
             </div>
