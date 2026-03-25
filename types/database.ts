@@ -4026,6 +4026,501 @@ export type Database = {
           },
         ]
       }
+      event_calendar_settings: {
+        Row: {
+          created_at: string
+          description: string | null
+          id: string
+          is_enabled: boolean
+          logo_url: string | null
+          primary_color: string | null
+          project_id: string
+          slug: string
+          timezone: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_enabled?: boolean
+          logo_url?: string | null
+          primary_color?: string | null
+          project_id: string
+          slug: string
+          timezone?: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_enabled?: boolean
+          logo_url?: string | null
+          primary_color?: string | null
+          project_id?: string
+          slug?: string
+          timezone?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_calendar_settings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "event_calendar_settings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_registration_tickets: {
+        Row: {
+          attendee_email: string | null
+          attendee_name: string | null
+          checked_in_at: string | null
+          created_at: string
+          id: string
+          qr_code: string | null
+          registration_id: string
+          ticket_type_id: string
+        }
+        Insert: {
+          attendee_email?: string | null
+          attendee_name?: string | null
+          checked_in_at?: string | null
+          created_at?: string
+          id?: string
+          qr_code?: string | null
+          registration_id: string
+          ticket_type_id: string
+        }
+        Update: {
+          attendee_email?: string | null
+          attendee_name?: string | null
+          checked_in_at?: string | null
+          created_at?: string
+          id?: string
+          qr_code?: string | null
+          registration_id?: string
+          ticket_type_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registration_tickets_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registration_tickets_ticket_type_id_fkey"
+            columns: ["ticket_type_id"]
+            isOneToOne: false
+            referencedRelation: "event_ticket_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_registrations: {
+        Row: {
+          cancel_token: string | null
+          checked_in_at: string | null
+          checked_in_by: string | null
+          confirmation_token: string | null
+          created_at: string
+          event_id: string
+          id: string
+          ip_address: string | null
+          person_id: string | null
+          registrant_email: string
+          registrant_name: string
+          registrant_phone: string | null
+          reminder_sent_1h: boolean | null
+          reminder_sent_24h: boolean | null
+          responses: Json
+          series_registration_id: string | null
+          source: string | null
+          status: string
+          updated_at: string
+          user_agent: string | null
+          waiver_signed_at: string | null
+          waiver_status: string
+        }
+        Insert: {
+          cancel_token?: string | null
+          checked_in_at?: string | null
+          checked_in_by?: string | null
+          confirmation_token?: string | null
+          created_at?: string
+          event_id: string
+          id?: string
+          ip_address?: string | null
+          person_id?: string | null
+          registrant_email: string
+          registrant_name: string
+          registrant_phone?: string | null
+          reminder_sent_1h?: boolean | null
+          reminder_sent_24h?: boolean | null
+          responses?: Json
+          series_registration_id?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+          waiver_signed_at?: string | null
+          waiver_status?: string
+        }
+        Update: {
+          cancel_token?: string | null
+          checked_in_at?: string | null
+          checked_in_by?: string | null
+          confirmation_token?: string | null
+          created_at?: string
+          event_id?: string
+          id?: string
+          ip_address?: string | null
+          person_id?: string | null
+          registrant_email?: string
+          registrant_name?: string
+          registrant_phone?: string | null
+          reminder_sent_1h?: boolean | null
+          reminder_sent_24h?: boolean | null
+          responses?: Json
+          series_registration_id?: string | null
+          source?: string | null
+          status?: string
+          updated_at?: string
+          user_agent?: string | null
+          waiver_signed_at?: string | null
+          waiver_status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_registrations_checked_in_by_fkey"
+            columns: ["checked_in_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_registrations_series_registration_id_fkey"
+            columns: ["series_registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_series_registrations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_series: {
+        Row: {
+          cancellation_policy: string | null
+          category: string | null
+          confirmation_message: string | null
+          cover_image_url: string | null
+          created_at: string
+          created_by: string | null
+          custom_questions: Json
+          description: string | null
+          description_html: string | null
+          generation_horizon_days: number
+          id: string
+          last_generated_date: string | null
+          location_type: string
+          max_tickets_per_registration: number
+          organizer_email: string | null
+          organizer_name: string | null
+          program_id: string | null
+          project_id: string
+          recurrence_count: number | null
+          recurrence_day_position: number | null
+          recurrence_days_of_week: string[] | null
+          recurrence_frequency: string
+          recurrence_interval: number
+          recurrence_until: string | null
+          registration_enabled: boolean
+          require_approval: boolean
+          requires_waiver: boolean
+          status: string
+          tags: string[] | null
+          template_end_time: string
+          template_start_time: string
+          timezone: string
+          title: string
+          total_capacity: number | null
+          updated_at: string
+          venue_address: string | null
+          venue_latitude: number | null
+          venue_longitude: number | null
+          venue_name: string | null
+          virtual_url: string | null
+          visibility: string
+          waitlist_enabled: boolean
+        }
+        Insert: {
+          cancellation_policy?: string | null
+          category?: string | null
+          confirmation_message?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_questions?: Json
+          description?: string | null
+          description_html?: string | null
+          generation_horizon_days?: number
+          id?: string
+          last_generated_date?: string | null
+          location_type?: string
+          max_tickets_per_registration?: number
+          organizer_email?: string | null
+          organizer_name?: string | null
+          program_id?: string | null
+          project_id: string
+          recurrence_count?: number | null
+          recurrence_day_position?: number | null
+          recurrence_days_of_week?: string[] | null
+          recurrence_frequency: string
+          recurrence_interval?: number
+          recurrence_until?: string | null
+          registration_enabled?: boolean
+          require_approval?: boolean
+          requires_waiver?: boolean
+          status?: string
+          tags?: string[] | null
+          template_end_time: string
+          template_start_time: string
+          timezone?: string
+          title: string
+          total_capacity?: number | null
+          updated_at?: string
+          venue_address?: string | null
+          venue_latitude?: number | null
+          venue_longitude?: number | null
+          venue_name?: string | null
+          virtual_url?: string | null
+          visibility?: string
+          waitlist_enabled?: boolean
+        }
+        Update: {
+          cancellation_policy?: string | null
+          category?: string | null
+          confirmation_message?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_questions?: Json
+          description?: string | null
+          description_html?: string | null
+          generation_horizon_days?: number
+          id?: string
+          last_generated_date?: string | null
+          location_type?: string
+          max_tickets_per_registration?: number
+          organizer_email?: string | null
+          organizer_name?: string | null
+          program_id?: string | null
+          project_id?: string
+          recurrence_count?: number | null
+          recurrence_day_position?: number | null
+          recurrence_days_of_week?: string[] | null
+          recurrence_frequency?: string
+          recurrence_interval?: number
+          recurrence_until?: string | null
+          registration_enabled?: boolean
+          require_approval?: boolean
+          requires_waiver?: boolean
+          status?: string
+          tags?: string[] | null
+          template_end_time?: string
+          template_start_time?: string
+          timezone?: string
+          title?: string
+          total_capacity?: number | null
+          updated_at?: string
+          venue_address?: string | null
+          venue_latitude?: number | null
+          venue_longitude?: number | null
+          venue_name?: string | null
+          virtual_url?: string | null
+          visibility?: string
+          waitlist_enabled?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_series_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_series_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_series_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "event_series_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_series_registrations: {
+        Row: {
+          cancel_token: string | null
+          created_at: string
+          id: string
+          person_id: string | null
+          registrant_email: string
+          registrant_name: string
+          registrant_phone: string | null
+          responses: Json
+          series_id: string
+          source: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          cancel_token?: string | null
+          created_at?: string
+          id?: string
+          person_id?: string | null
+          registrant_email: string
+          registrant_name: string
+          registrant_phone?: string | null
+          responses?: Json
+          series_id: string
+          source?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Update: {
+          cancel_token?: string | null
+          created_at?: string
+          id?: string
+          person_id?: string | null
+          registrant_email?: string
+          registrant_name?: string
+          registrant_phone?: string | null
+          responses?: Json
+          series_id?: string
+          source?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_series_registrations_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_series_registrations_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "event_series"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_ticket_types: {
+        Row: {
+          created_at: string
+          currency: string
+          description: string | null
+          event_id: string
+          id: string
+          is_active: boolean
+          is_hidden: boolean
+          max_per_order: number
+          name: string
+          price_cents: number
+          quantity_available: number | null
+          sales_end_at: string | null
+          sales_start_at: string | null
+          sort_order: number
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          currency?: string
+          description?: string | null
+          event_id: string
+          id?: string
+          is_active?: boolean
+          is_hidden?: boolean
+          max_per_order?: number
+          name: string
+          price_cents?: number
+          quantity_available?: number | null
+          sales_end_at?: string | null
+          sales_start_at?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          currency?: string
+          description?: string | null
+          event_id?: string
+          id?: string
+          is_active?: boolean
+          is_hidden?: boolean
+          max_per_order?: number
+          name?: string
+          price_cents?: number
+          quantity_available?: number | null
+          sales_end_at?: string | null
+          sales_start_at?: string | null
+          sort_order?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_ticket_types_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       event_type_members: {
         Row: {
           created_at: string | null
@@ -4209,6 +4704,219 @@ export type Database = {
             columns: ["user_id"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      event_waivers: {
+        Row: {
+          created_at: string
+          event_id: string
+          id: string
+          template_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          event_id: string
+          id?: string
+          template_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          event_id?: string
+          id?: string
+          template_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "event_waivers_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "event_waivers_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contract_templates"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      events: {
+        Row: {
+          add_to_crm: boolean
+          cancellation_policy: string | null
+          category: string | null
+          confirmation_message: string | null
+          cover_image_url: string | null
+          created_at: string
+          created_by: string | null
+          custom_questions: Json
+          description: string | null
+          description_html: string | null
+          ends_at: string
+          id: string
+          is_all_day: boolean
+          location_type: string
+          max_tickets_per_registration: number
+          organizer_email: string | null
+          organizer_name: string | null
+          program_id: string | null
+          project_id: string
+          published_at: string | null
+          registration_closes_at: string | null
+          registration_enabled: boolean
+          registration_opens_at: string | null
+          require_approval: boolean
+          requires_waiver: boolean
+          series_id: string | null
+          series_index: number | null
+          series_instance_modified: boolean
+          slug: string
+          starts_at: string
+          status: string
+          tags: string[] | null
+          timezone: string
+          title: string
+          total_capacity: number | null
+          updated_at: string
+          venue_address: string | null
+          venue_latitude: number | null
+          venue_longitude: number | null
+          venue_name: string | null
+          virtual_url: string | null
+          visibility: string
+          waitlist_enabled: boolean
+        }
+        Insert: {
+          add_to_crm?: boolean
+          cancellation_policy?: string | null
+          category?: string | null
+          confirmation_message?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_questions?: Json
+          description?: string | null
+          description_html?: string | null
+          ends_at: string
+          id?: string
+          is_all_day?: boolean
+          location_type?: string
+          max_tickets_per_registration?: number
+          organizer_email?: string | null
+          organizer_name?: string | null
+          program_id?: string | null
+          project_id: string
+          published_at?: string | null
+          registration_closes_at?: string | null
+          registration_enabled?: boolean
+          registration_opens_at?: string | null
+          require_approval?: boolean
+          requires_waiver?: boolean
+          series_id?: string | null
+          series_index?: number | null
+          series_instance_modified?: boolean
+          slug: string
+          starts_at: string
+          status?: string
+          tags?: string[] | null
+          timezone?: string
+          title: string
+          total_capacity?: number | null
+          updated_at?: string
+          venue_address?: string | null
+          venue_latitude?: number | null
+          venue_longitude?: number | null
+          venue_name?: string | null
+          virtual_url?: string | null
+          visibility?: string
+          waitlist_enabled?: boolean
+        }
+        Update: {
+          add_to_crm?: boolean
+          cancellation_policy?: string | null
+          category?: string | null
+          confirmation_message?: string | null
+          cover_image_url?: string | null
+          created_at?: string
+          created_by?: string | null
+          custom_questions?: Json
+          description?: string | null
+          description_html?: string | null
+          ends_at?: string
+          id?: string
+          is_all_day?: boolean
+          location_type?: string
+          max_tickets_per_registration?: number
+          organizer_email?: string | null
+          organizer_name?: string | null
+          program_id?: string | null
+          project_id?: string
+          published_at?: string | null
+          registration_closes_at?: string | null
+          registration_enabled?: boolean
+          registration_opens_at?: string | null
+          require_approval?: boolean
+          requires_waiver?: boolean
+          series_id?: string | null
+          series_index?: number | null
+          series_instance_modified?: boolean
+          slug?: string
+          starts_at?: string
+          status?: string
+          tags?: string[] | null
+          timezone?: string
+          title?: string
+          total_capacity?: number | null
+          updated_at?: string
+          venue_address?: string | null
+          venue_latitude?: number | null
+          venue_longitude?: number | null
+          venue_name?: string | null
+          virtual_url?: string | null
+          visibility?: string
+          waitlist_enabled?: boolean
+        }
+        Relationships: [
+          {
+            foreignKeyName: "events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "events_series_id_fkey"
+            columns: ["series_id"]
+            isOneToOne: false
+            referencedRelation: "event_series"
             referencedColumns: ["id"]
           },
         ]
@@ -6466,10 +7174,12 @@ export type Database = {
       }
       notes: {
         Row: {
+          category: string | null
           content: string
           content_html: string | null
           created_at: string | null
           created_by: string
+          event_id: string | null
           id: string
           is_pinned: boolean
           opportunity_id: string | null
@@ -6480,10 +7190,12 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          category?: string | null
           content: string
           content_html?: string | null
           created_at?: string | null
           created_by: string
+          event_id?: string | null
           id?: string
           is_pinned?: boolean
           opportunity_id?: string | null
@@ -6494,10 +7206,12 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          category?: string | null
           content?: string
           content_html?: string | null
           created_at?: string | null
           created_by?: string
+          event_id?: string | null
           id?: string
           is_pinned?: boolean
           opportunity_id?: string | null
@@ -6513,6 +7227,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
             referencedColumns: ["id"]
           },
           {
@@ -8600,6 +9321,58 @@ export type Database = {
             columns: ["service_type_id"]
             isOneToOne: false
             referencedRelation: "service_types"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      registration_waivers: {
+        Row: {
+          contract_document_id: string | null
+          created_at: string
+          event_waiver_id: string
+          id: string
+          registration_id: string
+          signed_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          contract_document_id?: string | null
+          created_at?: string
+          event_waiver_id: string
+          id?: string
+          registration_id: string
+          signed_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contract_document_id?: string | null
+          created_at?: string
+          event_waiver_id?: string
+          id?: string
+          registration_id?: string
+          signed_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "registration_waivers_contract_document_id_fkey"
+            columns: ["contract_document_id"]
+            isOneToOne: false
+            referencedRelation: "contract_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registration_waivers_event_waiver_id_fkey"
+            columns: ["event_waiver_id"]
+            isOneToOne: false
+            referencedRelation: "event_waivers"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "registration_waivers_registration_id_fkey"
+            columns: ["registration_id"]
+            isOneToOne: false
+            referencedRelation: "event_registrations"
             referencedColumns: ["id"]
           },
         ]
@@ -11815,6 +12588,10 @@ export type Database = {
           welcome_message: string
         }[]
       }
+      get_public_event_detail: {
+        Args: { p_calendar_slug: string; p_event_slug: string }
+        Returns: Json
+      }
       get_public_event_types: {
         Args: { p_slug: string }
         Returns: {
@@ -11831,6 +12608,7 @@ export type Database = {
           title: string
         }[]
       }
+      get_public_events: { Args: { p_calendar_slug: string }; Returns: Json }
       get_revenue_metrics:
         | {
             Args: {
@@ -12065,6 +12843,20 @@ export type Database = {
           p_payment_date: string
           p_payment_method?: string
           p_reference?: string
+        }
+        Returns: string
+      }
+      register_for_event: {
+        Args: {
+          p_event_id: string
+          p_ip_address: string
+          p_registrant_email: string
+          p_registrant_name: string
+          p_registrant_phone: string
+          p_responses: Json
+          p_source: string
+          p_ticket_selections: Json
+          p_user_agent: string
         }
         Returns: string
       }

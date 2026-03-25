@@ -97,7 +97,17 @@ export type TriggerType =
   | 'grant.report_due_soon'
   | 'grant.report_overdue'
   | 'job.inaction_warning'
-  | 'risk_score.high';
+  | 'risk_score.high'
+  // Event calendar events
+  | 'event.created'
+  | 'event.published'
+  | 'event.cancelled'
+  | 'event.registration.created'
+  | 'event.registration.confirmed'
+  | 'event.registration.cancelled'
+  | 'event.registration.waitlisted'
+  | 'event.registration.checked_in'
+  | 'event.capacity_reached';
 
 export type ActionType =
   | 'create_task'
@@ -161,7 +171,12 @@ export type AutomationEntityType =
   | 'contractor_scope'
   | 'receipt_confirmation'
   | 'grant'
-  | 'service_type';
+  | 'service_type'
+  | 'event'
+  | 'event_registration'
+  | 'event_ticket_type'
+  | 'event_series'
+  | 'event_series_registration';
 
 export type ExecutionStatus =
   | 'success'
@@ -400,6 +415,20 @@ export const triggerTypeGroups = {
       { type: 'grant.report_overdue' as TriggerType, label: 'Grant Report Overdue', description: 'When a grant report is past its due date' },
       { type: 'job.inaction_warning' as TriggerType, label: 'Job Inaction Warning', description: 'When an accepted job has no time entries after configured days' },
       { type: 'risk_score.high' as TriggerType, label: 'High Risk Score', description: 'When a household is flagged as high risk during recomputation' },
+    ],
+  },
+  events: {
+    label: 'Event Calendar',
+    triggers: [
+      { type: 'event.created' as TriggerType, label: 'Event Created', description: 'When a new event is created' },
+      { type: 'event.published' as TriggerType, label: 'Event Published', description: 'When an event is published' },
+      { type: 'event.cancelled' as TriggerType, label: 'Event Cancelled', description: 'When an event is cancelled' },
+      { type: 'event.registration.created' as TriggerType, label: 'Registration Created', description: 'When someone registers for an event' },
+      { type: 'event.registration.confirmed' as TriggerType, label: 'Registration Confirmed', description: 'When a registration is confirmed' },
+      { type: 'event.registration.cancelled' as TriggerType, label: 'Registration Cancelled', description: 'When a registration is cancelled' },
+      { type: 'event.registration.waitlisted' as TriggerType, label: 'Registration Waitlisted', description: 'When a registration is placed on the waitlist' },
+      { type: 'event.registration.checked_in' as TriggerType, label: 'Attendee Checked In', description: 'When an attendee is checked in at an event' },
+      { type: 'event.capacity_reached' as TriggerType, label: 'Event Capacity Reached', description: 'When an event reaches full capacity' },
     ],
   },
 };

@@ -66,6 +66,11 @@ const entityTableMap: Record<AutomationEntityType, string> = {
   receipt_confirmation: 'receipt_confirmations',
   grant: 'grants',
   service_type: 'service_types',
+  event: 'events',
+  event_registration: 'event_registrations',
+  event_ticket_type: 'event_ticket_types',
+  event_series: 'event_series',
+  event_series_registration: 'event_series_registrations',
 };
 
 /**

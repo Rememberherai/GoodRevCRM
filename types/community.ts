@@ -464,3 +464,203 @@ export interface PublicDashboardShareLink extends CommunityTimestamps {
 }
 export type PublicDashboardShareLinkInsert = CommunityInsert<PublicDashboardShareLink>;
 export type PublicDashboardShareLinkUpdate = CommunityUpdate<PublicDashboardShareLink>;
+
+// ── Event Calendar ──────────────────────────────────────────
+
+export type EventStatus = 'draft' | 'published' | 'cancelled' | 'postponed' | 'completed';
+export type EventVisibility = 'public' | 'unlisted' | 'private';
+export type EventLocationType = 'in_person' | 'virtual' | 'hybrid';
+export type EventRegistrationStatus = 'pending_approval' | 'pending_waiver' | 'confirmed' | 'waitlisted' | 'cancelled';
+export type EventSeriesStatus = 'draft' | 'active' | 'paused' | 'completed';
+export type RecurrenceFrequency = 'daily' | 'weekly' | 'biweekly' | 'monthly';
+export type EventWaiverStatus = 'not_required' | 'pending' | 'signed';
+export type EventRegistrationSource = 'web' | 'embed' | 'api' | 'manual' | 'import';
+
+export interface EventCalendarSettings extends CommunityTimestamps {
+  id: string;
+  project_id: string;
+  is_enabled: boolean;
+  slug: string;
+  title: string;
+  description: string | null;
+  logo_url: string | null;
+  primary_color: string | null;
+  timezone: string;
+}
+export type EventCalendarSettingsInsert = CommunityInsert<EventCalendarSettings>;
+export type EventCalendarSettingsUpdate = CommunityUpdate<EventCalendarSettings>;
+
+export interface EventSeries extends CommunityTimestamps {
+  id: string;
+  project_id: string;
+  program_id: string | null;
+  created_by: string | null;
+  title: string;
+  description: string | null;
+  description_html: string | null;
+  recurrence_frequency: RecurrenceFrequency;
+  recurrence_days_of_week: string[];
+  recurrence_interval: number;
+  recurrence_until: string | null;
+  recurrence_count: number | null;
+  recurrence_day_position: number | null;
+  template_start_time: string;
+  template_end_time: string;
+  timezone: string;
+  location_type: EventLocationType;
+  venue_name: string | null;
+  venue_address: string | null;
+  venue_latitude: number | null;
+  venue_longitude: number | null;
+  virtual_url: string | null;
+  registration_enabled: boolean;
+  total_capacity: number | null;
+  waitlist_enabled: boolean;
+  max_tickets_per_registration: number;
+  require_approval: boolean;
+  custom_questions: JsonObject[];
+  cover_image_url: string | null;
+  category: string | null;
+  tags: string[];
+  visibility: EventVisibility;
+  confirmation_message: string | null;
+  cancellation_policy: string | null;
+  requires_waiver: boolean;
+  organizer_name: string | null;
+  organizer_email: string | null;
+  last_generated_date: string | null;
+  generation_horizon_days: number;
+  status: EventSeriesStatus;
+}
+export type EventSeriesInsert = CommunityInsert<EventSeries>;
+export type EventSeriesUpdate = CommunityUpdate<EventSeries>;
+
+export interface EventSeriesRegistration extends CommunityTimestamps {
+  id: string;
+  series_id: string;
+  person_id: string | null;
+  registrant_name: string;
+  registrant_email: string;
+  registrant_phone: string | null;
+  status: 'active' | 'cancelled';
+  responses: JsonObject;
+  cancel_token: string | null;
+  source: EventRegistrationSource;
+}
+export type EventSeriesRegistrationInsert = CommunityInsert<EventSeriesRegistration>;
+
+export interface Event extends CommunityTimestamps {
+  id: string;
+  project_id: string;
+  program_id: string | null;
+  series_id: string | null;
+  series_index: number | null;
+  series_instance_modified: boolean;
+  created_by: string | null;
+  title: string;
+  slug: string;
+  description: string | null;
+  description_html: string | null;
+  cover_image_url: string | null;
+  category: string | null;
+  tags: string[];
+  starts_at: string;
+  ends_at: string;
+  timezone: string;
+  is_all_day: boolean;
+  location_type: EventLocationType;
+  venue_name: string | null;
+  venue_address: string | null;
+  venue_latitude: number | null;
+  venue_longitude: number | null;
+  virtual_url: string | null;
+  registration_enabled: boolean;
+  registration_opens_at: string | null;
+  registration_closes_at: string | null;
+  total_capacity: number | null;
+  waitlist_enabled: boolean;
+  max_tickets_per_registration: number;
+  require_approval: boolean;
+  add_to_crm: boolean;
+  custom_questions: JsonObject[];
+  status: EventStatus;
+  visibility: EventVisibility;
+  published_at: string | null;
+  organizer_name: string | null;
+  organizer_email: string | null;
+  confirmation_message: string | null;
+  cancellation_policy: string | null;
+  requires_waiver: boolean;
+}
+export type EventInsert = CommunityInsert<Event>;
+export type EventUpdate = CommunityUpdate<Event>;
+
+export interface EventTicketType extends CommunityTimestamps {
+  id: string;
+  event_id: string;
+  name: string;
+  description: string | null;
+  price_cents: number;
+  currency: string;
+  quantity_available: number | null;
+  max_per_order: number;
+  sort_order: number;
+  sales_start_at: string | null;
+  sales_end_at: string | null;
+  is_active: boolean;
+  is_hidden: boolean;
+}
+export type EventTicketTypeInsert = CommunityInsert<EventTicketType>;
+export type EventTicketTypeUpdate = CommunityUpdate<EventTicketType>;
+
+export interface EventRegistration extends CommunityTimestamps {
+  id: string;
+  event_id: string;
+  series_registration_id: string | null;
+  person_id: string | null;
+  registrant_name: string;
+  registrant_email: string;
+  registrant_phone: string | null;
+  status: EventRegistrationStatus;
+  responses: JsonObject;
+  confirmation_token: string | null;
+  cancel_token: string | null;
+  checked_in_at: string | null;
+  checked_in_by: string | null;
+  waiver_status: EventWaiverStatus;
+  waiver_signed_at: string | null;
+  reminder_sent_24h: boolean;
+  reminder_sent_1h: boolean;
+  source: EventRegistrationSource;
+  ip_address: string | null;
+  user_agent: string | null;
+}
+export type EventRegistrationInsert = CommunityInsert<EventRegistration>;
+export type EventRegistrationUpdate = CommunityUpdate<EventRegistration>;
+
+export interface EventRegistrationTicket {
+  id: string;
+  registration_id: string;
+  ticket_type_id: string;
+  attendee_name: string | null;
+  attendee_email: string | null;
+  qr_code: string | null;
+  checked_in_at: string | null;
+  created_at: string;
+}
+
+export interface EventWaiver extends CommunityTimestamps {
+  id: string;
+  event_id: string;
+  template_id: string;
+}
+export type EventWaiverInsert = CommunityInsert<EventWaiver>;
+
+export interface RegistrationWaiver extends CommunityTimestamps {
+  id: string;
+  registration_id: string;
+  event_waiver_id: string;
+  contract_document_id: string | null;
+  signed_at: string | null;
+}
+export type RegistrationWaiverInsert = CommunityInsert<RegistrationWaiver>;
