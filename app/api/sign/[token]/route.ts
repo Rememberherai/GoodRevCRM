@@ -81,6 +81,16 @@ export async function GET(request: Request, context: RouteContext) {
     .eq('recipient_id', recipient.id)
     .order('page_number', { ascending: true });
 
+  // Check if this is a lightweight waiver with HTML content
+  const { data: docMeta } = await supabase
+    .from('contract_documents')
+    .select('custom_fields')
+    .eq('id', recipient.document_id)
+    .single();
+
+  const customFields = docMeta?.custom_fields as Record<string, unknown> | null;
+  const isLightweightWaiver = customFields?.kind === 'program_waiver' && typeof customFields?.html_content === 'string';
+
   return NextResponse.json({
     document_title: document.title,
     page_count: document.page_count,
@@ -103,5 +113,9 @@ export async function GET(request: Request, context: RouteContext) {
       options: f.options,
       value: f.value,
     })),
+    ...(isLightweightWaiver ? {
+      document_kind: 'program_waiver',
+      waiver_html: customFields!.html_content as string,
+    } : {}),
   });
 }

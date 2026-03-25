@@ -166,6 +166,8 @@ export interface SigningPageData {
   }>;
   consent_given: boolean;
   document_status: ContractDocumentStatus;
+  document_kind?: string;
+  waiver_html?: string;
 }
 
 // Constants

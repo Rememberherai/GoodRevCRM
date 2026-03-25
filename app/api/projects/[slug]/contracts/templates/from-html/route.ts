@@ -91,6 +91,7 @@ export async function POST(request: Request, context: RouteContext) {
     roles: [],
     fields: [],
     merge_fields: [],
+    html_content: html_content,
   };
 
   const { data: template, error: templateError } = await supabase

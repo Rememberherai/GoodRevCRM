@@ -27,6 +27,8 @@ export default function SigningPage() {
   const [showDeclineDialog, setShowDeclineDialog] = useState(false);
   const [declineReason, setDeclineReason] = useState('');
   const [showDelegateDialog, setShowDelegateDialog] = useState(false);
+  const [waiverAgreed, setWaiverAgreed] = useState(false);
+  const [waiverTypedName, setWaiverTypedName] = useState('');
   const [downloadState, setDownloadState] = useState<DownloadState>('idle');
   const [delegateName, setDelegateName] = useState('');
   const [delegateEmail, setDelegateEmail] = useState('');
@@ -81,19 +83,22 @@ export default function SigningPage() {
       } else if (signingData.recipient_status === 'signed') {
         setStep('submitted');
       } else if (!signingData.consent_given) {
-        setStep('consent');
+        // For lightweight waivers, skip the separate consent step — it's merged into the form
+        setStep(signingData.waiver_html ? 'signing' : 'consent');
       } else {
         setStep('signing');
       }
 
-      // Load PDF
-      const pdfRes = await fetch(`/api/sign/${token}/document`);
-      if (pdfRes.ok) {
-        const blob = await pdfRes.blob();
-        if (pdfUrlRef.current) URL.revokeObjectURL(pdfUrlRef.current);
-        const url = URL.createObjectURL(blob);
-        pdfUrlRef.current = url;
-        setPdfUrl(url);
+      // Load PDF (skip for lightweight waivers — they render HTML instead)
+      if (!signingData.waiver_html) {
+        const pdfRes = await fetch(`/api/sign/${token}/document`);
+        if (pdfRes.ok) {
+          const blob = await pdfRes.blob();
+          if (pdfUrlRef.current) URL.revokeObjectURL(pdfUrlRef.current);
+          const url = URL.createObjectURL(blob);
+          pdfUrlRef.current = url;
+          setPdfUrl(url);
+        }
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
@@ -627,6 +632,184 @@ export default function SigningPage() {
             <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
               <h2 className="text-lg font-bold mb-2 text-gray-900">Decline to Sign</h2>
               <p className="text-sm text-gray-600 mb-4">The sender will be notified.</p>
+              <textarea
+                value={declineReason}
+                onChange={(e) => setDeclineReason(e.target.value)}
+                placeholder="Reason (optional)"
+                className="w-full border rounded-md px-3 py-2 text-sm mb-4"
+                rows={3}
+              />
+              <div className="flex gap-3 justify-end">
+                <button onClick={() => setShowDeclineDialog(false)} className="px-4 py-2 border rounded-md text-sm text-gray-700">Cancel</button>
+                <button onClick={handleDecline} className="px-4 py-2 bg-red-600 text-white rounded-md text-sm hover:bg-red-700">Decline</button>
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    );
+  }
+
+  // Lightweight waiver signing flow
+  if (data?.waiver_html) {
+    const handleLightweightSubmit = async () => {
+      if (!waiverAgreed || !waiverTypedName.trim()) return;
+      setSubmitting(true);
+      setError(null);
+
+      try {
+        // Submit consent if not already given
+        if (!data.consent_given) {
+          const consentRes = await fetch(`/api/sign/${token}/consent`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ consent_given: true }),
+          });
+          if (!consentRes.ok) {
+            const err = await consentRes.json();
+            throw new Error(err.error ?? 'Failed to record consent');
+          }
+        }
+
+        // Submit signature (typed name)
+        const res = await fetch(`/api/sign/${token}/submit`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fields: [],
+            signature_data: {
+              type: 'type',
+              data: waiverTypedName.trim(),
+            },
+          }),
+        });
+
+        if (!res.ok) {
+          const err = await res.json();
+          throw new Error(err.error ?? 'Failed to submit');
+        }
+
+        const submitResult = await res.json() as { completed?: boolean; already_signed?: boolean };
+        setStep(submitResult.completed || submitResult.already_signed ? 'completed' : 'submitted');
+      } catch (err) {
+        setError(err instanceof Error ? err.message : 'Failed to submit');
+      } finally {
+        setSubmitting(false);
+      }
+    };
+
+    // Sanitize HTML: allowlist approach for safe tags/attributes only
+    const sanitizeHtml = (html: string) => {
+      const SAFE_TAGS = new Set([
+        'p', 'br', 'hr', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6',
+        'strong', 'b', 'em', 'i', 'u', 'ul', 'ol', 'li',
+        'a', 'blockquote', 'span', 'div', 'sub', 'sup',
+      ]);
+      const SAFE_ATTRS = new Set(['href', 'target', 'rel']);
+
+      return html
+        // Strip dangerous tags and their content (paired tags like <script>...</script>)
+        .replace(/<(script|style|iframe|object|embed|form|svg|math|template)[^>]*>[\s\S]*?<\/\1>/gi, '')
+        // Strip dangerous self-closing/void tags (meta, base, link)
+        .replace(/<(meta|base|link)[^>]*\/?>/gi, '')
+        // Strip all tags not in allowlist
+        .replace(/<\/?([a-z][a-z0-9]*)\b[^>]*\/?>/gi, (match, tag: string) => {
+          const lower = tag.toLowerCase();
+          if (!SAFE_TAGS.has(lower)) return '';
+          // For safe tags, strip unsafe attributes
+          return match.replace(/\s+([a-z][a-z0-9-]*)\s*=\s*("[^"]*"|'[^']*'|[^\s>]*)/gi, (attrMatch, attr: string, value: string) => {
+            const attrLower = attr.toLowerCase();
+            if (!SAFE_ATTRS.has(attrLower)) return '';
+            // Block javascript: protocol in href
+            const unquoted = value.replace(/^["']|["']$/g, '').trim().toLowerCase();
+            if (attrLower === 'href' && unquoted.startsWith('javascript:')) return '';
+            return attrMatch;
+          });
+        });
+    };
+
+    return (
+      <div className="min-h-screen bg-gray-50">
+        <div className="max-w-2xl mx-auto px-4 py-8">
+          <div className="mb-6">
+            <h1 className="text-2xl font-bold text-gray-900">{data.document_title}</h1>
+            <p className="text-sm text-gray-500 mt-1">
+              Hi {data.recipient_name}, please review and acknowledge the waiver below.
+            </p>
+          </div>
+
+          {error && (
+            <div className="bg-red-50 border border-red-200 text-red-700 px-4 py-3 rounded-md mb-6 text-sm">
+              {error}
+              <button onClick={() => setError(null)} className="ml-2 underline">Dismiss</button>
+            </div>
+          )}
+
+          <div className="bg-white rounded-xl shadow-sm border p-6 mb-6">
+            <div
+              className="prose prose-sm max-w-none text-gray-800 max-h-[60vh] overflow-y-auto"
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(data.waiver_html) }}
+            />
+          </div>
+
+          <div className="bg-white rounded-xl shadow-sm border p-6 space-y-4">
+            <label className="flex items-start gap-3 cursor-pointer">
+              <input
+                type="checkbox"
+                checked={waiverAgreed}
+                onChange={(e) => setWaiverAgreed(e.target.checked)}
+                className="mt-1 h-4 w-4 rounded border-gray-300"
+              />
+              <span className="text-sm text-gray-700">
+                I have read and agree to the terms of this waiver. I understand that by typing my name
+                below, I am providing my legally binding electronic signature.
+              </span>
+            </label>
+
+            <div>
+              <label className="block text-sm font-medium text-gray-700 mb-1">
+                Type your full name to acknowledge
+              </label>
+              <input
+                type="text"
+                value={waiverTypedName}
+                onChange={(e) => setWaiverTypedName(e.target.value)}
+                placeholder={data.recipient_name}
+                className="w-full border rounded-md px-3 py-2 text-sm text-gray-900 bg-white"
+              />
+            </div>
+
+            <button
+              onClick={() => void handleLightweightSubmit()}
+              disabled={submitting || !waiverAgreed || !waiverTypedName.trim()}
+              className="w-full bg-blue-600 text-white py-3 px-6 rounded-lg font-medium hover:bg-blue-700 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+            >
+              {submitting ? (
+                <>
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                  Submitting...
+                </>
+              ) : (
+                'I Agree & Sign Waiver'
+              )}
+            </button>
+          </div>
+
+          <div className="text-center mt-4">
+            <button
+              onClick={() => setShowDeclineDialog(true)}
+              className="text-sm text-gray-500 hover:text-red-600 transition-colors"
+            >
+              Decline to sign
+            </button>
+          </div>
+        </div>
+
+        {/* Decline Dialog */}
+        {showDeclineDialog && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
+            <div className="bg-white rounded-xl p-6 max-w-md w-full mx-4">
+              <h2 className="text-lg font-bold mb-2 text-gray-900">Decline to Sign</h2>
               <textarea
                 value={declineReason}
                 onChange={(e) => setDeclineReason(e.target.value)}

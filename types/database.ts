@@ -2516,6 +2516,7 @@ export type Database = {
           fields: Json
           file_name: string
           file_path: string
+          html_content: string | null
           id: string
           last_used_at: string | null
           merge_fields: Json
@@ -2535,6 +2536,7 @@ export type Database = {
           fields?: Json
           file_name: string
           file_path: string
+          html_content?: string | null
           id?: string
           last_used_at?: string | null
           merge_fields?: Json
@@ -2554,6 +2556,7 @@ export type Database = {
           fields?: Json
           file_name?: string
           file_path?: string
+          html_content?: string | null
           id?: string
           last_used_at?: string | null
           merge_fields?: Json

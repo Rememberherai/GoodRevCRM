@@ -255,6 +255,7 @@ export async function createWaiverForEnrollment(params: {
     program_id: params.programId,
     program_enrollment_id: params.enrollmentId,
     ...(params.programWaiverId ? { program_waiver_id: params.programWaiverId } : {}),
+    ...(template.html_content ? { html_content: template.html_content } : {}),
   };
 
   const documentInsert: ContractDocumentInsert = {
