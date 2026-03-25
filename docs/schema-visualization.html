@@ -1,0 +1,759 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>GoodRevCRM — Supabase Schema Visualization</title>
+<style>
+  * { margin: 0; padding: 0; box-sizing: border-box; }
+  body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #0f1117; color: #e1e4e8; overflow: hidden; }
+
+  #controls {
+    position: fixed; top: 0; left: 0; right: 0; z-index: 100;
+    background: rgba(15,17,23,0.95); backdrop-filter: blur(10px);
+    border-bottom: 1px solid #21262d; padding: 12px 20px;
+    display: flex; align-items: center; gap: 16px; flex-wrap: wrap;
+  }
+  #controls h1 { font-size: 16px; font-weight: 600; color: #58a6ff; white-space: nowrap; }
+  #controls .filter-group { display: flex; gap: 6px; flex-wrap: wrap; }
+  .filter-btn {
+    padding: 4px 12px; border-radius: 12px; border: 1px solid #30363d;
+    background: #161b22; color: #8b949e; font-size: 12px; cursor: pointer;
+    transition: all 0.2s;
+  }
+  .filter-btn:hover { border-color: #58a6ff; color: #c9d1d9; }
+  .filter-btn.active { background: #1f6feb; border-color: #1f6feb; color: #fff; }
+  #search {
+    padding: 6px 12px; border-radius: 6px; border: 1px solid #30363d;
+    background: #0d1117; color: #c9d1d9; font-size: 13px; width: 200px;
+  }
+  #search::placeholder { color: #484f58; }
+  .stats { font-size: 12px; color: #8b949e; margin-left: auto; white-space: nowrap; }
+
+  #canvas-container { width: 100vw; height: 100vh; padding-top: 56px; }
+  svg { width: 100%; height: 100%; }
+
+  .table-group { cursor: grab; }
+  .table-group:active { cursor: grabbing; }
+  .table-rect {
+    rx: 8; ry: 8; stroke-width: 1.5;
+    filter: drop-shadow(0 2px 8px rgba(0,0,0,0.3));
+    transition: stroke-width 0.2s;
+  }
+  .table-group:hover .table-rect { stroke-width: 2.5; }
+  .table-header {
+    font-size: 12px; font-weight: 600; fill: #fff;
+    text-anchor: middle; dominant-baseline: central;
+  }
+  .table-col {
+    font-size: 9.5px; fill: #8b949e; font-family: 'SF Mono', Monaco, monospace;
+  }
+  .table-col-pk { fill: #f0883e; }
+  .table-col-fk { fill: #7ee787; }
+
+  .relation-line {
+    stroke-width: 1; fill: none; opacity: 0.3;
+    transition: opacity 0.2s, stroke-width 0.2s;
+  }
+  .relation-line.highlighted { opacity: 0.8; stroke-width: 2; }
+
+  .tooltip {
+    position: fixed; background: #1c2128; border: 1px solid #30363d;
+    border-radius: 8px; padding: 12px; font-size: 12px;
+    max-width: 320px; pointer-events: none; display: none; z-index: 200;
+    box-shadow: 0 8px 24px rgba(0,0,0,0.4);
+  }
+  .tooltip h3 { color: #58a6ff; margin-bottom: 6px; font-size: 13px; }
+  .tooltip .col-list { max-height: 300px; overflow-y: auto; }
+  .tooltip .col-item { padding: 2px 0; color: #8b949e; font-family: monospace; font-size: 11px; }
+  .tooltip .col-item .pk { color: #f0883e; }
+  .tooltip .col-item .fk { color: #7ee787; }
+  .tooltip .col-item .type { color: #d2a8ff; }
+
+  .legend {
+    position: fixed; bottom: 16px; left: 16px; z-index: 100;
+    background: rgba(22,27,34,0.95); border: 1px solid #21262d;
+    border-radius: 8px; padding: 12px 16px; font-size: 11px;
+  }
+  .legend-item { display: flex; align-items: center; gap: 8px; margin: 4px 0; }
+  .legend-swatch { width: 14px; height: 14px; border-radius: 4px; }
+  .legend-line { width: 14px; height: 2px; }
+
+  .zoom-controls {
+    position: fixed; bottom: 16px; right: 16px; z-index: 100;
+    display: flex; flex-direction: column; gap: 4px;
+  }
+  .zoom-btn {
+    width: 36px; height: 36px; border-radius: 8px; border: 1px solid #30363d;
+    background: #161b22; color: #c9d1d9; font-size: 18px; cursor: pointer;
+    display: flex; align-items: center; justify-content: center;
+  }
+  .zoom-btn:hover { background: #1f6feb; border-color: #1f6feb; }
+</style>
+</head>
+<body>
+
+<div id="controls">
+  <h1>GoodRevCRM Schema</h1>
+  <input id="search" type="text" placeholder="Search tables…">
+  <div class="filter-group" id="filters"></div>
+  <div class="stats" id="stats"></div>
+</div>
+
+<div id="canvas-container">
+  <svg id="svg"></svg>
+</div>
+
+<div class="tooltip" id="tooltip"></div>
+
+<div class="legend">
+  <div class="legend-item"><div class="legend-swatch" style="background:#1f6feb"></div> Core / Multi-tenancy</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#238636"></div> CRM Entities</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#a371f7"></div> Email & Outreach</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#f0883e"></div> Sequences</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#f85149"></div> VoIP & SMS</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#56d364"></div> Contracts & Docs</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#e3b341"></div> Accounting</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#39d353"></div> Calendar</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#db61a2"></div> Automations</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#79c0ff"></div> Notifications</div>
+  <div class="legend-item"><div class="legend-swatch" style="background:#8b949e"></div> Other / Support</div>
+  <div class="legend-item"><div class="legend-line" style="background:#7ee787"></div> Foreign Key</div>
+</div>
+
+<div class="zoom-controls">
+  <button class="zoom-btn" id="zoom-in">+</button>
+  <button class="zoom-btn" id="zoom-out">−</button>
+  <button class="zoom-btn" id="zoom-fit" style="font-size:12px">⊞</button>
+</div>
+
+<script>
+// ─── SCHEMA DATA ───
+const modules = {
+  "Core": { color: "#1f6feb", tables: {
+    "users": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"email",t:"TEXT"},{n:"full_name",t:"TEXT"},{n:"avatar_url",t:"TEXT"},{n:"created_at",t:"TIMESTAMPTZ"},{n:"updated_at",t:"TIMESTAMPTZ"}
+    ]},
+    "projects": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"name",t:"TEXT"},{n:"slug",t:"TEXT"},{n:"description",t:"TEXT"},{n:"settings",t:"JSONB"},{n:"owner_id",t:"UUID",fk:"users"},{n:"created_at",t:"TIMESTAMPTZ"},{n:"deleted_at",t:"TIMESTAMPTZ"}
+    ]},
+    "project_memberships": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"user_id",t:"UUID",fk:"users"},{n:"role",t:"ENUM"},{n:"invited_by",t:"UUID",fk:"users"},{n:"joined_at",t:"TIMESTAMPTZ"}
+    ]}
+  }},
+  "CRM Entities": { color: "#238636", tables: {
+    "organizations": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"name",t:"TEXT"},{n:"domain",t:"TEXT"},{n:"website",t:"TEXT"},{n:"industry",t:"TEXT"},{n:"employee_count",t:"INT"},{n:"annual_revenue",t:"DECIMAL"},{n:"phone",t:"TEXT"},{n:"custom_fields",t:"JSONB"},{n:"created_by",t:"UUID",fk:"users"}
+    ]},
+    "people": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"first_name",t:"TEXT"},{n:"last_name",t:"TEXT"},{n:"email",t:"TEXT"},{n:"phone",t:"TEXT"},{n:"job_title",t:"TEXT"},{n:"enrichment_status",t:"TEXT"},{n:"custom_fields",t:"JSONB"},{n:"created_by",t:"UUID",fk:"users"}
+    ]},
+    "person_organizations": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"person_id",t:"UUID",fk:"people"},{n:"organization_id",t:"UUID",fk:"organizations"},{n:"project_id",t:"UUID",fk:"projects"},{n:"job_title",t:"TEXT"},{n:"is_primary",t:"BOOL"},{n:"is_current",t:"BOOL"}
+    ]},
+    "opportunities": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"name",t:"TEXT"},{n:"stage",t:"ENUM"},{n:"amount",t:"DECIMAL"},{n:"probability",t:"INT"},{n:"expected_close_date",t:"DATE"},{n:"organization_id",t:"UUID",fk:"organizations"},{n:"primary_contact_id",t:"UUID",fk:"people"},{n:"owner_id",t:"UUID",fk:"users"},{n:"custom_fields",t:"JSONB"}
+    ]},
+    "rfps": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"title",t:"TEXT"},{n:"status",t:"ENUM"},{n:"organization_id",t:"UUID",fk:"organizations"},{n:"opportunity_id",t:"UUID",fk:"opportunities"},{n:"owner_id",t:"UUID",fk:"users"},{n:"estimated_value",t:"DECIMAL"},{n:"due_date",t:"DATE"}
+    ]},
+    "custom_field_definitions": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"entity_type",t:"ENUM"},{n:"name",t:"TEXT"},{n:"label",t:"TEXT"},{n:"field_type",t:"ENUM"},{n:"options",t:"JSONB"}
+    ]},
+    "products": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"name",t:"TEXT"},{n:"sku",t:"TEXT"},{n:"default_price",t:"DECIMAL"},{n:"is_active",t:"BOOL"}
+    ]}
+  }},
+  "Email & Outreach": { color: "#a371f7", tables: {
+    "gmail_connections": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"user_id",t:"UUID",fk:"users"},{n:"project_id",t:"UUID",fk:"projects"},{n:"email",t:"TEXT"},{n:"status",t:"TEXT"},{n:"last_sync_at",t:"TIMESTAMPTZ"}
+    ]},
+    "sent_emails": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"gmail_connection_id",t:"UUID",fk:"gmail_connections"},{n:"person_id",t:"UUID",fk:"people"},{n:"organization_id",t:"UUID",fk:"organizations"},{n:"opportunity_id",t:"UUID",fk:"opportunities"},{n:"recipient_email",t:"TEXT"},{n:"subject",t:"TEXT"},{n:"tracking_id",t:"UUID"},{n:"sent_at",t:"TIMESTAMPTZ"}
+    ]},
+    "email_events": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"sent_email_id",t:"UUID",fk:"sent_emails"},{n:"event_type",t:"ENUM"},{n:"occurred_at",t:"TIMESTAMPTZ"},{n:"metadata",t:"JSONB"}
+    ]},
+    "email_templates": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"name",t:"TEXT"},{n:"subject",t:"TEXT"},{n:"body_html",t:"TEXT"},{n:"category",t:"TEXT"},{n:"variables",t:"JSONB"},{n:"is_active",t:"BOOL"},{n:"usage_count",t:"INT"}
+    ]},
+    "email_template_versions": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"template_id",t:"UUID",fk:"email_templates"},{n:"version",t:"INT"},{n:"subject",t:"TEXT"},{n:"body_html",t:"TEXT"}
+    ]},
+    "email_template_attachments": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"template_id",t:"UUID",fk:"email_templates"},{n:"file_name",t:"TEXT"},{n:"file_size",t:"INT"},{n:"file_url",t:"TEXT"}
+    ]},
+    "email_signatures": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"user_id",t:"UUID",fk:"users"},{n:"project_id",t:"UUID",fk:"projects"},{n:"name",t:"TEXT"},{n:"content_html",t:"TEXT"},{n:"is_default",t:"BOOL"}
+    ]},
+    "email_drafts": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"user_id",t:"UUID",fk:"users"},{n:"person_id",t:"UUID",fk:"people"},{n:"subject",t:"TEXT"},{n:"status",t:"ENUM"},{n:"scheduled_at",t:"TIMESTAMPTZ"}
+    ]}
+  }},
+  "Sequences": { color: "#f0883e", tables: {
+    "sequences": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"name",t:"TEXT"},{n:"status",t:"ENUM"},{n:"settings",t:"JSONB"},{n:"created_by",t:"UUID",fk:"users"}
+    ]},
+    "sequence_steps": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"sequence_id",t:"UUID",fk:"sequences"},{n:"step_number",t:"INT"},{n:"step_type",t:"ENUM"},{n:"subject",t:"TEXT"},{n:"body_html",t:"TEXT"},{n:"delay_amount",t:"INT"},{n:"delay_unit",t:"TEXT"}
+    ]},
+    "sequence_step_attachments": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"sequence_step_id",t:"UUID",fk:"sequence_steps"},{n:"file_name",t:"TEXT"},{n:"file_url",t:"TEXT"}
+    ]},
+    "sequence_enrollments": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"sequence_id",t:"UUID",fk:"sequences"},{n:"person_id",t:"UUID",fk:"people"},{n:"gmail_connection_id",t:"UUID",fk:"gmail_connections"},{n:"current_step",t:"INT"},{n:"status",t:"ENUM"},{n:"next_send_at",t:"TIMESTAMPTZ"}
+    ]},
+    "enrollment_co_recipients": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"sequence_enrollment_id",t:"UUID",fk:"sequence_enrollments"},{n:"person_id",t:"UUID",fk:"people"},{n:"email",t:"TEXT"},{n:"send_status",t:"TEXT"}
+    ]},
+    "enrollment_dispositions": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"sequence_enrollment_id",t:"UUID",fk:"sequence_enrollments"},{n:"disposition_type",t:"TEXT"},{n:"disposition_date",t:"DATE"}
+    ]},
+    "dispositions": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"name",t:"TEXT"},{n:"color",t:"TEXT"},{n:"blocks_outreach",t:"BOOL"},{n:"is_active",t:"BOOL"}
+    ]}
+  }},
+  "VoIP & SMS": { color: "#f85149", tables: {
+    "telnyx_connections": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"created_by",t:"UUID",fk:"users"},{n:"phone_number",t:"TEXT"},{n:"status",t:"TEXT"},{n:"record_calls",t:"BOOL"}
+    ]},
+    "calls": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"telnyx_connection_id",t:"UUID",fk:"telnyx_connections"},{n:"direction",t:"ENUM"},{n:"status",t:"ENUM"},{n:"from_number",t:"TEXT"},{n:"to_number",t:"TEXT"},{n:"duration_seconds",t:"INT"},{n:"person_id",t:"UUID",fk:"people"},{n:"user_id",t:"UUID",fk:"users"}
+    ]},
+    "user_telnyx_connections": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"user_id",t:"UUID",fk:"users"},{n:"project_id",t:"UUID",fk:"projects"},{n:"phone_number",t:"TEXT"},{n:"status",t:"TEXT"}
+    ]},
+    "sms_messages": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"user_id",t:"UUID",fk:"users"},{n:"person_id",t:"UUID",fk:"people"},{n:"phone_number",t:"TEXT"},{n:"message_body",t:"TEXT"},{n:"direction",t:"TEXT"},{n:"status",t:"TEXT"}
+    ]},
+    "sms_sequence_steps": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"sequence_step_id",t:"UUID",fk:"sequence_steps"},{n:"message_body",t:"TEXT"}
+    ]}
+  }},
+  "Contracts": { color: "#56d364", tables: {
+    "contract_templates": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"name",t:"TEXT"},{n:"category",t:"TEXT"},{n:"roles",t:"JSONB"},{n:"fields",t:"JSONB"},{n:"page_count",t:"INT"}
+    ]},
+    "contract_documents": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"template_id",t:"UUID",fk:"contract_templates"},{n:"organization_id",t:"UUID",fk:"organizations"},{n:"opportunity_id",t:"UUID",fk:"opportunities"},{n:"status",t:"ENUM"},{n:"file_path",t:"TEXT"}
+    ]},
+    "contract_recipients": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"contract_document_id",t:"UUID",fk:"contract_documents"},{n:"person_id",t:"UUID",fk:"people"},{n:"email",t:"TEXT"},{n:"status",t:"ENUM"},{n:"signed_at",t:"TIMESTAMPTZ"}
+    ]},
+    "contract_fields": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"contract_document_id",t:"UUID",fk:"contract_documents"},{n:"field_name",t:"TEXT"},{n:"field_value",t:"TEXT"},{n:"field_type",t:"TEXT"}
+    ]},
+    "contract_audit_trail": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"contract_document_id",t:"UUID",fk:"contract_documents"},{n:"event_type",t:"TEXT"},{n:"event_data",t:"JSONB"},{n:"performed_by",t:"UUID",fk:"users"}
+    ]},
+    "contract_storage": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"contract_document_id",t:"UUID",fk:"contract_documents"},{n:"file_size",t:"INT"},{n:"storage_path",t:"TEXT"}
+    ]},
+    "contract_send_copies": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"contract_document_id",t:"UUID",fk:"contract_documents"},{n:"recipient_email",t:"TEXT"},{n:"sent_at",t:"TIMESTAMPTZ"}
+    ]}
+  }},
+  "Accounting": { color: "#e3b341", tables: {
+    "accounting_companies": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"name",t:"TEXT"},{n:"created_by",t:"UUID",fk:"users"},{n:"base_currency",t:"TEXT"},{n:"fiscal_year_start_month",t:"INT"},{n:"next_invoice_number",t:"INT"},{n:"next_bill_number",t:"INT"}
+    ]},
+    "accounting_company_memberships": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"company_id",t:"UUID",fk:"accounting_companies"},{n:"user_id",t:"UUID",fk:"users"},{n:"role",t:"ENUM"}
+    ]},
+    "accounting_settings": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"company_id",t:"UUID",fk:"accounting_companies"},{n:"default_ar_account_id",t:"UUID"},{n:"default_ap_account_id",t:"UUID"},{n:"default_payment_terms",t:"TEXT"}
+    ]},
+    "chart_of_accounts": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"company_id",t:"UUID",fk:"accounting_companies"},{n:"account_number",t:"TEXT"},{n:"account_name",t:"TEXT"},{n:"account_type",t:"ENUM"},{n:"is_active",t:"BOOL"}
+    ]},
+    "tax_rates": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"company_id",t:"UUID",fk:"accounting_companies"},{n:"name",t:"TEXT"},{n:"rate",t:"DECIMAL"},{n:"is_active",t:"BOOL"}
+    ]},
+    "journal_entries": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"company_id",t:"UUID",fk:"accounting_companies"},{n:"entry_number",t:"TEXT"},{n:"entry_date",t:"DATE"},{n:"memo",t:"TEXT"},{n:"status",t:"ENUM"},{n:"project_id",t:"UUID",fk:"projects"}
+    ]},
+    "journal_entry_lines": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"journal_entry_id",t:"UUID",fk:"journal_entries"},{n:"account_id",t:"UUID",fk:"chart_of_accounts"},{n:"description",t:"TEXT"},{n:"debit",t:"DECIMAL"},{n:"credit",t:"DECIMAL"},{n:"organization_id",t:"UUID",fk:"organizations"}
+    ]},
+    "invoices": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"company_id",t:"UUID",fk:"accounting_companies"},{n:"invoice_number",t:"TEXT"},{n:"status",t:"ENUM"},{n:"customer_name",t:"TEXT"},{n:"organization_id",t:"UUID",fk:"organizations"},{n:"total",t:"DECIMAL"},{n:"balance_due",t:"DECIMAL"},{n:"journal_entry_id",t:"UUID",fk:"journal_entries"}
+    ]},
+    "invoice_line_items": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"invoice_id",t:"UUID",fk:"invoices"},{n:"description",t:"TEXT"},{n:"quantity",t:"DECIMAL"},{n:"unit_price",t:"DECIMAL"},{n:"amount",t:"DECIMAL"},{n:"account_id",t:"UUID",fk:"chart_of_accounts"},{n:"tax_rate_id",t:"UUID",fk:"tax_rates"}
+    ]},
+    "invoice_tax_summary": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"invoice_id",t:"UUID",fk:"invoices"},{n:"tax_rate_id",t:"UUID",fk:"tax_rates"},{n:"taxable_amount",t:"DECIMAL"},{n:"tax_amount",t:"DECIMAL"}
+    ]},
+    "payments": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"company_id",t:"UUID",fk:"accounting_companies"},{n:"payment_type",t:"ENUM"},{n:"invoice_id",t:"UUID",fk:"invoices"},{n:"bill_id",t:"UUID",fk:"bills"},{n:"amount",t:"DECIMAL"},{n:"account_id",t:"UUID",fk:"chart_of_accounts"},{n:"journal_entry_id",t:"UUID",fk:"journal_entries"}
+    ]},
+    "bills": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"company_id",t:"UUID",fk:"accounting_companies"},{n:"bill_number",t:"TEXT"},{n:"status",t:"ENUM"},{n:"vendor_name",t:"TEXT"},{n:"organization_id",t:"UUID",fk:"organizations"},{n:"total",t:"DECIMAL"},{n:"balance_due",t:"DECIMAL"},{n:"journal_entry_id",t:"UUID",fk:"journal_entries"}
+    ]},
+    "bill_line_items": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"bill_id",t:"UUID",fk:"bills"},{n:"description",t:"TEXT"},{n:"quantity",t:"DECIMAL"},{n:"unit_price",t:"DECIMAL"},{n:"amount",t:"DECIMAL"},{n:"account_id",t:"UUID",fk:"chart_of_accounts"},{n:"tax_rate_id",t:"UUID",fk:"tax_rates"}
+    ]},
+    "bill_tax_summary": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"bill_id",t:"UUID",fk:"bills"},{n:"tax_rate_id",t:"UUID",fk:"tax_rates"},{n:"taxable_amount",t:"DECIMAL"},{n:"tax_amount",t:"DECIMAL"}
+    ]},
+    "recurring_transactions": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"company_id",t:"UUID",fk:"accounting_companies"},{n:"name",t:"TEXT"},{n:"frequency",t:"ENUM"},{n:"next_run_date",t:"DATE"},{n:"template_journal_entry",t:"JSONB"},{n:"is_active",t:"BOOL"}
+    ]}
+  }},
+  "Calendar": { color: "#39d353", tables: {
+    "calendar_profiles": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"user_id",t:"UUID",fk:"users"},{n:"slug",t:"TEXT"},{n:"display_name",t:"TEXT"},{n:"timezone",t:"TEXT"},{n:"is_active",t:"BOOL"}
+    ]},
+    "availability_schedules": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"user_id",t:"UUID",fk:"users"},{n:"name",t:"TEXT"},{n:"timezone",t:"TEXT"},{n:"is_default",t:"BOOL"}
+    ]},
+    "availability_rules": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"schedule_id",t:"UUID",fk:"availability_schedules"},{n:"day_of_week",t:"INT"},{n:"start_time",t:"TIME"},{n:"end_time",t:"TIME"}
+    ]},
+    "availability_overrides": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"user_id",t:"UUID",fk:"users"},{n:"date",t:"DATE"},{n:"start_time",t:"TIME"},{n:"end_time",t:"TIME"},{n:"is_available",t:"BOOL"}
+    ]},
+    "event_types": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"user_id",t:"UUID",fk:"users"},{n:"project_id",t:"UUID",fk:"projects"},{n:"title",t:"TEXT"},{n:"slug",t:"TEXT"},{n:"duration_minutes",t:"INT"},{n:"location_type",t:"ENUM"},{n:"schedule_id",t:"UUID",fk:"availability_schedules"},{n:"scheduling_type",t:"ENUM"}
+    ]},
+    "bookings": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"event_type_id",t:"UUID",fk:"event_types"},{n:"host_user_id",t:"UUID",fk:"users"},{n:"project_id",t:"UUID",fk:"projects"},{n:"invitee_name",t:"TEXT"},{n:"invitee_email",t:"TEXT"},{n:"start_at",t:"TIMESTAMPTZ"},{n:"end_at",t:"TIMESTAMPTZ"},{n:"status",t:"ENUM"},{n:"person_id",t:"UUID",fk:"people"}
+    ]},
+    "booking_rate_limits": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"key",t:"TEXT"},{n:"window_start",t:"TIMESTAMPTZ"},{n:"attempt_count",t:"INT"}
+    ]}
+  }},
+  "Automations": { color: "#db61a2", tables: {
+    "automations": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"name",t:"TEXT"},{n:"is_active",t:"BOOL"},{n:"trigger_type",t:"TEXT"},{n:"trigger_config",t:"JSONB"},{n:"conditions",t:"JSONB"},{n:"actions",t:"JSONB"},{n:"execution_count",t:"INT"}
+    ]},
+    "automation_executions": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"automation_id",t:"UUID",fk:"automations"},{n:"trigger_event",t:"JSONB"},{n:"status",t:"TEXT"},{n:"entity_type",t:"TEXT"},{n:"entity_id",t:"UUID"},{n:"executed_at",t:"TIMESTAMPTZ"}
+    ]},
+    "automation_time_checks": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"automation_id",t:"UUID",fk:"automations"},{n:"last_checked_at",t:"TIMESTAMPTZ"},{n:"last_matched_entity_ids",t:"JSONB"}
+    ]}
+  }},
+  "Notifications": { color: "#79c0ff", tables: {
+    "notifications": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"user_id",t:"UUID",fk:"users"},{n:"project_id",t:"UUID",fk:"projects"},{n:"type",t:"TEXT"},{n:"title",t:"TEXT"},{n:"message",t:"TEXT"},{n:"is_read",t:"BOOL"},{n:"priority",t:"ENUM"}
+    ]},
+    "notification_preferences": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"user_id",t:"UUID",fk:"users"},{n:"notification_type",t:"TEXT"},{n:"email_enabled",t:"BOOL"},{n:"push_enabled",t:"BOOL"},{n:"in_app_enabled",t:"BOOL"}
+    ]},
+    "push_subscriptions": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"user_id",t:"UUID",fk:"users"},{n:"endpoint",t:"TEXT"},{n:"is_active",t:"BOOL"}
+    ]},
+    "notification_batches": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"user_id",t:"UUID",fk:"users"},{n:"batch_type",t:"ENUM"},{n:"notification_count",t:"INT"},{n:"status",t:"ENUM"},{n:"scheduled_for",t:"TIMESTAMPTZ"}
+    ]}
+  }},
+  "Other": { color: "#8b949e", tables: {
+    "activity_log": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"user_id",t:"UUID",fk:"users"},{n:"entity_type",t:"TEXT"},{n:"entity_id",t:"UUID"},{n:"action",t:"TEXT"},{n:"activity_type",t:"TEXT"},{n:"changes",t:"JSONB"},{n:"person_id",t:"UUID",fk:"people"},{n:"organization_id",t:"UUID",fk:"organizations"}
+    ]},
+    "tasks": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"title",t:"TEXT"},{n:"status",t:"ENUM"},{n:"priority",t:"ENUM"},{n:"due_date",t:"DATE"},{n:"person_id",t:"UUID",fk:"people"},{n:"organization_id",t:"UUID",fk:"organizations"},{n:"assigned_to",t:"UUID",fk:"users"}
+    ]},
+    "notes": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"content",t:"TEXT"},{n:"person_id",t:"UUID",fk:"people"},{n:"organization_id",t:"UUID",fk:"organizations"},{n:"is_pinned",t:"BOOL"},{n:"created_by",t:"UUID",fk:"users"}
+    ]},
+    "schema_audit_log": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"change_type",t:"ENUM"},{n:"entity_type",t:"TEXT"},{n:"field_name",t:"TEXT"},{n:"performed_by",t:"UUID",fk:"users"}
+    ]},
+    "webhooks": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"name",t:"TEXT"},{n:"url",t:"TEXT"},{n:"events",t:"TEXT[]"},{n:"is_active",t:"BOOL"}
+    ]},
+    "webhook_deliveries": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"webhook_id",t:"UUID",fk:"webhooks"},{n:"event_type",t:"TEXT"},{n:"payload",t:"JSONB"},{n:"response_status",t:"INT"},{n:"status",t:"TEXT"}
+    ]},
+    "api_connections": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"name",t:"TEXT"},{n:"service_type",t:"TEXT"},{n:"config_enc",t:"TEXT"},{n:"status",t:"TEXT"}
+    ]},
+    "research_jobs": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"entity_type",t:"TEXT"},{n:"entity_id",t:"UUID"},{n:"status",t:"TEXT"},{n:"result",t:"JSONB"}
+    ]},
+    "enrichment_jobs": { cols: [
+      {n:"id",t:"UUID",pk:true},{n:"project_id",t:"UUID",fk:"projects"},{n:"person_id",t:"UUID",fk:"people"},{n:"status",t:"TEXT"},{n:"result",t:"JSONB"},{n:"credits_used",t:"INT"}
+    ]}
+  }}
+};
+
+// ─── BUILD FLAT TABLE LIST & RELATIONS ───
+const allTables = {};
+const relations = [];
+const tableModule = {};
+
+for (const [mod, {color, tables}] of Object.entries(modules)) {
+  for (const [name, data] of Object.entries(tables)) {
+    allTables[name] = { ...data, color, module: mod };
+    tableModule[name] = mod;
+    for (const col of data.cols) {
+      if (col.fk && col.fk !== name) {
+        relations.push({ from: name, to: col.fk, col: col.n });
+      }
+    }
+  }
+}
+
+const tableNames = Object.keys(allTables);
+const tableCount = tableNames.length;
+const relationCount = relations.length;
+
+// ─── LAYOUT: force-directed-ish initial placement by module ───
+const moduleList = Object.keys(modules);
+const moduleCenters = {};
+const cols = 4;
+const spacingX = 420, spacingY = 520;
+moduleList.forEach((m, i) => {
+  const row = Math.floor(i / cols), col = i % cols;
+  moduleCenters[m] = { x: 200 + col * spacingX, y: 120 + row * spacingY };
+});
+
+const positions = {};
+for (const [mod, {tables}] of Object.entries(modules)) {
+  const names = Object.keys(tables);
+  const center = moduleCenters[mod];
+  const perRow = Math.ceil(Math.sqrt(names.length));
+  names.forEach((n, i) => {
+    const r = Math.floor(i / perRow), c = i % perRow;
+    positions[n] = {
+      x: center.x + (c - perRow/2) * 200 + (Math.random()-0.5)*40,
+      y: center.y + (r - Math.ceil(names.length/perRow)/2) * 160 + (Math.random()-0.5)*30
+    };
+  });
+}
+
+// ─── SVG SETUP ───
+const svg = document.getElementById('svg');
+const svgNS = "http://www.w3.org/2000/svg";
+
+let viewBox = { x: -100, y: -50, w: cols * spacingX + 400, h: Math.ceil(moduleList.length / cols) * spacingY + 300 };
+function updateViewBox() {
+  svg.setAttribute('viewBox', `${viewBox.x} ${viewBox.y} ${viewBox.w} ${viewBox.h}`);
+}
+updateViewBox();
+
+// Defs for arrow markers
+const defs = document.createElementNS(svgNS, 'defs');
+const marker = document.createElementNS(svgNS, 'marker');
+marker.setAttribute('id', 'arrowhead');
+marker.setAttribute('markerWidth', '8');
+marker.setAttribute('markerHeight', '6');
+marker.setAttribute('refX', '8');
+marker.setAttribute('refY', '3');
+marker.setAttribute('orient', 'auto');
+const poly = document.createElementNS(svgNS, 'polygon');
+poly.setAttribute('points', '0 0, 8 3, 0 6');
+poly.setAttribute('fill', '#7ee787');
+poly.setAttribute('opacity', '0.5');
+marker.appendChild(poly);
+defs.appendChild(marker);
+svg.appendChild(defs);
+
+// Relations layer
+const relGroup = document.createElementNS(svgNS, 'g');
+relGroup.setAttribute('id', 'relations');
+svg.appendChild(relGroup);
+
+// Tables layer
+const tblGroup = document.createElementNS(svgNS, 'g');
+tblGroup.setAttribute('id', 'tables');
+svg.appendChild(tblGroup);
+
+// ─── DRAW RELATIONS ───
+const relationEls = [];
+relations.forEach(r => {
+  const line = document.createElementNS(svgNS, 'path');
+  line.classList.add('relation-line');
+  line.setAttribute('stroke', '#7ee787');
+  line.setAttribute('marker-end', 'url(#arrowhead)');
+  line.dataset.from = r.from;
+  line.dataset.to = r.to;
+  relGroup.appendChild(line);
+  relationEls.push({ el: line, ...r });
+});
+
+function updateRelations() {
+  relationEls.forEach(r => {
+    const fp = positions[r.from], tp = positions[r.to];
+    if (!fp || !tp) return;
+    const fw = getTableWidth(r.from), tw = getTableWidth(r.to);
+    const fh = getTableHeight(r.from), th = getTableHeight(r.to);
+    const fx = fp.x + fw/2, fy = fp.y + fh/2;
+    const tx = tp.x + tw/2, ty = tp.y + th/2;
+    const dx = tx - fx, dy = ty - fy;
+    const dist = Math.sqrt(dx*dx + dy*dy) || 1;
+    // Curve
+    const mx = (fx+tx)/2 + dy*0.15, my = (fy+ty)/2 - dx*0.15;
+    r.el.setAttribute('d', `M${fx},${fy} Q${mx},${my} ${tx},${ty}`);
+  });
+}
+
+function getTableWidth(name) { return 180; }
+function getTableHeight(name) {
+  const t = allTables[name];
+  return 26 + t.cols.length * 16 + 8;
+}
+
+// ─── DRAW TABLES ───
+const tableEls = {};
+for (const name of tableNames) {
+  const t = allTables[name];
+  const w = 180;
+  const h = getTableHeight(name);
+  const g = document.createElementNS(svgNS, 'g');
+  g.classList.add('table-group');
+  g.dataset.table = name;
+  g.dataset.module = t.module;
+
+  const rect = document.createElementNS(svgNS, 'rect');
+  rect.classList.add('table-rect');
+  rect.setAttribute('width', w);
+  rect.setAttribute('height', h);
+  rect.setAttribute('fill', '#161b22');
+  rect.setAttribute('stroke', t.color);
+
+  // Header bg
+  const headerBg = document.createElementNS(svgNS, 'rect');
+  headerBg.setAttribute('width', w);
+  headerBg.setAttribute('height', 24);
+  headerBg.setAttribute('fill', t.color);
+  headerBg.setAttribute('opacity', '0.2');
+  headerBg.setAttribute('rx', '8');
+  headerBg.setAttribute('ry', '8');
+
+  // Clip bottom corners of header
+  const headerClip = document.createElementNS(svgNS, 'rect');
+  headerClip.setAttribute('y', '12');
+  headerClip.setAttribute('width', w);
+  headerClip.setAttribute('height', '12');
+  headerClip.setAttribute('fill', t.color);
+  headerClip.setAttribute('opacity', '0.2');
+
+  const title = document.createElementNS(svgNS, 'text');
+  title.classList.add('table-header');
+  title.setAttribute('x', w/2);
+  title.setAttribute('y', 13);
+  title.textContent = name;
+
+  g.appendChild(rect);
+  g.appendChild(headerBg);
+  g.appendChild(headerClip);
+  g.appendChild(title);
+
+  t.cols.forEach((col, i) => {
+    const txt = document.createElementNS(svgNS, 'text');
+    txt.classList.add('table-col');
+    if (col.pk) txt.classList.add('table-col-pk');
+    else if (col.fk) txt.classList.add('table-col-fk');
+    txt.setAttribute('x', 8);
+    txt.setAttribute('y', 38 + i * 16);
+    const prefix = col.pk ? '🔑 ' : col.fk ? '→ ' : '   ';
+    txt.textContent = `${prefix}${col.n}`;
+    g.appendChild(txt);
+
+    const typeTxt = document.createElementNS(svgNS, 'text');
+    typeTxt.classList.add('table-col');
+    typeTxt.setAttribute('x', w - 8);
+    typeTxt.setAttribute('y', 38 + i * 16);
+    typeTxt.setAttribute('text-anchor', 'end');
+    typeTxt.setAttribute('fill', '#d2a8ff');
+    typeTxt.setAttribute('font-size', '8.5');
+    typeTxt.textContent = col.t;
+    g.appendChild(typeTxt);
+  });
+
+  g.setAttribute('transform', `translate(${positions[name].x}, ${positions[name].y})`);
+  tblGroup.appendChild(g);
+  tableEls[name] = g;
+
+  // ─── DRAG ───
+  let dragging = false, startX, startY, origX, origY;
+  g.addEventListener('mousedown', e => {
+    if (e.button !== 0) return;
+    dragging = true;
+    const ctm = svg.getScreenCTM();
+    startX = (e.clientX - ctm.e) / ctm.a;
+    startY = (e.clientY - ctm.f) / ctm.d;
+    origX = positions[name].x;
+    origY = positions[name].y;
+    e.stopPropagation();
+  });
+  window.addEventListener('mousemove', e => {
+    if (!dragging) return;
+    const ctm = svg.getScreenCTM();
+    const mx = (e.clientX - ctm.e) / ctm.a;
+    const my = (e.clientY - ctm.f) / ctm.d;
+    positions[name].x = origX + (mx - startX);
+    positions[name].y = origY + (my - startY);
+    g.setAttribute('transform', `translate(${positions[name].x}, ${positions[name].y})`);
+    updateRelations();
+  });
+  window.addEventListener('mouseup', () => { dragging = false; });
+
+  // ─── HOVER HIGHLIGHT ───
+  g.addEventListener('mouseenter', () => highlightTable(name));
+  g.addEventListener('mouseleave', () => clearHighlight());
+}
+
+updateRelations();
+
+// ─── HIGHLIGHT ───
+function highlightTable(name) {
+  relationEls.forEach(r => {
+    if (r.from === name || r.to === name) {
+      r.el.classList.add('highlighted');
+    } else {
+      r.el.classList.remove('highlighted');
+    }
+  });
+}
+function clearHighlight() {
+  relationEls.forEach(r => r.el.classList.remove('highlighted'));
+}
+
+// ─── TOOLTIP ───
+const tooltip = document.getElementById('tooltip');
+for (const name of tableNames) {
+  const g = tableEls[name];
+  g.addEventListener('mouseenter', e => {
+    const t = allTables[name];
+    let html = `<h3>${name}</h3><div style="color:#58a6ff;font-size:11px;margin-bottom:6px">${t.module}</div><div class="col-list">`;
+    t.cols.forEach(c => {
+      let cls = c.pk ? 'pk' : c.fk ? 'fk' : '';
+      let extra = c.pk ? ' PK' : c.fk ? ` → ${c.fk}` : '';
+      html += `<div class="col-item"><span class="${cls}">${c.n}</span> <span class="type">${c.t}</span>${extra ? `<span class="${cls}">${extra}</span>` : ''}</div>`;
+    });
+    html += '</div>';
+    const incoming = relations.filter(r => r.to === name).map(r => `${r.from}.${r.col}`);
+    if (incoming.length) {
+      html += `<div style="margin-top:8px;color:#7ee787;font-size:11px">Referenced by: ${incoming.join(', ')}</div>`;
+    }
+    tooltip.innerHTML = html;
+    tooltip.style.display = 'block';
+  });
+  g.addEventListener('mousemove', e => {
+    tooltip.style.left = (e.clientX + 16) + 'px';
+    tooltip.style.top = (e.clientY + 16) + 'px';
+  });
+  g.addEventListener('mouseleave', () => {
+    tooltip.style.display = 'none';
+  });
+}
+
+// ─── PAN & ZOOM ───
+let isPanning = false, panStart = {x:0,y:0}, vbStart = {};
+
+svg.addEventListener('mousedown', e => {
+  if (e.target.closest('.table-group')) return;
+  isPanning = true;
+  panStart = { x: e.clientX, y: e.clientY };
+  vbStart = { ...viewBox };
+  svg.style.cursor = 'grabbing';
+});
+window.addEventListener('mousemove', e => {
+  if (!isPanning) return;
+  const ctm = svg.getScreenCTM();
+  const dx = (e.clientX - panStart.x) / ctm.a;
+  const dy = (e.clientY - panStart.y) / ctm.d;
+  viewBox.x = vbStart.x - dx;
+  viewBox.y = vbStart.y - dy;
+  updateViewBox();
+});
+window.addEventListener('mouseup', () => { isPanning = false; svg.style.cursor = ''; });
+
+svg.addEventListener('wheel', e => {
+  e.preventDefault();
+  const scale = e.deltaY > 0 ? 1.1 : 0.9;
+  const ctm = svg.getScreenCTM();
+  const mx = (e.clientX - ctm.e) / ctm.a + viewBox.x;
+  const my = (e.clientY - ctm.f) / ctm.d + viewBox.y;
+  viewBox.w *= scale; viewBox.h *= scale;
+  viewBox.x = mx - (mx - viewBox.x) * scale;
+  viewBox.y = my - (my - viewBox.y) * scale;
+  updateViewBox();
+}, { passive: false });
+
+document.getElementById('zoom-in').onclick = () => {
+  const cx = viewBox.x + viewBox.w/2, cy = viewBox.y + viewBox.h/2;
+  viewBox.w *= 0.8; viewBox.h *= 0.8;
+  viewBox.x = cx - viewBox.w/2; viewBox.y = cy - viewBox.h/2;
+  updateViewBox();
+};
+document.getElementById('zoom-out').onclick = () => {
+  const cx = viewBox.x + viewBox.w/2, cy = viewBox.y + viewBox.h/2;
+  viewBox.w *= 1.25; viewBox.h *= 1.25;
+  viewBox.x = cx - viewBox.w/2; viewBox.y = cy - viewBox.h/2;
+  updateViewBox();
+};
+document.getElementById('zoom-fit').onclick = () => {
+  let minX=Infinity,minY=Infinity,maxX=-Infinity,maxY=-Infinity;
+  for (const n of tableNames) {
+    if (tableEls[n].style.display === 'none') continue;
+    const p = positions[n];
+    minX = Math.min(minX, p.x); minY = Math.min(minY, p.y);
+    maxX = Math.max(maxX, p.x + 180); maxY = Math.max(maxY, p.y + getTableHeight(n));
+  }
+  const pad = 80;
+  viewBox = { x: minX-pad, y: minY-pad, w: maxX-minX+pad*2, h: maxY-minY+pad*2 };
+  updateViewBox();
+};
+
+// ─── FILTERS ───
+const filtersDiv = document.getElementById('filters');
+const allBtn = document.createElement('button');
+allBtn.className = 'filter-btn active';
+allBtn.textContent = 'All';
+allBtn.onclick = () => filterModule(null);
+filtersDiv.appendChild(allBtn);
+
+moduleList.forEach(mod => {
+  const btn = document.createElement('button');
+  btn.className = 'filter-btn';
+  btn.textContent = mod;
+  btn.style.borderColor = modules[mod].color;
+  btn.onclick = () => filterModule(mod);
+  filtersDiv.appendChild(btn);
+});
+
+let activeFilter = null;
+function filterModule(mod) {
+  activeFilter = mod;
+  filtersDiv.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+  if (!mod) {
+    filtersDiv.querySelector('.filter-btn').classList.add('active');
+  } else {
+    [...filtersDiv.querySelectorAll('.filter-btn')].find(b => b.textContent === mod)?.classList.add('active');
+  }
+  applyFilter();
+}
+
+// ─── SEARCH ───
+const searchInput = document.getElementById('search');
+searchInput.addEventListener('input', applyFilter);
+
+function applyFilter() {
+  const q = searchInput.value.toLowerCase();
+  const visibleTables = new Set();
+
+  for (const name of tableNames) {
+    const t = allTables[name];
+    const matchesMod = !activeFilter || t.module === activeFilter;
+    const matchesSearch = !q || name.includes(q) || t.cols.some(c => c.n.includes(q));
+    const visible = matchesMod && matchesSearch;
+    tableEls[name].style.display = visible ? '' : 'none';
+    if (visible) visibleTables.add(name);
+  }
+
+  relationEls.forEach(r => {
+    r.el.style.display = (visibleTables.has(r.from) && visibleTables.has(r.to)) ? '' : 'none';
+  });
+
+  document.getElementById('stats').textContent = `${visibleTables.size} / ${tableCount} tables · ${relationCount} relationships`;
+}
+
+applyFilter();
+</script>
+</body>
+</html>
