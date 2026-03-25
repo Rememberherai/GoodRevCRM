@@ -3,6 +3,11 @@ import type { Database } from '@/types/database';
 
 type Supabase = SupabaseClient<Database>;
 
+export interface DateRangeFilter {
+  from: string;
+  to: string;
+}
+
 export interface ProgramPerformanceReport {
   program_id: string;
   program_name: string;
@@ -48,9 +53,35 @@ export interface ContractorHoursReport {
   }[];
 }
 
+export interface GrantPipelineReport {
+  by_status: { status: string; count: number; total_amount: number }[];
+  compliance: {
+    grant_id: string;
+    grant_name: string;
+    status: string;
+    amount_awarded: number | null;
+    total_spend: number;
+    budget_utilization_pct: number;
+  }[];
+}
+
+export interface EngagementTrendsReport {
+  monthly_attendance: { month: string; count: number; hours: number }[];
+  monthly_households: { month: string; count: number }[];
+  monthly_contributions: { month: string; type: string; value: number; count: number }[];
+}
+
+export interface RiskReferralReport {
+  risk_tiers: { tier: string; count: number }[];
+  risk_factors: { factor: string; count: number }[];
+  referrals_by_status: { status: string; count: number }[];
+  referrals_by_service: { service_type: string; count: number }[];
+}
+
 export async function getProgramPerformanceReport(
   supabase: Supabase,
-  projectId: string
+  projectId: string,
+  dateRange?: DateRangeFilter
 ): Promise<ProgramPerformanceReport[]> {
   const { data: programs } = await supabase
     .from('programs')
@@ -62,15 +93,25 @@ export async function getProgramPerformanceReport(
   const results: ProgramPerformanceReport[] = [];
 
   for (const program of programs) {
+    let enrollmentQuery = supabase
+      .from('program_enrollments')
+      .select('status, person_id')
+      .eq('program_id', program.id);
+    if (dateRange) {
+      enrollmentQuery = enrollmentQuery.gte('enrolled_at', dateRange.from).lte('enrolled_at', dateRange.to);
+    }
+
+    let attendanceQuery = supabase
+      .from('program_attendance')
+      .select('person_id, hours, status')
+      .eq('program_id', program.id);
+    if (dateRange) {
+      attendanceQuery = attendanceQuery.gte('date', dateRange.from).lte('date', dateRange.to);
+    }
+
     const [enrollments, attendance] = await Promise.all([
-      supabase
-        .from('program_enrollments')
-        .select('status, person_id')
-        .eq('program_id', program.id),
-      supabase
-        .from('program_attendance')
-        .select('person_id, hours, status')
-        .eq('program_id', program.id),
+      enrollmentQuery,
+      attendanceQuery,
     ]);
 
     const enrolled = enrollments.data ?? [];
@@ -100,13 +141,18 @@ export async function getProgramPerformanceReport(
 
 export async function getContributionSummaryReport(
   supabase: Supabase,
-  projectId: string
+  projectId: string,
+  dateRange?: DateRangeFilter
 ): Promise<ContributionSummaryReport> {
-  const { data: contributions } = await supabase
+  let query = supabase
     .from('contributions')
     .select('type, status, value, hours, dimension_id')
     .eq('project_id', projectId);
+  if (dateRange) {
+    query = query.gte('date', dateRange.from).lte('date', dateRange.to);
+  }
 
+  const { data: contributions } = await query;
   const items = contributions ?? [];
 
   // By type
@@ -168,14 +214,19 @@ export async function getContributionSummaryReport(
 
 export async function getHouseholdDemographicsReport(
   supabase: Supabase,
-  projectId: string
+  projectId: string,
+  dateRange?: DateRangeFilter
 ): Promise<HouseholdDemographicsReport> {
-  const { data: households } = await supabase
+  let query = supabase
     .from('households')
     .select('id, address_city, household_size')
     .eq('project_id', projectId)
     .is('deleted_at', null);
+  if (dateRange) {
+    query = query.gte('created_at', dateRange.from).lte('created_at', dateRange.to);
+  }
 
+  const { data: households } = await query;
   const items = households ?? [];
 
   const cityMap = new Map<string, number>();
@@ -209,14 +260,19 @@ export async function getHouseholdDemographicsReport(
 export async function getVolunteerImpactReport(
   supabase: Supabase,
   projectId: string,
-  hourlyRate = 33.49
+  hourlyRate = 33.49,
+  dateRange?: DateRangeFilter
 ): Promise<VolunteerImpactReport> {
-  const { data: contributions } = await supabase
+  let query = supabase
     .from('contributions')
     .select('hours, donor_person_id, program_id')
     .eq('project_id', projectId)
     .in('type', ['volunteer_hours', 'service']);
+  if (dateRange) {
+    query = query.gte('date', dateRange.from).lte('date', dateRange.to);
+  }
 
+  const { data: contributions } = await query;
   const items = contributions ?? [];
   const totalHours = items.reduce((sum, c) => sum + Number(c.hours ?? 0), 0);
   const uniqueVolunteers = new Set(items.map((c) => c.donor_person_id).filter(Boolean));
@@ -261,7 +317,8 @@ export async function getVolunteerImpactReport(
  */
 export async function getUnduplicatedParticipantCount(
   supabase: Supabase,
-  projectId: string
+  projectId: string,
+  dateRange?: DateRangeFilter
 ): Promise<number> {
   const { data: programs } = await supabase
     .from('programs')
@@ -272,18 +329,23 @@ export async function getUnduplicatedParticipantCount(
 
   const programIds = programs.map((p) => p.id);
 
-  const { data: enrollments } = await supabase
+  let query = supabase
     .from('program_enrollments')
     .select('person_id')
     .in('program_id', programIds);
+  if (dateRange) {
+    query = query.gte('enrolled_at', dateRange.from).lte('enrolled_at', dateRange.to);
+  }
 
+  const { data: enrollments } = await query;
   const unique = new Set((enrollments ?? []).map((e) => e.person_id).filter(Boolean));
   return unique.size;
 }
 
 export async function getContractorHoursReport(
   supabase: Supabase,
-  projectId: string
+  projectId: string,
+  dateRange?: DateRangeFilter
 ): Promise<ContractorHoursReport> {
   const { data: jobs } = await supabase
     .from('jobs')
@@ -302,11 +364,16 @@ export async function getContractorHoursReport(
   const jobIds = jobItems.map((job) => job.id);
   const contractorIds = [...new Set(jobItems.map((job) => job.contractor_id).filter(Boolean))] as string[];
 
+  let timeQuery = supabase
+    .from('job_time_entries')
+    .select('job_id, duration_minutes, started_at, ended_at')
+    .in('job_id', jobIds);
+  if (dateRange) {
+    timeQuery = timeQuery.gte('started_at', dateRange.from).lte('started_at', dateRange.to);
+  }
+
   const [{ data: timeEntries }, { data: contractors }] = await Promise.all([
-    supabase
-      .from('job_time_entries')
-      .select('job_id, duration_minutes, started_at, ended_at')
-      .in('job_id', jobIds),
+    timeQuery,
     contractorIds.length > 0
       ? supabase
           .from('people')
@@ -362,5 +429,300 @@ export async function getContractorHoursReport(
     total_contractors: byContractor.length,
     total_hours: byContractor.reduce((sum, item) => sum + item.hours, 0),
     by_contractor: byContractor,
+  };
+}
+
+// --- Phase 3 query functions ---
+
+export async function getGrantPipelineReport(
+  supabase: Supabase,
+  projectId: string,
+  dateRange?: DateRangeFilter
+): Promise<GrantPipelineReport> {
+  let query = supabase
+    .from('grants')
+    .select('id, name, status, amount_requested, amount_awarded')
+    .eq('project_id', projectId);
+  if (dateRange) {
+    query = query.gte('created_at', dateRange.from).lte('created_at', dateRange.to);
+  }
+
+  const { data: grants } = await query;
+  const items = grants ?? [];
+
+  // By status
+  const statusMap = new Map<string, { count: number; total_amount: number }>();
+  for (const g of items) {
+    const s = g.status ?? 'unknown';
+    const entry = statusMap.get(s) ?? { count: 0, total_amount: 0 };
+    entry.count++;
+    entry.total_amount += Number(g.amount_awarded ?? g.amount_requested ?? 0);
+    statusMap.set(s, entry);
+  }
+
+  // Compliance for awarded/active grants
+  const awardedGrants = items.filter((g) => ['awarded', 'active'].includes(g.status ?? ''));
+  const compliance: GrantPipelineReport['compliance'] = [];
+
+  for (const g of awardedGrants) {
+    const { data: contributions } = await supabase
+      .from('contributions')
+      .select('value')
+      .eq('project_id', projectId)
+      .eq('grant_id', g.id);
+
+    const totalSpend = (contributions ?? []).reduce((sum, c) => sum + Number(c.value ?? 0), 0);
+    const awarded = Number(g.amount_awarded ?? 0);
+
+    compliance.push({
+      grant_id: g.id,
+      grant_name: g.name,
+      status: g.status ?? 'unknown',
+      amount_awarded: g.amount_awarded,
+      total_spend: totalSpend,
+      budget_utilization_pct: awarded > 0 ? Math.round((totalSpend / awarded) * 100) : 0,
+    });
+  }
+
+  const statusOrder = ['researching', 'preparing', 'submitted', 'under_review', 'awarded', 'active', 'closed', 'declined'];
+
+  return {
+    by_status: [...statusMap.entries()]
+      .map(([status, data]) => ({ status, ...data }))
+      .sort((a, b) => statusOrder.indexOf(a.status) - statusOrder.indexOf(b.status)),
+    compliance,
+  };
+}
+
+export async function getEngagementTrendsReport(
+  supabase: Supabase,
+  projectId: string,
+  dateRange?: DateRangeFilter
+): Promise<EngagementTrendsReport> {
+  // Get program IDs for this project
+  const { data: programs } = await supabase
+    .from('programs')
+    .select('id')
+    .eq('project_id', projectId);
+  const programIds = (programs ?? []).map((p) => p.id);
+
+  // Attendance
+  let attendanceQuery = supabase
+    .from('program_attendance')
+    .select('date, hours, status')
+    .in('program_id', programIds.length ? programIds : ['__none__']);
+  if (dateRange) {
+    attendanceQuery = attendanceQuery.gte('date', dateRange.from).lte('date', dateRange.to);
+  }
+
+  // Households
+  let householdQuery = supabase
+    .from('households')
+    .select('created_at')
+    .eq('project_id', projectId)
+    .is('deleted_at', null);
+  if (dateRange) {
+    householdQuery = householdQuery.gte('created_at', dateRange.from).lte('created_at', dateRange.to);
+  }
+
+  // Contributions
+  let contribQuery = supabase
+    .from('contributions')
+    .select('date, type, value')
+    .eq('project_id', projectId);
+  if (dateRange) {
+    contribQuery = contribQuery.gte('date', dateRange.from).lte('date', dateRange.to);
+  }
+
+  const [{ data: attendance }, { data: households }, { data: contributions }] = await Promise.all([
+    attendanceQuery,
+    householdQuery,
+    contribQuery,
+  ]);
+
+  // Bucket attendance by month
+  const attendanceByMonth = new Map<string, { count: number; hours: number }>();
+  for (const a of attendance ?? []) {
+    if (a.status !== 'present' || !a.date) continue;
+    const month = a.date.substring(0, 7); // YYYY-MM
+    const entry = attendanceByMonth.get(month) ?? { count: 0, hours: 0 };
+    entry.count++;
+    entry.hours += a.hours ?? 0;
+    attendanceByMonth.set(month, entry);
+  }
+
+  // Bucket households by month
+  const householdsByMonth = new Map<string, number>();
+  for (const h of households ?? []) {
+    if (!h.created_at) continue;
+    const month = h.created_at.substring(0, 7);
+    householdsByMonth.set(month, (householdsByMonth.get(month) ?? 0) + 1);
+  }
+
+  // Bucket contributions by month+type
+  const contribByMonthType = new Map<string, { value: number; count: number }>();
+  for (const c of contributions ?? []) {
+    if (!c.date) continue;
+    const month = c.date.substring(0, 7);
+    const type = c.type ?? 'unknown';
+    const key = `${month}|${type}`;
+    const entry = contribByMonthType.get(key) ?? { value: 0, count: 0 };
+    entry.value += Number(c.value ?? 0);
+    entry.count++;
+    contribByMonthType.set(key, entry);
+  }
+
+  return {
+    monthly_attendance: [...attendanceByMonth.entries()]
+      .map(([month, data]) => ({ month, ...data }))
+      .sort((a, b) => a.month.localeCompare(b.month)),
+    monthly_households: [...householdsByMonth.entries()]
+      .map(([month, count]) => ({ month, count }))
+      .sort((a, b) => a.month.localeCompare(b.month)),
+    monthly_contributions: [...contribByMonthType.entries()]
+      .map(([key, data]) => {
+        const parts = key.split('|');
+        return { month: parts[0] ?? '', type: parts[1] ?? '', ...data };
+      })
+      .sort((a, b) => a.month.localeCompare(b.month)),
+  };
+}
+
+export async function getRiskReferralReport(
+  supabase: Supabase,
+  projectId: string
+): Promise<RiskReferralReport> {
+  // Get all households with their signals for risk scoring
+  const { data: households } = await supabase
+    .from('households')
+    .select('id, name')
+    .eq('project_id', projectId)
+    .is('deleted_at', null);
+
+  const householdItems = households ?? [];
+  const householdIds = householdItems.map((h) => h.id);
+
+  // Gather signals for risk computation
+  const [enrollmentsRes, relationshipsRes, referralsRes, activityRes] = await Promise.all([
+    householdIds.length > 0
+      ? supabase
+          .from('program_enrollments')
+          .select('household_id, status')
+          .in('household_id', householdIds)
+          .eq('status', 'active')
+      : Promise.resolve({ data: [] }),
+    householdIds.length > 0
+      ? supabase
+          .from('relationships')
+          .select('person_a_id, person_b_id')
+          .eq('project_id', projectId)
+      : Promise.resolve({ data: [] }),
+    supabase
+      .from('referrals')
+      .select('status, service_type, household_id')
+      .eq('project_id', projectId),
+    householdIds.length > 0
+      ? supabase
+          .from('activity_log')
+          .select('entity_id, created_at')
+          .eq('project_id', projectId)
+          .eq('entity_type', 'household')
+          .in('entity_id', householdIds)
+          .gte('created_at', new Date(Date.now() - 90 * 24 * 60 * 60 * 1000).toISOString())
+      : Promise.resolve({ data: [] }),
+  ]);
+
+  const enrollments = enrollmentsRes.data ?? [];
+  const relationships = relationshipsRes.data ?? [];
+  const referrals = referralsRes.data ?? [];
+  const recentActivity = activityRes.data ?? [];
+
+  // Build household signal maps
+  const activeEnrollmentsByHousehold = new Map<string, number>();
+  for (const e of enrollments) {
+    if (!e.household_id) continue;
+    activeEnrollmentsByHousehold.set(e.household_id, (activeEnrollmentsByHousehold.get(e.household_id) ?? 0) + 1);
+  }
+
+  // Get person-to-household mapping for relationship counting
+  const { data: members } = householdIds.length > 0
+    ? await supabase
+        .from('household_members')
+        .select('person_id, household_id')
+        .in('household_id', householdIds)
+    : { data: [] };
+  const personToHousehold = new Map<string, string>();
+  for (const m of members ?? []) {
+    if (m.person_id && m.household_id) personToHousehold.set(m.person_id, m.household_id);
+  }
+
+  const relationshipsByHousehold = new Map<string, number>();
+  for (const r of relationships) {
+    const hA = personToHousehold.get(r.person_a_id);
+    const hB = personToHousehold.get(r.person_b_id);
+    if (hA) relationshipsByHousehold.set(hA, (relationshipsByHousehold.get(hA) ?? 0) + 1);
+    if (hB) relationshipsByHousehold.set(hB, (relationshipsByHousehold.get(hB) ?? 0) + 1);
+  }
+
+  const unresolvedRefsByHousehold = new Map<string, number>();
+  for (const r of referrals) {
+    if (!r.household_id || ['completed', 'closed'].includes(r.status)) continue;
+    unresolvedRefsByHousehold.set(r.household_id, (unresolvedRefsByHousehold.get(r.household_id) ?? 0) + 1);
+  }
+
+  const recentEngagementByHousehold = new Set<string>();
+  for (const a of recentActivity) {
+    if (a.entity_id) recentEngagementByHousehold.add(a.entity_id);
+  }
+
+  // Compute risk tiers
+  const { computeHouseholdRiskScore } = await import('@/lib/community/risk-index');
+  const tierCounts = { low: 0, medium: 0, high: 0 };
+  const factorCounts: Record<string, number> = {
+    'No active program enrollments': 0,
+    'No social relationships recorded': 0,
+    'Open referrals unresolved': 0,
+    'No recent engagement recorded': 0,
+  };
+
+  for (const h of householdItems) {
+    const score = computeHouseholdRiskScore({
+      householdId: h.id,
+      householdName: h.name,
+      activeProgramEnrollments: activeEnrollmentsByHousehold.get(h.id) ?? 0,
+      relationshipCount: relationshipsByHousehold.get(h.id) ?? 0,
+      unresolvedReferrals: unresolvedRefsByHousehold.get(h.id) ?? 0,
+      recentEngagementCount: recentEngagementByHousehold.has(h.id) ? 1 : 0,
+    });
+
+    tierCounts[score.tier]++;
+    for (const c of score.contributions) {
+      if (c.active && c.label in factorCounts) {
+        factorCounts[c.label] = (factorCounts[c.label] ?? 0) + 1;
+      }
+    }
+  }
+
+  // Referrals aggregation
+  const refStatusMap = new Map<string, number>();
+  const refServiceMap = new Map<string, number>();
+  for (const r of referrals) {
+    refStatusMap.set(r.status, (refStatusMap.get(r.status) ?? 0) + 1);
+    if (r.service_type) {
+      refServiceMap.set(r.service_type, (refServiceMap.get(r.service_type) ?? 0) + 1);
+    }
+  }
+
+  return {
+    risk_tiers: Object.entries(tierCounts).map(([tier, count]) => ({ tier, count })),
+    risk_factors: Object.entries(factorCounts)
+      .map(([factor, count]) => ({ factor, count }))
+      .sort((a, b) => b.count - a.count),
+    referrals_by_status: [...refStatusMap.entries()]
+      .map(([status, count]) => ({ status, count }))
+      .sort((a, b) => b.count - a.count),
+    referrals_by_service: [...refServiceMap.entries()]
+      .map(([service_type, count]) => ({ service_type, count }))
+      .sort((a, b) => b.count - a.count),
   };
 }

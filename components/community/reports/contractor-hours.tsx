@@ -1,4 +1,21 @@
+'use client';
+
+import { useMemo } from 'react';
+import {
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  CartesianGrid,
+  ResponsiveContainer,
+} from 'recharts';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import {
+  ChartContainer,
+  ChartTooltip,
+  ChartTooltipContent,
+  type ChartConfig,
+} from '@/components/ui/chart';
 
 interface ContractorHoursReport {
   total_contractors: number;
@@ -12,7 +29,23 @@ interface ContractorHoursReport {
   }[];
 }
 
+const chartConfig = {
+  hours: { label: 'Hours', color: 'var(--color-blue-500)' },
+} satisfies ChartConfig;
+
 export function ContractorHoursReportView({ data }: { data?: ContractorHoursReport }) {
+  const chartData = useMemo(
+    () =>
+      (data?.by_contractor ?? []).map((c) => ({
+        name: c.contractor_name.length > 22 ? c.contractor_name.substring(0, 20) + '...' : c.contractor_name,
+        fullName: c.contractor_name,
+        hours: c.hours,
+        jobs: c.jobs,
+        outOfScope: c.out_of_scope_jobs,
+      })),
+    [data]
+  );
+
   if (!data) {
     return (
       <Card>
@@ -25,47 +58,57 @@ export function ContractorHoursReportView({ data }: { data?: ContractorHoursRepo
   }
 
   return (
-    <div className="grid gap-4 lg:grid-cols-[0.9fr_1.1fr]">
-      <Card>
-        <CardHeader>
-          <CardTitle>Contractor Totals</CardTitle>
-          <CardDescription>Tracked hours and active contractors with time entries.</CardDescription>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2">
-          <Metric label="Contractors" value={data.total_contractors.toLocaleString()} />
-          <Metric label="Hours" value={data.total_hours.toFixed(1)} />
-        </CardContent>
-      </Card>
+    <div className="space-y-4">
+      <div className="grid gap-4 sm:grid-cols-2">
+        <MetricCard label="Contractors" value={data.total_contractors.toLocaleString()} />
+        <MetricCard label="Total Hours" value={data.total_hours.toFixed(1)} />
+      </div>
 
       <Card>
         <CardHeader>
-          <CardTitle>By Contractor</CardTitle>
-          <CardDescription>Hours, jobs worked, and out-of-scope assignments.</CardDescription>
+          <CardTitle className="text-base">Hours by Contractor</CardTitle>
+          <CardDescription>Tracked hours per contractor</CardDescription>
         </CardHeader>
-        <CardContent className="space-y-3">
-          {data.by_contractor.length === 0 ? (
-            <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+        <CardContent>
+          {chartData.length === 0 ? (
+            <div className="flex h-[280px] items-center justify-center rounded-lg border border-dashed text-sm text-muted-foreground">
               No contractor entries yet.
             </div>
-          ) : data.by_contractor.map((row) => (
-            <div key={row.contractor_id} className="rounded-lg border p-3">
-              <div className="font-medium">{row.contractor_name}</div>
-              <div className="mt-1 text-sm text-muted-foreground">
-                {row.hours.toFixed(1)} hours • {row.jobs} jobs • {row.out_of_scope_jobs} out-of-scope
-              </div>
-            </div>
-          ))}
+          ) : (
+            <ChartContainer config={chartConfig} className="aspect-auto h-[280px] w-full">
+              <ResponsiveContainer width="100%" height={280}>
+                <BarChart data={chartData} layout="vertical" margin={{ top: 4, right: 16, left: 0, bottom: 0 }}>
+                  <CartesianGrid strokeDasharray="3 3" className="stroke-border/50" horizontal={false} />
+                  <XAxis type="number" tickLine={false} axisLine={false} className="text-xs" />
+                  <YAxis type="category" dataKey="name" tickLine={false} axisLine={false} className="text-xs" width={130} />
+                  <ChartTooltip
+                    content={
+                      <ChartTooltipContent
+                        formatter={((value: number, _name: string, item: Record<string, unknown>) => {
+                          const payload = (item.payload ?? {}) as Record<string, number>;
+                          return `${value.toFixed(1)} hrs (${payload.jobs ?? 0} jobs, ${payload.outOfScope ?? 0} out-of-scope)`;
+                        }) as never}
+                      />
+                    }
+                  />
+                  <Bar dataKey="hours" name="hours" fill="var(--color-blue-500)" radius={[0, 4, 4, 0]} />
+                </BarChart>
+              </ResponsiveContainer>
+            </ChartContainer>
+          )}
         </CardContent>
       </Card>
     </div>
   );
 }
 
-function Metric({ label, value }: { label: string; value: string }) {
+function MetricCard({ label, value }: { label: string; value: string }) {
   return (
-    <div className="rounded-lg bg-muted/50 p-3">
-      <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
-      <div className="mt-1 text-xl font-semibold">{value}</div>
-    </div>
+    <Card>
+      <CardContent className="pt-6">
+        <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
+        <div className="mt-1 text-2xl font-semibold">{value}</div>
+      </CardContent>
+    </Card>
   );
 }

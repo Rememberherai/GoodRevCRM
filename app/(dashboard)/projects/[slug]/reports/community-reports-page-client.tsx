@@ -2,54 +2,62 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BarChart3, HandCoins, Home, Loader2, Settings, Users } from 'lucide-react';
+import { format } from 'date-fns';
+import {
+  BarChart3,
+  Download,
+  HandCoins,
+  Home,
+  Loader2,
+  Printer,
+  Settings,
+  Users,
+  Wallet,
+} from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Button } from '@/components/ui/button';
+import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { ProgramPerformanceReportView } from '@/components/community/reports/program-performance';
 import { ContributionSummaryReportView } from '@/components/community/reports/contribution-summary';
 import { HouseholdDemographicsReportView } from '@/components/community/reports/household-demographics';
 import { VolunteerImpactReportView } from '@/components/community/reports/volunteer-impact';
 import { ContractorHoursReportView } from '@/components/community/reports/contractor-hours';
-import { Button } from '@/components/ui/button';
-
-interface ProgramPerformanceReport {
-  program_id: string;
-  program_name: string;
-  status: string;
-  total_enrolled: number;
-  active_enrolled: number;
-  completed: number;
-  withdrawn: number;
-  total_attendance_records: number;
-  total_hours: number;
-  unique_participants: number;
-}
-
-interface ContributionSummaryReport {
-  by_type: { type: string; count: number; total_value: number; total_hours: number }[];
-  by_dimension: { dimension_id: string; dimension_label: string; count: number; total_value: number }[];
-  by_status: { status: string; count: number; total_value: number }[];
-}
-
-interface HouseholdDemographicsReport {
-  total_households: number;
-  total_members: number;
-  avg_household_size: number;
-  by_city: { city: string; count: number }[];
-}
-
-interface VolunteerImpactReport {
-  total_volunteers: number;
-  total_hours: number;
-  estimated_value: number;
-  by_program: { program_id: string; program_name: string; hours: number; volunteers: number }[];
-}
+import { GrantsOverviewReportView } from '@/components/community/reports/grants-overview';
+import { EngagementTrendsReportView } from '@/components/community/reports/engagement-trends';
+import { RiskReferralsReportView } from '@/components/community/reports/risk-referrals';
+import type { DateRange } from '@/types/analytics';
 
 interface CommunityReportsResponse {
-  program_performance?: ProgramPerformanceReport[];
-  contribution_summary?: ContributionSummaryReport;
-  household_demographics?: HouseholdDemographicsReport;
-  volunteer_impact?: VolunteerImpactReport;
+  program_performance?: {
+    program_id: string;
+    program_name: string;
+    status: string;
+    total_enrolled: number;
+    active_enrolled: number;
+    completed: number;
+    withdrawn: number;
+    total_attendance_records: number;
+    total_hours: number;
+    unique_participants: number;
+  }[];
+  contribution_summary?: {
+    by_type: { type: string; count: number; total_value: number; total_hours: number }[];
+    by_dimension: { dimension_id: string; dimension_label: string; count: number; total_value: number }[];
+    by_status: { status: string; count: number; total_value: number }[];
+  };
+  household_demographics?: {
+    total_households: number;
+    total_members: number;
+    avg_household_size: number;
+    by_city: { city: string; count: number }[];
+  };
+  volunteer_impact?: {
+    total_volunteers: number;
+    total_hours: number;
+    estimated_value: number;
+    by_program: { program_id: string; program_name: string; hours: number; volunteers: number }[];
+  };
   contractor_hours?: {
     total_contractors: number;
     total_hours: number;
@@ -62,19 +70,67 @@ interface CommunityReportsResponse {
     }[];
   };
   unduplicated_participants?: number;
+  grant_pipeline?: {
+    by_status: { status: string; count: number; total_amount: number }[];
+    compliance: {
+      grant_id: string;
+      grant_name: string;
+      status: string;
+      amount_awarded: number | null;
+      total_spend: number;
+      budget_utilization_pct: number;
+    }[];
+  };
+  engagement_trends?: {
+    monthly_attendance: { month: string; count: number; hours: number }[];
+    monthly_households: { month: string; count: number }[];
+    monthly_contributions: { month: string; type: string; value: number; count: number }[];
+  };
+  risk_referral?: {
+    risk_tiers: { tier: string; count: number }[];
+    risk_factors: { factor: string; count: number }[];
+    referrals_by_status: { status: string; count: number }[];
+    referrals_by_service: { service_type: string; count: number }[];
+  };
+}
+
+function downloadCSV(filename: string, headers: string[], rows: string[][]) {
+  const escape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+  const csv = [headers.map(escape).join(','), ...rows.map((r) => r.map(escape).join(','))].join('\n');
+  const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+  const url = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = url;
+  a.download = filename;
+  a.click();
+  URL.revokeObjectURL(url);
+}
+
+function formatCurrency(value: number): string {
+  return new Intl.NumberFormat('en-US', {
+    style: 'currency',
+    currency: 'USD',
+    maximumFractionDigits: 0,
+  }).format(value);
 }
 
 export function CommunityReportsPageClient({ projectSlug }: { projectSlug: string }) {
   const [data, setData] = useState<CommunityReportsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [dateRange, setDateRange] = useState<DateRange | undefined>();
+  const [activeTab, setActiveTab] = useState('programs');
 
   const loadReports = useCallback(async () => {
     setIsLoading(true);
     setError(null);
 
     try {
-      const response = await fetch(`/api/projects/${projectSlug}/community/reports?type=all`);
+      let url = `/api/projects/${projectSlug}/community/reports?type=all`;
+      if (dateRange) {
+        url += `&from=${format(dateRange.from, 'yyyy-MM-dd')}&to=${format(dateRange.to, 'yyyy-MM-dd')}`;
+      }
+      const response = await fetch(url);
       const json = await response.json() as CommunityReportsResponse & { error?: string };
 
       if (!response.ok) {
@@ -87,14 +143,56 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
     } finally {
       setIsLoading(false);
     }
-  }, [projectSlug]);
+  }, [projectSlug, dateRange]);
 
   useEffect(() => {
     void loadReports();
   }, [loadReports]);
 
+  function handleExportCSV() {
+    if (!data) return;
+
+    if (activeTab === 'programs' && data.program_performance) {
+      downloadCSV('program-performance.csv',
+        ['Program', 'Status', 'Enrolled', 'Active', 'Completed', 'Withdrawn', 'Attendance Records', 'Hours', 'Unique Participants'],
+        data.program_performance.map((p) => [
+          p.program_name, p.status, String(p.total_enrolled), String(p.active_enrolled),
+          String(p.completed), String(p.withdrawn), String(p.total_attendance_records),
+          p.total_hours.toFixed(1), String(p.unique_participants),
+        ])
+      );
+    } else if (activeTab === 'contributions' && data.contribution_summary) {
+      const rows = data.contribution_summary.by_type.map((r) => [
+        r.type, String(r.count), r.total_value.toFixed(2), r.total_hours.toFixed(1),
+      ]);
+      downloadCSV('contributions.csv', ['Type', 'Count', 'Value', 'Hours'], rows);
+    } else if (activeTab === 'households' && data.household_demographics) {
+      const rows = data.household_demographics.by_city.map((r) => [r.city, String(r.count)]);
+      downloadCSV('households.csv', ['City', 'Count'], rows);
+    } else if (activeTab === 'volunteers' && data.volunteer_impact) {
+      const rows = data.volunteer_impact.by_program.map((r) => [
+        r.program_name, r.hours.toFixed(1), String(r.volunteers),
+      ]);
+      downloadCSV('volunteer-impact.csv', ['Program', 'Hours', 'Workers'], rows);
+    } else if (activeTab === 'contractors' && data.contractor_hours) {
+      const rows = data.contractor_hours.by_contractor.map((r) => [
+        r.contractor_name, r.hours.toFixed(1), String(r.jobs), String(r.out_of_scope_jobs),
+      ]);
+      downloadCSV('contractor-hours.csv', ['Contractor', 'Hours', 'Jobs', 'Out of Scope'], rows);
+    } else if (activeTab === 'grants' && data.grant_pipeline) {
+      const rows = data.grant_pipeline.by_status.map((r) => [
+        r.status, String(r.count), r.total_amount.toFixed(2),
+      ]);
+      downloadCSV('grants.csv', ['Status', 'Count', 'Amount'], rows);
+    }
+  }
+
+  const totalContribValue = (data?.contribution_summary?.by_type ?? [])
+    .reduce((sum, r) => sum + r.total_value, 0);
+
   return (
     <div className="space-y-6">
+      {/* Header */}
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
         <div className="flex items-center gap-3">
           <div className="flex h-10 w-10 items-center justify-center rounded-xl bg-primary text-primary-foreground">
@@ -107,7 +205,16 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
             </p>
           </div>
         </div>
-        <div className="flex flex-wrap gap-2">
+        <div className="flex flex-wrap items-center gap-2">
+          <DateRangePicker value={dateRange} onChange={setDateRange} />
+          <Button variant="outline" size="sm" onClick={handleExportCSV} disabled={!data}>
+            <Download className="mr-2 h-4 w-4" />
+            Export CSV
+          </Button>
+          <Button variant="outline" size="sm" onClick={() => window.print()}>
+            <Printer className="mr-2 h-4 w-4" />
+            Print
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <Link href={`/projects/${projectSlug}/settings/public-dashboard`}>
               <Settings className="mr-2 h-4 w-4" />
@@ -131,7 +238,8 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
 
       {data && !isLoading && (
         <>
-          <div className="grid gap-4 md:grid-cols-4">
+          {/* KPI Cards */}
+          <div className="grid gap-4 md:grid-cols-5">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Programs</CardTitle>
@@ -180,15 +288,31 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
                 </div>
               </CardContent>
             </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Contributions</CardTitle>
+                <CardDescription>Total recorded value</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2 text-2xl font-semibold">
+                  <Wallet className="h-5 w-5 text-muted-foreground" />
+                  {formatCurrency(totalContribValue)}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
-          <Tabs defaultValue="programs">
-            <TabsList>
+          {/* Report Tabs */}
+          <Tabs value={activeTab} onValueChange={setActiveTab}>
+            <TabsList className="flex-wrap">
               <TabsTrigger value="programs">Programs</TabsTrigger>
               <TabsTrigger value="contributions">Contributions</TabsTrigger>
               <TabsTrigger value="households">Households</TabsTrigger>
               <TabsTrigger value="volunteers">Volunteers</TabsTrigger>
               <TabsTrigger value="contractors">Contractors</TabsTrigger>
+              <TabsTrigger value="grants">Grants</TabsTrigger>
+              <TabsTrigger value="trends">Trends</TabsTrigger>
+              <TabsTrigger value="risk">Risk & Referrals</TabsTrigger>
             </TabsList>
 
             <TabsContent value="programs" className="pt-4">
@@ -205,6 +329,15 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
             </TabsContent>
             <TabsContent value="contractors" className="pt-4">
               <ContractorHoursReportView data={data.contractor_hours} />
+            </TabsContent>
+            <TabsContent value="grants" className="pt-4">
+              <GrantsOverviewReportView data={data.grant_pipeline} />
+            </TabsContent>
+            <TabsContent value="trends" className="pt-4">
+              <EngagementTrendsReportView data={data.engagement_trends} />
+            </TabsContent>
+            <TabsContent value="risk" className="pt-4">
+              <RiskReferralsReportView data={data.risk_referral} />
             </TabsContent>
           </Tabs>
         </>

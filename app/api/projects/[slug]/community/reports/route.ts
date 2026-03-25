@@ -9,13 +9,17 @@ import {
   getVolunteerImpactReport,
   getUnduplicatedParticipantCount,
   getContractorHoursReport,
+  getGrantPipelineReport,
+  getEngagementTrendsReport,
+  getRiskReferralReport,
+  type DateRangeFilter,
 } from '@/lib/community/reports';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
 }
 
-// GET /api/projects/[slug]/community/reports?type=program_performance|contribution_summary|household_demographics|volunteer_impact|all
+// GET /api/projects/[slug]/community/reports?type=...&from=...&to=...
 export async function GET(request: Request, context: RouteContext) {
   try {
     const { slug } = await context.params;
@@ -48,31 +52,46 @@ export async function GET(request: Request, context: RouteContext) {
 
     const { searchParams } = new URL(request.url);
     const reportType = searchParams.get('type') ?? 'all';
+    const from = searchParams.get('from');
+    const to = searchParams.get('to');
+    const dateRange: DateRangeFilter | undefined = from && to ? { from, to } : undefined;
 
     const result: Record<string, unknown> = {};
 
     if (reportType === 'all' || reportType === 'program_performance') {
-      result.program_performance = await getProgramPerformanceReport(supabase, project.id);
+      result.program_performance = await getProgramPerformanceReport(supabase, project.id, dateRange);
     }
 
     if (reportType === 'all' || reportType === 'contribution_summary') {
-      result.contribution_summary = await getContributionSummaryReport(supabase, project.id);
+      result.contribution_summary = await getContributionSummaryReport(supabase, project.id, dateRange);
     }
 
     if (reportType === 'all' || reportType === 'household_demographics') {
-      result.household_demographics = await getHouseholdDemographicsReport(supabase, project.id);
+      result.household_demographics = await getHouseholdDemographicsReport(supabase, project.id, dateRange);
     }
 
     if (reportType === 'all' || reportType === 'volunteer_impact') {
-      result.volunteer_impact = await getVolunteerImpactReport(supabase, project.id);
+      result.volunteer_impact = await getVolunteerImpactReport(supabase, project.id, 33.49, dateRange);
     }
 
     if (reportType === 'all' || reportType === 'contractor_hours') {
-      result.contractor_hours = await getContractorHoursReport(supabase, project.id);
+      result.contractor_hours = await getContractorHoursReport(supabase, project.id, dateRange);
     }
 
     if (reportType === 'all') {
-      result.unduplicated_participants = await getUnduplicatedParticipantCount(supabase, project.id);
+      result.unduplicated_participants = await getUnduplicatedParticipantCount(supabase, project.id, dateRange);
+    }
+
+    if (reportType === 'all' || reportType === 'grant_pipeline') {
+      result.grant_pipeline = await getGrantPipelineReport(supabase, project.id, dateRange);
+    }
+
+    if (reportType === 'all' || reportType === 'engagement_trends') {
+      result.engagement_trends = await getEngagementTrendsReport(supabase, project.id, dateRange);
+    }
+
+    if (reportType === 'all' || reportType === 'risk_referral') {
+      result.risk_referral = await getRiskReferralReport(supabase, project.id);
     }
 
     return NextResponse.json(result);
