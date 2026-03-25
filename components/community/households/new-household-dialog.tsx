@@ -25,6 +25,8 @@ import {
 } from '@/components/ui/select';
 import { createHouseholdSchema } from '@/lib/validators/community/households';
 import { AddressAutocomplete, type AddressResult } from '@/components/ui/address-autocomplete';
+import { PersonCombobox } from '@/components/ui/person-combobox';
+import type { QuickCreatedPerson } from '@/components/people/quick-create-person-dialog';
 
 interface PersonOption {
   id: string;
@@ -104,6 +106,7 @@ export function NewHouseholdDialog({
 
   const resetForm = () => {
     setStep(0);
+    setPeopleLoaded(false);
     setName('');
     setAddressStreet('');
     setAddressCity('');
@@ -123,7 +126,12 @@ export function NewHouseholdDialog({
 
   const selectedPeopleIds = useMemo(() => new Set(members.map((member) => member.person_id)), [members]);
 
-  const availablePeople = people.filter((person) => !selectedPeopleIds.has(person.id));
+  const handlePersonCreated = (person: QuickCreatedPerson) => {
+    setPeople((prev) => [
+      { id: person.id, first_name: person.first_name, last_name: person.last_name, email: person.email },
+      ...prev,
+    ]);
+  };
 
   const addMember = () => {
     if (!selectedPersonId) return;
@@ -283,20 +291,14 @@ export function NewHouseholdDialog({
             <div className="grid gap-3 md:grid-cols-[1.8fr_1.2fr_1fr_auto] md:items-end">
               <div className="space-y-2">
                 <Label>Person</Label>
-                <Select value={selectedPersonId} onValueChange={setSelectedPersonId}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue placeholder="Select a person" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {availablePeople.length === 0 ? (
-                      <SelectItem value="none" disabled>No more people available</SelectItem>
-                    ) : availablePeople.map((person) => (
-                      <SelectItem key={person.id} value={person.id}>
-                        {[person.first_name, person.last_name].filter(Boolean).join(' ') || person.email || person.id}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <PersonCombobox
+                  value={selectedPersonId || null}
+                  onValueChange={(id) => setSelectedPersonId(id ?? '')}
+                  onPersonCreated={handlePersonCreated}
+                  allowCreate
+                  excludeIds={selectedPeopleIds}
+                  placeholder="Search or create a person..."
+                />
               </div>
               <div className="space-y-2">
                 <Label>Relationship</Label>

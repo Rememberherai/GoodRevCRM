@@ -1,8 +1,8 @@
 'use client';
 
-import { useEffect, useMemo, useState } from 'react';
+import { useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, UserPlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -16,13 +16,8 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
-
-interface PersonOption {
-  id: string;
-  first_name: string | null;
-  last_name: string | null;
-  email: string | null;
-}
+import { PersonCombobox } from '@/components/ui/person-combobox';
+import { QuickCreatePersonDialog, type QuickCreatedPerson } from '@/components/people/quick-create-person-dialog';
 
 interface MemberRecord {
   id: string;
@@ -59,33 +54,13 @@ export function HouseholdMembersTab({
 }) {
   const params = useParams();
   const slug = params.slug as string;
-  const [people, setPeople] = useState<PersonOption[]>([]);
   const [selectedPersonId, setSelectedPersonId] = useState('');
   const [relationship, setRelationship] = useState<typeof RELATIONSHIP_OPTIONS[number]>('other');
   const [startDate, setStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [isSubmitting, setIsSubmitting] = useState(false);
-
-  useEffect(() => {
-    let active = true;
-    (async () => {
-      try {
-        const response = await fetch(`/api/projects/${slug}/people?limit=100`);
-        const data = await response.json() as { people?: PersonOption[] };
-        if (active && response.ok) {
-          setPeople(data.people ?? []);
-        }
-      } catch (error) {
-        console.error('Failed to load people for household members tab:', error);
-      }
-    })();
-
-    return () => {
-      active = false;
-    };
-  }, [slug]);
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
 
   const memberIds = useMemo(() => new Set(initialMembers.map((member) => member.person_id)), [initialMembers]);
-  const availablePeople = people.filter((person) => !memberIds.has(person.id));
 
   const addMember = async () => {
     if (!selectedPersonId) return;
@@ -141,32 +116,65 @@ export function HouseholdMembersTab({
     }
   };
 
+  const handleQuickCreateAndAdd = async (person: QuickCreatedPerson) => {
+    setIsSubmitting(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/households/${householdId}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          person_id: person.id,
+          relationship: 'other',
+          start_date: new Date().toISOString().slice(0, 10),
+          is_primary_contact: initialMembers.length === 0,
+        }),
+      });
+      const data = await response.json() as { error?: string };
+
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Failed to add household member');
+      }
+
+      toast.success(`${person.first_name} ${person.last_name} created and added`);
+      await onRefresh();
+    } catch {
+      toast.error(`${person.first_name} ${person.last_name} was created but could not be added to the household. Use the search to add them manually.`);
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   return (
     <Card>
-      <CardHeader>
-        <CardTitle>Members</CardTitle>
-        <CardDescription>
-          Manage people linked to this household and track primary contacts.
-        </CardDescription>
+      <CardHeader className="flex flex-row items-center justify-between space-y-0">
+        <div>
+          <CardTitle>Members</CardTitle>
+          <CardDescription>
+            Manage people linked to this household and track primary contacts.
+          </CardDescription>
+        </div>
+        <Button
+          type="button"
+          variant="outline"
+          size="sm"
+          onClick={() => setQuickCreateOpen(true)}
+          disabled={isSubmitting}
+        >
+          <UserPlus className="mr-2 h-4 w-4" />
+          Create &amp; Add Member
+        </Button>
       </CardHeader>
       <CardContent className="space-y-4">
         <div className="grid gap-3 md:grid-cols-[1.8fr_1.2fr_1fr_auto] md:items-end">
           <div className="space-y-2">
             <Label>Person</Label>
-            <Select value={selectedPersonId} onValueChange={setSelectedPersonId}>
-              <SelectTrigger className="w-full">
-                <SelectValue placeholder="Select a person" />
-              </SelectTrigger>
-              <SelectContent>
-                {availablePeople.length === 0 ? (
-                  <SelectItem value="none" disabled>No people available</SelectItem>
-                ) : availablePeople.map((person) => (
-                  <SelectItem key={person.id} value={person.id}>
-                    {[person.first_name, person.last_name].filter(Boolean).join(' ') || person.email || person.id}
-                  </SelectItem>
-                ))}
-              </SelectContent>
-            </Select>
+            <PersonCombobox
+              value={selectedPersonId || null}
+              onValueChange={(id) => setSelectedPersonId(id ?? '')}
+              allowCreate
+              excludeIds={memberIds}
+              placeholder="Search or create a person..."
+            />
           </div>
 
           <div className="space-y-2">
@@ -235,6 +243,12 @@ export function HouseholdMembersTab({
           </div>
         )}
       </CardContent>
+
+      <QuickCreatePersonDialog
+        open={quickCreateOpen}
+        onOpenChange={setQuickCreateOpen}
+        onCreated={handleQuickCreateAndAdd}
+      />
     </Card>
   );
 }
