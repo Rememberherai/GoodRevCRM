@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { BarChart3, ExternalLink, Globe, HandCoins, Home, Loader2, Settings, Users } from 'lucide-react';
+import { BarChart3, HandCoins, Home, Loader2, Settings, Users } from 'lucide-react';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ProgramPerformanceReportView } from '@/components/community/reports/program-performance';
@@ -112,13 +112,6 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
             <Link href={`/projects/${projectSlug}/settings/public-dashboard`}>
               <Settings className="mr-2 h-4 w-4" />
               Configure Public Dashboard
-            </Link>
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/public/${projectSlug}`} target="_blank">
-              <Globe className="mr-2 h-4 w-4" />
-              View Public Dashboard
-              <ExternalLink className="ml-1 h-3 w-3" />
             </Link>
           </Button>
         </div>
