@@ -84,9 +84,10 @@ export function ResearchSettingsPanel({ slug }: ResearchSettingsProps) {
           };
 
           for (const setting of data.settings) {
-            settingsMap[setting.entity_type as EntityType] = {
-              system_prompt: setting.system_prompt ?? '',
-              user_prompt_template: setting.user_prompt_template ?? '',
+            const et = setting.entity_type as EntityType;
+            settingsMap[et] = {
+              system_prompt: setting.system_prompt || DEFAULT_SYSTEM_PROMPTS[et],
+              user_prompt_template: setting.user_prompt_template || DEFAULT_USER_PROMPT_TEMPLATES[et],
               model_id: setting.model_id ?? 'anthropic/claude-3.5-sonnet',
               temperature: setting.temperature ?? 0.3,
               max_tokens: setting.max_tokens ?? 4096,
@@ -110,8 +111,8 @@ export function ResearchSettingsPanel({ slug }: ResearchSettingsProps) {
 
   const getSettingsForType = (entityType: EntityType): EntitySettings => {
     return settings[entityType] ?? {
-      system_prompt: '',
-      user_prompt_template: '',
+      system_prompt: DEFAULT_SYSTEM_PROMPTS[entityType],
+      user_prompt_template: DEFAULT_USER_PROMPT_TEMPLATES[entityType],
       model_id: 'anthropic/claude-3.5-sonnet',
       temperature: 0.3,
       max_tokens: 4096,
@@ -346,12 +347,11 @@ export function ResearchSettingsPanel({ slug }: ResearchSettingsProps) {
                       <Textarea
                         value={entitySettings.system_prompt}
                         onChange={(e) => updateSettingsForType(entityType, { system_prompt: e.target.value })}
-                        placeholder={DEFAULT_SYSTEM_PROMPTS[entityType]}
                         rows={6}
                         className="font-mono text-sm"
                       />
                       <p className="text-xs text-muted-foreground">
-                        Sets the AI&apos;s role and behavior. Leave empty to use the default.
+                        Sets the AI&apos;s role and behavior. Use &quot;Reset to Default&quot; to restore the original prompt.
                       </p>
                     </div>
 
@@ -370,7 +370,6 @@ export function ResearchSettingsPanel({ slug }: ResearchSettingsProps) {
                       <Textarea
                         value={entitySettings.user_prompt_template}
                         onChange={(e) => updateSettingsForType(entityType, { user_prompt_template: e.target.value })}
-                        placeholder={DEFAULT_USER_PROMPT_TEMPLATES[entityType]}
                         rows={10}
                         className="font-mono text-sm"
                       />
