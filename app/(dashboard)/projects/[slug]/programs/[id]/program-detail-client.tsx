@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, CalendarRange, ShieldCheck, Trash2, Plus } from 'lucide-react';
+import { ArrowLeft, CalendarRange, ShieldCheck, Trash2, Plus, FilePlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -20,6 +20,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { CreateWaiverTemplateDialog } from '@/components/community/programs/create-waiver-template-dialog';
 
 interface ProgramDetail {
   id: string;
@@ -91,6 +92,7 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
   const [availableTemplates, setAvailableTemplates] = useState<ContractTemplate[]>([]);
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [isAddingWaiver, setIsAddingWaiver] = useState(false);
+  const [showCreateWaiver, setShowCreateWaiver] = useState(false);
 
   const loadProgram = useCallback(async () => {
     setIsLoading(true);
@@ -382,9 +384,9 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
                 </div>
               )}
 
-              {unlinkedTemplates.length === 0 && availableTemplates.length === 0 && (
+              {unlinkedTemplates.length === 0 && availableTemplates.length === 0 && programWaivers.length === 0 && (
                 <div className="text-xs text-muted-foreground">
-                  No contract templates found. Create a contract template first to use it as a waiver.
+                  No contract templates found. Create one below or upload a PDF.
                 </div>
               )}
               {unlinkedTemplates.length === 0 && availableTemplates.length > 0 && programWaivers.length > 0 && (
@@ -392,6 +394,25 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
                   All available contract templates are already linked to this program.
                 </div>
               )}
+
+              <Button
+                variant="outline"
+                size="sm"
+                onClick={() => setShowCreateWaiver(true)}
+              >
+                <FilePlus className="mr-1 h-4 w-4" />
+                Create New Waiver
+              </Button>
+
+              <CreateWaiverTemplateDialog
+                open={showCreateWaiver}
+                onOpenChange={setShowCreateWaiver}
+                onCreated={() => {
+                  void loadProgram();
+                  void loadTemplates();
+                }}
+                programId={programId}
+              />
             </CardContent>
           </Card>
         </TabsContent>

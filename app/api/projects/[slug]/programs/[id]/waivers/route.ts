@@ -95,6 +95,26 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to add waiver' }, { status: 500 });
     }
 
+    // Backfill enrollment_waivers for existing active enrollments
+    const { data: existingEnrollments } = await supabase
+      .from('program_enrollments')
+      .select('id')
+      .eq('program_id', id)
+      .in('status', ['active', 'waitlisted']);
+
+    if (existingEnrollments && existingEnrollments.length > 0) {
+      const backfillRows = existingEnrollments.map((e) => ({
+        enrollment_id: e.id,
+        program_waiver_id: waiver.id,
+      }));
+      const { error: backfillError } = await supabase
+        .from('enrollment_waivers')
+        .insert(backfillRows);
+      if (backfillError) {
+        console.error('[PROGRAM_WAIVERS] Backfill enrollment_waivers failed:', backfillError);
+      }
+    }
+
     emitAutomationEvent({
       projectId: project.id,
       triggerType: 'entity.created' as never,

@@ -238,3 +238,14 @@ export const voidContractSchema = z.object({
 });
 
 export type VoidContractInput = z.infer<typeof voidContractSchema>;
+
+// Waiver from HTML (WYSIWYG editor)
+export const createWaiverFromHtmlSchema = z.object({
+  name: z.string().min(1, 'Name is required').max(200, 'Name must be 200 characters or less'),
+  description: z.string().max(2000).nullable().optional(),
+  html_content: z.string().min(1, 'Waiver content is required').max(100_000),
+  include_signature_line: z.boolean().default(true),
+  program_id: z.string().uuid().optional(),
+});
+
+export type CreateWaiverFromHtmlInput = z.infer<typeof createWaiverFromHtmlSchema>;
