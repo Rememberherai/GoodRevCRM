@@ -22,6 +22,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { AddressAutocomplete, type AddressResult } from '@/components/ui/address-autocomplete';
 import { Loader2, CheckCircle2, AlertTriangle, Home, ChevronDown, ChevronUp } from 'lucide-react';
 import {
   Dialog,
@@ -326,16 +327,22 @@ export function NewPersonDialog({ open, onOpenChange }: NewPersonDialogProps) {
                           placeholder="Martinez Family"
                         />
                       </div>
-                      <div className="grid grid-cols-2 gap-3">
-                        <div className="space-y-2">
-                          <Label htmlFor="new-hh-street">Street</Label>
-                          <Input
-                            id="new-hh-street"
-                            value={newHouseholdStreet}
-                            onChange={(e) => setNewHouseholdStreet(e.target.value)}
-                            placeholder="123 Main St"
-                          />
-                        </div>
+                      <div className="space-y-2">
+                        <Label htmlFor="new-hh-street">Street Address</Label>
+                        <AddressAutocomplete
+                          id="new-hh-street"
+                          value={newHouseholdStreet}
+                          onChange={setNewHouseholdStreet}
+                          onSelect={(result: AddressResult) => {
+                            setNewHouseholdStreet(result.street);
+                            setNewHouseholdCity(result.city);
+                            setNewHouseholdState(result.state);
+                            setNewHouseholdPostalCode(result.postal_code);
+                          }}
+                          placeholder="Start typing an address..."
+                        />
+                      </div>
+                      <div className="grid grid-cols-3 gap-3">
                         <div className="space-y-2">
                           <Label htmlFor="new-hh-city">City</Label>
                           <Input
@@ -345,8 +352,6 @@ export function NewPersonDialog({ open, onOpenChange }: NewPersonDialogProps) {
                             placeholder="Denver"
                           />
                         </div>
-                      </div>
-                      <div className="grid grid-cols-2 gap-3">
                         <div className="space-y-2">
                           <Label htmlFor="new-hh-state">State</Label>
                           <Input
