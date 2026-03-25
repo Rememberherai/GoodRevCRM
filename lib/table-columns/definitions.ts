@@ -26,6 +26,7 @@ export const PERSON_COLUMNS: ColumnDefinition[] = [
   { key: 'job_title', label: 'Title', type: 'system', fieldType: 'text', sortable: true, defaultVisible: true },
   { key: 'email', label: 'Email', type: 'system', fieldType: 'email', sortable: true, defaultVisible: true },
   { key: 'phone', label: 'Phone', type: 'system', fieldType: 'phone', sortable: false, defaultVisible: true },
+  { key: 'household', label: 'Household', type: 'system', fieldType: 'text', sortable: false, defaultVisible: true, entityReference: 'organization' },
   { key: 'department', label: 'Department', type: 'system', fieldType: 'text', sortable: true, defaultVisible: false },
   { key: 'mobile_phone', label: 'Mobile', type: 'system', fieldType: 'phone', sortable: false, defaultVisible: false },
   { key: 'linkedin_url', label: 'LinkedIn', type: 'system', fieldType: 'url', sortable: false, defaultVisible: false },
@@ -86,7 +87,7 @@ export const COLUMN_DEFINITIONS: Record<EntityType, ColumnDefinition[]> = {
 // Default visible columns for each entity (for new users)
 export const DEFAULT_VISIBLE_COLUMNS: Record<EntityType, string[]> = {
   organization: ['name', 'disposition', 'industry', 'website', 'employee_count'],
-  person: ['name', 'disposition', 'job_title', 'email', 'phone'],
+  person: ['name', 'disposition', 'job_title', 'email', 'phone', 'household'],
   opportunity: ['name', 'stage', 'amount', 'probability', 'expected_close_date'],
   rfp: ['title', 'status', 'progress', 'due_date', 'estimated_value'],
 };
@@ -161,6 +162,14 @@ export function getColumnAccessor(key: string): string | ((item: Record<string, 
     return (item: Record<string, unknown>) => {
       const org = item.organization as Record<string, unknown> | null;
       return org?.name ?? null;
+    };
+  }
+
+  // Handle household reference (from joined household_members -> households)
+  if (key === 'household') {
+    return (item: Record<string, unknown>) => {
+      const household = item.household as Record<string, unknown> | null;
+      return household?.name ?? null;
     };
   }
 

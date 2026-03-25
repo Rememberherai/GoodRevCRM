@@ -117,8 +117,33 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to fetch people' }, { status: 500 });
     }
 
+    // Attach household info to each person (skip for id-only queries)
+    let enrichedPeople = people as unknown as Record<string, unknown>[];
+    if (!idsOnly && people && people.length > 0) {
+      const personIds = (people as unknown as Person[]).map(p => p.id);
+      const { data: memberships } = await supabase
+        .from('household_members')
+        .select('person_id, household:households(id, name)')
+        .in('person_id', personIds)
+        .is('end_date', null);
+
+      if (memberships && memberships.length > 0) {
+        const householdByPerson = new Map<string, { id: string; name: string }>();
+        for (const m of memberships) {
+          const hh = m.household as unknown as { id: string; name: string } | null;
+          if (hh && !householdByPerson.has(m.person_id)) {
+            householdByPerson.set(m.person_id, hh);
+          }
+        }
+        enrichedPeople = (people as unknown as Record<string, unknown>[]).map(p => ({
+          ...p,
+          household: householdByPerson.get((p as unknown as Person).id) ?? null,
+        }));
+      }
+    }
+
     return NextResponse.json({
-      people: people as unknown as Person[],
+      people: enrichedPeople,
       pagination: {
         page,
         limit,
@@ -159,7 +184,14 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const body = await request.json();
-    const { organization_id, ...personFields } = body;
+    const {
+      organization_id,
+      household_id,
+      household_relationship,
+      household_is_primary_contact,
+      new_household,
+      ...personFields
+    } = body;
     const validationResult = createPersonSchema.safeParse(personFields);
 
     if (!validationResult.success) {
@@ -257,6 +289,87 @@ export async function POST(request: Request, context: RouteContext) {
         if (linkError) {
           console.error('Error linking person to organization:', linkError);
         }
+      }
+    }
+
+    // If household_id is provided, link person to existing household
+    if (household_id && typeof household_id === 'string' && person) {
+      try {
+        const { data: hh } = await supabase
+          .from('households')
+          .select('id')
+          .eq('id', household_id)
+          .eq('project_id', project.id)
+          .is('deleted_at', null)
+          .single();
+
+        if (hh) {
+          const rel: string = household_relationship || 'other';
+          const { error: memberError } = await supabase
+            .from('household_members')
+            .insert({
+              household_id: household_id as string,
+              person_id: (person as Person).id,
+              relationship: rel,
+              is_primary_contact: household_is_primary_contact === true,
+              start_date: new Date().toISOString().split('T')[0],
+            } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+          if (memberError) {
+            console.error('Error linking person to household:', memberError);
+          }
+        }
+      } catch (hhErr) {
+        console.error('Error linking person to household:', hhErr);
+      }
+    }
+
+    // If new_household is provided, create household then link person
+    if (new_household && typeof new_household === 'object' && new_household.name && person) {
+      try {
+        const { data: createdHousehold, error: hhCreateError } = await supabase
+          .from('households')
+          .insert({
+            project_id: project.id,
+            created_by: user.id,
+            name: new_household.name,
+            address_street: new_household.address_street || null,
+            address_city: new_household.address_city || null,
+            address_state: new_household.address_state || null,
+            address_postal_code: new_household.address_postal_code || null,
+            geocoded_status: 'pending',
+          })
+          .select('id')
+          .single();
+
+        if (hhCreateError) {
+          console.error('Error creating household for person:', hhCreateError);
+        } else if (createdHousehold) {
+          const rel: string = household_relationship || 'head_of_household';
+          const { error: memberError } = await supabase
+            .from('household_members')
+            .insert({
+              household_id: createdHousehold.id,
+              person_id: (person as Person).id,
+              relationship: rel,
+              is_primary_contact: household_is_primary_contact === true,
+              start_date: new Date().toISOString().split('T')[0],
+            } as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+          if (memberError) {
+            console.error('Error linking person to new household:', memberError);
+          }
+
+          emitAutomationEvent({
+            projectId: project.id,
+            triggerType: 'household.created' as never,
+            entityType: 'household',
+            entityId: createdHousehold.id,
+            data: { id: createdHousehold.id, name: new_household.name },
+          });
+        }
+      } catch (hhErr) {
+        console.error('Error creating household for person:', hhErr);
       }
     }
 

@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Search, Users, MoreHorizontal, Pencil, Trash2, Send, CheckCircle2, AlertTriangle, Plus } from 'lucide-react';
+import { Search, Users, MoreHorizontal, Pencil, Trash2, Send, CheckCircle2, AlertTriangle, Plus, Home } from 'lucide-react';
 import { usePeople } from '@/hooks/use-people';
 import { useColumnPreferences } from '@/hooks/use-column-preferences';
 import { Button } from '@/components/ui/button';
@@ -265,6 +265,21 @@ export function PeoplePageClient() {
             </span>
           )}
         </div>
+      );
+    }
+
+    // Special handling for household with clickable link
+    if (columnKey === 'household') {
+      const household = (person as unknown as Record<string, unknown>).household as { id: string; name: string } | null;
+      if (!household) return <span className="text-muted-foreground">—</span>;
+      return (
+        <Link
+          href={`/projects/${slug}/households/${household.id}`}
+          className="inline-flex items-center gap-1.5 text-primary hover:underline"
+        >
+          <Home className="h-3.5 w-3.5" />
+          {household.name}
+        </Link>
       );
     }
 
