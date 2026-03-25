@@ -68,7 +68,20 @@ export function usePeople() {
   ]);
 
   const create = useCallback(
-    async (data: CreatePersonInput & { organization_id?: string; force_create?: boolean }) => {
+    async (data: CreatePersonInput & {
+      organization_id?: string;
+      force_create?: boolean;
+      household_id?: string;
+      household_relationship?: string;
+      household_is_primary_contact?: boolean;
+      new_household?: {
+        name: string;
+        address_street?: string;
+        address_city?: string;
+        address_state?: string;
+        address_postal_code?: string;
+      };
+    }) => {
       if (!projectSlug) throw new Error('No project selected');
 
       setLoading(true);

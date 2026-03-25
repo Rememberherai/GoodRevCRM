@@ -112,6 +112,10 @@ export function registerPeopleTools(server: McpServer, getContext: () => McpCont
       department: z.string().max(100).nullable().optional().describe('Department'),
       notes: z.string().max(2000).nullable().optional().describe('Notes'),
       organization_id: z.string().uuid().optional().describe('Link to organization'),
+      household_id: z.string().uuid().optional().describe('Link to existing household'),
+      household_relationship: z.enum(['head_of_household', 'spouse_partner', 'child', 'dependent', 'extended_family', 'other']).optional().describe('Relationship within household'),
+      household_is_primary_contact: z.boolean().optional().describe('Whether this person is the primary contact for the household'),
+      new_household_name: z.string().max(200).optional().describe('Create a new household with this name and link the person to it'),
       disposition_id: z.string().uuid().nullable().optional().describe('Disposition (status) ID'),
       custom_fields: z.record(z.string(), z.unknown()).optional().describe('Custom field values'),
     },
@@ -119,7 +123,7 @@ export function registerPeopleTools(server: McpServer, getContext: () => McpCont
       const ctx = getContext();
       checkPermission(ctx.role, 'member');
 
-      const { organization_id, custom_fields, ...personFields } = params;
+      const { organization_id, household_id, household_relationship, household_is_primary_contact, new_household_name, custom_fields, ...personFields } = params;
 
       const { data, error } = await ctx.supabase
         .from('people')
@@ -144,6 +148,58 @@ export function registerPeopleTools(server: McpServer, getContext: () => McpCont
             project_id: ctx.projectId,
             is_primary: true,
           });
+      }
+
+      // Link to existing household
+      if (household_id) {
+        const memberInsert = {
+          household_id: household_id as string,
+          person_id: data.id,
+          relationship: (household_relationship || 'other') as string,
+          is_primary_contact: household_is_primary_contact === true,
+          start_date: new Date().toISOString().split('T')[0],
+        };
+        const { error: memberErr } = await ctx.supabase
+          .from('household_members')
+          .insert(memberInsert as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+        if (memberErr) console.error('Error linking person to household:', memberErr);
+      }
+
+      // Create new household and link
+      if (!household_id && new_household_name) {
+        const { data: newHH, error: hhErr } = await ctx.supabase
+          .from('households')
+          .insert({
+            project_id: ctx.projectId,
+            created_by: ctx.userId,
+            name: new_household_name as string,
+            geocoded_status: 'pending' as const,
+          } as any) // eslint-disable-line @typescript-eslint/no-explicit-any
+          .select('id')
+          .single();
+
+        if (hhErr) {
+          console.error('Error creating household:', hhErr);
+        } else if (newHH) {
+          const hhMemberInsert = {
+            household_id: newHH.id,
+            person_id: data.id,
+            relationship: (household_relationship || 'head_of_household') as string,
+            is_primary_contact: household_is_primary_contact === true,
+            start_date: new Date().toISOString().split('T')[0],
+          };
+          await ctx.supabase
+            .from('household_members')
+            .insert(hhMemberInsert as any); // eslint-disable-line @typescript-eslint/no-explicit-any
+
+          emitAutomationEvent({
+            projectId: ctx.projectId,
+            triggerType: 'household.created' as never,
+            entityType: 'household',
+            entityId: newHH.id,
+            data: { id: newHH.id, name: new_household_name },
+          });
+        }
       }
 
       emitAutomationEvent({

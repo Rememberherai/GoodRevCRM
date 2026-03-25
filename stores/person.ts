@@ -177,7 +177,20 @@ export async function fetchPerson(
 
 export async function createPerson(
   projectSlug: string,
-  data: CreatePersonInput & { organization_id?: string; force_create?: boolean }
+  data: CreatePersonInput & {
+    organization_id?: string;
+    force_create?: boolean;
+    household_id?: string;
+    household_relationship?: string;
+    household_is_primary_contact?: boolean;
+    new_household?: {
+      name: string;
+      address_street?: string;
+      address_city?: string;
+      address_state?: string;
+      address_postal_code?: string;
+    };
+  }
 ): Promise<Person> {
   const response = await fetch(`/api/projects/${projectSlug}/people`, {
     method: 'POST',
