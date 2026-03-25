@@ -2,7 +2,7 @@
 
 import { useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, ArrowRight, Loader2, Plus, Trash2 } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, ArrowRight, Loader2, Plus, Trash2 } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import {
@@ -81,6 +81,7 @@ export function NewHouseholdDialog({
   const [selectedRelationship, setSelectedRelationship] = useState<MemberDraft['relationship']>('head_of_household');
   const [selectedStartDate, setSelectedStartDate] = useState(new Date().toISOString().slice(0, 10));
   const [intakeNotes, setIntakeNotes] = useState('');
+  const [showAddWarning, setShowAddWarning] = useState(false);
 
   useEffect(() => {
     if (!open || peopleLoaded) return;
@@ -122,6 +123,7 @@ export function NewHouseholdDialog({
     setSelectedRelationship('head_of_household');
     setSelectedStartDate(new Date().toISOString().slice(0, 10));
     setIntakeNotes('');
+    setShowAddWarning(false);
   };
 
   const selectedPeopleIds = useMemo(() => new Set(members.map((member) => member.person_id)), [members]);
@@ -146,6 +148,15 @@ export function NewHouseholdDialog({
     ]);
     setSelectedPersonId('');
     setSelectedRelationship('head_of_household');
+    setShowAddWarning(false);
+  };
+
+  const handleNextFromMembers = () => {
+    if (selectedPersonId) {
+      setShowAddWarning(true);
+      return;
+    }
+    setStep((current) => current + 1);
   };
 
   const removeMember = (personId: string) => {
@@ -288,41 +299,58 @@ export function NewHouseholdDialog({
 
         {step === 1 && (
           <div className="space-y-4">
-            <div className="grid gap-3 md:grid-cols-[1.8fr_1.2fr_1fr_auto] md:items-end">
+            <div className="space-y-3">
               <div className="space-y-2">
                 <Label>Person</Label>
                 <PersonCombobox
                   value={selectedPersonId || null}
-                  onValueChange={(id) => setSelectedPersonId(id ?? '')}
+                  onValueChange={(id) => {
+                    setSelectedPersonId(id ?? '');
+                    setShowAddWarning(false);
+                  }}
                   onPersonCreated={handlePersonCreated}
                   allowCreate
                   excludeIds={selectedPeopleIds}
                   placeholder="Search or create a person..."
                 />
               </div>
-              <div className="space-y-2">
-                <Label>Relationship</Label>
-                <Select value={selectedRelationship} onValueChange={(value: MemberDraft['relationship']) => setSelectedRelationship(value)}>
-                  <SelectTrigger className="w-full">
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {RELATIONSHIP_OPTIONS.map((relationship) => (
-                      <SelectItem key={relationship} value={relationship}>
-                        {relationship.replaceAll('_', ' ')}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+              <div className="grid grid-cols-[1fr_1fr_auto] gap-3 items-end">
+                <div className="space-y-2">
+                  <Label>Relationship</Label>
+                  <Select value={selectedRelationship} onValueChange={(value: MemberDraft['relationship']) => setSelectedRelationship(value)}>
+                    <SelectTrigger className="w-full">
+                      <SelectValue />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {RELATIONSHIP_OPTIONS.map((relationship) => (
+                        <SelectItem key={relationship} value={relationship}>
+                          {relationship.replaceAll('_', ' ')}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Start Date</Label>
+                  <Input type="date" value={selectedStartDate} onChange={(event) => setSelectedStartDate(event.target.value)} />
+                </div>
+                <Button
+                  type="button"
+                  variant={showAddWarning ? 'default' : 'secondary'}
+                  className={showAddWarning ? 'bg-orange-500 hover:bg-orange-600 text-white animate-pulse' : ''}
+                  onClick={addMember}
+                  disabled={!selectedPersonId}
+                >
+                  <Plus className="mr-2 h-4 w-4" />
+                  Add
+                </Button>
               </div>
-              <div className="space-y-2">
-                <Label>Start Date</Label>
-                <Input type="date" value={selectedStartDate} onChange={(event) => setSelectedStartDate(event.target.value)} />
-              </div>
-              <Button type="button" variant="secondary" onClick={addMember} disabled={!selectedPersonId}>
-                <Plus className="mr-2 h-4 w-4" />
-                Add
-              </Button>
+              {showAddWarning && (
+                <div className="flex items-center gap-2 rounded-md border border-orange-300 bg-orange-50 p-2.5 text-sm text-orange-800 dark:border-orange-500/30 dark:bg-orange-950/30 dark:text-orange-300">
+                  <AlertTriangle className="h-4 w-4 shrink-0" />
+                  You have a person selected but haven&apos;t added them yet. Click <strong>Add</strong> to include them as a member.
+                </div>
+              )}
             </div>
 
             <div className="space-y-3">
@@ -378,7 +406,11 @@ export function NewHouseholdDialog({
           )}
 
           {step < 2 ? (
-            <Button type="button" onClick={() => setStep((current) => current + 1)} disabled={!canAdvance()}>
+            <Button
+              type="button"
+              onClick={step === 1 ? handleNextFromMembers : () => setStep((current) => current + 1)}
+              disabled={!canAdvance()}
+            >
               Next
               <ArrowRight className="ml-2 h-4 w-4" />
             </Button>
