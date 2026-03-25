@@ -25,6 +25,7 @@ export function usePeople() {
     sortBy,
     sortOrder,
     organizationFilter,
+    householdlessFilter,
     setPeople,
     addPerson,
     updatePerson,
@@ -34,6 +35,7 @@ export function usePeople() {
     setSearchQuery,
     setSorting,
     setOrganizationFilter,
+    setHouseholdlessFilter,
     setPage,
   } = usePersonStore();
 
@@ -49,6 +51,7 @@ export function usePeople() {
         sortBy,
         sortOrder,
         organizationId: organizationFilter ?? undefined,
+        householdless: householdlessFilter,
       });
       setPeople(result.people, result.pagination);
     } catch (err) {
@@ -62,6 +65,7 @@ export function usePeople() {
     sortBy,
     sortOrder,
     organizationFilter,
+    householdlessFilter,
     setPeople,
     setLoading,
     setError,
@@ -154,6 +158,13 @@ export function usePeople() {
     [setOrganizationFilter]
   );
 
+  const filterByHouseholdless = useCallback(
+    (enabled: boolean) => {
+      setHouseholdlessFilter(enabled);
+    },
+    [setHouseholdlessFilter]
+  );
+
   const goToPage = useCallback(
     (page: number) => {
       setPage(page);
@@ -175,6 +186,7 @@ export function usePeople() {
     sortBy,
     sortOrder,
     organizationFilter,
+    householdlessFilter,
     refresh: loadPeople,
     create,
     update,
@@ -182,6 +194,7 @@ export function usePeople() {
     search,
     sort,
     filterByOrganization,
+    filterByHouseholdless,
     goToPage,
   };
 }

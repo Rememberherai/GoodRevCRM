@@ -52,6 +52,7 @@ export async function GET(request: Request, context: RouteContext) {
     const sortOrder = searchParams.get('sortOrder') ?? 'desc';
     const organizationId = searchParams.get('organizationId');
     const isContractor = searchParams.get('is_contractor');
+    const householdless = searchParams.get('householdless');
 
     const offset = (page - 1) * limit;
 
@@ -90,6 +91,30 @@ export async function GET(request: Request, context: RouteContext) {
           pagination: { page, limit, total: 0, totalPages: 0 },
         });
       }
+    }
+
+    // Filter to only people NOT in any active household membership
+    if (householdless === 'true') {
+      // Get person IDs who are active household members (scoped to project's households)
+      const { data: projectHouseholds } = await supabase
+        .from('households')
+        .select('id')
+        .eq('project_id', project.id)
+        .is('deleted_at', null);
+
+      if (projectHouseholds && projectHouseholds.length > 0) {
+        const { data: housedPersonIds } = await supabase
+          .from('household_members')
+          .select('person_id')
+          .in('household_id', projectHouseholds.map(h => h.id))
+          .is('end_date', null);
+
+        if (housedPersonIds && housedPersonIds.length > 0) {
+          const housedIds = [...new Set(housedPersonIds.map((m: { person_id: string }) => m.person_id))];
+          query = query.not('id', 'in', `(${housedIds.join(',')})`);
+        }
+      }
+      // If no households or no members, no filtering needed — all are householdless
     }
 
     if (isContractor === 'true') {

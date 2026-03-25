@@ -3,7 +3,7 @@
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
-import { Search, Users, MoreHorizontal, Pencil, Trash2, Send, CheckCircle2, AlertTriangle, Plus, Home } from 'lucide-react';
+import { Search, Users, MoreHorizontal, Pencil, Trash2, Send, CheckCircle2, AlertTriangle, Plus, Home, UserX } from 'lucide-react';
 import { usePeople } from '@/hooks/use-people';
 import { useColumnPreferences } from '@/hooks/use-column-preferences';
 import { Button } from '@/components/ui/button';
@@ -49,6 +49,7 @@ import { usePersonStore, updatePersonApi } from '@/stores/person';
 import { ClickableEmail } from '@/components/contacts/clickable-email';
 import { ClickablePhone } from '@/components/contacts/clickable-phone';
 import { NewPersonDialog } from '@/components/people/new-person-dialog';
+import { AssignHouseholdDialog } from '@/components/people/assign-household-dialog';
 import type { BulkOperation } from '@/types/bulk';
 
 export function PeoplePageClient() {
@@ -65,6 +66,7 @@ export function PeoplePageClient() {
   const [enrollInSequenceOpen, setEnrollInSequenceOpen] = useState(false);
   const [bulkLoading, setBulkLoading] = useState(false);
   const [newPersonOpen, setNewPersonOpen] = useState(false);
+  const [assignHouseholdPersonId, setAssignHouseholdPersonId] = useState<string | null>(null);
 
   const {
     people,
@@ -75,6 +77,8 @@ export function PeoplePageClient() {
     remove,
     goToPage,
     refresh,
+    householdlessFilter,
+    filterByHouseholdless,
   } = usePeople();
 
   const { dispositions } = useDispositions('person');
@@ -337,6 +341,15 @@ export function PeoplePageClient() {
             Search
           </Button>
         </form>
+        <Button
+          variant={householdlessFilter ? 'default' : 'outline'}
+          size="sm"
+          onClick={() => filterByHouseholdless(!householdlessFilter)}
+          className="shrink-0"
+        >
+          <UserX className="mr-2 h-4 w-4" />
+          Householdless
+        </Button>
         <ColumnPicker
           columns={allColumns}
           onToggle={toggleColumn}
@@ -444,6 +457,12 @@ export function PeoplePageClient() {
                             <Pencil className="mr-2 h-4 w-4" />
                             Edit
                           </Link>
+                        </DropdownMenuItem>
+                        <DropdownMenuItem
+                          onClick={() => setAssignHouseholdPersonId(person.id)}
+                        >
+                          <Home className="mr-2 h-4 w-4" />
+                          Assign Household
                         </DropdownMenuItem>
                         <DropdownMenuItem
                           onClick={() => setDeleteId(person.id)}
@@ -582,6 +601,17 @@ export function PeoplePageClient() {
         personIds={Array.from(selectedIds)}
         onEnrolled={() => {
           clearSelection();
+        }}
+      />
+
+      <AssignHouseholdDialog
+        open={!!assignHouseholdPersonId}
+        onOpenChange={(open) => { if (!open) setAssignHouseholdPersonId(null); }}
+        personId={assignHouseholdPersonId}
+        projectSlug={slug}
+        onAssigned={() => {
+          setAssignHouseholdPersonId(null);
+          refresh();
         }}
       />
     </div>

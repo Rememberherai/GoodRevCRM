@@ -31,6 +31,7 @@ interface PersonState {
   sortBy: string;
   sortOrder: 'asc' | 'desc';
   organizationFilter: string | null;
+  householdlessFilter: boolean;
 
   // Actions
   setPeople: (people: Person[], pagination: PaginationState) => void;
@@ -43,6 +44,7 @@ interface PersonState {
   setSearchQuery: (query: string) => void;
   setSorting: (sortBy: string, sortOrder: 'asc' | 'desc') => void;
   setOrganizationFilter: (organizationId: string | null) => void;
+  setHouseholdlessFilter: (enabled: boolean) => void;
   setPage: (page: number) => void;
   reset: () => void;
 }
@@ -62,6 +64,7 @@ const initialState = {
   sortBy: 'created_at',
   sortOrder: 'desc' as const,
   organizationFilter: null,
+  householdlessFilter: false,
 };
 
 export const usePersonStore = create<PersonState>((set) => ({
@@ -117,6 +120,9 @@ export const usePersonStore = create<PersonState>((set) => ({
   setOrganizationFilter: (organizationFilter) =>
     set({ organizationFilter, pagination: { ...initialState.pagination } }),
 
+  setHouseholdlessFilter: (householdlessFilter) =>
+    set({ householdlessFilter, pagination: { ...initialState.pagination } }),
+
   setPage: (page) =>
     set((state) => ({ pagination: { ...state.pagination, page } })),
 
@@ -133,6 +139,7 @@ export async function fetchPeople(
     sortBy?: string;
     sortOrder?: string;
     organizationId?: string;
+    householdless?: boolean;
   } = {}
 ): Promise<{
   people: Person[];
@@ -145,6 +152,7 @@ export async function fetchPeople(
   if (options.sortBy) params.set('sortBy', options.sortBy);
   if (options.sortOrder) params.set('sortOrder', options.sortOrder);
   if (options.organizationId) params.set('organizationId', options.organizationId);
+  if (options.householdless) params.set('householdless', 'true');
 
   const response = await fetch(
     `/api/projects/${projectSlug}/people?${params.toString()}`
