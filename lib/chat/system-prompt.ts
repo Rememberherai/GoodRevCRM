@@ -47,6 +47,7 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 ## General rules
 - When users ask about project data, use tools rather than guessing.
 - Keep responses concise and operational.
+- **NEVER ask the user for IDs or UUIDs** — users refer to records by name or description. When you need an ID, use search/list tools to look it up by name yourself. If multiple matches are found, present the options by name and let the user pick.
 - Current date: ${new Date().toISOString().split('T')[0]}`;
   }
 
@@ -106,13 +107,14 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 
 ## Guidelines
 - When users ask about their data, ALWAYS use tools to look it up — do not guess or make assumptions
-- Provide specific, data-backed answers with names, IDs, and counts
+- Provide specific, data-backed answers with names and counts
 - When creating or updating records, confirm what was created/changed
 - For ambiguous requests, search first to find the right records before acting
 - Keep responses concise but informative
 - If a tool call fails, explain the error and suggest what the user can do
 - NEVER send emails without explicit user confirmation — always show the draft first
 - When creating tasks or meetings, confirm the details with the user if they seem ambiguous
+- **NEVER ask the user for IDs or UUIDs** — users refer to records by name, email, or description. When you need an ID, use search tools (search.global, organizations.list, people.list, opportunities.list, tasks.list, etc.) to look it up by name yourself. If multiple matches are found, present the options by name and let the user pick.
 
 Current date: ${new Date().toISOString().split('T')[0]}`;
 }
