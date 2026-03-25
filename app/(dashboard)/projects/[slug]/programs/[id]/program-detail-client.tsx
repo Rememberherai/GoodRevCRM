@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, CalendarRange, ShieldCheck } from 'lucide-react';
+import { ArrowLeft, CalendarRange, ShieldCheck, Trash2, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -13,6 +13,13 @@ import { Textarea } from '@/components/ui/textarea';
 import { Label } from '@/components/ui/label';
 import { PersonCombobox } from '@/components/ui/person-combobox';
 import { BatchAttendance } from '@/components/community/programs/batch-attendance';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 
 interface ProgramDetail {
   id: string;
@@ -49,6 +56,25 @@ interface EnrollmentRecord {
   } | null;
 }
 
+interface ProgramWaiverRecord {
+  id: string;
+  template_id: string;
+  created_at: string;
+  contract_templates: {
+    id: string;
+    name: string;
+    file_name: string;
+    description: string | null;
+    category: string | null;
+  } | null;
+}
+
+interface ContractTemplate {
+  id: string;
+  name: string;
+  category: string | null;
+}
+
 export function ProgramDetailClient({ programId }: { programId: string }) {
   const params = useParams();
   const slug = params.slug as string;
@@ -60,17 +86,25 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
   const [notes, setNotes] = useState('');
   const [isSavingEnrollment, setIsSavingEnrollment] = useState(false);
 
+  // Waiver management state
+  const [programWaivers, setProgramWaivers] = useState<ProgramWaiverRecord[]>([]);
+  const [availableTemplates, setAvailableTemplates] = useState<ContractTemplate[]>([]);
+  const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
+  const [isAddingWaiver, setIsAddingWaiver] = useState(false);
+
   const loadProgram = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     try {
-      const [programResponse, enrollmentResponse] = await Promise.all([
+      const [programResponse, enrollmentResponse, waiversResponse] = await Promise.all([
         fetch(`/api/projects/${slug}/programs/${programId}`),
         fetch(`/api/projects/${slug}/programs/${programId}/enrollments`),
+        fetch(`/api/projects/${slug}/programs/${programId}/waivers`),
       ]);
 
       const programData = await programResponse.json() as { program?: ProgramDetail; error?: string };
       const enrollmentData = await enrollmentResponse.json() as { enrollments?: EnrollmentRecord[]; error?: string };
+      const waiversData = await waiversResponse.json() as { waivers?: ProgramWaiverRecord[]; error?: string };
 
       if (!programResponse.ok || !programData.program) {
         throw new Error(programData.error ?? 'Failed to load program');
@@ -81,6 +115,7 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
 
       setProgram(programData.program);
       setEnrollments(enrollmentData.enrollments ?? []);
+      setProgramWaivers(waiversData.waivers ?? []);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to load program');
     } finally {
@@ -88,9 +123,61 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
     }
   }, [programId, slug]);
 
+  const loadTemplates = useCallback(async () => {
+    try {
+      const response = await fetch(`/api/projects/${slug}/contracts/templates`);
+      const data = await response.json() as { templates?: ContractTemplate[] };
+      if (response.ok) {
+        setAvailableTemplates(data.templates ?? []);
+      }
+    } catch {
+      // Non-critical — user can still view waivers
+    }
+  }, [slug]);
+
   useEffect(() => {
     void loadProgram();
-  }, [loadProgram]);
+    void loadTemplates();
+  }, [loadProgram, loadTemplates]);
+
+  const addWaiver = async () => {
+    if (!selectedTemplateId) return;
+    setIsAddingWaiver(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/programs/${programId}/waivers`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ template_id: selectedTemplateId }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Failed to add waiver');
+      }
+      toast.success('Waiver template added');
+      setSelectedTemplateId('');
+      await loadProgram();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add waiver');
+    } finally {
+      setIsAddingWaiver(false);
+    }
+  };
+
+  const removeWaiver = async (waiverId: string) => {
+    try {
+      const response = await fetch(`/api/projects/${slug}/programs/${programId}/waivers?waiverId=${waiverId}`, {
+        method: 'DELETE',
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Failed to remove waiver');
+      }
+      toast.success('Waiver template removed');
+      await loadProgram();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to remove waiver');
+    }
+  };
 
   const addEnrollment = async () => {
     if (!personId) {
@@ -144,6 +231,12 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
     );
   }
 
+  // Filter out templates already linked as waivers
+  const linkedTemplateIds = new Set(programWaivers.map((w) => w.template_id));
+  const unlinkedTemplates = availableTemplates.filter((t) => !linkedTemplateIds.has(t.id));
+
+  const waiverCount = programWaivers.length;
+
   return (
     <div className="space-y-6">
       <Button variant="ghost" asChild className="px-0">
@@ -166,7 +259,12 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
         <div className="flex flex-wrap gap-2">
           <Badge variant="secondary">{program.status}</Badge>
           {program.capacity !== null && <Badge variant="outline">Capacity {program.capacity}</Badge>}
-          {program.requires_waiver && <Badge variant="outline">Waiver required</Badge>}
+          {waiverCount > 0 && (
+            <Badge variant="outline">
+              <ShieldCheck className="mr-1 h-3 w-3" />
+              {waiverCount} waiver{waiverCount !== 1 ? 's' : ''} required
+            </Badge>
+          )}
         </div>
       </div>
 
@@ -205,11 +303,11 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
           <TabsTrigger value="contributions">Contributions</TabsTrigger>
         </TabsList>
 
-        <TabsContent value="info" className="pt-4">
+        <TabsContent value="info" className="space-y-4 pt-4">
           <Card>
             <CardHeader>
               <CardTitle>Program Details</CardTitle>
-              <CardDescription>Summary, dates, and waiver requirements.</CardDescription>
+              <CardDescription>Summary, dates, and location.</CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="text-sm text-muted-foreground">{program.description || 'No description provided.'}</div>
@@ -217,8 +315,83 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
                 <InfoRow label="Start Date" value={program.start_date || 'Not set'} />
                 <InfoRow label="End Date" value={program.end_date || 'Not set'} />
                 <InfoRow label="Location" value={program.location_name || 'Not set'} />
-                <InfoRow label="Waiver" value={program.requires_waiver ? 'Required' : 'Not required'} icon={program.requires_waiver ? <ShieldCheck className="h-4 w-4" /> : undefined} />
+                <InfoRow
+                  label="Waivers"
+                  value={waiverCount > 0 ? `${waiverCount} required` : 'None'}
+                  icon={waiverCount > 0 ? <ShieldCheck className="h-4 w-4" /> : undefined}
+                />
               </div>
+            </CardContent>
+          </Card>
+
+          <Card>
+            <CardHeader>
+              <CardTitle>Waiver Requirements</CardTitle>
+              <CardDescription>Contract templates that enrollees must sign before activation.</CardDescription>
+            </CardHeader>
+            <CardContent className="space-y-4">
+              {programWaivers.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-4 text-sm text-muted-foreground">
+                  No waivers required for this program.
+                </div>
+              ) : (
+                <div className="space-y-2">
+                  {programWaivers.map((pw) => (
+                    <div key={pw.id} className="flex items-center justify-between rounded-lg border p-3">
+                      <div>
+                        <div className="text-sm font-medium">{pw.contract_templates?.name ?? 'Unknown template'}</div>
+                        {pw.contract_templates?.description && (
+                          <div className="text-xs text-muted-foreground">{pw.contract_templates.description}</div>
+                        )}
+                      </div>
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        className="h-8 w-8 text-muted-foreground hover:text-destructive"
+                        onClick={() => void removeWaiver(pw.id)}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
+                  ))}
+                </div>
+              )}
+
+              {unlinkedTemplates.length > 0 && (
+                <div className="flex items-center gap-2">
+                  <Select value={selectedTemplateId} onValueChange={setSelectedTemplateId}>
+                    <SelectTrigger className="flex-1">
+                      <SelectValue placeholder="Choose a contract template..." />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {unlinkedTemplates.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>
+                          {t.name}{t.category ? ` (${t.category})` : ''}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                  <Button
+                    size="sm"
+                    onClick={() => void addWaiver()}
+                    disabled={!selectedTemplateId || isAddingWaiver}
+                  >
+                    <Plus className="mr-1 h-4 w-4" />
+                    Add
+                  </Button>
+                </div>
+              )}
+
+              {unlinkedTemplates.length === 0 && availableTemplates.length === 0 && (
+                <div className="text-xs text-muted-foreground">
+                  No contract templates found. Create a contract template first to use it as a waiver.
+                </div>
+              )}
+              {unlinkedTemplates.length === 0 && availableTemplates.length > 0 && programWaivers.length > 0 && (
+                <div className="text-xs text-muted-foreground">
+                  All available contract templates are already linked to this program.
+                </div>
+              )}
             </CardContent>
           </Card>
         </TabsContent>

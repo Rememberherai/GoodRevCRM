@@ -213,6 +213,22 @@ export interface ProgramEnrollment extends CommunityTimestamps {
 export type ProgramEnrollmentInsert = CommunityInsert<ProgramEnrollment>;
 export type ProgramEnrollmentUpdate = CommunityUpdate<ProgramEnrollment>;
 
+export interface ProgramWaiver extends CommunityTimestamps {
+  id: string;
+  program_id: string;
+  template_id: string;
+}
+export type ProgramWaiverInsert = CommunityInsert<ProgramWaiver>;
+
+export interface EnrollmentWaiver extends CommunityTimestamps {
+  id: string;
+  enrollment_id: string;
+  program_waiver_id: string;
+  contract_document_id: string | null;
+  signed_at: string | null;
+}
+export type EnrollmentWaiverInsert = CommunityInsert<EnrollmentWaiver>;
+
 export interface ProgramAttendance extends CommunityTimestamps {
   id: string;
   program_id: string;

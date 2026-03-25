@@ -31,8 +31,9 @@ export const programSchema = z.object({
   requires_waiver: z.boolean().default(false),
 });
 
-export const createProgramSchema = programSchema;
-export const updateProgramSchema = programSchema.partial();
+// Omit requires_waiver from create/update — it's auto-synced by the program_waivers trigger
+export const createProgramSchema = programSchema.omit({ requires_waiver: true });
+export const updateProgramSchema = programSchema.omit({ requires_waiver: true }).partial();
 
 export const programEnrollmentBaseSchema = z.object({
   program_id: optionalUuidSchema,
@@ -67,7 +68,12 @@ export const batchAttendanceSchema = z.object({
   entries: z.array(attendanceRecordSchema).min(1, 'At least one attendance entry is required'),
 });
 
+export const addProgramWaiverSchema = z.object({
+  template_id: uuidSchema,
+});
+
 export type CreateProgramInput = z.infer<typeof createProgramSchema>;
 export type UpdateProgramInput = z.infer<typeof updateProgramSchema>;
 export type ProgramEnrollmentInput = z.infer<typeof programEnrollmentSchema>;
 export type AttendanceRecordInput = z.infer<typeof attendanceRecordSchema>;
+export type AddProgramWaiverInput = z.infer<typeof addProgramWaiverSchema>;

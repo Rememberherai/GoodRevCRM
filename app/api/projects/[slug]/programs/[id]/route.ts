@@ -75,7 +75,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (updates.capacity !== undefined) updateData.capacity = updates.capacity;
     if (updates.start_date !== undefined) updateData.start_date = updates.start_date;
     if (updates.end_date !== undefined) updateData.end_date = updates.end_date;
-    if (updates.requires_waiver !== undefined) updateData.requires_waiver = updates.requires_waiver;
+    // requires_waiver is now auto-synced by the program_waivers trigger — skip direct writes
     if (updates.location_name !== undefined) updateData.location_name = updates.location_name;
     if (updates.location_latitude !== undefined) updateData.location_latitude = updates.location_latitude;
     if (updates.location_longitude !== undefined) updateData.location_longitude = updates.location_longitude;

@@ -5,7 +5,7 @@ import { ProjectAccessError } from '@/lib/projects/permissions';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { programEnrollmentSchema } from '@/lib/validators/community/programs';
 import { createServiceClient } from '@/lib/supabase/server';
-import { createWaiverForEnrollment } from '@/lib/community/waivers';
+import { createWaiverForEnrollment, createWaiversForEnrollment } from '@/lib/community/waivers';
 import type { Database } from '@/types/database';
 
 type ProgramEnrollmentInsert = Database['public']['Tables']['program_enrollments']['Insert'];
@@ -129,7 +129,7 @@ export async function POST(request: Request, context: RouteContext) {
     let waiverDocumentId: string | null = null;
     if (requiresWaiver) {
       const adminClient = createServiceClient();
-      const waiverResult = await createWaiverForEnrollment({
+      const baseParams = {
         supabase,
         adminClient,
         projectId: project.id,
@@ -138,10 +138,29 @@ export async function POST(request: Request, context: RouteContext) {
         enrollmentId: enrollment.id,
         personId: enrollment.person_id,
         createdBy: user.id,
-      });
+      };
 
-      waiverMessage = waiverResult.message;
-      waiverDocumentId = waiverResult.contractId;
+      // Check for explicit program_waivers (multi-waiver path)
+      const { count: programWaiverCount, error: pwCountError } = await supabase
+        .from('program_waivers')
+        .select('id', { count: 'exact', head: true })
+        .eq('program_id', id);
+
+      if (pwCountError) {
+        console.error('Error checking program_waivers count:', pwCountError);
+      }
+
+      if (programWaiverCount && programWaiverCount > 0) {
+        // Multi-waiver: use createWaiversForEnrollment
+        const multiResult = await createWaiversForEnrollment(baseParams);
+        waiverMessage = multiResult.message;
+        waiverDocumentId = multiResult.results[0]?.contractId ?? null;
+      } else {
+        // Legacy: single blind waiver lookup
+        const waiverResult = await createWaiverForEnrollment(baseParams);
+        waiverMessage = waiverResult.message;
+        waiverDocumentId = waiverResult.contractId;
+      }
     }
 
     emitAutomationEvent({

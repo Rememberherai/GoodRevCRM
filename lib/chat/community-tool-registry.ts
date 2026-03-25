@@ -692,6 +692,136 @@ defineCommunityTool({
   },
 });
 
+// -- Program waiver tools --
+
+const programWaiverListSchema = z.object({
+  program_id: z.string().uuid(),
+});
+
+defineCommunityTool({
+  name: 'programs.list_waivers',
+  description: 'List waiver templates linked to a program.',
+  resource: 'programs',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: programWaiverListSchema,
+  handler: async (params, ctx) => {
+    const parsed = programWaiverListSchema.parse(params);
+    const admin = createAdminClient();
+
+    const { data: program } = await admin
+      .from('programs')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.program_id)
+      .single();
+    if (!program) throw communityError('Program not found');
+
+    const { data, error } = await admin
+      .from('program_waivers')
+      .select('id, template_id, created_at, contract_templates ( id, name, description, category )')
+      .eq('program_id', parsed.program_id)
+      .order('created_at', { ascending: true });
+    if (error) throw communityError(`Failed to list waivers: ${error.message}`);
+    return JSON.stringify({ waivers: data ?? [] });
+  },
+});
+
+const programWaiverAddSchema = z.object({
+  program_id: z.string().uuid(),
+  template_id: z.string().uuid(),
+});
+
+defineCommunityTool({
+  name: 'programs.add_waiver',
+  description: 'Link a contract template as a required waiver for a program.',
+  resource: 'programs',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff'],
+  parameters: programWaiverAddSchema,
+  handler: async (params, ctx) => {
+    const parsed = programWaiverAddSchema.parse(params);
+    const admin = createAdminClient();
+
+    const { data: program } = await admin
+      .from('programs')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.program_id)
+      .single();
+    if (!program) throw communityError('Program not found');
+
+    const { data: template } = await admin
+      .from('contract_templates')
+      .select('id, name')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.template_id)
+      .is('deleted_at', null)
+      .single();
+    if (!template) throw communityError('Contract template not found in this project');
+
+    const { data, error } = await admin
+      .from('program_waivers')
+      .insert({ program_id: parsed.program_id, template_id: parsed.template_id })
+      .select('id, template_id, created_at')
+      .single();
+    if (error) {
+      if (error.code === '23505') throw communityError('This template is already linked to the program');
+      throw communityError(`Failed to add waiver: ${error.message}`);
+    }
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.created' as never,
+      entityType: 'program_waiver' as never,
+      entityId: data.id,
+      data: { ...data, program_id: parsed.program_id, template_name: template.name },
+    });
+    return JSON.stringify({ waiver: data });
+  },
+});
+
+const programWaiverRemoveSchema = z.object({
+  program_waiver_id: z.string().uuid(),
+});
+
+defineCommunityTool({
+  name: 'programs.remove_waiver',
+  description: 'Remove a waiver template from a program.',
+  resource: 'programs',
+  action: 'delete',
+  roles: ['owner', 'admin'],
+  parameters: programWaiverRemoveSchema,
+  handler: async (params, ctx) => {
+    const parsed = programWaiverRemoveSchema.parse(params);
+    const admin = createAdminClient();
+
+    // Verify program_waiver belongs to this project
+    const { data: pw } = await admin
+      .from('program_waivers')
+      .select('id, program_id, programs!inner( project_id )')
+      .eq('id', parsed.program_waiver_id)
+      .single();
+    if (!pw || (pw.programs as unknown as { project_id: string }).project_id !== ctx.projectId) {
+      throw communityError('Program waiver not found');
+    }
+
+    const { error } = await admin
+      .from('program_waivers')
+      .delete()
+      .eq('id', parsed.program_waiver_id);
+    if (error) throw communityError(`Failed to remove waiver: ${error.message}`);
+
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.deleted' as never,
+      entityType: 'program_waiver' as never,
+      entityId: parsed.program_waiver_id,
+      data: { id: parsed.program_waiver_id, program_id: pw.program_id },
+    });
+    return JSON.stringify({ success: true });
+  },
+});
+
 defineCommunityTool({
   name: 'contributions.list',
   description: 'List community contributions with optional filters.',

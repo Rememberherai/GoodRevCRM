@@ -73,7 +73,7 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
             {isCommunity ? (
               <>
                 <ToolGroup name="Households" tools={['list', 'get', 'create', 'update']} />
-                <ToolGroup name="Programs" tools={['list', 'get', 'create', 'update', 'enroll', 'record_attendance']} />
+                <ToolGroup name="Programs" tools={['list', 'get', 'create', 'update', 'enroll', 'record_attendance', 'list_waivers', 'add_waiver', 'remove_waiver']} />
                 <ToolGroup name="Contributions" tools={['list', 'get', 'create', 'update']} />
                 <ToolGroup name="Assets" tools={['list', 'get', 'create', 'update']} />
                 <ToolGroup name="Referrals" tools={['list', 'get', 'create', 'update']} />

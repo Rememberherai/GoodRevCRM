@@ -23,7 +23,6 @@ import {
   SelectValue,
 } from '@/components/ui/select';
 import { Checkbox } from '@/components/ui/checkbox';
-import { Switch } from '@/components/ui/switch';
 import { createProgramSchema } from '@/lib/validators/community/programs';
 
 interface DimensionOption {
@@ -75,7 +74,6 @@ export function NewProgramDialog({
   const [scheduleText, setScheduleText] = useState('');
   const [sessionStartTime, setSessionStartTime] = useState('');
   const [sessionEndTime, setSessionEndTime] = useState('');
-  const [requiresWaiver, setRequiresWaiver] = useState(false);
   const [selectedDimensions, setSelectedDimensions] = useState<string[]>([]);
 
   useEffect(() => {
@@ -110,7 +108,6 @@ export function NewProgramDialog({
     setScheduleText('');
     setSessionStartTime('');
     setSessionEndTime('');
-    setRequiresWaiver(false);
     setSelectedDimensions([]);
   };
 
@@ -131,7 +128,6 @@ export function NewProgramDialog({
       end_date: endDate || null,
       target_dimensions: selectedDimensions,
       schedule: buildSchedulePayload(scheduleText, startDate, sessionStartTime, sessionEndTime),
-      requires_waiver: requiresWaiver,
     };
 
     const validation = createProgramSchema.safeParse(payload);
@@ -235,12 +231,8 @@ export function NewProgramDialog({
               Set a Start Date above so session times can sync to Google Calendar.
             </div>
           )}
-          <div className="sm:col-span-2 flex items-center justify-between rounded-lg border p-3">
-            <div>
-              <div className="font-medium">Requires waiver</div>
-              <div className="text-sm text-muted-foreground">Enrollments will start with a pending waiver status.</div>
-            </div>
-            <Switch checked={requiresWaiver} onCheckedChange={setRequiresWaiver} />
+          <div className="sm:col-span-2 rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+            Waiver requirements can be configured on the program detail page after creation.
           </div>
           <div className="space-y-3 sm:col-span-2">
             <Label>Target Dimensions</Label>

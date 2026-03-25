@@ -167,6 +167,8 @@ export async function createWaiverForEnrollment(params: {
   enrollmentId: string;
   personId: string | null;
   createdBy: string;
+  templateId?: string;
+  programWaiverId?: string;
 }) {
   if (!params.personId) {
     return {
@@ -192,7 +194,19 @@ export async function createWaiverForEnrollment(params: {
     };
   }
 
-  const template = await findWaiverTemplate(params.supabase, params.projectId);
+  let template: ContractTemplateRow | null = null;
+  if (params.templateId) {
+    const { data } = await params.supabase
+      .from('contract_templates')
+      .select('*')
+      .eq('id', params.templateId)
+      .eq('project_id', params.projectId)
+      .is('deleted_at', null)
+      .single();
+    template = data;
+  } else {
+    template = await findWaiverTemplate(params.supabase, params.projectId);
+  }
   if (!template) {
     return {
       contractId: null as string | null,
@@ -240,12 +254,13 @@ export async function createWaiverForEnrollment(params: {
     kind: 'program_waiver',
     program_id: params.programId,
     program_enrollment_id: params.enrollmentId,
+    ...(params.programWaiverId ? { program_waiver_id: params.programWaiverId } : {}),
   };
 
   const documentInsert: ContractDocumentInsert = {
     id: documentId,
     project_id: params.projectId,
-    title: `${params.programName} Waiver`,
+    title: params.templateId ? `${params.programName} — ${template.name}` : `${params.programName} Waiver`,
     original_file_path: documentFilePath,
     original_file_name: template.file_name,
     original_file_hash: fileHash,
@@ -386,6 +401,81 @@ export async function createWaiverForEnrollment(params: {
   }
 }
 
+export interface WaiverResult {
+  programWaiverId: string;
+  contractId: string | null;
+  created: boolean;
+  sent: boolean;
+  message: string;
+}
+
+export async function createWaiversForEnrollment(params: {
+  supabase: Client;
+  adminClient: Client;
+  projectId: string;
+  programId: string;
+  programName: string;
+  enrollmentId: string;
+  personId: string | null;
+  createdBy: string;
+}): Promise<{ results: WaiverResult[]; message: string }> {
+  const { data: programWaivers } = await params.supabase
+    .from('program_waivers')
+    .select('id, template_id')
+    .eq('program_id', params.programId)
+    .order('created_at', { ascending: true });
+
+  if (!programWaivers || programWaivers.length === 0) {
+    return { results: [], message: 'No waivers configured for this program.' };
+  }
+
+  const results: WaiverResult[] = [];
+
+  for (const pw of programWaivers) {
+    const result = await createWaiverForEnrollment({
+      ...params,
+      templateId: pw.template_id,
+      programWaiverId: pw.id,
+    });
+
+    // Create enrollment_waivers tracking row
+    const { error: ewError } = await params.supabase
+      .from('enrollment_waivers')
+      .insert({
+        enrollment_id: params.enrollmentId,
+        program_waiver_id: pw.id,
+        ...(result.contractId ? { contract_document_id: result.contractId } : {}),
+      });
+
+    if (ewError) {
+      console.error(`Failed to create enrollment_waivers row for program_waiver ${pw.id}:`, ewError);
+    }
+
+    results.push({
+      programWaiverId: pw.id,
+      contractId: result.contractId,
+      created: result.created,
+      sent: result.sent,
+      message: result.message,
+    });
+  }
+
+  const sentCount = results.filter((r) => r.sent).length;
+  const createdCount = results.filter((r) => r.created).length;
+  const total = results.length;
+
+  let message: string;
+  if (sentCount === total) {
+    message = `Enrollment created with ${total} waiver(s) sent for signature.`;
+  } else if (createdCount > 0) {
+    message = `Enrollment created. ${createdCount}/${total} waiver document(s) created, ${sentCount} sent.`;
+  } else {
+    message = `Enrollment created with pending waiver status. ${total} waiver(s) required.`;
+  }
+
+  return { results, message };
+}
+
 export async function syncEnrollmentFromCompletedWaiver(params: {
   supabase: Client;
   documentId: string;
@@ -404,6 +494,54 @@ export async function syncEnrollmentFromCompletedWaiver(params: {
   const enrollmentId = customFields.program_enrollment_id;
   if (typeof enrollmentId !== 'string' || !enrollmentId) return false;
 
+  const programWaiverId = customFields.program_waiver_id;
+
+  // Multi-waiver path: update the specific enrollment_waivers row and check if all are signed
+  if (typeof programWaiverId === 'string' && programWaiverId) {
+    // Mark this specific waiver as signed (idempotent)
+    await params.supabase
+      .from('enrollment_waivers')
+      .update({ signed_at: new Date().toISOString() })
+      .eq('enrollment_id', enrollmentId)
+      .eq('program_waiver_id', programWaiverId)
+      .is('signed_at', null);
+
+    // Check if ALL enrollment_waivers for this enrollment are now signed
+    const { count: totalCount } = await params.supabase
+      .from('enrollment_waivers')
+      .select('id', { count: 'exact', head: true })
+      .eq('enrollment_id', enrollmentId);
+
+    const { count: unsignedCount } = await params.supabase
+      .from('enrollment_waivers')
+      .select('id', { count: 'exact', head: true })
+      .eq('enrollment_id', enrollmentId)
+      .is('signed_at', null);
+
+    const { data: enrollment } = await params.supabase
+      .from('program_enrollments')
+      .select('id, status, waiver_status')
+      .eq('id', enrollmentId)
+      .single();
+
+    if (!enrollment) return false;
+
+    // Only promote if there are actual enrollment_waiver rows (guards against
+    // cascade-deleted rows making unsignedCount appear as 0)
+    if (totalCount && totalCount > 0 && unsignedCount === 0) {
+      // All waivers signed — promote enrollment
+      const nextStatus = enrollment.status === 'waitlisted' ? 'active' : enrollment.status;
+      await params.supabase
+        .from('program_enrollments')
+        .update({ waiver_status: 'signed', status: nextStatus })
+        .eq('id', enrollmentId);
+    }
+    // If some are still unsigned, waiver_status stays 'pending'
+
+    return true;
+  }
+
+  // Legacy path: single-waiver (no program_waiver_id in custom_fields)
   const { data: enrollment } = await params.supabase
     .from('program_enrollments')
     .select('id, status, waiver_status')

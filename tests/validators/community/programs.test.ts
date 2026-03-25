@@ -12,7 +12,6 @@ describe('Community Program Validators', () => {
       status: 'active',
       capacity: 20,
       target_dimensions: ['550e8400-e29b-41d4-a716-446655440000'],
-      requires_waiver: true,
     });
 
     expect(result.success).toBe(true);

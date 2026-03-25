@@ -3839,6 +3839,58 @@ export type Database = {
           },
         ]
       }
+      enrollment_waivers: {
+        Row: {
+          contract_document_id: string | null
+          created_at: string
+          enrollment_id: string
+          id: string
+          program_waiver_id: string
+          signed_at: string | null
+          updated_at: string
+        }
+        Insert: {
+          contract_document_id?: string | null
+          created_at?: string
+          enrollment_id: string
+          id?: string
+          program_waiver_id: string
+          signed_at?: string | null
+          updated_at?: string
+        }
+        Update: {
+          contract_document_id?: string | null
+          created_at?: string
+          enrollment_id?: string
+          id?: string
+          program_waiver_id?: string
+          signed_at?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "enrollment_waivers_contract_document_id_fkey"
+            columns: ["contract_document_id"]
+            isOneToOne: false
+            referencedRelation: "contract_documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollment_waivers_enrollment_id_fkey"
+            columns: ["enrollment_id"]
+            isOneToOne: false
+            referencedRelation: "program_enrollments"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "enrollment_waivers_program_waiver_id_fkey"
+            columns: ["program_waiver_id"]
+            isOneToOne: false
+            referencedRelation: "program_waivers"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       entity_comments: {
         Row: {
           content: string
@@ -7461,6 +7513,45 @@ export type Database = {
             columns: ["program_id"]
             isOneToOne: false
             referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      program_waivers: {
+        Row: {
+          created_at: string
+          id: string
+          program_id: string
+          template_id: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          program_id: string
+          template_id: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          program_id?: string
+          template_id?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "program_waivers_program_id_fkey"
+            columns: ["program_id"]
+            isOneToOne: false
+            referencedRelation: "programs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "program_waivers_template_id_fkey"
+            columns: ["template_id"]
+            isOneToOne: false
+            referencedRelation: "contract_templates"
             referencedColumns: ["id"]
           },
         ]

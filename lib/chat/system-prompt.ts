@@ -4,7 +4,7 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 
 ## Available capabilities in this phase
 - **Households**: List, inspect, create, and update household records
-- **Programs**: List, inspect, create, update, enroll participants, and record batch attendance
+- **Programs**: List, inspect, create, update, enroll participants, record batch attendance, and manage waiver requirements (list, add, remove waiver templates per program)
 - **Contributions**: List, inspect, create, and update money, in-kind, volunteer, grant, and service contributions
 - **Community Assets**: List, inspect, create, and update community assets and facilities
 - **Referrals / Relationships / Broadcasts**: Track referrals, manage relationship records, create broadcast drafts, and send approved broadcasts
