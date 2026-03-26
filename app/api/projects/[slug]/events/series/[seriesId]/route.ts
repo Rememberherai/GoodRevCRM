@@ -78,7 +78,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       'recurrence_interval',
       'recurrence_until',
       'recurrence_count',
-      'recurrence_day_positions',
+      'recurrence_day_position',
       'template_start_time',
       'template_end_time',
       'timezone',
@@ -116,9 +116,9 @@ export async function PATCH(request: Request, context: RouteContext) {
     const mergedDaysOfWeek = updates.recurrence_days_of_week !== undefined
       ? updates.recurrence_days_of_week
       : oldSeries.recurrence_days_of_week;
-    const mergedDayPositions = updates.recurrence_day_positions !== undefined
-      ? updates.recurrence_day_positions
-      : oldSeries.recurrence_day_positions;
+    const mergedDayPosition = updates.recurrence_day_position !== undefined
+      ? updates.recurrence_day_position
+      : oldSeries.recurrence_day_position;
 
     if (
       (mergedFrequency === 'weekly' || mergedFrequency === 'biweekly') &&
@@ -132,7 +132,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (
       mergedFrequency === 'monthly' &&
-      mergedDayPositions?.length &&
+      mergedDayPosition &&
       (!mergedDaysOfWeek || mergedDaysOfWeek.length === 0)
     ) {
       return NextResponse.json({
