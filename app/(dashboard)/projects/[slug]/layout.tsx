@@ -42,16 +42,32 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
     notFound();
   }
 
-  const { data: membership } = await supabase
-    .from('project_memberships')
-    .select('role')
-    .eq('project_id', project.id)
-    .eq('user_id', user.id)
-    .single();
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabaseAny = supabase as any;
+
+  const [{ data: membership }, { data: overrides }] = await Promise.all([
+    supabase
+      .from('project_memberships')
+      .select('role')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single(),
+    supabaseAny
+      .from('project_membership_overrides')
+      .select('resource, granted')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id),
+  ]);
 
   if (project.project_type === 'community' && membership?.role === 'contractor') {
     redirect(`/contractor/${slug}`);
   }
+
+  const deniedResources: string[] = (overrides ?? [])
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .filter((o: any) => o.granted === false)
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    .map((o: any) => o.resource as string);
 
   // Check for active admin session (uses admin client to bypass RLS)
   let adminSession: { id: string } | null = null;
@@ -73,9 +89,9 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
     <CallClientWrapper>
       <div className="flex h-screen bg-background">
         <LastProjectTracker projectSlug={project.slug} />
-        <ProjectSidebar project={project as Project} role={membership?.role as ProjectRole | undefined} />
+        <ProjectSidebar project={project as Project} role={membership?.role as ProjectRole | undefined} deniedResources={deniedResources} />
         <MobileSidebar>
-          <ProjectSidebar project={project as Project} role={membership?.role as ProjectRole | undefined} className="flex w-full border-r-0" />
+          <ProjectSidebar project={project as Project} role={membership?.role as ProjectRole | undefined} deniedResources={deniedResources} className="flex w-full border-r-0" />
         </MobileSidebar>
         <div className="flex flex-col flex-1 overflow-hidden min-w-0">
           <ProjectHeader project={project as Project} />

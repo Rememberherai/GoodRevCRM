@@ -39,6 +39,7 @@ import type { ProjectRole } from '@/types/user';
 interface ProjectSidebarProps {
   project: Project;
   role?: ProjectRole;
+  deniedResources?: string[];
   className?: string;
 }
 
@@ -46,6 +47,7 @@ interface NavItem {
   title: string;
   href: string;
   icon: React.ComponentType<{ className?: string }>;
+  resource?: string;
 }
 
 const standardNavItems: NavItem[] = [
@@ -63,39 +65,39 @@ const standardNavItems: NavItem[] = [
 ];
 
 const grantsNavItems: NavItem[] = [
-  { title: 'Dashboard', href: '', icon: LayoutDashboard },
-  { title: 'Grants Pipeline', href: '/grants', icon: Award },
+  { title: 'Dashboard', href: '', icon: LayoutDashboard, resource: 'dashboard' },
+  { title: 'Grants Pipeline', href: '/grants', icon: Award, resource: 'grants' },
   { title: 'Organizations', href: '/organizations', icon: Building2 },
   { title: 'People', href: '/people', icon: Users },
-  { title: 'Discover', href: '/grants/discover', icon: Search },
+  { title: 'Discover', href: '/grants/discover', icon: Search, resource: 'grants' },
   { title: 'Content Library', href: '/content-library', icon: Library },
-  { title: 'Reporting', href: '/reports', icon: BarChart3 },
+  { title: 'Reporting', href: '/reports', icon: BarChart3, resource: 'reports' },
 ];
 
 const communityNavItems: NavItem[] = [
-  { title: 'Dashboard', href: '', icon: LayoutDashboard },
-  { title: 'Households', href: '/households', icon: Home },
+  { title: 'Dashboard', href: '', icon: LayoutDashboard, resource: 'dashboard' },
+  { title: 'Households', href: '/households', icon: Home, resource: 'households' },
   { title: 'People', href: '/people', icon: Users },
   { title: 'Organizations', href: '/organizations', icon: Building2 },
-  { title: 'Programs', href: '/programs', icon: CalendarRange },
-  { title: 'Events', href: '/events', icon: CalendarDays },
-  { title: 'Referrals', href: '/referrals', icon: SendToBack },
+  { title: 'Programs', href: '/programs', icon: CalendarRange, resource: 'programs' },
+  { title: 'Events', href: '/events', icon: CalendarDays, resource: 'events' },
+  { title: 'Referrals', href: '/referrals', icon: SendToBack, resource: 'referrals' },
   { title: 'Contractors', href: '/contractors', icon: HardHat },
-  { title: 'Jobs', href: '/jobs', icon: BriefcaseBusiness },
-  { title: 'Contributions', href: '/contributions', icon: HandCoins },
-  { title: 'Grants', href: '/grants', icon: Award },
-  { title: 'Broadcasts', href: '/broadcasts', icon: Megaphone },
-  { title: 'Community Assets', href: '/community-assets', icon: Building2 },
+  { title: 'Jobs', href: '/jobs', icon: BriefcaseBusiness, resource: 'jobs' },
+  { title: 'Contributions', href: '/contributions', icon: HandCoins, resource: 'contributions' },
+  { title: 'Grants', href: '/grants', icon: Award, resource: 'grants' },
+  { title: 'Broadcasts', href: '/broadcasts', icon: Megaphone, resource: 'broadcasts' },
+  { title: 'Community Assets', href: '/community-assets', icon: Building2, resource: 'community_assets' },
   { title: 'Community Map', href: '/community-map', icon: Map },
-  { title: 'Public Dashboard', href: '/settings/public-dashboard', icon: Globe },
-  { title: 'Reporting', href: '/reports', icon: BarChart3 },
+  { title: 'Public Dashboard', href: '/settings/public-dashboard', icon: Globe, resource: 'public_dashboard' },
+  { title: 'Reporting', href: '/reports', icon: BarChart3, resource: 'reports' },
 ];
 
 const bottomNavItems: NavItem[] = [
   { title: 'Settings', href: '/settings', icon: Settings },
 ];
 
-export function ProjectSidebar({ project, role, className }: ProjectSidebarProps) {
+export function ProjectSidebar({ project, role, deniedResources, className }: ProjectSidebarProps) {
   const pathname = usePathname();
   const basePath = `/projects/${project.slug}`;
   const toggleChat = useChatStore((s) => s.toggle);
@@ -115,6 +117,11 @@ export function ProjectSidebar({ project, role, className }: ProjectSidebarProps
     } else if (role !== 'owner' && role !== 'admin') {
       navItems = communityNavItems.filter((item) => item.title !== 'Public Dashboard');
     }
+  }
+
+  // Hide nav items for denied override resources
+  if (deniedResources && deniedResources.length > 0) {
+    navItems = navItems.filter((item) => !item.resource || !deniedResources.includes(item.resource));
   }
 
   const showContractorPortalLink = project.project_type === 'community' && (role === 'owner' || role === 'admin');

@@ -210,22 +210,20 @@ export async function requireCommunityPermission(
 
   const role = membership.role as ProjectRole;
 
-  // Fast path: role already has permission — skip override DB query entirely
-  if (checkCommunityPermission(role, resource, action)) {
-    return role;
-  }
-
-  // Role lacks permission — check for a per-user override before denying
+  // Check override first — deny always wins, grant allows view access
   const override = await getOverride(supabase, userId, projectId, resource);
+  if (override === false) {
+    throw new ProjectAccessError(`Access to '${resource}' is restricted`);
+  }
   if (override === true && action === 'view') {
     // Grant override: allow view unconditionally; write actions still require role support
     return role;
   }
 
-  if (override === false) {
-    throw new ProjectAccessError(`Access to '${resource}' is restricted`);
+  // Fall back to role matrix
+  if (!checkCommunityPermission(role, resource, action)) {
+    throw new ProjectAccessError(`Missing community permission '${resource}:${action}'`);
   }
 
-  // No override or grant doesn't cover this action — deny
-  throw new ProjectAccessError(`Missing community permission '${resource}:${action}'`);
+  return role;
 }
