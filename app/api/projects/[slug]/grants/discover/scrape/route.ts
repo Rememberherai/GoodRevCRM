@@ -56,7 +56,10 @@ export async function POST(request: Request, context: RouteContext) {
       /^192\.168\.\d+\.\d+$/,
       /^0\.0\.0\.0$/,
       /^169\.254\.\d+\.\d+$/, // link-local
-      /^\[::1?\]$/,
+      /^\[?::1?\]?$/,
+      /^\[?::ffff:/i, // IPv4-mapped IPv6
+      /^\[?fd[0-9a-f]{2}:/i, // unique local
+      /^\[?fe80:/i, // link-local IPv6
       /\.local$/,
       /\.internal$/,
     ];
@@ -112,12 +115,16 @@ ${pageContent}
 Extract the following fields as a JSON object:
 - name: The grant or funding opportunity name/title
 - funder_name: The organization offering the funding
+- category: One of "federal", "state", "corporate", "foundation", "individual" based on the funder type
 - amount: The grant amount or range (as a string, e.g., "$50,000" or "$10,000 - $100,000")
 - amount_value: Numeric value of the grant amount (use the maximum if a range, null if not specified)
+- funding_range_min: Minimum typical award amount as a number (null if not specified)
+- funding_range_max: Maximum typical award amount as a number (null if not specified)
 - deadline: Application deadline (as YYYY-MM-DD if possible, otherwise the date string as found)
 - description: Brief summary of the opportunity (2-3 sentences)
 - eligibility: Who can apply
 - focus_areas: Key focus areas or program priorities
+- application_url: Direct URL to apply (if different from the page URL, null otherwise)
 
 If certain fields cannot be determined from the page, set them to null.
 Return ONLY a JSON object, no markdown or other text.`,

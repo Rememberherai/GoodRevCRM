@@ -47,7 +47,12 @@ export type GrantStatus =
   | 'submitted'
   | 'under_review'
   | 'awarded'
+  | 'active'
+  | 'closed'
   | 'declined';
+
+export type GrantCategory = 'federal' | 'state' | 'corporate' | 'foundation' | 'individual';
+export type GrantUrgency = 'low' | 'medium' | 'high' | 'critical';
 
 export type ReferralStatus = 'submitted' | 'acknowledged' | 'in_progress' | 'completed' | 'closed';
 
@@ -378,6 +383,32 @@ export interface Grant extends CommunityTimestamps {
   assigned_to: string | null;
   contact_person_id: string | null;
   notes: string | null;
+  // Strategic planning fields
+  category: GrantCategory | null;
+  funding_range_min: number | null;
+  funding_range_max: number | null;
+  mission_fit: number | null;
+  tier: number | null;
+  key_intel: string | null;
+  recommended_strategy: string | null;
+  application_url: string | null;
+  urgency: GrantUrgency | null;
+  // Post-award fields
+  award_number: string | null;
+  funder_grant_id: string | null;
+  award_period_start: string | null;
+  award_period_end: string | null;
+  total_award_amount: number | null;
+  match_required: number | null;
+  match_type: 'cash' | 'in_kind' | 'either' | null;
+  indirect_cost_rate: number | null;
+  agreement_status: 'pending' | 'executed' | 'amended' | 'expired' | null;
+  closeout_date: string | null;
+  program_id: string | null;
+  contract_document_id: string | null;
+  // Discovery fields
+  is_discovered: boolean;
+  source_url: string | null;
 }
 export type GrantInsert = CommunityInsert<Grant>;
 export type GrantUpdate = CommunityUpdate<Grant>;

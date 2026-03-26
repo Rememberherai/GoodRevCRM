@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Award, CalendarClock, ChevronDown, ChevronRight, ClipboardList, DollarSign, Download, FileText, Mail, Paperclip, Plus, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, Award, CalendarClock, ChevronDown, ChevronRight, ClipboardList, DollarSign, Download, ExternalLink, FileText, Mail, Paperclip, Plus, Star, Trash2, Upload } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -31,6 +31,16 @@ interface GrantDetail {
   contact_person_id: string | null;
   assigned_to: string | null;
   notes: string | null;
+  // Strategic planning fields
+  category: string | null;
+  funding_range_min: number | null;
+  funding_range_max: number | null;
+  mission_fit: number | null;
+  tier: number | null;
+  key_intel: string | null;
+  recommended_strategy: string | null;
+  application_url: string | null;
+  urgency: string | null;
   created_at: string;
   updated_at: string;
   // Post-award fields
@@ -96,6 +106,27 @@ const STATUSES = [
   { value: 'closed', label: 'Closed' },
   { value: 'declined', label: 'Declined' },
 ];
+
+const CATEGORIES = [
+  { value: 'federal', label: 'Federal' },
+  { value: 'state', label: 'State' },
+  { value: 'corporate', label: 'Corporate' },
+  { value: 'foundation', label: 'Foundation' },
+  { value: 'individual', label: 'Individual' },
+];
+
+const URGENCY_LEVELS = [
+  { value: 'low', label: 'Low', color: 'bg-slate-100 text-slate-700' },
+  { value: 'medium', label: 'Medium', color: 'bg-yellow-100 text-yellow-700' },
+  { value: 'high', label: 'High', color: 'bg-orange-100 text-orange-700' },
+  { value: 'critical', label: 'Critical', color: 'bg-red-100 text-red-700' },
+];
+
+const TIER_LABELS: Record<number, { label: string; color: string }> = {
+  1: { label: 'Tier 1', color: 'bg-green-100 text-green-700' },
+  2: { label: 'Tier 2', color: 'bg-yellow-100 text-yellow-700' },
+  3: { label: 'Tier 3', color: 'bg-slate-100 text-slate-700' },
+};
 
 const STATUS_COLORS: Record<string, string> = {
   researching: 'bg-slate-100 text-slate-700 dark:bg-slate-800 dark:text-slate-300',
@@ -210,6 +241,16 @@ export default function GrantDetailClient() {
   const [editNotes, setEditNotes] = useState('');
   const [editFunderOrgId, setEditFunderOrgId] = useState<string | null>(null);
   const [editContactPersonId, setEditContactPersonId] = useState<string | null>(null);
+  // Strategic planning editable fields
+  const [editCategory, setEditCategory] = useState('');
+  const [editFundingRangeMin, setEditFundingRangeMin] = useState('');
+  const [editFundingRangeMax, setEditFundingRangeMax] = useState('');
+  const [editMissionFit, setEditMissionFit] = useState('');
+  const [editTier, setEditTier] = useState('');
+  const [editKeyIntel, setEditKeyIntel] = useState('');
+  const [editRecommendedStrategy, setEditRecommendedStrategy] = useState('');
+  const [editApplicationUrl, setEditApplicationUrl] = useState('');
+  const [editUrgency, setEditUrgency] = useState('');
   // Post-award editable fields
   const [editAwardNumber, setEditAwardNumber] = useState('');
   const [editFunderGrantId, setEditFunderGrantId] = useState('');
@@ -233,17 +274,27 @@ export default function GrantDetailClient() {
     setEditNotes(g.notes ?? '');
     setEditFunderOrgId(g.funder_organization_id);
     setEditContactPersonId(g.contact_person_id);
+    // Strategic planning
+    setEditCategory(g.category ?? '');
+    setEditFundingRangeMin(g.funding_range_min?.toString() ?? '');
+    setEditFundingRangeMax(g.funding_range_max?.toString() ?? '');
+    setEditMissionFit(g.mission_fit?.toString() ?? '');
+    setEditTier(g.tier?.toString() ?? '');
+    setEditKeyIntel(g.key_intel ?? '');
+    setEditRecommendedStrategy(g.recommended_strategy ?? '');
+    setEditApplicationUrl(g.application_url ?? '');
+    setEditUrgency(g.urgency ?? '');
     // Post-award
     setEditAwardNumber(g.award_number ?? '');
     setEditFunderGrantId(g.funder_grant_id ?? '');
-    setEditAwardPeriodStart(g.award_period_start ?? '');
-    setEditAwardPeriodEnd(g.award_period_end ?? '');
+    setEditAwardPeriodStart(g.award_period_start?.split('T')[0] ?? '');
+    setEditAwardPeriodEnd(g.award_period_end?.split('T')[0] ?? '');
     setEditTotalAwardAmount(g.total_award_amount?.toString() ?? '');
     setEditMatchRequired(g.match_required?.toString() ?? '');
     setEditMatchType(g.match_type ?? '');
     setEditIndirectCostRate(g.indirect_cost_rate != null ? (g.indirect_cost_rate * 100).toString() : '');
     setEditAgreementStatus(g.agreement_status ?? '');
-    setEditCloseoutDate(g.closeout_date ?? '');
+    setEditCloseoutDate(g.closeout_date?.split('T')[0] ?? '');
     // Auto-expand post-award section if any post-award fields are filled
     if (g.award_number || g.award_period_start || g.total_award_amount || g.agreement_status) {
       setShowPostAward(true);
@@ -296,6 +347,12 @@ export default function GrantDetailClient() {
         report_due_at: editReportDueAt || null,
         funder_organization_id: editFunderOrgId || null,
         contact_person_id: editContactPersonId || null,
+        // Strategic planning fields
+        category: editCategory || null,
+        key_intel: editKeyIntel || null,
+        recommended_strategy: editRecommendedStrategy || null,
+        application_url: editApplicationUrl || null,
+        urgency: editUrgency || null,
         // Post-award fields
         award_number: editAwardNumber || null,
         funder_grant_id: editFunderGrantId || null,
@@ -309,6 +366,14 @@ export default function GrantDetailClient() {
       else body.amount_requested = null;
       if (editAmountAwarded) body.amount_awarded = parseFloat(editAmountAwarded);
       else body.amount_awarded = null;
+      if (editFundingRangeMin) body.funding_range_min = parseFloat(editFundingRangeMin);
+      else body.funding_range_min = null;
+      if (editFundingRangeMax) body.funding_range_max = parseFloat(editFundingRangeMax);
+      else body.funding_range_max = null;
+      if (editMissionFit) body.mission_fit = parseInt(editMissionFit, 10);
+      else body.mission_fit = null;
+      if (editTier) body.tier = parseInt(editTier, 10);
+      else body.tier = null;
       if (editTotalAwardAmount) body.total_award_amount = parseFloat(editTotalAwardAmount);
       else body.total_award_amount = null;
       if (editMatchRequired) body.match_required = parseFloat(editMatchRequired);
@@ -539,6 +604,24 @@ export default function GrantDetailClient() {
           <Badge className={STATUS_COLORS[grant.status] ?? ''}>
             {STATUSES.find((s) => s.value === grant.status)?.label ?? grant.status}
           </Badge>
+          {grant.category && (
+            <Badge variant="outline">{CATEGORIES.find((c) => c.value === grant.category)?.label ?? grant.category}</Badge>
+          )}
+          {grant.tier && TIER_LABELS[grant.tier] && (
+            <Badge className={TIER_LABELS[grant.tier]!.color}>{TIER_LABELS[grant.tier]!.label}</Badge>
+          )}
+          {grant.urgency && (
+            <Badge className={URGENCY_LEVELS.find((u) => u.value === grant.urgency)?.color ?? ''}>
+              {URGENCY_LEVELS.find((u) => u.value === grant.urgency)?.label ?? grant.urgency}
+            </Badge>
+          )}
+          {grant.mission_fit && (
+            <span className="flex items-center gap-0.5">
+              {[1, 2, 3, 4, 5].map((n) => (
+                <Star key={n} className={`h-3.5 w-3.5 ${n <= grant.mission_fit! ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/20'}`} />
+              ))}
+            </span>
+          )}
         </div>
         <Button variant="destructive" size="sm" onClick={handleDelete}>
           <Trash2 className="mr-1 h-4 w-4" /> Delete
@@ -653,6 +736,100 @@ export default function GrantDetailClient() {
                     onValueChange={setEditContactPersonId}
                     placeholder="Select contact..."
                   />
+                </div>
+              </div>
+
+              {/* Strategic Planning */}
+              <div className="border rounded-lg p-4 space-y-4 bg-muted/20">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <Star className="h-4 w-4" /> Strategic Planning
+                </h3>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Category</Label>
+                    <Select value={editCategory || '__none__'} onValueChange={(v) => setEditCategory(v === '__none__' ? '' : v)}>
+                      <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">None</SelectItem>
+                        {CATEGORIES.map((c) => (
+                          <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Tier</Label>
+                    <Select value={editTier || '__none__'} onValueChange={(v) => setEditTier(v === '__none__' ? '' : v)}>
+                      <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">None</SelectItem>
+                        <SelectItem value="1">Tier 1 — Top Priority</SelectItem>
+                        <SelectItem value="2">Tier 2 — Strong Fit</SelectItem>
+                        <SelectItem value="3">Tier 3 — Worth Watching</SelectItem>
+                      </SelectContent>
+                    </Select>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Urgency</Label>
+                    <Select value={editUrgency || '__none__'} onValueChange={(v) => setEditUrgency(v === '__none__' ? '' : v)}>
+                      <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                      <SelectContent>
+                        <SelectItem value="__none__">None</SelectItem>
+                        {URGENCY_LEVELS.map((u) => (
+                          <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  </div>
+                </div>
+
+                <div className="grid grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <Label>Mission Fit (1–5)</Label>
+                    <div className="flex items-center gap-1">
+                      {[1, 2, 3, 4, 5].map((n) => (
+                        <button
+                          key={n}
+                          type="button"
+                          className="p-0.5"
+                          onClick={() => setEditMissionFit(editMissionFit === n.toString() ? '' : n.toString())}
+                        >
+                          <Star className={`h-5 w-5 ${(Number(editMissionFit) || 0) >= n ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30'}`} />
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Funding Range Min</Label>
+                    <Input type="number" min="0" step="1" value={editFundingRangeMin} onChange={(e) => setEditFundingRangeMin(e.target.value)} placeholder="$0" />
+                  </div>
+                  <div className="space-y-2">
+                    <Label>Funding Range Max</Label>
+                    <Input type="number" min="0" step="1" value={editFundingRangeMax} onChange={(e) => setEditFundingRangeMax(e.target.value)} placeholder="$0" />
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Application URL</Label>
+                  <div className="flex gap-2">
+                    <Input value={editApplicationUrl} onChange={(e) => setEditApplicationUrl(e.target.value)} placeholder="https://..." maxLength={2000} />
+                    {editApplicationUrl && (
+                      <Button type="button" variant="ghost" size="sm" className="shrink-0" onClick={() => window.open(editApplicationUrl, '_blank')}>
+                        <ExternalLink className="h-4 w-4" />
+                      </Button>
+                    )}
+                  </div>
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Key Intel</Label>
+                  <Textarea value={editKeyIntel} onChange={(e) => setEditKeyIntel(e.target.value)} rows={3} maxLength={10000} placeholder="Strategic insights about this funder, recent shifts in priorities, key contacts..." />
+                </div>
+
+                <div className="space-y-2">
+                  <Label>Recommended Strategy</Label>
+                  <Textarea value={editRecommendedStrategy} onChange={(e) => setEditRecommendedStrategy(e.target.value)} rows={3} maxLength={5000} placeholder="Action plan: submit LOI by X, leverage Y connection..." />
                 </div>
               </div>
 

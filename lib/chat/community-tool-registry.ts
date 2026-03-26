@@ -2054,7 +2054,7 @@ defineCommunityTool({
 
 defineCommunityTool({
   name: 'grants.create',
-  description: 'Create a new grant record for tracking a funding opportunity through the pipeline.',
+  description: 'Create a new grant record. Supports category (federal/state/corporate/foundation/individual), tier (1-3), mission_fit (1-5), urgency (low/medium/high/critical), funding_range_min/max, key_intel, recommended_strategy, and application_url.',
   resource: 'grants',
   action: 'create',
   roles: ['owner', 'admin', 'staff', 'case_manager'],
@@ -2081,7 +2081,7 @@ defineCommunityTool({
 
 defineCommunityTool({
   name: 'grants.update',
-  description: 'Update an existing grant record (status, amounts, deadlines, notes).',
+  description: 'Update an existing grant record (status, amounts, deadlines, category, tier, mission_fit, urgency, key_intel, recommended_strategy, application_url, notes, and post-award fields like award_number, award_period_start/end, total_award_amount, match_required, match_type, indirect_cost_rate, agreement_status, closeout_date).',
   resource: 'grants',
   action: 'update',
   roles: ['owner', 'admin', 'staff', 'case_manager'],
@@ -2134,7 +2134,7 @@ defineCommunityTool({
     }
 
     // Auto-create contribution when status transitions to 'awarded'
-    if (statusChanged && updates.status === 'awarded' && data.amount_awarded) {
+    if (statusChanged && updates.status === 'awarded' && data.amount_awarded != null) {
       await admin
         .from('contributions')
         .insert({

@@ -131,14 +131,17 @@ export function mapOpportunityToGrant(
   return {
     name: opp.title,
     status: 'researching' as const,
+    category: 'federal' as const,
     funder_grant_id: opp.number,
     application_due_at: normalizeDate(opp.closeDate) || null,
+    application_url: `https://www.grants.gov/search-results-detail/${opp.id}`,
+    source_url: `https://www.grants.gov/search-results-detail/${opp.id}`,
+    is_discovered: true,
     notes: [
       `Federal Opportunity: ${opp.number}`,
       `Agency: ${opp.agencyCode}${opp.agencyName ? ` (${opp.agencyName})` : ''}`,
       `Status: ${opp.oppStatus}`,
       opp.alnList?.length ? `ALN: ${opp.alnList.join(', ')}` : '',
-      `View on Grants.gov: https://www.grants.gov/search-results-detail/${opp.id}`,
     ].filter(Boolean).join('\n'),
   };
 }

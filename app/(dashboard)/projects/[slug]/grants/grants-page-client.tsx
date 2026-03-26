@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Award, Plus, List, LayoutGrid, Upload, Search, ArrowRight, Trash2 } from 'lucide-react';
+import { Award, Plus, List, LayoutGrid, Upload, Search, ArrowRight, Star, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +24,10 @@ interface GrantRecord {
   contact_person_id: string | null;
   assigned_to: string | null;
   notes: string | null;
+  category: string | null;
+  mission_fit: number | null;
+  tier: number | null;
+  urgency: string | null;
   is_discovered: boolean;
   source_url: string | null;
   created_at: string;
@@ -436,10 +440,34 @@ function GrantCard({
     >
       <CardContent className="p-4 space-y-3">
         <div>
-          <h4 className="font-medium leading-tight">{grant.name}</h4>
-          {grant.funder?.name && (
-            <p className="text-sm text-muted-foreground mt-0.5">{grant.funder.name}</p>
-          )}
+          <div className="flex items-center gap-1.5">
+            <h4 className="font-medium leading-tight">{grant.name}</h4>
+            {grant.mission_fit && (
+              <span className="flex items-center shrink-0">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <Star key={n} className={`h-3 w-3 ${n <= grant.mission_fit! ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/20'}`} />
+                ))}
+              </span>
+            )}
+          </div>
+          <div className="flex items-center gap-1.5 mt-0.5 flex-wrap">
+            {grant.funder?.name && (
+              <span className="text-sm text-muted-foreground">{grant.funder.name}</span>
+            )}
+            {grant.category && (
+              <Badge variant="outline" className="text-[10px] px-1.5 py-0">{grant.category}</Badge>
+            )}
+            {grant.tier && (
+              <Badge className={`text-[10px] px-1.5 py-0 ${grant.tier === 1 ? 'bg-green-100 text-green-700' : grant.tier === 2 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-700'}`}>
+                T{grant.tier}
+              </Badge>
+            )}
+            {grant.urgency && grant.urgency !== 'low' && (
+              <Badge className={`text-[10px] px-1.5 py-0 ${grant.urgency === 'critical' ? 'bg-red-100 text-red-700' : grant.urgency === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                {grant.urgency}
+              </Badge>
+            )}
+          </div>
         </div>
 
         <div className="flex items-center justify-between text-sm">
@@ -516,6 +544,26 @@ function ListView({
                     <div className="flex items-center gap-2">
                       <span className="font-medium truncate">{grant.name}</span>
                       <Badge className={statusConfig.color}>{statusConfig.label}</Badge>
+                      {grant.category && (
+                        <Badge variant="outline" className="text-[10px] px-1.5 py-0">{grant.category}</Badge>
+                      )}
+                      {grant.tier && (
+                        <Badge className={`text-[10px] px-1.5 py-0 ${grant.tier === 1 ? 'bg-green-100 text-green-700' : grant.tier === 2 ? 'bg-yellow-100 text-yellow-700' : 'bg-slate-100 text-slate-700'}`}>
+                          T{grant.tier}
+                        </Badge>
+                      )}
+                      {grant.urgency && grant.urgency !== 'low' && (
+                        <Badge className={`text-[10px] px-1.5 py-0 ${grant.urgency === 'critical' ? 'bg-red-100 text-red-700' : grant.urgency === 'high' ? 'bg-orange-100 text-orange-700' : 'bg-yellow-100 text-yellow-700'}`}>
+                          {grant.urgency}
+                        </Badge>
+                      )}
+                      {grant.mission_fit && (
+                        <span className="flex items-center shrink-0">
+                          {[1, 2, 3, 4, 5].map((n) => (
+                            <Star key={n} className={`h-3 w-3 ${n <= grant.mission_fit! ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/20'}`} />
+                          ))}
+                        </span>
+                      )}
                     </div>
                     <div className="flex items-center gap-2 mt-1 text-sm text-muted-foreground">
                       {grant.funder?.name && <span>{grant.funder.name}</span>}

@@ -39,7 +39,7 @@ function computeDeadlines(grants: GrantRecord[]): DeadlineEntry[] {
 
     for (const d of deadlines) {
       if (!d.date) continue;
-      const deadlineDate = new Date(d.date);
+      const deadlineDate = /^\d{4}-\d{2}-\d{2}$/.test(d.date) ? new Date(d.date + 'T00:00:00') : new Date(d.date);
       const daysUntil = Math.ceil((deadlineDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24));
       if (daysUntil > -30) {
         entries.push({
@@ -58,7 +58,8 @@ function computeDeadlines(grants: GrantRecord[]): DeadlineEntry[] {
 }
 
 function formatDate(dateStr: string) {
-  return new Date(dateStr).toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  const parsed = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? new Date(dateStr + 'T00:00:00') : new Date(dateStr);
+  return parsed.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
 }
 
 export function UpcomingDeadlines() {

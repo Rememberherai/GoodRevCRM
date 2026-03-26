@@ -75,12 +75,16 @@ interface SearchResult {
 interface ScrapeResult {
   name?: string;
   funder_name?: string;
+  category?: string;
   amount?: string;
   amount_value?: number | null;
+  funding_range_min?: number | null;
+  funding_range_max?: number | null;
   deadline?: string;
   description?: string;
   eligibility?: string;
   focus_areas?: string;
+  application_url?: string;
 }
 
 function formatFederalDate(dateStr: string | null) {
@@ -216,6 +220,10 @@ export function GrantDiscoverClient() {
     application_due_at?: string | null;
     notes?: string;
     source_url?: string;
+    category?: string;
+    funding_range_min?: number | null;
+    funding_range_max?: number | null;
+    application_url?: string;
   }, index?: number) => {
     if (index !== undefined) {
       setSavingIds(prev => new Set(prev).add(index));
@@ -227,8 +235,12 @@ export function GrantDiscoverClient() {
       const rows = [{
         name: grantData.name,
         status: 'researching',
+        category: grantData.category,
         amount_requested: grantData.amount_requested,
+        funding_range_min: grantData.funding_range_min,
+        funding_range_max: grantData.funding_range_max,
         application_due_at: grantData.application_due_at,
+        application_url: grantData.application_url,
         notes: grantData.notes,
         funder_name: grantData.funder_name,
         source_url: grantData.source_url,
@@ -568,8 +580,12 @@ export function GrantDiscoverClient() {
                     onClick={() => saveDiscoveredGrant({
                       name: scrapeResult.name!,
                       funder_name: scrapeResult.funder_name,
+                      category: scrapeResult.category,
                       amount_requested: scrapeResult.amount_value,
+                      funding_range_min: scrapeResult.funding_range_min,
+                      funding_range_max: scrapeResult.funding_range_max,
                       application_due_at: parseDeadline(scrapeResult.deadline),
+                      application_url: scrapeResult.application_url,
                       notes: [scrapeResult.description, scrapeResult.eligibility].filter(Boolean).join('\n\n'),
                       source_url: scrapeSourceUrl,
                     })}

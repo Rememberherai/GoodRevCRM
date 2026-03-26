@@ -215,7 +215,8 @@ export function GrantsDashboardClient({ projectSlug }: GrantsDashboardClientProp
             ) : (
               <div className="space-y-3">
                 {deadlines.slice(0, 8).map((d, i) => {
-                  const daysUntil = Math.ceil((new Date(d.date).getTime() - Date.now()) / (1000 * 60 * 60 * 24));
+                  const deadlineDate = /^\d{4}-\d{2}-\d{2}$/.test(d.date) ? new Date(d.date + 'T00:00:00') : new Date(d.date);
+                  const daysUntil = Math.ceil((deadlineDate.getTime() - Date.now()) / (1000 * 60 * 60 * 24));
                   const isUrgent = daysUntil <= 7;
                   return (
                     <Link

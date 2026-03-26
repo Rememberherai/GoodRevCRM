@@ -174,16 +174,39 @@ export function GrantImportDialog({ open, onOpenChange, onImported }: GrantImpor
 
   const downloadTemplate = () => {
     const headers = grantFields.map(f => f.label).join(',');
+    // One example value per field — order matches grantFields definition
     const exampleRow = [
-      'Community Youth Grant',
-      'researching',
-      '50000',
-      '',
-      'Ford Foundation',
-      '2026-06-01',
-      '2026-07-15',
-      '',
-      'Supports youth mentorship programs',
+      // Core fields
+      'Community Youth Grant',          // name
+      'researching',                    // status
+      'foundation',                     // category
+      '50000',                          // amount_requested
+      '',                               // amount_awarded
+      '25000',                          // funding_range_min
+      '75000',                          // funding_range_max
+      'Ford Foundation',                // funder_name
+      '4',                              // mission_fit (1-5)
+      '1',                              // tier (1-3)
+      'high',                           // urgency
+      '2026-06-01',                     // loi_due_at
+      '2026-07-15',                     // application_due_at
+      '',                               // report_due_at
+      'https://www.fordfoundation.org/apply', // application_url
+      'New program officer is Jane Smith. Focus shifted to environmental justice in 2025.', // key_intel
+      'Submit LOI by June. Leverage board connection with Jane.', // recommended_strategy
+      'Supports youth mentorship programs', // notes
+      // Post-award fields
+      '',                               // award_number
+      '',                               // funder_grant_id
+      '',                               // award_period_start
+      '',                               // award_period_end
+      '',                               // total_award_amount
+      '',                               // match_required
+      '',                               // match_type
+      '',                               // indirect_cost_rate
+      '',                               // agreement_status
+      '',                               // closeout_date
+      '',                               // source_url
     ].join(',');
     const csv = `${headers}\n${exampleRow}\n`;
     const blob = new Blob([csv], { type: 'text/csv' });
@@ -217,7 +240,7 @@ export function GrantImportDialog({ open, onOpenChange, onImported }: GrantImpor
               <Upload className="h-8 w-8 mx-auto text-muted-foreground mb-2" />
               <p className="text-sm font-medium">Click to upload CSV</p>
               <p className="text-xs text-muted-foreground mt-1">
-                Columns: Name (required), Status, Amount Requested, Amount Awarded, Funder Organization, LOI Due Date, Application Due Date, Report Due Date, Notes
+                Columns: Name (required), Status, Category, Amounts, Funding Range, Funder, Mission Fit, Tier, Urgency, Dates, URLs, Key Intel, Notes, and more. Download the template for all supported columns.
               </p>
             </div>
             <Button variant="ghost" size="sm" className="text-xs gap-1.5" onClick={downloadTemplate}>

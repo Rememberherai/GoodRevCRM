@@ -130,7 +130,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     // When status transitions to 'awarded', auto-create a contribution of type 'grant'
-    if (statusChanged && validation.data.status === 'awarded' && data.amount_awarded) {
+    if (statusChanged && validation.data.status === 'awarded' && data.amount_awarded != null) {
       const { error: contribError } = await supabase
         .from('contributions')
         .insert({

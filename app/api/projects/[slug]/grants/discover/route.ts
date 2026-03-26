@@ -39,7 +39,7 @@ export async function GET(request: Request, context: RouteContext) {
       fundingCategories: searchParams.get('fundingCategories') ?? undefined,
       eligibilities: searchParams.get('eligibilities') ?? undefined,
       oppStatuses: searchParams.get('oppStatuses') ?? undefined,
-      rows: parseInt(searchParams.get('rows') ?? '25', 10),
+      rows: parseInt(searchParams.get('rows') || '25', 10) || 25,
     };
 
     if (!params.keyword) {

@@ -12,16 +12,27 @@ interface RouteContext {
 }
 
 const VALID_STATUSES = ['researching', 'preparing', 'submitted', 'under_review', 'awarded', 'active', 'closed', 'declined'];
+const VALID_CATEGORIES = ['federal', 'state', 'corporate', 'foundation', 'individual'];
+const VALID_URGENCIES = ['low', 'medium', 'high', 'critical'];
 
 interface ImportRow {
   name: string;
   status?: string;
+  category?: string;
   amount_requested?: number | string;
   amount_awarded?: number | string;
+  funding_range_min?: number | string;
+  funding_range_max?: number | string;
   funder_name?: string;
+  mission_fit?: number | string;
+  tier?: number | string;
+  urgency?: string;
   loi_due_at?: string;
   application_due_at?: string;
   report_due_at?: string;
+  application_url?: string;
+  key_intel?: string;
+  recommended_strategy?: string;
   notes?: string;
   source_url?: string;
   is_discovered?: boolean;
@@ -90,12 +101,13 @@ export async function POST(request: Request, context: RouteContext) {
         if (orgCache.has(funderName.toLowerCase())) {
           funderOrgId = orgCache.get(funderName.toLowerCase())!;
         } else {
-          // Look up existing org
+          // Look up existing org — escape SQL wildcards to prevent unintended matches
+          const escapedName = funderName.replace(/[%_]/g, '\\$&');
           const { data: existingOrg } = await supabase
             .from('organizations')
             .select('id')
             .eq('project_id', project.id)
-            .ilike('name', funderName)
+            .ilike('name', escapedName)
             .is('deleted_at', null)
             .limit(1)
             .single();
@@ -121,16 +133,60 @@ export async function POST(request: Request, context: RouteContext) {
         }
       }
 
-      // Parse amounts
-      const amountRequested = row.amount_requested ? Number(row.amount_requested) : null;
-      const amountAwarded = row.amount_awarded ? Number(row.amount_awarded) : null;
+      // Parse amounts (use != null to preserve numeric 0)
+      const amountRequested = row.amount_requested != null ? Number(row.amount_requested) : null;
+      const amountAwarded = row.amount_awarded != null ? Number(row.amount_awarded) : null;
 
-      if (row.amount_requested && (isNaN(amountRequested!) || amountRequested! < 0)) {
+      if (amountRequested != null && (isNaN(amountRequested) || amountRequested < 0)) {
         results.push({ row: i + 1, success: false, error: `Invalid amount_requested: ${row.amount_requested}` });
         continue;
       }
-      if (row.amount_awarded && (isNaN(amountAwarded!) || amountAwarded! < 0)) {
+      if (amountAwarded != null && (isNaN(amountAwarded) || amountAwarded < 0)) {
         results.push({ row: i + 1, success: false, error: `Invalid amount_awarded: ${row.amount_awarded}` });
+        continue;
+      }
+
+      // Parse new numeric fields (use != null to preserve numeric 0)
+      const fundingRangeMin = row.funding_range_min != null ? Number(row.funding_range_min) : null;
+      const fundingRangeMax = row.funding_range_max != null ? Number(row.funding_range_max) : null;
+      const missionFit = row.mission_fit != null ? Number(row.mission_fit) : null;
+      const tier = row.tier != null ? Number(row.tier) : null;
+
+      // Validate category
+      const category = row.category?.toLowerCase().trim() || null;
+      if (category && !VALID_CATEGORIES.includes(category)) {
+        results.push({ row: i + 1, success: false, error: `Invalid category: ${row.category}` });
+        continue;
+      }
+
+      // Validate urgency
+      const urgency = row.urgency?.toLowerCase().trim() || null;
+      if (urgency && !VALID_URGENCIES.includes(urgency)) {
+        results.push({ row: i + 1, success: false, error: `Invalid urgency: ${row.urgency}` });
+        continue;
+      }
+
+      // Validate mission_fit (1-5) and tier (1-3)
+      if (missionFit != null && (isNaN(missionFit) || missionFit < 1 || missionFit > 5)) {
+        results.push({ row: i + 1, success: false, error: `Invalid mission_fit (must be 1-5): ${row.mission_fit}` });
+        continue;
+      }
+      if (tier != null && (isNaN(tier) || tier < 1 || tier > 3)) {
+        results.push({ row: i + 1, success: false, error: `Invalid tier (must be 1-3): ${row.tier}` });
+        continue;
+      }
+
+      // Validate funding range values
+      if (fundingRangeMin != null && isNaN(fundingRangeMin)) {
+        results.push({ row: i + 1, success: false, error: `Invalid funding_range_min: ${row.funding_range_min}` });
+        continue;
+      }
+      if (fundingRangeMax != null && isNaN(fundingRangeMax)) {
+        results.push({ row: i + 1, success: false, error: `Invalid funding_range_max: ${row.funding_range_max}` });
+        continue;
+      }
+      if (fundingRangeMin != null && fundingRangeMax != null && fundingRangeMin > fundingRangeMax) {
+        results.push({ row: i + 1, success: false, error: 'funding_range_min must be <= funding_range_max' });
         continue;
       }
 
@@ -138,12 +194,21 @@ export async function POST(request: Request, context: RouteContext) {
         project_id: project.id,
         name: row.name.trim(),
         status: (status as GrantInsert['status']) ?? 'researching',
+        category: category as GrantInsert['category'],
         amount_requested: amountRequested,
         amount_awarded: amountAwarded,
+        funding_range_min: fundingRangeMin,
+        funding_range_max: fundingRangeMax,
         funder_organization_id: funderOrgId,
+        mission_fit: missionFit,
+        tier: tier,
+        urgency: urgency as GrantInsert['urgency'],
         loi_due_at: row.loi_due_at || null,
         application_due_at: row.application_due_at || null,
         report_due_at: row.report_due_at || null,
+        application_url: row.application_url || null,
+        key_intel: row.key_intel || null,
+        recommended_strategy: row.recommended_strategy || null,
         notes: row.notes || null,
         source_url: row.source_url || null,
         is_discovered: row.is_discovered ?? bulkDiscovered ?? false,

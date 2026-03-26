@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
+import { Star } from 'lucide-react';
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,6 +27,21 @@ const STATUSES = [
   { value: 'declined', label: 'Declined' },
 ];
 
+const CATEGORIES = [
+  { value: 'federal', label: 'Federal' },
+  { value: 'state', label: 'State' },
+  { value: 'corporate', label: 'Corporate' },
+  { value: 'foundation', label: 'Foundation' },
+  { value: 'individual', label: 'Individual' },
+];
+
+const URGENCY_LEVELS = [
+  { value: 'low', label: 'Low' },
+  { value: 'medium', label: 'Medium' },
+  { value: 'high', label: 'High' },
+  { value: 'critical', label: 'Critical' },
+];
+
 export function NewGrantDialog({ open, onOpenChange, onCreated }: NewGrantDialogProps) {
   const { slug } = useParams<{ slug: string }>();
   const [isSubmitting, setIsSubmitting] = useState(false);
@@ -33,17 +49,25 @@ export function NewGrantDialog({ open, onOpenChange, onCreated }: NewGrantDialog
 
   const [name, setName] = useState('');
   const [status, setStatus] = useState('researching');
+  const [category, setCategory] = useState('');
   const [amountRequested, setAmountRequested] = useState('');
   const [loiDueAt, setLoiDueAt] = useState('');
   const [applicationDueAt, setApplicationDueAt] = useState('');
+  const [tier, setTier] = useState('');
+  const [urgency, setUrgency] = useState('');
+  const [missionFit, setMissionFit] = useState('');
   const [notes, setNotes] = useState('');
 
   const resetForm = () => {
     setName('');
     setStatus('researching');
+    setCategory('');
     setAmountRequested('');
     setLoiDueAt('');
     setApplicationDueAt('');
+    setTier('');
+    setUrgency('');
+    setMissionFit('');
     setNotes('');
     setError(null);
   };
@@ -61,6 +85,10 @@ export function NewGrantDialog({ open, onOpenChange, onCreated }: NewGrantDialog
       if (amountRequested) body.amount_requested = parseFloat(amountRequested);
       if (loiDueAt) body.loi_due_at = loiDueAt;
       if (applicationDueAt) body.application_due_at = applicationDueAt;
+      if (category) body.category = category;
+      if (tier) body.tier = parseInt(tier, 10);
+      if (urgency) body.urgency = urgency;
+      if (missionFit) body.mission_fit = parseInt(missionFit, 10);
       if (notes) body.notes = notes;
 
       const res = await fetch(`/api/projects/${slug}/grants`, {
@@ -111,7 +139,7 @@ export function NewGrantDialog({ open, onOpenChange, onCreated }: NewGrantDialog
             />
           </div>
 
-          <div className="grid grid-cols-2 gap-4">
+          <div className="grid grid-cols-3 gap-4">
             <div className="space-y-2">
               <Label htmlFor="grant-status">Status</Label>
               <Select value={status} onValueChange={setStatus}>
@@ -121,6 +149,19 @@ export function NewGrantDialog({ open, onOpenChange, onCreated }: NewGrantDialog
                 <SelectContent>
                   {STATUSES.map((s) => (
                     <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Category</Label>
+              <Select value={category || '__none__'} onValueChange={(v) => setCategory(v === '__none__' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  {CATEGORIES.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
                   ))}
                 </SelectContent>
               </Select>
@@ -137,6 +178,50 @@ export function NewGrantDialog({ open, onOpenChange, onCreated }: NewGrantDialog
                 onChange={(e) => setAmountRequested(e.target.value)}
                 placeholder="0.00"
               />
+            </div>
+          </div>
+
+          <div className="grid grid-cols-3 gap-4">
+            <div className="space-y-2">
+              <Label>Tier</Label>
+              <Select value={tier || '__none__'} onValueChange={(v) => setTier(v === '__none__' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  <SelectItem value="1">Tier 1 — Top Priority</SelectItem>
+                  <SelectItem value="2">Tier 2 — Strong Fit</SelectItem>
+                  <SelectItem value="3">Tier 3 — Worth Watching</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Urgency</Label>
+              <Select value={urgency || '__none__'} onValueChange={(v) => setUrgency(v === '__none__' ? '' : v)}>
+                <SelectTrigger><SelectValue placeholder="Select..." /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  {URGENCY_LEVELS.map((u) => (
+                    <SelectItem key={u.value} value={u.value}>{u.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            <div className="space-y-2">
+              <Label>Mission Fit</Label>
+              <div className="flex items-center gap-1 h-9 px-1">
+                {[1, 2, 3, 4, 5].map((n) => (
+                  <button
+                    key={n}
+                    type="button"
+                    className="p-0.5"
+                    onClick={() => setMissionFit(missionFit === n.toString() ? '' : n.toString())}
+                  >
+                    <Star className={`h-5 w-5 ${(Number(missionFit) || 0) >= n ? 'fill-yellow-400 text-yellow-400' : 'text-muted-foreground/30'}`} />
+                  </button>
+                ))}
+              </div>
             </div>
           </div>
 

@@ -5260,93 +5260,120 @@ export type Database = {
           amount_awarded: number | null
           amount_requested: number | null
           application_due_at: string | null
+          application_url: string | null
           assigned_to: string | null
           award_number: string | null
           award_period_end: string | null
           award_period_start: string | null
+          category: string | null
           closeout_date: string | null
           contact_person_id: string | null
           contract_document_id: string | null
           created_at: string
           funder_grant_id: string | null
           funder_organization_id: string | null
+          funding_range_max: number | null
+          funding_range_min: number | null
           id: string
           indirect_cost_rate: number | null
           is_discovered: boolean
+          key_intel: string | null
           loi_due_at: string | null
           match_required: number | null
           match_type: string | null
+          mission_fit: number | null
           name: string
           notes: string | null
           program_id: string | null
           project_id: string
+          recommended_strategy: string | null
           report_due_at: string | null
           source_url: string | null
           status: string
+          tier: number | null
           total_award_amount: number | null
           updated_at: string
+          urgency: string | null
         }
         Insert: {
           agreement_status?: string | null
           amount_awarded?: number | null
           amount_requested?: number | null
           application_due_at?: string | null
+          application_url?: string | null
           assigned_to?: string | null
           award_number?: string | null
           award_period_end?: string | null
           award_period_start?: string | null
+          category?: string | null
           closeout_date?: string | null
           contact_person_id?: string | null
           contract_document_id?: string | null
           created_at?: string
           funder_grant_id?: string | null
           funder_organization_id?: string | null
+          funding_range_max?: number | null
+          funding_range_min?: number | null
           id?: string
           indirect_cost_rate?: number | null
           is_discovered?: boolean
+          key_intel?: string | null
           loi_due_at?: string | null
           match_required?: number | null
           match_type?: string | null
+          mission_fit?: number | null
           name: string
           notes?: string | null
           program_id?: string | null
           project_id: string
+          recommended_strategy?: string | null
           report_due_at?: string | null
           source_url?: string | null
           status?: string
+          tier?: number | null
           total_award_amount?: number | null
           updated_at?: string
+          urgency?: string | null
         }
         Update: {
           agreement_status?: string | null
           amount_awarded?: number | null
           amount_requested?: number | null
           application_due_at?: string | null
+          application_url?: string | null
           assigned_to?: string | null
           award_number?: string | null
           award_period_end?: string | null
           award_period_start?: string | null
+          category?: string | null
           closeout_date?: string | null
           contact_person_id?: string | null
           contract_document_id?: string | null
           created_at?: string
           funder_grant_id?: string | null
           funder_organization_id?: string | null
+          funding_range_max?: number | null
+          funding_range_min?: number | null
           id?: string
           indirect_cost_rate?: number | null
           is_discovered?: boolean
+          key_intel?: string | null
           loi_due_at?: string | null
           match_required?: number | null
           match_type?: string | null
+          mission_fit?: number | null
           name?: string
           notes?: string | null
           program_id?: string | null
           project_id?: string
+          recommended_strategy?: string | null
           report_due_at?: string | null
           source_url?: string | null
           status?: string
+          tier?: number | null
           total_award_amount?: number | null
           updated_at?: string
+          urgency?: string | null
         }
         Relationships: [
           {
