@@ -11,7 +11,7 @@ import { cn } from '@/lib/utils';
 interface LogoUploadProps {
   currentUrl: string | null | undefined;
   fallbackInitials: string;
-  entityType: 'project' | 'organization';
+  entityType: 'project' | 'organization' | 'calendar';
   entityId?: string;
   onUploaded: (url: string) => void;
   size?: 'sm' | 'md' | 'lg';

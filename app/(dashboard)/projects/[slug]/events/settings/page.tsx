@@ -11,6 +11,7 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { LogoUpload } from '@/components/ui/logo-upload';
 
 interface EventCalendarSettings {
   is_enabled: boolean;
@@ -172,13 +173,25 @@ export default function EventSettingsPage() {
 
           <div className="grid gap-4 md:grid-cols-2">
             <div className="space-y-2">
-              <Label htmlFor="logo_url">Logo URL</Label>
-              <Input
-                id="logo_url"
-                value={settings.logo_url ?? ''}
-                onChange={(event) => setSettings((current) => ({ ...current, logo_url: event.target.value }))}
-                placeholder="https://..."
-              />
+              <Label>Calendar Logo</Label>
+              <div className="flex items-center gap-4">
+                <LogoUpload
+                  currentUrl={settings.logo_url}
+                  fallbackInitials={(settings.title || 'EV').slice(0, 2).toUpperCase()}
+                  entityType="calendar"
+                  onUploaded={(url) => setSettings((current) => ({ ...current, logo_url: url }))}
+                  size="lg"
+                />
+                <div className="flex-1 space-y-1">
+                  <p className="text-sm text-muted-foreground">Click the icon to upload a logo, or paste a URL below.</p>
+                  <Input
+                    id="logo_url"
+                    value={settings.logo_url ?? ''}
+                    onChange={(event) => setSettings((current) => ({ ...current, logo_url: event.target.value }))}
+                    placeholder="https://..."
+                  />
+                </div>
+              </div>
             </div>
             <div className="space-y-2">
               <Label htmlFor="timezone">Timezone</Label>

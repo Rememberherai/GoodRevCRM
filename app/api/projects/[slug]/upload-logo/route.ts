@@ -51,7 +51,7 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'File too large. Maximum size is 2MB' }, { status: 400 });
     }
 
-    if (!entityType || !['project', 'organization'].includes(entityType)) {
+    if (!entityType || !['project', 'organization', 'calendar'].includes(entityType)) {
       return NextResponse.json({ error: 'Invalid entityType' }, { status: 400 });
     }
 
@@ -80,6 +80,8 @@ export async function POST(request: Request, context: RouteContext) {
     const ext = 'webp';
     const storagePath = entityType === 'project'
       ? `${project.id}/project.${ext}`
+      : entityType === 'calendar'
+      ? `${project.id}/calendar.${ext}`
       : `${project.id}/org/${entityId}.${ext}`;
 
     const admin = createAdminClient();
@@ -115,6 +117,16 @@ export async function POST(request: Request, context: RouteContext) {
       if (updateError) {
         console.error('Error updating project logo_url:', updateError);
         return NextResponse.json({ error: 'Failed to update project' }, { status: 500 });
+      }
+    } else if (entityType === 'calendar') {
+      const { error: updateError } = await admin
+        .from('event_calendar_settings')
+        .update({ logo_url: logoUrl })
+        .eq('project_id', project.id);
+
+      if (updateError) {
+        console.error('Error updating calendar logo_url:', updateError);
+        return NextResponse.json({ error: 'Failed to update calendar settings' }, { status: 500 });
       }
     } else {
       const { error: updateError } = await admin

@@ -1,9 +1,10 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { CalendarDays, ExternalLink, Plus, Repeat, Search, MapPin, Monitor, Settings2, Users } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, ExternalLink, Plus, Repeat, Search, MapPin, Monitor, Settings2, Trash2, Users, X } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -29,6 +30,13 @@ interface EventListItem {
   series_id: string | null;
 }
 
+interface Pagination {
+  page: number;
+  limit: number;
+  total: number;
+  totalPages: number;
+}
+
 const statusColors: Record<string, string> = {
   draft: 'bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-200',
   published: 'bg-green-100 text-green-800 dark:bg-green-800 dark:text-green-200',
@@ -37,6 +45,8 @@ const statusColors: Record<string, string> = {
   completed: 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200',
 };
 
+const ITEMS_PER_PAGE = 24;
+
 export function EventsPageClient() {
   const params = useParams();
   const slug = params.slug as string;
@@ -44,6 +54,7 @@ export function EventsPageClient() {
   const [search, setSearch] = useState('');
   const [statusFilter, setStatusFilter] = useState('all');
   const [events, setEvents] = useState<EventListItem[]>([]);
+  const [pagination, setPagination] = useState<Pagination>({ page: 1, limit: ITEMS_PER_PAGE, total: 0, totalPages: 1 });
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSeriesDialogOpen, setIsSeriesDialogOpen] = useState(false);
@@ -52,18 +63,26 @@ export function EventsPageClient() {
   const [seriesLoading, setSeriesLoading] = useState(false);
   const [calendarSlug, setCalendarSlug] = useState<string | null>(null);
 
-  const loadEvents = useCallback(async (nextSearch: string, status: string) => {
+  // Multi-select state
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [selectMode, setSelectMode] = useState(false);
+  const [isDeleting, setIsDeleting] = useState(false);
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const longPressTriggered = useRef(false);
+
+  const loadEvents = useCallback(async (nextSearch: string, status: string, page = 1) => {
     setIsLoading(true);
     setError(null);
     try {
-      const searchParams = new URLSearchParams({ limit: '24', sortBy: 'starts_at', sortOrder: 'asc' });
+      const searchParams = new URLSearchParams({ limit: String(ITEMS_PER_PAGE), page: String(page), sortBy: 'starts_at', sortOrder: 'asc' });
       if (nextSearch.trim()) searchParams.set('search', nextSearch.trim());
       if (status !== 'all') searchParams.set('status', status);
 
       const response = await fetch(`/api/projects/${slug}/events?${searchParams.toString()}`);
-      const data = await response.json() as { events?: EventListItem[]; error?: string };
+      const data = await response.json() as { events?: EventListItem[]; pagination?: Pagination; error?: string };
       if (!response.ok) throw new Error(data.error ?? 'Failed to load events');
       setEvents(data.events ?? []);
+      if (data.pagination) setPagination(data.pagination);
     } catch (loadError) {
       setError(loadError instanceof Error ? loadError.message : 'Failed to load events');
     } finally {
@@ -99,10 +118,17 @@ export function EventsPageClient() {
     if (statusFilter === 'series') {
       void loadSeries();
     } else {
-      void loadEvents(search, statusFilter);
+      void loadEvents(search, statusFilter, 1);
       if (statusFilter === 'all') void loadSeries();
     }
+    // Exit select mode when changing filters
+    setSelectMode(false);
+    setSelectedIds(new Set());
   }, [loadEvents, loadSeries, search, statusFilter]);
+
+  function goToPage(page: number) {
+    void loadEvents(search, statusFilter, page);
+  }
 
   function formatEventDate(startsAt: string, timezone: string) {
     return new Date(startsAt).toLocaleDateString('en-US', {
@@ -113,6 +139,94 @@ export function EventsPageClient() {
       hour: 'numeric',
       minute: '2-digit',
     });
+  }
+
+  // Long press handlers for multi-select
+  function handlePointerDown(eventId: string) {
+    longPressTriggered.current = false;
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
+      if (!selectMode) {
+        setSelectMode(true);
+        setSelectedIds(new Set([eventId]));
+      } else {
+        toggleSelection(eventId);
+      }
+    }, 500);
+  }
+
+  function handlePointerUp() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+    // Reset after a microtask so the click handler can still read it
+    if (longPressTriggered.current) {
+      requestAnimationFrame(() => { longPressTriggered.current = false; });
+    }
+  }
+
+  function handlePointerLeave() {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  }
+
+  function toggleSelection(eventId: string) {
+    setSelectedIds(prev => {
+      const next = new Set(prev);
+      if (next.has(eventId)) next.delete(eventId);
+      else next.add(eventId);
+      return next;
+    });
+  }
+
+  function handleCardClick(e: React.MouseEvent, eventId: string) {
+    if (longPressTriggered.current) {
+      e.preventDefault();
+      return;
+    }
+    if (selectMode) {
+      e.preventDefault();
+      toggleSelection(eventId);
+    }
+  }
+
+  function exitSelectMode() {
+    setSelectMode(false);
+    setSelectedIds(new Set());
+  }
+
+  function selectAll() {
+    setSelectedIds(new Set(events.map(e => e.id)));
+  }
+
+  async function handleBulkDelete() {
+    if (selectedIds.size === 0) return;
+    const confirmed = window.confirm(`Delete ${selectedIds.size} event${selectedIds.size > 1 ? 's' : ''}? This cannot be undone.`);
+    if (!confirmed) return;
+
+    setIsDeleting(true);
+    try {
+      const res = await fetch(`/api/projects/${slug}/events/bulk-delete`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ event_ids: Array.from(selectedIds) }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error ?? 'Failed to delete events');
+      toast.success(`Deleted ${data.deleted} event${data.deleted > 1 ? 's' : ''}`);
+      exitSelectMode();
+      // If we deleted all items on the current page, go back one page
+      const remainingOnPage = events.length - (data.deleted ?? 0);
+      const targetPage = remainingOnPage <= 0 && pagination.page > 1 ? pagination.page - 1 : pagination.page;
+      void loadEvents(search, statusFilter, targetPage);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete events');
+    } finally {
+      setIsDeleting(false);
+    }
   }
 
   return (
@@ -167,6 +281,30 @@ export function EventsPageClient() {
             }}
           >
             Copy Link
+          </Button>
+        </div>
+      )}
+
+      {/* Select mode toolbar */}
+      {selectMode && (
+        <div className="flex items-center justify-between rounded-lg border border-primary/30 bg-primary/5 px-4 py-3">
+          <div className="flex items-center gap-3">
+            <Button variant="ghost" size="icon" onClick={exitSelectMode} className="h-8 w-8">
+              <X className="h-4 w-4" />
+            </Button>
+            <span className="text-sm font-medium">{selectedIds.size} selected</span>
+            <Button variant="ghost" size="sm" onClick={selectAll} className="text-xs">
+              Select All
+            </Button>
+          </div>
+          <Button
+            variant="destructive"
+            size="sm"
+            onClick={handleBulkDelete}
+            disabled={selectedIds.size === 0 || isDeleting}
+          >
+            <Trash2 className="mr-2 h-4 w-4" />
+            {isDeleting ? 'Deleting...' : `Delete (${selectedIds.size})`}
           </Button>
         </div>
       )}
@@ -260,69 +398,148 @@ export function EventsPageClient() {
               </p>
             </div>
           ) : (
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {statusFilter === 'all' && seriesList.length > 0 && seriesList.map(s => (
-                <Link key={`series-${s.id}`} href={`/projects/${slug}/events/series/${s.id}`} className="group">
-                  <Card className="h-full transition-shadow hover:shadow-md border-dashed">
-                    <CardContent className="p-4">
-                      <div className="mb-2 flex items-start justify-between gap-2">
-                        <h3 className="font-semibold leading-tight group-hover:text-primary">{s.title}</h3>
-                        <Badge variant="secondary" className={statusColors[s.status] ?? ''}>{s.status}</Badge>
-                      </div>
-                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-                        <Repeat className="h-3 w-3" />
-                        <span className="capitalize">{s.recurrence_frequency}</span>
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-              {events.map((event) => (
-                <Link
-                  key={event.id}
-                  href={`/projects/${slug}/events/${event.id}`}
-                  className="group"
-                >
-                  <Card className="h-full transition-shadow hover:shadow-md">
-                    {event.cover_image_url && (
-                      <div className="h-32 overflow-hidden rounded-t-xl">
-                        <img
-                          src={event.cover_image_url}
-                          alt={event.title}
-                          className="h-full w-full object-cover"
-                        />
-                      </div>
-                    )}
-                    <CardContent className="p-4">
-                      <div className="mb-2 flex items-start justify-between gap-2">
-                        <h3 className="font-semibold leading-tight group-hover:text-primary">
-                          {event.title}
-                        </h3>
-                        <Badge variant="secondary" className={statusColors[event.status] ?? ''}>
-                          {event.status}
-                        </Badge>
-                      </div>
-                      <p className="mb-2 text-sm text-muted-foreground">
-                        {formatEventDate(event.starts_at, event.timezone)}
-                      </p>
-                      <div className="flex items-center gap-3 text-xs text-muted-foreground">
-                        {event.location_type === 'virtual' ? (
-                          <span className="flex items-center gap-1"><Monitor className="h-3 w-3" />Virtual</span>
-                        ) : event.venue_name ? (
-                          <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{event.venue_name}</span>
-                        ) : null}
-                        {event.total_capacity && (
-                          <span className="flex items-center gap-1"><Users className="h-3 w-3" />Cap: {event.total_capacity}</span>
+            <>
+              {!selectMode && (
+                <p className="mb-3 text-xs text-muted-foreground">
+                  Long press an event card to select multiple events for bulk actions.
+                </p>
+              )}
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {statusFilter === 'all' && seriesList.length > 0 && seriesList.map(s => (
+                  <Link key={`series-${s.id}`} href={`/projects/${slug}/events/series/${s.id}`} className="group">
+                    <Card className="h-full transition-shadow hover:shadow-md border-dashed">
+                      <CardContent className="p-4">
+                        <div className="mb-2 flex items-start justify-between gap-2">
+                          <h3 className="font-semibold leading-tight group-hover:text-primary">{s.title}</h3>
+                          <Badge variant="secondary" className={statusColors[s.status] ?? ''}>{s.status}</Badge>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Repeat className="h-3 w-3" />
+                          <span className="capitalize">{s.recurrence_frequency}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+                {events.map((event) => {
+                  const isSelected = selectedIds.has(event.id);
+                  return (
+                    <Link
+                      key={event.id}
+                      href={`/projects/${slug}/events/${event.id}`}
+                      className="group"
+                      onClick={(e) => handleCardClick(e, event.id)}
+                      onPointerDown={() => handlePointerDown(event.id)}
+                      onPointerUp={handlePointerUp}
+                      onPointerLeave={handlePointerLeave}
+                      draggable={false}
+                    >
+                      <Card className={`h-full transition-all hover:shadow-md ${isSelected ? 'ring-2 ring-primary bg-primary/5' : ''} ${selectMode ? 'select-none' : ''}`}>
+                        {event.cover_image_url && (
+                          <div className="h-32 overflow-hidden rounded-t-xl">
+                            <img
+                              src={event.cover_image_url}
+                              alt={event.title}
+                              className="h-full w-full object-cover"
+                              draggable={false}
+                            />
+                          </div>
                         )}
-                        {event.series_id && (
-                          <Badge variant="outline" className="text-xs">Series</Badge>
-                        )}
-                      </div>
-                    </CardContent>
-                  </Card>
-                </Link>
-              ))}
-            </div>
+                        <CardContent className="p-4">
+                          <div className="mb-2 flex items-start justify-between gap-2">
+                            {selectMode && (
+                              <div className={`flex h-5 w-5 flex-shrink-0 items-center justify-center rounded border-2 transition-colors ${isSelected ? 'border-primary bg-primary text-primary-foreground' : 'border-muted-foreground/40'}`}>
+                                {isSelected && (
+                                  <svg className="h-3 w-3" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                    <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                  </svg>
+                                )}
+                              </div>
+                            )}
+                            <h3 className="flex-1 font-semibold leading-tight group-hover:text-primary">
+                              {event.title}
+                            </h3>
+                            <Badge variant="secondary" className={statusColors[event.status] ?? ''}>
+                              {event.status}
+                            </Badge>
+                          </div>
+                          <p className="mb-2 text-sm text-muted-foreground">
+                            {formatEventDate(event.starts_at, event.timezone)}
+                          </p>
+                          <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                            {event.location_type === 'virtual' ? (
+                              <span className="flex items-center gap-1"><Monitor className="h-3 w-3" />Virtual</span>
+                            ) : event.venue_name ? (
+                              <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{event.venue_name}</span>
+                            ) : null}
+                            {event.total_capacity && (
+                              <span className="flex items-center gap-1"><Users className="h-3 w-3" />Cap: {event.total_capacity}</span>
+                            )}
+                            {event.series_id && (
+                              <Badge variant="outline" className="text-xs">Series</Badge>
+                            )}
+                          </div>
+                        </CardContent>
+                      </Card>
+                    </Link>
+                  );
+                })}
+              </div>
+
+              {/* Pagination */}
+              {pagination.totalPages > 1 && (
+                <div className="mt-6 flex items-center justify-between">
+                  <p className="text-sm text-muted-foreground">
+                    Showing {(pagination.page - 1) * pagination.limit + 1}–{Math.min(pagination.page * pagination.limit, pagination.total)} of {pagination.total} events
+                  </p>
+                  <div className="flex items-center gap-1">
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={pagination.page <= 1}
+                      onClick={() => goToPage(pagination.page - 1)}
+                    >
+                      <ChevronLeft className="h-4 w-4" />
+                    </Button>
+                    {Array.from({ length: pagination.totalPages }).map((_, i) => {
+                      const page = i + 1;
+                      // Show first, last, current, and neighbors
+                      if (page === 1 || page === pagination.totalPages || Math.abs(page - pagination.page) <= 1) {
+                        return (
+                          <Button
+                            key={page}
+                            variant={page === pagination.page ? 'default' : 'outline'}
+                            size="icon"
+                            className="h-8 w-8"
+                            onClick={() => goToPage(page)}
+                          >
+                            {page}
+                          </Button>
+                        );
+                      }
+                      // Show ellipsis
+                      if (page === 2 && pagination.page > 3) {
+                        return <span key="start-ellipsis" className="px-1 text-muted-foreground">...</span>;
+                      }
+                      if (page === pagination.totalPages - 1 && pagination.page < pagination.totalPages - 2) {
+                        return <span key="end-ellipsis" className="px-1 text-muted-foreground">...</span>;
+                      }
+                      return null;
+                    })}
+                    <Button
+                      variant="outline"
+                      size="icon"
+                      className="h-8 w-8"
+                      disabled={pagination.page >= pagination.totalPages}
+                      onClick={() => goToPage(pagination.page + 1)}
+                    >
+                      <ChevronRight className="h-4 w-4" />
+                    </Button>
+                  </div>
+                </div>
+              )}
+            </>
           )}
         </CardContent>
       </Card>
@@ -331,7 +548,7 @@ export function EventsPageClient() {
         open={isDialogOpen}
         onOpenChange={setIsDialogOpen}
         projectSlug={slug}
-        onCreated={() => void loadEvents(search, statusFilter)}
+        onCreated={() => void loadEvents(search, statusFilter, pagination.page)}
       />
 
       <NewSeriesDialog
