@@ -23,6 +23,8 @@ interface PublicEvent {
   registration_enabled: boolean;
   registration_opens_at?: string | null;
   registration_closes_at?: string | null;
+  attendee_count?: number;
+  attendee_names?: string[];
 }
 
 interface Props {
@@ -42,6 +44,21 @@ function getFirstDayOfWeek(year: number, month: number) {
 function isSameDay(d1: Date, d2: Date) {
   return d1.getFullYear() === d2.getFullYear() && d1.getMonth() === d2.getMonth() && d1.getDate() === d2.getDate();
 }
+
+function getInitials(name: string) {
+  return name.split(/\s+/).filter(Boolean).slice(0, 2).map(p => p[0]?.toUpperCase() ?? '').join('');
+}
+
+const AVATAR_COLORS = [
+  'bg-blue-100 text-blue-700 dark:bg-blue-900 dark:text-blue-300',
+  'bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300',
+  'bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300',
+  'bg-amber-100 text-amber-700 dark:bg-amber-900 dark:text-amber-300',
+  'bg-rose-100 text-rose-700 dark:bg-rose-900 dark:text-rose-300',
+  'bg-cyan-100 text-cyan-700 dark:bg-cyan-900 dark:text-cyan-300',
+  'bg-indigo-100 text-indigo-700 dark:bg-indigo-900 dark:text-indigo-300',
+  'bg-teal-100 text-teal-700 dark:bg-teal-900 dark:text-teal-300',
+];
 
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAY_HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
@@ -286,16 +303,41 @@ export function PublicEventList({ events, calendarSlug, basePath }: Props) {
                               {event.category && <Badge variant="outline" className="text-xs">{event.category}</Badge>}
                             </div>
                           </div>
-                          <div className="mt-3 flex items-center gap-3 text-xs text-muted-foreground">
-                            {event.location_type === 'virtual' ? (
-                              <span className="flex items-center gap-1"><Monitor className="h-3 w-3" />Virtual</span>
-                            ) : event.venue_name ? (
-                              <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{event.venue_name}</span>
-                            ) : null}
-                            {regOpen && (
-                              <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 border-0 text-xs">
-                                Registration Open
-                              </Badge>
+                          <div className="mt-3 flex items-center justify-between">
+                            <div className="flex items-center gap-3 text-xs text-muted-foreground">
+                              {event.location_type === 'virtual' ? (
+                                <span className="flex items-center gap-1"><Monitor className="h-3 w-3" />Virtual</span>
+                              ) : event.venue_name ? (
+                                <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{event.venue_name}</span>
+                              ) : null}
+                              {regOpen && (
+                                <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 border-0 text-xs">
+                                  Registration Open
+                                </Badge>
+                              )}
+                            </div>
+                            {(event.attendee_count ?? 0) > 0 && (
+                              <div className="flex items-center gap-1.5">
+                                <div className="flex -space-x-1.5">
+                                  {(event.attendee_names ?? []).slice(0, 4).map((name, idx) => (
+                                    <div
+                                      key={idx}
+                                      className={`flex h-6 w-6 items-center justify-center rounded-full text-[10px] font-semibold ring-2 ring-background ${AVATAR_COLORS[idx % AVATAR_COLORS.length]}`}
+                                      title={name}
+                                    >
+                                      {getInitials(name)}
+                                    </div>
+                                  ))}
+                                  {(event.attendee_count ?? 0) > 4 && (
+                                    <div className="flex h-6 w-6 items-center justify-center rounded-full bg-muted text-[10px] font-semibold text-muted-foreground ring-2 ring-background">
+                                      +{(event.attendee_count ?? 0) - 4}
+                                    </div>
+                                  )}
+                                </div>
+                                <span className="text-xs text-muted-foreground hidden sm:inline">
+                                  {event.attendee_count} {event.attendee_count === 1 ? 'attendee' : 'attendees'}
+                                </span>
+                              </div>
                             )}
                           </div>
                         </CardContent>

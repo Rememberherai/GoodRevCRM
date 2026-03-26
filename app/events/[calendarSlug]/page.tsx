@@ -22,7 +22,33 @@ async function loadRecentPublicEvents(projectId: string) {
     .order('starts_at', { ascending: true })
     .limit(200);
 
-  return events ?? [];
+  if (!events || events.length === 0) return [];
+
+  // Fetch registration counts and sample names for social proof
+  const eventIds = events.map(e => e.id);
+  const { data: registrations } = await supabase
+    .from('event_registrations')
+    .select('event_id, registrant_name')
+    .in('event_id', eventIds)
+    .in('status', ['confirmed', 'pending_approval', 'pending_waiver'])
+    .order('created_at', { ascending: false });
+
+  const regMap = new Map<string, { count: number; names: string[] }>();
+  for (const reg of registrations ?? []) {
+    const entry = regMap.get(reg.event_id) ?? { count: 0, names: [] };
+    entry.count++;
+    if (entry.names.length < 5) entry.names.push(reg.registrant_name);
+    regMap.set(reg.event_id, entry);
+  }
+
+  return events.map(e => {
+    const reg = regMap.get(e.id);
+    return {
+      ...e,
+      attendee_count: reg?.count ?? 0,
+      attendee_names: reg?.names ?? [],
+    };
+  });
 }
 
 export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
