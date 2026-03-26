@@ -186,6 +186,12 @@ export interface SeriesReport {
       category: string | null;
       created_at: string;
     }[];
+    all_notes: {
+      event_title: string;
+      content: string;
+      category: string | null;
+      created_at: string;
+    }[];
   };
 }
 
@@ -1374,7 +1380,7 @@ export async function getSeriesReport(
       returning_in_series: 0,
       attendance_trend: [],
       retention: [],
-      notes_summary: { total_notes: 0, by_category: [], recent_notes: [] },
+      notes_summary: { total_notes: 0, by_category: [], recent_notes: [], all_notes: [] },
     };
   }
 
@@ -1435,28 +1441,38 @@ export async function getSeriesReport(
       returning_in_series: returningInSeriesCount,
     });
 
-    // Add this instance's attendees to cumulative set AFTER counting
-    for (const pid of stats.checkedInPersonIds) {
-      cumulativeSeriesAttendees.add(pid);
-      allSeriesAttendees.add(pid);
-    }
-
-    // Retention: how many series registrants attended this instance
-    let seriesRegistrantsPresent = 0;
+    // Retention: if series registrants exist, track how many attend each instance.
+    // Otherwise, fall back to cumulative attendee retention (of everyone who has
+    // ever checked in to a prior instance, how many returned to this one).
+    // Must calculate BEFORE adding this instance's attendees to cumulative set.
+    let retentionBase: number;
+    let retentionPresent: number;
     if (seriesPersonIds.size > 0) {
+      retentionBase = seriesPersonIds.size;
+      retentionPresent = 0;
       for (const pid of seriesPersonIds) {
-        if (pid && stats.checkedInPersonIds.has(pid)) seriesRegistrantsPresent++;
+        if (pid && stats.checkedInPersonIds.has(pid)) retentionPresent++;
       }
+    } else {
+      // Fallback: cumulative attendees from prior instances is the base
+      retentionBase = cumulativeSeriesAttendees.size; // only has prior instances
+      retentionPresent = returningInSeriesCount; // already counted above
     }
     retention.push({
       instance_number: i + 1,
       title: e.title,
-      series_registrants_present: seriesRegistrantsPresent,
-      total_series_registrants: seriesPersonIds.size,
-      retention_rate: seriesPersonIds.size > 0
-        ? Math.round((seriesRegistrantsPresent / seriesPersonIds.size) * 100 * 10) / 10
+      series_registrants_present: retentionPresent,
+      total_series_registrants: retentionBase,
+      retention_rate: retentionBase > 0
+        ? Math.round((retentionPresent / retentionBase) * 100 * 10) / 10
         : 0,
     });
+
+    // Add this instance's attendees to cumulative set AFTER retention calculation
+    for (const pid of stats.checkedInPersonIds) {
+      cumulativeSeriesAttendees.add(pid);
+      allSeriesAttendees.add(pid);
+    }
   }
 
   // Notes summary
@@ -1468,7 +1484,7 @@ export async function getSeriesReport(
     .eq('project_id', projectId)
     .in('event_id', eventIds)
     .order('created_at', { ascending: false })
-    .limit(100);
+    .limit(500);
   const noteList: { id: string; event_id: string; category: string | null; content: string; created_at: string }[] = notes ?? [];
 
   const noteCategoryMap = new Map<string, number>();
@@ -1478,12 +1494,13 @@ export async function getSeriesReport(
   }
 
   const eventTitleMap = new Map(eventList.map((e) => [e.id, e.title]));
-  const recentNotes = noteList.slice(0, 5).map((n) => ({
+  const allNotes = noteList.map((n) => ({
     event_title: eventTitleMap.get(n.event_id) ?? 'Unknown',
     content: n.content,
     category: n.category,
     created_at: n.created_at,
   }));
+  const recentNotes = allNotes.slice(0, 5);
 
   return {
     series_id: series.id,
@@ -1501,6 +1518,7 @@ export async function getSeriesReport(
         .map(([category, count]) => ({ category, count }))
         .sort((a, b) => b.count - a.count),
       recent_notes: recentNotes,
+      all_notes: allNotes,
     },
   };
 }

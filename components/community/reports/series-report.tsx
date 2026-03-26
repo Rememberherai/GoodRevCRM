@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo } from 'react';
+import { useMemo, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import {
   LineChart,
@@ -10,7 +10,7 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from 'recharts';
-import { ArrowLeft } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -43,6 +43,8 @@ interface SeriesReportViewProps {
 }
 
 export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
+  const [showAllNotes, setShowAllNotes] = useState(false);
+
   const trendData = useMemo(
     () => (data?.attendance_trend ?? []).map((r) => ({
       ...r,
@@ -59,6 +61,11 @@ export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
     [data]
   );
 
+  const hasRetentionData = useMemo(
+    () => retentionData.some((r) => r.retention_rate > 0),
+    [retentionData]
+  );
+
   if (!data) {
     return (
       <Card>
@@ -69,6 +76,13 @@ export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
       </Card>
     );
   }
+
+  const retentionDescription = data.total_series_registrations > 0
+    ? '% of series registrants attending each instance'
+    : '% of prior attendees returning to each instance';
+
+  const allNotes = data.notes_summary.all_notes ?? data.notes_summary.recent_notes;
+  const displayedNotes = showAllNotes ? allNotes : allNotes.slice(0, 5);
 
   return (
     <div className="space-y-4">
@@ -136,11 +150,11 @@ export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
         <Card>
           <CardHeader>
             <CardTitle className="text-base">Series Retention</CardTitle>
-            <CardDescription>% of series registrants attending each instance</CardDescription>
+            <CardDescription>{retentionDescription}</CardDescription>
           </CardHeader>
           <CardContent>
-            {retentionData.length === 0 || data.total_series_registrations === 0 ? (
-              <EmptyState msg="No series registrations to track retention." />
+            {retentionData.length === 0 || !hasRetentionData ? (
+              <EmptyState msg="Not enough data to calculate retention yet." />
             ) : (
               <ChartContainer config={retentionConfig} className="aspect-auto h-[280px] w-full">
                 <ResponsiveContainer width="100%" height={280}>
@@ -210,14 +224,31 @@ export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
         </CardContent>
       </Card>
 
-      {/* Notes Summary */}
+      {/* Notes & Feedback */}
       {data.notes_summary.total_notes > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Notes Summary</CardTitle>
-            <CardDescription>
-              {data.notes_summary.total_notes} note{data.notes_summary.total_notes !== 1 ? 's' : ''} across all instances
-            </CardDescription>
+            <div className="flex items-center justify-between">
+              <div>
+                <CardTitle className="text-base">Notes & Feedback</CardTitle>
+                <CardDescription>
+                  {data.notes_summary.total_notes} note{data.notes_summary.total_notes !== 1 ? 's' : ''} across all instances
+                </CardDescription>
+              </div>
+              {allNotes.length > 5 && (
+                <Button
+                  variant="outline"
+                  size="sm"
+                  onClick={() => setShowAllNotes(!showAllNotes)}
+                >
+                  {showAllNotes ? (
+                    <><ChevronUp className="mr-1 h-3 w-3" />Show Less</>
+                  ) : (
+                    <><ChevronDown className="mr-1 h-3 w-3" />View All ({allNotes.length})</>
+                  )}
+                </Button>
+              )}
+            </div>
           </CardHeader>
           <CardContent className="space-y-4">
             {/* Category breakdown */}
@@ -229,11 +260,10 @@ export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
               ))}
             </div>
 
-            {/* Recent notes */}
-            {data.notes_summary.recent_notes.length > 0 && (
+            {/* Notes list */}
+            {displayedNotes.length > 0 && (
               <div className="space-y-2">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">Recent Notes</p>
-                {data.notes_summary.recent_notes.map((note, i) => (
+                {displayedNotes.map((note, i) => (
                   <div key={i} className="rounded-lg border p-3">
                     <div className="flex items-center gap-2 text-xs text-muted-foreground">
                       <span className="font-medium">{note.event_title}</span>
