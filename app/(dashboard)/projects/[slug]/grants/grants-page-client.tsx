@@ -2,13 +2,12 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Award, Globe, Plus, List, LayoutGrid, Upload, Search, ArrowRight, Trash2 } from 'lucide-react';
+import { Award, Plus, List, LayoutGrid, Upload, Search, ArrowRight, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NewGrantDialog } from '@/components/community/grants/new-grant-dialog';
-import { DiscoverGrantsDialog } from '@/components/community/grants/discover-grants-dialog';
 import { GrantImportDialog } from '@/components/grants/grant-import-dialog';
 import { toast } from 'sonner';
 
@@ -95,7 +94,6 @@ export default function GrantsPageClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showNewDialog, setShowNewDialog] = useState(false);
-  const [showDiscoverDialog, setShowDiscoverDialog] = useState(false);
   const [showImportDialog, setShowImportDialog] = useState(false);
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [activeTab, setActiveTab] = useState<'pipeline' | 'discovered'>(initialTab);
@@ -208,10 +206,6 @@ export default function GrantsPageClient() {
           <Button variant="outline" onClick={() => setShowImportDialog(true)}>
             <Upload className="mr-2 h-4 w-4" />
             Import
-          </Button>
-          <Button variant="outline" onClick={() => setShowDiscoverDialog(true)}>
-            <Globe className="mr-2 h-4 w-4" />
-            Discover Federal
           </Button>
           <Button onClick={() => setShowNewDialog(true)}>
             <Plus className="mr-2 h-4 w-4" />
@@ -339,11 +333,6 @@ export default function GrantsPageClient() {
         open={showNewDialog}
         onOpenChange={setShowNewDialog}
         onCreated={fetchGrants}
-      />
-      <DiscoverGrantsDialog
-        open={showDiscoverDialog}
-        onOpenChange={setShowDiscoverDialog}
-        onImported={fetchGrants}
       />
       <GrantImportDialog
         open={showImportDialog}

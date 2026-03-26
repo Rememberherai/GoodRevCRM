@@ -2,13 +2,65 @@
 
 import { useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Search, Globe, Link2, Loader2, ExternalLink, Plus, AlertCircle } from 'lucide-react';
+import { Search, Globe, Link2, Loader2, ExternalLink, Plus, AlertCircle, Landmark } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Label } from '@/components/ui/label';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { toast } from 'sonner';
+
+interface GrantsGovOpportunity {
+  id: string;
+  number: string;
+  title: string;
+  agencyCode: string;
+  agencyName?: string;
+  openDate: string;
+  closeDate: string;
+  oppStatus: string;
+}
+
+const FUNDING_CATEGORIES = [
+  { value: '__all__', label: 'All Categories' },
+  { value: 'AG', label: 'Agriculture' },
+  { value: 'AR', label: 'Arts' },
+  { value: 'BC', label: 'Business & Commerce' },
+  { value: 'CD', label: 'Community Development' },
+  { value: 'CP', label: 'Consumer Protection' },
+  { value: 'DPR', label: 'Disaster Prevention & Relief' },
+  { value: 'ED', label: 'Education' },
+  { value: 'ELT', label: 'Employment, Labor & Training' },
+  { value: 'EN', label: 'Energy' },
+  { value: 'ENV', label: 'Environment' },
+  { value: 'FN', label: 'Food & Nutrition' },
+  { value: 'HL', label: 'Health' },
+  { value: 'HO', label: 'Housing' },
+  { value: 'HU', label: 'Humanities' },
+  { value: 'ISS', label: 'Income Security & Social Services' },
+  { value: 'IS', label: 'Information & Statistics' },
+  { value: 'LJL', label: 'Law, Justice & Legal Services' },
+  { value: 'NR', label: 'Natural Resources' },
+  { value: 'RA', label: 'Regional Development' },
+  { value: 'ST', label: 'Science & Technology' },
+  { value: 'T', label: 'Transportation' },
+  { value: 'O', label: 'Other' },
+];
+
+const ELIGIBILITY_TYPES = [
+  { value: '__all__', label: 'All Eligibility' },
+  { value: '25', label: 'Nonprofits 501(c)(3)' },
+  { value: '21', label: 'Nonprofits (other)' },
+  { value: '00', label: 'State Governments' },
+  { value: '01', label: 'County Governments' },
+  { value: '02', label: 'City/Township Governments' },
+  { value: '06', label: 'Native American Tribes' },
+  { value: '12', label: 'Independent School Districts' },
+  { value: '20', label: 'Private Higher Ed' },
+  { value: '99', label: 'Unrestricted' },
+];
 
 interface SearchResult {
   title: string;
@@ -31,9 +83,29 @@ interface ScrapeResult {
   focus_areas?: string;
 }
 
+function formatFederalDate(dateStr: string | null) {
+  if (!dateStr) return '—';
+  try {
+    const d = /^\d{4}-\d{2}-\d{2}$/.test(dateStr) ? new Date(dateStr + 'T00:00:00') : new Date(dateStr);
+    return d.toLocaleDateString('en-US', { month: 'short', day: 'numeric', year: 'numeric' });
+  } catch {
+    return dateStr;
+  }
+}
+
 export function GrantDiscoverClient() {
   const { slug } = useParams<{ slug: string }>();
-  const [activeTab, setActiveTab] = useState('search');
+  const [activeTab, setActiveTab] = useState('federal');
+
+  // Federal (Grants.gov) state
+  const [federalKeyword, setFederalKeyword] = useState('');
+  const [federalCategory, setFederalCategory] = useState('__all__');
+  const [federalEligibility, setFederalEligibility] = useState('__all__');
+  const [federalResults, setFederalResults] = useState<GrantsGovOpportunity[]>([]);
+  const [federalHitCount, setFederalHitCount] = useState(0);
+  const [federalSearching, setFederalSearching] = useState(false);
+  const [federalImportingId, setFederalImportingId] = useState<string | null>(null);
+  const [federalHasSearched, setFederalHasSearched] = useState(false);
 
   // Web Search state
   const [searchQuery, setSearchQuery] = useState('');
@@ -51,6 +123,48 @@ export function GrantDiscoverClient() {
   const [savedIds, setSavedIds] = useState<Set<number>>(new Set());
   const [scrapeSaving, setScrapeSaving] = useState(false);
   const [scrapeSaved, setScrapeSaved] = useState(false);
+
+  const handleFederalSearch = async () => {
+    if (!federalKeyword.trim()) return;
+    setFederalSearching(true);
+    setFederalHasSearched(true);
+    try {
+      const params = new URLSearchParams({ q: federalKeyword.trim() });
+      if (federalCategory !== '__all__') params.set('fundingCategories', federalCategory);
+      if (federalEligibility !== '__all__') params.set('eligibilities', federalEligibility);
+
+      const res = await fetch(`/api/projects/${slug}/grants/discover?${params}`);
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Search failed'); }
+      const data = await res.json();
+      setFederalResults(data.opportunities ?? []);
+      setFederalHitCount(data.hitCount ?? 0);
+      if ((data.opportunities ?? []).length === 0) {
+        toast.info('No federal opportunities found. Try different keywords.');
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Search failed');
+      setFederalResults([]);
+    } finally {
+      setFederalSearching(false);
+    }
+  };
+
+  const handleFederalImport = async (opp: GrantsGovOpportunity) => {
+    setFederalImportingId(opp.id);
+    try {
+      const res = await fetch(`/api/projects/${slug}/grants/discover`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ opportunity: opp }),
+      });
+      if (!res.ok) { const err = await res.json().catch(() => ({})); throw new Error(err.error || 'Import failed'); }
+      toast.success(`"${opp.title}" imported to discovered grants`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Import failed');
+    } finally {
+      setFederalImportingId(null);
+    }
+  };
 
   const handleSearch = async () => {
     if (!searchQuery.trim()) return;
@@ -188,6 +302,10 @@ export function GrantDiscoverClient() {
 
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
+          <TabsTrigger value="federal">
+            <Landmark className="mr-2 h-4 w-4" />
+            Federal (Grants.gov)
+          </TabsTrigger>
           <TabsTrigger value="search">
             <Globe className="mr-2 h-4 w-4" />
             Web Search
@@ -197,6 +315,107 @@ export function GrantDiscoverClient() {
             URL Scraper
           </TabsTrigger>
         </TabsList>
+
+        {/* Federal Grants.gov Tab */}
+        <TabsContent value="federal" className="space-y-4">
+          <div className="space-y-3">
+            <div className="flex gap-2">
+              <Input
+                placeholder="Search keywords (e.g. community development, youth services)"
+                value={federalKeyword}
+                onChange={e => setFederalKeyword(e.target.value)}
+                onKeyDown={e => e.key === 'Enter' && !federalSearching && handleFederalSearch()}
+                disabled={federalSearching}
+                className="flex-1"
+              />
+              <Button onClick={handleFederalSearch} disabled={federalSearching || !federalKeyword.trim()}>
+                {federalSearching ? <Loader2 className="h-4 w-4 animate-spin" /> : <Search className="h-4 w-4" />}
+                <span className="ml-2">Search</span>
+              </Button>
+            </div>
+            <div className="grid grid-cols-2 gap-2">
+              <div className="space-y-1">
+                <Label className="text-xs">Category</Label>
+                <Select value={federalCategory} onValueChange={setFederalCategory}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {FUNDING_CATEGORIES.map(c => (
+                      <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1">
+                <Label className="text-xs">Eligibility</Label>
+                <Select value={federalEligibility} onValueChange={setFederalEligibility}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    {ELIGIBILITY_TYPES.map(e => (
+                      <SelectItem key={e.value} value={e.value}>{e.label}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          </div>
+
+          {federalSearching && (
+            <div className="flex items-center gap-2 text-sm text-muted-foreground py-8 justify-center">
+              <Loader2 className="h-4 w-4 animate-spin" />
+              Searching Grants.gov...
+            </div>
+          )}
+
+          {federalHasSearched && !federalSearching && federalResults.length === 0 && (
+            <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+              No opportunities found. Try different keywords or broader filters.
+            </div>
+          )}
+
+          {federalResults.length > 0 && (
+            <div className="space-y-2">
+              <p className="text-xs text-muted-foreground">{federalHitCount.toLocaleString()} results found</p>
+              {federalResults.map(opp => (
+                <div key={opp.id} className="rounded-lg border p-3 space-y-2">
+                  <div className="flex items-start justify-between gap-2">
+                    <div className="min-w-0">
+                      <p className="text-sm font-medium leading-tight">{opp.title}</p>
+                      <p className="text-xs text-muted-foreground mt-1">
+                        {opp.agencyCode} · {opp.number}
+                      </p>
+                    </div>
+                    <Badge variant="outline" className="shrink-0 text-xs">
+                      {opp.oppStatus}
+                    </Badge>
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <p className="text-xs text-muted-foreground">
+                      Opens {formatFederalDate(opp.openDate)} · Closes {formatFederalDate(opp.closeDate)}
+                    </p>
+                    <div className="flex gap-1">
+                      <Button
+                        size="sm"
+                        variant="ghost"
+                        className="h-7 text-xs"
+                        onClick={() => window.open(`https://www.grants.gov/search-results-detail/${opp.id}`, '_blank')}
+                      >
+                        <ExternalLink className="mr-1 h-3 w-3" /> View
+                      </Button>
+                      <Button
+                        size="sm"
+                        className="h-7 text-xs"
+                        onClick={() => handleFederalImport(opp)}
+                        disabled={!!federalImportingId}
+                      >
+                        {federalImportingId === opp.id ? 'Importing...' : 'Import'}
+                      </Button>
+                    </div>
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
+        </TabsContent>
 
         {/* Web Search Tab */}
         <TabsContent value="search" className="space-y-4">
