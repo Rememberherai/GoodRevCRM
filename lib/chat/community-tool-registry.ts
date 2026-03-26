@@ -41,6 +41,7 @@ import {
 import { sendBroadcast } from '@/lib/community/broadcasts';
 import { generateSlug } from '@/lib/validation-helpers';
 import { bridgeCheckInToAttendance, promoteFromWaitlist } from '@/lib/events/service';
+import { matchParsedNames } from '@/lib/events/scan-attendance';
 import { generateSeriesInstances, syncFutureSeriesInstances, updateFutureInstances } from '@/lib/events/series';
 import { sendEventCancellationConfirmation, sendWaitlistPromotionNotification } from '@/lib/events/notifications';
 import type { ProjectRole } from '@/types/user';
@@ -3578,6 +3579,187 @@ defineCommunityTool({
         ? { updated: scheduleSync.updated, created: scheduleSync.created, deleted: scheduleSync.deleted }
         : null,
     });
+  },
+});
+
+// --- Attendance matching & confirmation (chat-driven scan flow) ---
+
+const eventsMatchAttendanceSchema = z.object({
+  event_id: z.string().uuid().describe('The event ID'),
+  names: z.array(z.object({
+    name: z.string().describe('Person name to match'),
+    email: z.string().optional().nullable().describe('Email if known'),
+    phone: z.string().optional().nullable().describe('Phone if known'),
+  })).min(1).max(200).describe('List of names to match against CRM people'),
+});
+
+const eventsConfirmAttendanceSchema = z.object({
+  event_id: z.string().uuid().describe('The event ID'),
+  confirmations: z.array(z.object({
+    raw_text: z.string().describe('Name as provided'),
+    person_id: z.string().uuid().nullable().optional().describe('Matched person ID (null to create new)'),
+    create_new: z.boolean().default(false).describe('Create a new person record if unmatched'),
+    email: z.string().nullable().optional().describe('Email to save on person'),
+    phone: z.string().nullable().optional().describe('Phone to save on person'),
+  })).min(1).describe('Attendance confirmations — each entry either links to an existing person or creates a new one'),
+  auto_confirm_matched: z.boolean().default(true).describe('When true, auto-confirm high-confidence matches and only return unmatched/possible for review'),
+});
+
+defineCommunityTool({
+  name: 'events.match_attendance',
+  description: 'Match a list of names against CRM people for an event. Returns match status (matched/possible/unmatched) for each name. Use this to preview attendance before confirming.',
+  resource: 'events',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsMatchAttendanceSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsMatchAttendanceSchema.parse(params);
+    const admin = createAdminClient();
+    // Verify event belongs to project
+    const { data: event } = await admin
+      .from('events')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.event_id)
+      .single();
+    if (!event) throw communityError('Event not found');
+
+    const matched = await matchParsedNames(parsed.names, ctx.projectId);
+    const summary = {
+      total: matched.length,
+      matched: matched.filter(m => m.match_status === 'matched').length,
+      possible: matched.filter(m => m.match_status === 'possible').length,
+      unmatched: matched.filter(m => m.match_status === 'unmatched').length,
+    };
+    return JSON.stringify({ parsed_names: matched, summary });
+  },
+});
+
+defineCommunityTool({
+  name: 'events.confirm_attendance',
+  description: 'Confirm attendance for an event. Accepts matched person IDs and/or creates new people for unmatched names. Each confirmation creates a registration (if needed) and marks the person as checked in.',
+  resource: 'events',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsConfirmAttendanceSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsConfirmAttendanceSchema.parse(params);
+    const admin = createAdminClient();
+    // Verify event belongs to project
+    const { data: event } = await admin
+      .from('events')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.event_id)
+      .single();
+    if (!event) throw communityError('Event not found');
+
+    const now = new Date().toISOString();
+    let processed = 0;
+
+    // Load or create a fallback ticket type
+    let fallbackTicketTypeId: string | null = null;
+    const loadFallbackTicketType = async () => {
+      if (fallbackTicketTypeId) return fallbackTicketTypeId;
+      const { data: existing } = await admin
+        .from('event_ticket_types')
+        .select('id')
+        .eq('event_id', parsed.event_id)
+        .order('sort_order', { ascending: true })
+        .limit(1)
+        .maybeSingle();
+      if (existing?.id) { fallbackTicketTypeId = existing.id; return existing.id; }
+      const { data: created, error } = await admin
+        .from('event_ticket_types')
+        .insert({ event_id: parsed.event_id, name: 'Walk-in', description: 'Auto-created for attendance confirmation', quantity_available: null, max_per_order: 1, sort_order: 999, is_active: true, is_hidden: true })
+        .select('id')
+        .single();
+      if (error || !created) throw communityError(`Failed to create ticket type: ${error?.message}`);
+      fallbackTicketTypeId = created.id;
+      return created.id;
+    };
+
+    for (const confirmation of parsed.confirmations) {
+      let personId = confirmation.person_id || null;
+
+      // Create new person if requested
+      if (confirmation.create_new && !personId) {
+        const nameParts = confirmation.raw_text.trim().split(/\s+/);
+        const firstName = nameParts[0] || confirmation.raw_text;
+        const lastName = nameParts.slice(1).join(' ') || '(unknown)';
+        const validEmail = confirmation.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(confirmation.email) ? confirmation.email : null;
+        const { data: newPerson, error: personError } = await admin
+          .from('people')
+          .insert({ project_id: ctx.projectId, first_name: firstName, last_name: lastName, created_by: ctx.userId, email: validEmail, phone: confirmation.phone ?? null })
+          .select('id')
+          .single();
+        if (personError || !newPerson) { continue; }
+        personId = newPerson.id;
+      }
+
+      if (!personId) continue;
+
+      // Update person with new contact info if applicable
+      if (!confirmation.create_new && (confirmation.email || confirmation.phone)) {
+        const { data: existingPerson } = await admin.from('people').select('email, phone, mobile_phone').eq('id', personId).single();
+        if (existingPerson) {
+          const updates: Record<string, string> = {};
+          const validEmail = confirmation.email && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(confirmation.email) ? confirmation.email : null;
+          if (validEmail && !existingPerson.email) updates.email = validEmail;
+          if (confirmation.phone && !existingPerson.phone && !existingPerson.mobile_phone) updates.phone = confirmation.phone;
+          if (Object.keys(updates).length > 0) {
+            await admin.from('people').update(updates).eq('id', personId).eq('project_id', ctx.projectId);
+          }
+        }
+      }
+
+      // Find existing registration or create one
+      const { data: reg } = await admin
+        .from('event_registrations')
+        .select('id, registrant_email, registrant_name, status')
+        .eq('event_id', parsed.event_id)
+        .eq('person_id', personId)
+        .in('status', ['confirmed', 'pending_approval', 'pending_waiver'])
+        .order('created_at', { ascending: false })
+        .limit(1)
+        .maybeSingle();
+
+      if (reg) {
+        await admin.from('event_registrations').update({ checked_in_at: now, checked_in_by: ctx.userId }).eq('id', reg.id);
+        const { count: ticketCount } = await admin.from('event_registration_tickets').select('id', { count: 'exact', head: true }).eq('registration_id', reg.id);
+        if ((ticketCount ?? 0) === 0) {
+          const ticketTypeId = await loadFallbackTicketType();
+          await admin.from('event_registration_tickets').insert({ registration_id: reg.id, ticket_type_id: ticketTypeId, attendee_name: reg.registrant_name, attendee_email: reg.registrant_email, checked_in_at: now });
+        } else {
+          await admin.from('event_registration_tickets').update({ checked_in_at: now }).eq('registration_id', reg.id);
+        }
+      } else {
+        const { data: person } = await admin.from('people').select('email, first_name, last_name').eq('id', personId).maybeSingle();
+        const registrantEmail = person?.email || `${personId}@manual-registration.local`;
+        const registrantName = person ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || confirmation.raw_text : confirmation.raw_text;
+        const { data: newReg, error: insertErr } = await admin
+          .from('event_registrations')
+          .insert({ event_id: parsed.event_id, person_id: personId, registrant_name: registrantName, registrant_email: registrantEmail, status: 'confirmed', checked_in_at: now, checked_in_by: ctx.userId, waiver_status: 'not_required', source: 'manual' })
+          .select('id, registrant_name, registrant_email')
+          .single();
+        if (insertErr || !newReg) continue;
+        const ticketTypeId = await loadFallbackTicketType();
+        await admin.from('event_registration_tickets').insert({ registration_id: newReg.id, ticket_type_id: ticketTypeId, attendee_name: newReg.registrant_name, attendee_email: newReg.registrant_email, checked_in_at: now });
+      }
+
+      bridgeCheckInToAttendance(parsed.event_id, personId).catch(err => console.error('Attendance bridge failed:', err));
+      processed++;
+    }
+
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'event.attendance.confirmed' as never,
+      entityType: 'event',
+      entityId: parsed.event_id,
+      data: { processed },
+    });
+
+    return JSON.stringify({ success: true, processed });
   },
 });
 

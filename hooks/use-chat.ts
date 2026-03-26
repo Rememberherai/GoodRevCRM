@@ -78,6 +78,7 @@ const MUTATING_TOOLS = new Set([
   'events.create_ticket_type', 'events_create_ticket_type',
   'events.create_series', 'events_create_series',
   'events.update_series', 'events_update_series',
+  'events.confirm_attendance', 'events_confirm_attendance',
   'organizations_create', 'organizations_update', 'organizations_delete',
   'people_create', 'people_update', 'people_delete', 'people_link_organization',
   'opportunities_create', 'opportunities_update', 'opportunities_delete',
