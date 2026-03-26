@@ -2,7 +2,7 @@
 
 import { useState, useRef } from 'react';
 import { useParams } from 'next/navigation';
-import { Upload, FileText, Check, AlertCircle, Loader2 } from 'lucide-react';
+import { Upload, FileText, Check, AlertCircle, Loader2, Download } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -172,6 +172,29 @@ export function GrantImportDialog({ open, onOpenChange, onImported }: GrantImpor
   const mappedFieldCount = Object.values(mapping).filter(Boolean).length;
   const hasNameMapped = Object.values(mapping).includes('name');
 
+  const downloadTemplate = () => {
+    const headers = grantFields.map(f => f.label).join(',');
+    const exampleRow = [
+      'Community Youth Grant',
+      'researching',
+      '50000',
+      '',
+      'Ford Foundation',
+      '2026-06-01',
+      '2026-07-15',
+      '',
+      'Supports youth mentorship programs',
+    ].join(',');
+    const csv = `${headers}\n${exampleRow}\n`;
+    const blob = new Blob([csv], { type: 'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = 'grants-import-template.csv';
+    a.click();
+    URL.revokeObjectURL(url);
+  };
+
   return (
     <Dialog open={open} onOpenChange={handleClose}>
       <DialogContent className="sm:max-w-[600px]">
@@ -197,6 +220,10 @@ export function GrantImportDialog({ open, onOpenChange, onImported }: GrantImpor
                 Columns: Name (required), Status, Amount Requested, Amount Awarded, Funder Organization, LOI Due Date, Application Due Date, Report Due Date, Notes
               </p>
             </div>
+            <Button variant="ghost" size="sm" className="text-xs gap-1.5" onClick={downloadTemplate}>
+              <Download className="h-3 w-3" />
+              Download template CSV
+            </Button>
             <input
               ref={fileInputRef}
               type="file"
