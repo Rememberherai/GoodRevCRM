@@ -41,7 +41,7 @@ import {
 import { sendBroadcast } from '@/lib/community/broadcasts';
 import { generateSlug } from '@/lib/validation-helpers';
 import { bridgeCheckInToAttendance, promoteFromWaitlist } from '@/lib/events/service';
-import { matchParsedNames } from '@/lib/events/scan-attendance';
+import { matchParsedNames, parseSignInSheet } from '@/lib/events/scan-attendance';
 import { generateSeriesInstances, syncFutureSeriesInstances, updateFutureInstances } from '@/lib/events/series';
 import { sendEventCancellationConfirmation, sendWaitlistPromotionNotification } from '@/lib/events/notifications';
 import type { ProjectRole } from '@/types/user';
@@ -3760,6 +3760,148 @@ defineCommunityTool({
     });
 
     return JSON.stringify({ success: true, processed });
+  },
+});
+
+const eventsScanSignInSheetSchema = z.object({
+  event_id: z.string().uuid().describe('The event ID to record attendance for'),
+  storage_bucket: z.string().default('contracts').describe('Supabase Storage bucket name'),
+  storage_path: z.string().min(1).describe('Path to the uploaded image in Supabase Storage'),
+  content_type: z.string().optional().describe('MIME type of the image (e.g. image/jpeg)'),
+  auto_confirm_matched: z.boolean().default(true).describe('When true, automatically confirm high-confidence matches and create new people for unmatched. When false, only return match results for review.'),
+});
+
+defineCommunityTool({
+  name: 'events.scan_sign_in_sheet',
+  description: 'OCR a sign-in sheet image to extract names, emails, and phone numbers, then match against CRM people and optionally auto-confirm attendance. Use this when a user uploads an image of a sign-in sheet or attendance list for an event.',
+  resource: 'events',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsScanSignInSheetSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsScanSignInSheetSchema.parse(params);
+    const admin = createAdminClient();
+
+    // Verify event belongs to project
+    const { data: event } = await admin
+      .from('events')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.event_id)
+      .single();
+    if (!event) throw communityError('Event not found');
+
+    // Download image from Supabase Storage
+    const { data: fileData, error: downloadErr } = await admin.storage
+      .from(parsed.storage_bucket)
+      .download(parsed.storage_path);
+    if (downloadErr || !fileData) throw communityError(`Failed to download image: ${downloadErr?.message ?? 'unknown error'}`);
+
+    const buffer = Buffer.from(await fileData.arrayBuffer());
+    const base64 = buffer.toString('base64');
+    const mimeType = parsed.content_type || 'image/jpeg';
+
+    // OCR the image
+    const scannedEntries = await parseSignInSheet(ctx.projectId, base64, mimeType);
+    if (scannedEntries.length === 0) {
+      return JSON.stringify({ message: 'No names could be extracted from the image', parsed_names: [] });
+    }
+
+    // Match against CRM people
+    const matched = await matchParsedNames(scannedEntries, ctx.projectId);
+
+    const summary = {
+      total: matched.length,
+      matched: matched.filter(m => m.match_status === 'matched').length,
+      possible: matched.filter(m => m.match_status === 'possible').length,
+      unmatched: matched.filter(m => m.match_status === 'unmatched').length,
+    };
+
+    // Auto-confirm if requested
+    if (parsed.auto_confirm_matched) {
+      const now = new Date().toISOString();
+      let autoProcessed = 0;
+      const needsReview: typeof matched = [];
+
+      // Load or create fallback ticket type
+      let fallbackTicketTypeId: string | null = null;
+      const loadFallbackTicketType = async () => {
+        if (fallbackTicketTypeId) return fallbackTicketTypeId;
+        const { data: existing } = await admin.from('event_ticket_types').select('id').eq('event_id', parsed.event_id).order('sort_order', { ascending: true }).limit(1).maybeSingle();
+        if (existing?.id) { fallbackTicketTypeId = existing.id; return existing.id; }
+        const { data: created, error } = await admin.from('event_ticket_types').insert({ event_id: parsed.event_id, name: 'Walk-in', description: 'Auto-created for attendance', quantity_available: null, max_per_order: 1, sort_order: 999, is_active: true, is_hidden: true }).select('id').single();
+        if (error || !created) throw communityError(`Failed to create ticket type: ${error?.message}`);
+        fallbackTicketTypeId = created.id;
+        return created.id;
+      };
+
+      for (const entry of matched) {
+        if (entry.match_status !== 'matched' || !entry.matched_person_id) {
+          needsReview.push(entry);
+          continue;
+        }
+
+        const personId = entry.matched_person_id;
+
+        // Update person with new contact info
+        if (entry.raw_email || entry.raw_phone) {
+          const { data: person } = await admin.from('people').select('email, phone, mobile_phone').eq('id', personId).single();
+          if (person) {
+            const updates: Record<string, string> = {};
+            if (entry.raw_email && !person.email) updates.email = entry.raw_email;
+            if (entry.raw_phone && !person.phone && !person.mobile_phone) updates.phone = entry.raw_phone;
+            if (Object.keys(updates).length > 0) {
+              await admin.from('people').update(updates).eq('id', personId).eq('project_id', ctx.projectId);
+            }
+          }
+        }
+
+        // Find or create registration
+        const { data: reg } = await admin.from('event_registrations').select('id, registrant_email, registrant_name').eq('event_id', parsed.event_id).eq('person_id', personId).in('status', ['confirmed', 'pending_approval', 'pending_waiver']).order('created_at', { ascending: false }).limit(1).maybeSingle();
+
+        if (reg) {
+          await admin.from('event_registrations').update({ checked_in_at: now, checked_in_by: ctx.userId }).eq('id', reg.id);
+          const { count: ticketCount } = await admin.from('event_registration_tickets').select('id', { count: 'exact', head: true }).eq('registration_id', reg.id);
+          if ((ticketCount ?? 0) === 0) {
+            const ticketTypeId = await loadFallbackTicketType();
+            await admin.from('event_registration_tickets').insert({ registration_id: reg.id, ticket_type_id: ticketTypeId, attendee_name: reg.registrant_name, attendee_email: reg.registrant_email, checked_in_at: now });
+          } else {
+            await admin.from('event_registration_tickets').update({ checked_in_at: now }).eq('registration_id', reg.id);
+          }
+        } else {
+          const { data: person } = await admin.from('people').select('email, first_name, last_name').eq('id', personId).maybeSingle();
+          const registrantEmail = person?.email || `${personId}@manual-registration.local`;
+          const registrantName = person ? [person.first_name, person.last_name].filter(Boolean).join(' ').trim() || entry.raw_text : entry.raw_text;
+          const { data: newReg } = await admin.from('event_registrations').insert({ event_id: parsed.event_id, person_id: personId, registrant_name: registrantName, registrant_email: registrantEmail, status: 'confirmed', checked_in_at: now, checked_in_by: ctx.userId, waiver_status: 'not_required', source: 'manual' }).select('id, registrant_name, registrant_email').single();
+          if (newReg) {
+            const ticketTypeId = await loadFallbackTicketType();
+            await admin.from('event_registration_tickets').insert({ registration_id: newReg.id, ticket_type_id: ticketTypeId, attendee_name: newReg.registrant_name, attendee_email: newReg.registrant_email, checked_in_at: now });
+          }
+        }
+
+        bridgeCheckInToAttendance(parsed.event_id, personId).catch(err => console.error('Attendance bridge failed:', err));
+        autoProcessed++;
+      }
+
+      emitAutomationEvent({
+        projectId: ctx.projectId,
+        triggerType: 'event.attendance.confirmed' as never,
+        entityType: 'event',
+        entityId: parsed.event_id,
+        data: { processed: autoProcessed },
+      });
+
+      return JSON.stringify({
+        summary,
+        auto_confirmed: autoProcessed,
+        needs_review: needsReview,
+        message: needsReview.length > 0
+          ? `Auto-confirmed ${autoProcessed} matched attendees. ${needsReview.length} names need review (use events.confirm_attendance to confirm them).`
+          : `All ${autoProcessed} attendees matched and confirmed.`,
+      });
+    }
+
+    return JSON.stringify({ parsed_names: matched, summary });
   },
 });
 

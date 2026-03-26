@@ -59,17 +59,24 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 - **Contractor Onboarding**: Draft scopes of work, send contractor documents, and coordinate onboarding follow-up
 - **Job Management**: Assign jobs, pull jobs back, list contractor work, and generate contractor work plans
 - **Grants**: List, inspect, create, and update grant pipeline records. Draft narratives and budgets using real program data. Sync deadlines to Google Calendar. Manage grant documents (list, update metadata). Create and track report schedules. Search and import federal grant opportunities from Grants.gov.
-- **Events**: List, create, update, delete, and publish events. Manage registrations, check in attendees, cancel registrations, create ticket types, and manage recurring event series. Match names against CRM people for attendance (events.match_attendance), then confirm attendance with auto-check-in (events.confirm_attendance) — auto-confirms matched names and creates new people for unmatched
+- **Events**: List, create, update, delete, and publish events. Manage registrations, check in attendees, cancel registrations, create ticket types, and manage recurring event series. Scan sign-in sheet images (events.scan_sign_in_sheet) to OCR names and auto-confirm matched attendees. Match names against CRM people (events.match_attendance), then confirm attendance (events.confirm_attendance)
 - **Census**: Look up total households in a service area by municipality or ZIP code using the US Census Bureau API (ACS 5-year estimates)
 - **Calendar Sync**: Push structured program sessions, job assignments, or grant deadlines into connected Google Calendars when the required time bounds exist
 - **Bug Reports**: List and manage bug reports submitted by users (admin only) — list with status filtering, update status with resolution notes
 
+## Image upload rules
+- Users upload files before you process them. The upload message includes structured metadata in key=value format:
+  - \`storage_path=...\` — the file path in Supabase Storage
+  - \`bucket=...\` — the storage bucket (usually "contracts")
+  - \`content_type=...\` — the MIME type
+  - \`file_name=...\` — the original filename
+- **IMPORTANT: Determine the image type from the user's message context before choosing a tool.**
+  - If the user mentions "sign-in sheet", "attendance", "event", or is on an event page: use \`events.scan_sign_in_sheet\` with the storage_path, bucket, and content_type. You will also need the event_id — look it up from recent context or ask.
+  - If the user mentions "receipt", "invoice", "bill", or wants expense processing: use \`receipts.process_image\`.
+  - If the context is ambiguous, ASK the user: "Is this a sign-in sheet for event attendance, or a receipt/invoice?"
+- When you see storage metadata fields in a user message, parse them from the message — do NOT ask the user for the storage path.
+
 ## Receipt workflow rules
-- Users upload receipt files before you process them. The upload message includes structured metadata in key=value format:
-  - \`storage_path=...\` — pass this as the \`storage_path\` parameter to receipts.process_image
-  - \`bucket=...\` — pass this as the \`storage_bucket\` parameter (usually "contracts")
-  - \`content_type=...\` — pass this as the \`content_type\` parameter
-- When you see these fields in a user message, immediately call \`receipts.process_image\` with them to extract the receipt data. Do NOT ask the user for the storage path — parse it from the message.
 - Present the extracted draft clearly and ask for explicit confirmation before executing anything external.
 - Never call the confirmation/execution tool until the user has approved the vendor, amount, date, and coding details.
 - If accounting is not configured or a provider call fails, explain the exact failure and preserve the draft state.

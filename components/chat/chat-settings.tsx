@@ -101,7 +101,7 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
                 <ToolGroup name="Census" tools={['lookup_households']} />
                 <ToolGroup name="Calendar Sync" tools={['sync_program', 'sync_job', 'sync_grant']} />
                 <ToolGroup name="Service Types" tools={['list', 'create', 'update', 'delete']} />
-                <ToolGroup name="Events" tools={['list', 'get', 'create', 'update', 'delete', 'publish', 'list_registrations', 'check_in', 'cancel_registration', 'create_ticket_type', 'list_series', 'create_series', 'update_series', 'match_attendance', 'confirm_attendance']} />
+                <ToolGroup name="Events" tools={['list', 'get', 'create', 'update', 'delete', 'publish', 'list_registrations', 'check_in', 'cancel_registration', 'create_ticket_type', 'list_series', 'create_series', 'update_series', 'match_attendance', 'confirm_attendance', 'scan_sign_in_sheet']} />
                 <ToolGroup name="Bug Reports" tools={['list', 'update_status']} />
               </>
             ) : (

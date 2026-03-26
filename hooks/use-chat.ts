@@ -79,6 +79,7 @@ const MUTATING_TOOLS = new Set([
   'events.create_series', 'events_create_series',
   'events.update_series', 'events_update_series',
   'events.confirm_attendance', 'events_confirm_attendance',
+  'events.scan_sign_in_sheet', 'events_scan_sign_in_sheet',
   'organizations_create', 'organizations_update', 'organizations_delete',
   'people_create', 'people_update', 'people_delete', 'people_link_organization',
   'opportunities_create', 'opportunities_update', 'opportunities_delete',
