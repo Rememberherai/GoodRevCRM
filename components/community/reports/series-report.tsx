@@ -1,6 +1,6 @@
 'use client';
 
-import { useMemo, useState } from 'react';
+import { useCallback, useMemo, useRef, useState } from 'react';
 import { format, parseISO } from 'date-fns';
 import {
   LineChart,
@@ -10,7 +10,7 @@ import {
   CartesianGrid,
   ResponsiveContainer,
 } from 'recharts';
-import { ArrowLeft, ChevronDown, ChevronUp } from 'lucide-react';
+import { ArrowLeft, Download, FileText, Printer } from 'lucide-react';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -20,6 +20,14 @@ import {
   ChartTooltipContent,
   type ChartConfig,
 } from '@/components/ui/chart';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
 import type { SeriesReport } from '@/lib/community/reports';
 
 const trendConfig = {
@@ -43,7 +51,8 @@ interface SeriesReportViewProps {
 }
 
 export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
-  const [showAllNotes, setShowAllNotes] = useState(false);
+  const [notesOpen, setNotesOpen] = useState(false);
+  const notesListRef = useRef<HTMLDivElement>(null);
 
   const trendData = useMemo(
     () => (data?.attendance_trend ?? []).map((r) => ({
@@ -82,7 +91,49 @@ export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
     : '% of prior attendees returning to each instance';
 
   const allNotes = data.notes_summary.all_notes ?? data.notes_summary.recent_notes;
-  const displayedNotes = showAllNotes ? allNotes : allNotes.slice(0, 5);
+
+  const handleExportCsv = useCallback(() => {
+    if (allNotes.length === 0) return;
+    const headers = ['Date', 'Event', 'Category', 'Content'];
+    const csvEscape = (v: string) => `"${v.replace(/"/g, '""')}"`;
+    const rows = allNotes.map((n) => [
+      format(parseISO(n.created_at), 'yyyy-MM-dd'),
+      csvEscape(n.event_title),
+      csvEscape(n.category ?? ''),
+      csvEscape(n.content),
+    ]);
+    const csv = [headers.join(','), ...rows.map((r) => r.join(','))].join('\n');
+    const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a');
+    a.href = url;
+    a.download = `${data.title.replace(/[^a-z0-9]/gi, '_')}_notes.csv`;
+    a.click();
+    URL.revokeObjectURL(url);
+  }, [allNotes, data.title]);
+
+  const handlePrint = useCallback(() => {
+    const el = notesListRef.current;
+    if (!el) return;
+    const win = window.open('', '_blank');
+    if (!win) return;
+    const esc = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+    win.document.write(`<!DOCTYPE html><html><head><title>${esc(data.title)} — Notes</title><style>
+      body { font-family: system-ui, sans-serif; padding: 24px; color: #111; }
+      h1 { font-size: 18px; margin-bottom: 4px; }
+      .subtitle { color: #666; font-size: 13px; margin-bottom: 16px; }
+      .note { border: 1px solid #ddd; border-radius: 8px; padding: 12px; margin-bottom: 8px; }
+      .meta { font-size: 11px; color: #666; display: flex; gap: 8px; }
+      .meta .cat { background: #f3f4f6; padding: 1px 6px; border-radius: 4px; font-weight: 500; }
+      .content { margin-top: 6px; font-size: 13px; }
+    </style></head><body>
+      <h1>${esc(data.title)}</h1>
+      <div class="subtitle">${allNotes.length} note${allNotes.length !== 1 ? 's' : ''} across all instances</div>
+      ${allNotes.map((n) => `<div class="note"><div class="meta"><span>${format(parseISO(n.created_at), 'MMM d, yyyy')}</span><span>${esc(n.event_title)}</span>${n.category ? `<span class="cat">${esc(n.category)}</span>` : ''}</div><div class="content">${esc(n.content)}</div></div>`).join('')}
+    </body></html>`);
+    win.document.close();
+    win.print();
+  }, [allNotes, data.title]);
 
   return (
     <div className="space-y-4">
@@ -93,12 +144,64 @@ export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
             <ArrowLeft className="h-4 w-4" />
           </Button>
         )}
-        <div>
+        <div className="flex-1">
           <h3 className="text-lg font-semibold">{data.title}</h3>
           <p className="text-sm text-muted-foreground capitalize">
             {data.recurrence_frequency} series
           </p>
         </div>
+        {data.notes_summary.total_notes > 0 && (
+          <Dialog open={notesOpen} onOpenChange={setNotesOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm">
+                <FileText className="mr-1 h-3 w-3" />
+                Notes ({data.notes_summary.total_notes})
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="sm:max-w-2xl max-h-[80vh] flex flex-col">
+              <DialogHeader>
+                <DialogTitle>Notes & Feedback</DialogTitle>
+                <DialogDescription>
+                  {data.notes_summary.total_notes} note{data.notes_summary.total_notes !== 1 ? 's' : ''} across all instances
+                </DialogDescription>
+              </DialogHeader>
+              {/* Category breakdown */}
+              <div className="flex flex-wrap gap-2">
+                {data.notes_summary.by_category.map((cat) => (
+                  <Badge key={cat.category} variant="secondary">
+                    {cat.category}: {cat.count}
+                  </Badge>
+                ))}
+              </div>
+              {/* Actions */}
+              <div className="flex items-center gap-2">
+                <Button variant="outline" size="sm" onClick={handleExportCsv}>
+                  <Download className="mr-1 h-3 w-3" />Export CSV
+                </Button>
+                <Button variant="outline" size="sm" onClick={handlePrint}>
+                  <Printer className="mr-1 h-3 w-3" />Print
+                </Button>
+              </div>
+              {/* Notes list */}
+              <div ref={notesListRef} className="flex-1 overflow-y-auto space-y-2 pr-1">
+                {allNotes.map((note, i) => (
+                  <div key={i} className="rounded-lg border p-3">
+                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
+                      <span className="font-medium">{note.event_title}</span>
+                      {note.category && (
+                        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${CATEGORY_COLORS[note.category] ?? CATEGORY_COLORS.general}`}>
+                          {note.category}
+                        </span>
+                      )}
+                      <span>{format(parseISO(note.created_at), 'MMM d, yyyy')}</span>
+                    </div>
+                    <p className="mt-1 text-sm">{note.content}</p>
+                  </div>
+                ))}
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
 
       {/* KPI Cards */}
@@ -224,64 +327,6 @@ export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
         </CardContent>
       </Card>
 
-      {/* Notes & Feedback */}
-      {data.notes_summary.total_notes > 0 && (
-        <Card>
-          <CardHeader>
-            <div className="flex items-center justify-between">
-              <div>
-                <CardTitle className="text-base">Notes & Feedback</CardTitle>
-                <CardDescription>
-                  {data.notes_summary.total_notes} note{data.notes_summary.total_notes !== 1 ? 's' : ''} across all instances
-                </CardDescription>
-              </div>
-              {allNotes.length > 5 && (
-                <Button
-                  variant="outline"
-                  size="sm"
-                  onClick={() => setShowAllNotes(!showAllNotes)}
-                >
-                  {showAllNotes ? (
-                    <><ChevronUp className="mr-1 h-3 w-3" />Show Less</>
-                  ) : (
-                    <><ChevronDown className="mr-1 h-3 w-3" />View All ({allNotes.length})</>
-                  )}
-                </Button>
-              )}
-            </div>
-          </CardHeader>
-          <CardContent className="space-y-4">
-            {/* Category breakdown */}
-            <div className="flex flex-wrap gap-2">
-              {data.notes_summary.by_category.map((cat) => (
-                <Badge key={cat.category} variant="secondary">
-                  {cat.category}: {cat.count}
-                </Badge>
-              ))}
-            </div>
-
-            {/* Notes list */}
-            {displayedNotes.length > 0 && (
-              <div className="space-y-2">
-                {displayedNotes.map((note, i) => (
-                  <div key={i} className="rounded-lg border p-3">
-                    <div className="flex items-center gap-2 text-xs text-muted-foreground">
-                      <span className="font-medium">{note.event_title}</span>
-                      {note.category && (
-                        <span className={`rounded px-1.5 py-0.5 text-xs font-medium ${CATEGORY_COLORS[note.category] ?? CATEGORY_COLORS.general}`}>
-                          {note.category}
-                        </span>
-                      )}
-                      <span>{format(parseISO(note.created_at), 'MMM d, yyyy')}</span>
-                    </div>
-                    <p className="mt-1 text-sm">{note.content}</p>
-                  </div>
-                ))}
-              </div>
-            )}
-          </CardContent>
-        </Card>
-      )}
     </div>
   );
 }
