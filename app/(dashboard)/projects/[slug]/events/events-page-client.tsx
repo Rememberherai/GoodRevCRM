@@ -88,6 +88,7 @@ export function EventsPageClient() {
       void loadSeries();
     } else {
       void loadEvents(search, statusFilter);
+      if (statusFilter === 'all') void loadSeries();
     }
   }, [loadEvents, loadSeries, search, statusFilter]);
 
@@ -221,6 +222,22 @@ export function EventsPageClient() {
             </div>
           ) : (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {statusFilter === 'all' && seriesList.length > 0 && seriesList.map(s => (
+                <Link key={`series-${s.id}`} href={`/projects/${slug}/events/series/${s.id}`} className="group">
+                  <Card className="h-full transition-shadow hover:shadow-md border-dashed">
+                    <CardContent className="p-4">
+                      <div className="mb-2 flex items-start justify-between gap-2">
+                        <h3 className="font-semibold leading-tight group-hover:text-primary">{s.title}</h3>
+                        <Badge variant="secondary" className={statusColors[s.status] ?? ''}>{s.status}</Badge>
+                      </div>
+                      <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                        <Repeat className="h-3 w-3" />
+                        <span className="capitalize">{s.recurrence_frequency}</span>
+                      </div>
+                    </CardContent>
+                  </Card>
+                </Link>
+              ))}
               {events.map((event) => (
                 <Link
                   key={event.id}
