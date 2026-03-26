@@ -49,13 +49,15 @@ interface Props {
   };
   ticketTypes: TicketType[];
   calendarSlug: string;
+  embed?: boolean;
 }
 
-export function PublicEventDetail({ event, ticketTypes, calendarSlug }: Props) {
+export function PublicEventDetail({ event, ticketTypes, calendarSlug, embed = false }: Props) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
+  const [registrationStatus, setRegistrationStatus] = useState<string | null>(null);
   const [ticketSelections, setTicketSelections] = useState<Record<string, number>>(() => {
     if (ticketTypes.length > 0) {
       return { [ticketTypes[0]!.id]: 1 };
@@ -123,6 +125,17 @@ export function PublicEventDetail({ event, ticketTypes, calendarSlug }: Props) {
 
       if (!res.ok) {
         toast.error(data.error || 'Registration failed');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (embed && typeof window !== 'undefined') {
+        window.parent.postMessage({
+          type: 'goodrev:event:registered',
+          registrationId: data.registration.id,
+          eventTitle: event.title,
+        }, '*');
+        setRegistrationStatus(data.registration.status);
         setIsSubmitting(false);
         return;
       }
@@ -280,6 +293,16 @@ export function PublicEventDetail({ event, ticketTypes, calendarSlug }: Props) {
                 )}
               </CardHeader>
               <CardContent>
+                {embed && registrationStatus ? (
+                  <div className="space-y-2 text-sm">
+                    <p className="font-medium">Registration submitted.</p>
+                    <p className="text-muted-foreground">
+                      {registrationStatus === 'confirmed'
+                        ? 'The parent page has been notified and your spot is confirmed.'
+                        : `The parent page has been notified. Current status: ${registrationStatus}.`}
+                    </p>
+                  </div>
+                ) : (
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="reg-name">Name *</Label>
@@ -320,6 +343,7 @@ export function PublicEventDetail({ event, ticketTypes, calendarSlug }: Props) {
                     {isSubmitting ? 'Registering...' : 'Register'}
                   </Button>
                 </form>
+                )}
               </CardContent>
             </Card>
           ))}

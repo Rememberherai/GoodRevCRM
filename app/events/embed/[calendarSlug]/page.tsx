@@ -1,13 +1,12 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
-import type { Metadata } from 'next';
-import { PublicEventList } from './public-event-list';
+import { PublicEventList } from '@/app/events/[calendarSlug]/public-event-list';
 
 interface PageProps {
   params: Promise<{ calendarSlug: string }>;
 }
 
-async function loadRecentPublicEvents(projectId: string) {
+async function loadEmbedEvents(projectId: string) {
   const supabase = createServiceClient();
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 1);
@@ -25,43 +24,30 @@ async function loadRecentPublicEvents(projectId: string) {
   return events ?? [];
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
-  const { calendarSlug } = await params;
-  const supabase = createServiceClient();
-  const { data } = await supabase
-    .from('event_calendar_settings')
-    .select('title, description')
-    .eq('slug', calendarSlug)
-    .eq('is_enabled', true)
-    .single();
-
-  return {
-    title: data?.title ?? 'Events',
-    description: data?.description ?? 'Browse upcoming events',
-  };
-}
-
-export default async function PublicCalendarPage({ params }: PageProps) {
+export default async function EmbeddedCalendarPage({ params }: PageProps) {
   const { calendarSlug } = await params;
   const supabase = createServiceClient();
 
   const { data: settings } = await supabase
     .from('event_calendar_settings')
-    .select('*')
+    .select('project_id, title, description')
     .eq('slug', calendarSlug)
     .eq('is_enabled', true)
     .single();
 
   if (!settings) notFound();
-  const events = await loadRecentPublicEvents(settings.project_id);
+
+  const events = await loadEmbedEvents(settings.project_id);
 
   return (
-    <div>
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold">{settings.title}</h1>
-        {settings.description && <p className="mt-2 text-muted-foreground">{settings.description}</p>}
+    <div className="mx-auto max-w-5xl p-4">
+      <div className="mb-6">
+        <h1 className="text-2xl font-semibold">{settings.title}</h1>
+        {settings.description && (
+          <p className="mt-1 text-sm text-muted-foreground">{settings.description}</p>
+        )}
       </div>
-      <PublicEventList events={events} calendarSlug={calendarSlug} />
+      <PublicEventList events={events} calendarSlug={calendarSlug} basePath={`/events/embed/${calendarSlug}`} />
     </div>
   );
 }

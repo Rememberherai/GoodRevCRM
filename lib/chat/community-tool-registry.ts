@@ -40,7 +40,9 @@ import {
 } from '@/lib/validators/community/grants';
 import { sendBroadcast } from '@/lib/community/broadcasts';
 import { generateSlug } from '@/lib/validation-helpers';
-import { promoteFromWaitlist } from '@/lib/events/service';
+import { bridgeCheckInToAttendance, promoteFromWaitlist } from '@/lib/events/service';
+import { generateSeriesInstances, syncFutureSeriesInstances, updateFutureInstances } from '@/lib/events/series';
+import { sendEventCancellationConfirmation, sendWaitlistPromotionNotification } from '@/lib/events/notifications';
 import type { ProjectRole } from '@/types/user';
 import type { Database, Json } from '@/types/database';
 
@@ -2755,6 +2757,103 @@ const eventsCreateTicketTypeSchema = z.object({
   max_per_order: z.number().int().min(1).max(100).optional(),
 });
 
+const eventsDeleteSchema = z.object({
+  id: z.string().uuid(),
+});
+
+const eventSeriesBaseToolSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().max(5000).nullable().optional(),
+  description_html: z.string().max(20000).nullable().optional(),
+  recurrence_frequency: z.enum(['daily', 'weekly', 'biweekly', 'monthly']),
+  recurrence_days_of_week: z.array(z.enum(['MO', 'TU', 'WE', 'TH', 'FR', 'SA', 'SU'])).optional(),
+  recurrence_interval: z.number().int().min(1).max(12).optional(),
+  recurrence_until: z.string().date().nullable().optional(),
+  recurrence_count: z.number().int().min(1).max(365).nullable().optional(),
+  recurrence_day_position: z.number().int().min(1).max(5).nullable().optional(),
+  template_start_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+  template_end_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
+  timezone: z.string().max(50).optional(),
+  location_type: z.enum(['in_person', 'virtual', 'hybrid']).optional(),
+  venue_name: z.string().max(200).nullable().optional(),
+  venue_address: z.string().max(500).nullable().optional(),
+  venue_latitude: z.number().min(-90).max(90).nullable().optional(),
+  venue_longitude: z.number().min(-180).max(180).nullable().optional(),
+  virtual_url: z.string().url().nullable().optional(),
+  registration_enabled: z.boolean().optional(),
+  total_capacity: z.number().int().min(1).nullable().optional(),
+  waitlist_enabled: z.boolean().optional(),
+  max_tickets_per_registration: z.number().int().min(1).max(100).optional(),
+  require_approval: z.boolean().optional(),
+  custom_questions: z.array(z.unknown()).max(20).optional(),
+  cover_image_url: z.string().url().nullable().optional(),
+  category: z.string().max(50).nullable().optional(),
+  tags: z.array(z.string().max(50)).max(20).optional(),
+  visibility: z.enum(['public', 'unlisted', 'private']).optional(),
+  confirmation_message: z.string().max(2000).nullable().optional(),
+  cancellation_policy: z.string().max(2000).nullable().optional(),
+  organizer_name: z.string().max(200).nullable().optional(),
+  organizer_email: z.string().email().nullable().optional(),
+  generation_horizon_days: z.number().int().min(7).max(365).optional(),
+  status: z.enum(['draft', 'active', 'paused', 'completed']).optional(),
+});
+
+const eventsListSeriesSchema = paginatedListSchema.extend({
+  status: z.string().optional(),
+});
+
+const eventsCreateSeriesSchema = eventSeriesBaseToolSchema;
+
+const eventsUpdateSeriesSchema = eventSeriesBaseToolSchema.partial().extend({
+  id: z.string().uuid(),
+});
+
+function validateSeriesToolInput(data: {
+  recurrence_frequency?: string | null;
+  recurrence_days_of_week?: string[] | null;
+  recurrence_until?: string | null;
+  recurrence_count?: number | null;
+  recurrence_day_position?: number | null;
+  template_start_time?: string | null;
+  template_end_time?: string | null;
+}) {
+  if (data.recurrence_until && data.recurrence_count) {
+    throw communityError('Specify either recurrence_until or recurrence_count, not both.');
+  }
+
+  if (
+    data.template_start_time &&
+    data.template_end_time &&
+    data.template_end_time <= data.template_start_time
+  ) {
+    throw communityError('Template end time must be after template start time.');
+  }
+
+  if (
+    (data.recurrence_frequency === 'weekly' || data.recurrence_frequency === 'biweekly') &&
+    (!data.recurrence_days_of_week || data.recurrence_days_of_week.length === 0)
+  ) {
+    throw communityError('Weekly and biweekly series require at least one recurrence day.');
+  }
+
+  if (
+    data.recurrence_frequency === 'monthly' &&
+    data.recurrence_day_position &&
+    (!data.recurrence_days_of_week || data.recurrence_days_of_week.length === 0)
+  ) {
+    throw communityError('Monthly series with day position require a recurrence day.');
+  }
+}
+
+function validateEventToolTimeRange(data: {
+  starts_at?: string | null;
+  ends_at?: string | null;
+}) {
+  if (data.starts_at && data.ends_at && new Date(data.ends_at) <= new Date(data.starts_at)) {
+    throw communityError('Event end time must be after the start time.');
+  }
+}
+
 // ── Event tool definitions ──────────────────────────────────────────────────
 defineCommunityTool({
   name: 'events.list',
@@ -2820,6 +2919,7 @@ defineCommunityTool({
   parameters: eventsCreateToolSchema,
   handler: async (params, ctx) => {
     const parsed = eventsCreateToolSchema.parse(params);
+    validateEventToolTimeRange(parsed);
     const admin = createAdminClient();
     const slug = generateSlug(parsed.title);
     const { data, error } = await admin
@@ -2855,9 +2955,24 @@ defineCommunityTool({
     const parsed = eventsUpdateToolSchema.parse(params);
     const admin = createAdminClient();
     const { id, ...updates } = parsed;
+    const { data: oldEvent, error: oldEventError } = await admin
+      .from('events')
+      .select('id, starts_at, ends_at, series_id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', id)
+      .single();
+    if (oldEventError || !oldEvent) throw communityError(`Event not found: ${oldEventError?.message ?? 'unknown error'}`);
+    validateEventToolTimeRange({
+      starts_at: updates.starts_at ?? oldEvent.starts_at,
+      ends_at: updates.ends_at ?? oldEvent.ends_at,
+    });
+    const updatePayload: Record<string, unknown> = { ...updates };
+    if (oldEvent.series_id) {
+      updatePayload.series_instance_modified = true;
+    }
     const { data, error } = await admin
       .from('events')
-      .update(updates)
+      .update(updatePayload)
       .eq('project_id', ctx.projectId)
       .eq('id', id)
       .select('*')
@@ -2885,11 +3000,22 @@ defineCommunityTool({
     const parsed = eventsPublishSchema.parse(params);
     const admin = createAdminClient();
     const isPublish = parsed.action === 'publish';
+    const { data: currentEvent, error: currentEventError } = await admin
+      .from('events')
+      .select('id, status, published_at')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id)
+      .single();
+    if (currentEventError || !currentEvent) {
+      throw communityError(`Event not found: ${currentEventError?.message ?? 'unknown error'}`);
+    }
     const { data, error } = await admin
       .from('events')
       .update({
         status: isPublish ? 'published' : 'draft',
-        published_at: isPublish ? new Date().toISOString() : null,
+        published_at: isPublish
+          ? (currentEvent.status === 'draft' ? new Date().toISOString() : currentEvent.published_at)
+          : null,
       })
       .eq('project_id', ctx.projectId)
       .eq('id', parsed.id)
@@ -2950,32 +3076,86 @@ defineCommunityTool({
     const parsed = eventsCheckInSchema.parse(params);
     const admin = createAdminClient();
     let registrationId = parsed.registration_id;
+    let qrTicketId: string | null = null;
     if (!registrationId && parsed.qr_code) {
       const { data: ticket } = await admin
         .from('event_registration_tickets')
-        .select('registration_id')
+        .select('id, registration_id, checked_in_at')
         .eq('qr_code', parsed.qr_code)
         .single();
       if (!ticket) throw communityError('QR code not found');
+      if (ticket.checked_in_at) throw communityError('Ticket has already been checked in');
       registrationId = ticket.registration_id;
+      qrTicketId = ticket.id;
     }
     if (!registrationId) throw communityError('Must provide registration_id or qr_code');
     // Verify registration belongs to project
     const { data: reg } = await admin
       .from('event_registrations')
-      .select('id, event_id, events!inner(project_id)')
+      .select('id, event_id, person_id, status, events!inner(project_id)')
       .eq('id', registrationId)
       .single();
     if (!reg) throw communityError('Registration not found');
     const eventData = reg.events as unknown as { project_id: string };
     if (eventData.project_id !== ctx.projectId) throw communityError('Registration not found');
+    if (reg.status === 'cancelled' || reg.status === 'waitlisted') {
+      throw communityError(`Cannot check in a ${reg.status} registration`);
+    }
+    const now = new Date().toISOString();
+    if (qrTicketId) {
+      const { error: ticketError } = await admin
+        .from('event_registration_tickets')
+        .update({ checked_in_at: now })
+        .eq('id', qrTicketId)
+        .is('checked_in_at', null);
+      if (ticketError) throw communityError(`Failed to sync ticket check-in state: ${ticketError.message}`);
+    } else {
+      const { data: openTickets } = await admin
+        .from('event_registration_tickets')
+        .select('id')
+        .eq('registration_id', registrationId)
+        .is('checked_in_at', null);
+
+      if (!openTickets || openTickets.length === 0) {
+        const { count: existingTicketCount } = await admin
+          .from('event_registration_tickets')
+          .select('id', { count: 'exact', head: true })
+          .eq('registration_id', registrationId);
+
+        if ((existingTicketCount ?? 0) > 0) {
+          throw communityError('Registration has already been checked in');
+        }
+        throw communityError('No tickets found for this registration');
+      }
+
+      const { error: ticketError } = await admin
+        .from('event_registration_tickets')
+        .update({ checked_in_at: now })
+        .eq('registration_id', registrationId)
+        .is('checked_in_at', null);
+      if (ticketError) throw communityError(`Failed to sync ticket check-in state: ${ticketError.message}`);
+    }
     const { data, error } = await admin
       .from('event_registrations')
-      .update({ checked_in_at: new Date().toISOString(), checked_in_by: ctx.userId })
+      .update({ checked_in_at: now, checked_in_by: ctx.userId })
       .eq('id', registrationId)
       .select('id, registrant_name, checked_in_at')
       .single();
     if (error || !data) throw communityError(`Failed to check in: ${error?.message ?? 'unknown error'}`);
+    if (reg.person_id) {
+      bridgeCheckInToAttendance(reg.event_id, reg.person_id).catch((err) =>
+        console.error('Attendance bridge failed for chat check-in:', err)
+      );
+    }
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'event.registration.checked_in' as never,
+      entityType: 'event_registration',
+      entityId: registrationId,
+      data: qrTicketId
+        ? { event_id: reg.event_id, ticket_id: qrTicketId }
+        : { event_id: reg.event_id },
+    });
     return JSON.stringify({ checked_in: data });
   },
 });
@@ -3007,9 +3187,26 @@ defineCommunityTool({
       .select('id, registrant_name, status')
       .single();
     if (error || !data) throw communityError(`Failed to cancel registration: ${error?.message ?? 'unknown error'}`);
+    sendEventCancellationConfirmation(parsed.registration_id).catch((err) =>
+      console.error('Cancellation confirmation failed for chat cancellation:', err)
+    );
     if (eventData.waitlist_enabled) {
-      promoteFromWaitlist(reg.event_id).catch(err => console.error('Waitlist promotion failed:', err));
+      promoteFromWaitlist(reg.event_id)
+        .then((promotedId) => {
+          if (!promotedId) return;
+          sendWaitlistPromotionNotification(promotedId).catch((err) =>
+            console.error('Waitlist promotion notification failed for chat cancellation:', err)
+          );
+        })
+        .catch(err => console.error('Waitlist promotion failed:', err));
     }
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'event.registration.cancelled' as never,
+      entityType: 'event_registration',
+      entityId: parsed.registration_id,
+      data: { event_id: reg.event_id, status: 'cancelled', previous_status: reg.status },
+    });
     return JSON.stringify({ registration: data });
   },
 });
@@ -3045,6 +3242,226 @@ defineCommunityTool({
       .single();
     if (error || !data) throw communityError(`Failed to create ticket type: ${error?.message ?? 'unknown error'}`);
     return JSON.stringify({ ticket_type: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'events.delete',
+  description: 'Delete an event.',
+  resource: 'events',
+  action: 'delete',
+  roles: ['owner', 'admin', 'staff'],
+  parameters: eventsDeleteSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsDeleteSchema.parse(params);
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from('events')
+      .delete()
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id)
+      .select('id')
+      .single();
+    if (error) throw communityError(`Failed to delete event: ${error.message}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.deleted',
+      entityType: 'event',
+      entityId: parsed.id,
+      data: { id: parsed.id, project_id: ctx.projectId },
+    });
+    return JSON.stringify({ success: true, id: parsed.id });
+  },
+});
+
+defineCommunityTool({
+  name: 'events.list_series',
+  description: 'List recurring event series with pagination.',
+  resource: 'events',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsListSeriesSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsListSeriesSchema.parse(params);
+    const admin = createAdminClient();
+    const { offset, to } = paginate(parsed.page, parsed.limit);
+    let query = admin
+      .from('event_series')
+      .select('*', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: false })
+      .range(offset, to);
+    if (parsed.status) query = query.eq('status', parsed.status);
+    const { data, error, count } = await query;
+    if (error) throw communityError(`Failed to list event series: ${error.message}`);
+    return JSON.stringify({
+      series: data ?? [],
+      pagination: { page: parsed.page, limit: parsed.limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / parsed.limit) },
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'events.create_series',
+  description: 'Create a recurring event series and generate its upcoming instances.',
+  resource: 'events',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsCreateSeriesSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsCreateSeriesSchema.parse(params);
+    validateSeriesToolInput(parsed);
+    const admin = createAdminClient();
+    const seriesInsert: Database['public']['Tables']['event_series']['Insert'] = {
+      ...parsed,
+      custom_questions: parsed.custom_questions as Json | undefined,
+      project_id: ctx.projectId,
+      created_by: ctx.userId,
+      status: parsed.status ?? 'active',
+    };
+    const { data, error } = await admin
+      .from('event_series')
+      .insert(seriesInsert)
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to create event series: ${error?.message ?? 'unknown error'}`);
+    const instancesGenerated = await generateSeriesInstances(data.id);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'event.created' as never,
+      entityType: 'event_series',
+      entityId: data.id,
+      data: { ...data as Record<string, unknown>, instances_generated: instancesGenerated },
+    });
+    return JSON.stringify({ series: data, instances_generated: instancesGenerated });
+  },
+});
+
+defineCommunityTool({
+  name: 'events.update_series',
+  description: 'Update a recurring event series and propagate changes to future unmodified instances.',
+  resource: 'events',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsUpdateSeriesSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsUpdateSeriesSchema.parse(params);
+    const admin = createAdminClient();
+    const { id, ...updates } = parsed;
+    const { data: oldSeries, error: oldSeriesError } = await admin
+      .from('event_series')
+      .select('*')
+      .eq('project_id', ctx.projectId)
+      .eq('id', id)
+      .single();
+    if (oldSeriesError || !oldSeries) throw communityError(`Event series not found: ${oldSeriesError?.message ?? 'unknown error'}`);
+
+    const seriesUpdates: Database['public']['Tables']['event_series']['Update'] = {
+      ...updates,
+      custom_questions: updates.custom_questions as Json | undefined,
+    };
+    const mergedSeries = {
+      ...oldSeries,
+      ...seriesUpdates,
+    } as Database['public']['Tables']['event_series']['Row'];
+    validateSeriesToolInput(mergedSeries);
+
+    const scheduleFields = [
+      'recurrence_frequency',
+      'recurrence_days_of_week',
+      'recurrence_interval',
+      'recurrence_until',
+      'recurrence_count',
+      'recurrence_day_position',
+      'template_start_time',
+      'template_end_time',
+      'timezone',
+    ];
+    const touchesSchedule = scheduleFields.some((field) => (seriesUpdates as Record<string, unknown>)[field] !== undefined);
+
+    if (touchesSchedule) {
+      const preflightResult = await syncFutureSeriesInstances({
+        seriesId: id,
+        previousSeries: oldSeries,
+        nextSeries: mergedSeries,
+        dryRun: true,
+      });
+
+      if (preflightResult.error) {
+        throw communityError(preflightResult.error);
+      }
+    }
+
+    const { data: series, error } = await admin
+      .from('event_series')
+      .update(seriesUpdates)
+      .eq('project_id', ctx.projectId)
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error || !series) throw communityError(`Failed to update event series: ${error?.message ?? 'unknown error'}`);
+
+    const propagatableFields = [
+      'title',
+      'description',
+      'description_html',
+      'venue_name',
+      'venue_address',
+      'venue_latitude',
+      'venue_longitude',
+      'virtual_url',
+      'location_type',
+      'total_capacity',
+      'registration_enabled',
+      'waitlist_enabled',
+      'require_approval',
+      'custom_questions',
+      'visibility',
+      'confirmation_message',
+      'cancellation_policy',
+      'organizer_name',
+      'organizer_email',
+      'cover_image_url',
+      'category',
+      'tags',
+    ];
+
+    const propagatable = Object.fromEntries(
+      Object.entries(updates).filter(([key, value]) => propagatableFields.includes(key) && value !== undefined)
+    );
+
+    const updatedInstances = Object.keys(propagatable).length > 0
+      ? await updateFutureInstances(id, propagatable)
+      : 0;
+
+    const scheduleSync = touchesSchedule
+      ? await syncFutureSeriesInstances({
+          seriesId: id,
+          previousSeries: oldSeries,
+          nextSeries: series,
+        })
+      : null;
+
+    if (scheduleSync?.error) {
+      throw communityError(scheduleSync.error);
+    }
+
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'event_series',
+      entityId: id,
+      data: series as Record<string, unknown>,
+      previousData: oldSeries as Record<string, unknown>,
+    });
+
+    return JSON.stringify({
+      series,
+      updated_instances: updatedInstances,
+      schedule_sync: scheduleSync
+        ? { updated: scheduleSync.updated, created: scheduleSync.created, deleted: scheduleSync.deleted }
+        : null,
+    });
   },
 });
 

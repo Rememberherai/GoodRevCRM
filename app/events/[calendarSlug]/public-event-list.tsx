@@ -19,14 +19,19 @@ interface PublicEvent {
   venue_name: string | null;
   total_capacity: number | null;
   registration_enabled: boolean;
+  registration_opens_at?: string | null;
+  registration_closes_at?: string | null;
 }
 
 interface Props {
   events: PublicEvent[];
   calendarSlug: string;
+  basePath?: string;
 }
 
-export function PublicEventList({ events, calendarSlug }: Props) {
+export function PublicEventList({ events, calendarSlug, basePath }: Props) {
+  const now = new Date();
+
   if (events.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-16 text-center">
@@ -40,7 +45,7 @@ export function PublicEventList({ events, calendarSlug }: Props) {
   return (
     <div className="space-y-4">
       {events.map((event) => (
-        <Link key={event.id} href={`/events/${calendarSlug}/${event.slug}`}>
+        <Link key={event.id} href={`${basePath ?? `/events/${calendarSlug}`}/${event.slug}`}>
           <Card className="transition-shadow hover:shadow-md overflow-hidden">
             <div className="flex">
               {event.cover_image_url && (
@@ -74,7 +79,9 @@ export function PublicEventList({ events, calendarSlug }: Props) {
                   ) : event.venue_name ? (
                     <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{event.venue_name}</span>
                   ) : null}
-                  {event.registration_enabled && (
+                  {event.registration_enabled &&
+                    (!event.registration_opens_at || new Date(event.registration_opens_at) <= now) &&
+                    (!event.registration_closes_at || new Date(event.registration_closes_at) >= now) && (
                     <Badge variant="secondary" className="text-xs">Registration Open</Badge>
                   )}
                 </div>

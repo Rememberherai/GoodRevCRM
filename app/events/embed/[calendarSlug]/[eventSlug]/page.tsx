@@ -1,54 +1,18 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
-import type { Metadata } from 'next';
-import { PublicEventDetail } from './public-event-detail';
+import { PublicEventDetail } from '@/app/events/[calendarSlug]/[eventSlug]/public-event-detail';
 
 interface PageProps {
   params: Promise<{ calendarSlug: string; eventSlug: string }>;
 }
 
-export async function generateMetadata({ params }: PageProps): Promise<Metadata> {
+export default async function EmbeddedEventPage({ params }: PageProps) {
   const { calendarSlug, eventSlug } = await params;
   const supabase = createServiceClient();
 
   const { data: settings } = await supabase
     .from('event_calendar_settings')
     .select('project_id')
-    .eq('slug', calendarSlug)
-    .eq('is_enabled', true)
-    .single();
-
-  if (!settings) return { title: 'Event Not Found' };
-
-  const { data: event } = await supabase
-    .from('events')
-    .select('title, description, cover_image_url')
-    .eq('project_id', settings.project_id)
-    .eq('slug', eventSlug)
-    .eq('status', 'published')
-    .in('visibility', ['public', 'unlisted'])
-    .single();
-
-  if (!event) return { title: 'Event Not Found' };
-
-  return {
-    title: event.title,
-    description: event.description ?? undefined,
-    openGraph: {
-      title: event.title,
-      description: event.description ?? undefined,
-      images: event.cover_image_url ? [event.cover_image_url] : undefined,
-    },
-  };
-}
-
-export default async function PublicEventPage({ params }: PageProps) {
-  const { calendarSlug, eventSlug } = await params;
-  const supabase = createServiceClient();
-
-  const { data: settings } = await supabase
-    .from('event_calendar_settings')
-    .select('project_id, title, primary_color, timezone')
     .eq('slug', calendarSlug)
     .eq('is_enabled', true)
     .single();
@@ -81,7 +45,6 @@ export default async function PublicEventPage({ params }: PageProps) {
     return true;
   });
 
-  // Compute remaining capacity for the event and per ticket type
   const { count: registeredCount } = await supabase
     .from('event_registration_tickets')
     .select('id, event_registrations!inner(id, event_id, status)', { count: 'exact', head: true })
@@ -92,9 +55,7 @@ export default async function PublicEventPage({ params }: PageProps) {
     ? Math.max(0, event.total_capacity - (registeredCount ?? 0))
     : null;
 
-  // Compute sold counts per ticket type for remaining availability.
-  // Use count queries so large events don't undercount after the default row limit.
-  const ticketTypeIds = (ticketTypes ?? []).map(tt => tt.id);
+  const ticketTypeIds = ticketTypes.map((ticketType) => ticketType.id);
   const soldCounts: Record<string, number> = {};
   if (ticketTypeIds.length > 0) {
     await Promise.all(ticketTypeIds.map(async (ticketTypeId) => {
@@ -107,18 +68,19 @@ export default async function PublicEventPage({ params }: PageProps) {
     }));
   }
 
-  const ticketTypesWithRemaining = (ticketTypes ?? []).map(tt => ({
-    ...tt,
-    remaining: tt.quantity_available != null
-      ? Math.max(0, tt.quantity_available - (soldCounts[tt.id] || 0))
-      : null,
-  }));
-
   return (
-    <PublicEventDetail
-      event={{ ...event, remaining_capacity: remainingCapacity }}
-      ticketTypes={ticketTypesWithRemaining}
-      calendarSlug={calendarSlug}
-    />
+    <div className="mx-auto max-w-4xl p-4">
+      <PublicEventDetail
+        event={{ ...event, remaining_capacity: remainingCapacity }}
+        ticketTypes={ticketTypes.map((ticketType) => ({
+          ...ticketType,
+          remaining: ticketType.quantity_available != null
+            ? Math.max(0, ticketType.quantity_available - (soldCounts[ticketType.id] || 0))
+            : null,
+        }))}
+        calendarSlug={calendarSlug}
+        embed
+      />
+    </div>
   );
 }

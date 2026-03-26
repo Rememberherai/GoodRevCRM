@@ -9,6 +9,7 @@ import { DateRangePicker } from '@/components/dashboard/date-range-picker';
 import { MetricsCards } from '@/components/community/dashboard/metrics-cards';
 import { ImpactRadar } from '@/components/community/dashboard/impact-radar';
 import { ProgramCards } from '@/components/community/dashboard/program-cards';
+import { EventCards } from '@/components/community/dashboard/event-cards';
 import { ActivityFeed } from '@/components/community/dashboard/activity-feed';
 import { MiniMap } from '@/components/community/dashboard/mini-map';
 import { PopulationImpact } from '@/components/community/dashboard/population-impact';
@@ -124,6 +125,9 @@ export function CommunityDashboardClient({
           <RiskAlertsPanel />
           <div className="grid gap-6 xl:grid-cols-2">
             <ProgramCards programs={data.programs} />
+            <EventCards projectSlug={projectSlug} />
+          </div>
+          <div className="grid gap-6 xl:grid-cols-2">
             <ActivityFeed items={data.recentActivity} />
           </div>
         </>
