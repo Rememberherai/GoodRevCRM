@@ -3,6 +3,18 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import { Award, Plus, List, LayoutGrid, Upload, Search, ArrowRight, Star, Trash2, X } from 'lucide-react';
+import {
+  DndContext,
+  DragOverlay,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  useDroppable,
+  useDraggable,
+  type DragEndEvent,
+  type DragStartEvent,
+} from '@dnd-kit/core';
+import { CSS } from '@dnd-kit/utilities';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -469,6 +481,50 @@ export default function GrantsPageClient() {
   );
 }
 
+function KanbanColumn({
+  statusConfig,
+  grants,
+  onStatusChange,
+  onClickGrant,
+  activeId,
+}: {
+  statusConfig: (typeof GRANT_STATUSES)[number];
+  grants: GrantRecord[];
+  onStatusChange: (id: string, status: string) => void;
+  onClickGrant: (id: string) => void;
+  activeId: string | null;
+}) {
+  const { setNodeRef, isOver } = useDroppable({ id: statusConfig.value });
+
+  return (
+    <div className="w-72 flex-shrink-0">
+      <div className="mb-3 flex items-center gap-2">
+        <Badge className={statusConfig.color}>{statusConfig.label}</Badge>
+        <span className="text-sm text-muted-foreground">({grants.length})</span>
+      </div>
+      <div
+        ref={setNodeRef}
+        className={`space-y-3 min-h-[60px] rounded-lg transition-colors ${isOver ? 'bg-accent/50 ring-2 ring-primary/30' : ''}`}
+      >
+        {grants.map((grant) => (
+          <DraggableGrantCard
+            key={grant.id}
+            grant={grant}
+            onStatusChange={onStatusChange}
+            onClick={() => onClickGrant(grant.id)}
+            isDragging={activeId === grant.id}
+          />
+        ))}
+        {grants.length === 0 && !isOver && (
+          <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
+            No grants
+          </div>
+        )}
+      </div>
+    </div>
+  );
+}
+
 function KanbanView({
   grants,
   onStatusChange,
@@ -480,61 +536,108 @@ function KanbanView({
 }) {
   const pipelineStatuses = GRANT_STATUSES.filter((s) => s.value !== 'declined');
   const declinedGrants = grants.filter((g) => g.status === 'declined');
+  const [activeId, setActiveId] = useState<string | null>(null);
+
+  const sensors = useSensors(
+    useSensor(PointerSensor, { activationConstraint: { distance: 8 } })
+  );
+
+  const activeGrant = activeId ? grants.find((g) => g.id === activeId) : null;
+
+  function handleDragStart(event: DragStartEvent) {
+    setActiveId(event.active.id as string);
+  }
+
+  function handleDragEnd(event: DragEndEvent) {
+    const { active, over } = event;
+    setActiveId(null);
+    if (!over) return;
+    const grantId = active.id as string;
+    const newStatus = over.id as string;
+    const grant = grants.find((g) => g.id === grantId);
+    if (grant && grant.status !== newStatus) {
+      onStatusChange(grantId, newStatus);
+    }
+  }
 
   return (
-    <div className="space-y-4">
-      <div className="flex gap-4 overflow-x-auto pb-4">
-        {pipelineStatuses.map((statusConfig) => {
-          const columnGrants = grants.filter((g) => g.status === statusConfig.value);
-          return (
-            <div key={statusConfig.value} className="w-72 flex-shrink-0">
-              <div className="mb-3 flex items-center gap-2">
-                <Badge className={statusConfig.color}>{statusConfig.label}</Badge>
-                <span className="text-sm text-muted-foreground">({columnGrants.length})</span>
-              </div>
-              <div className="space-y-3">
-                {columnGrants.map((grant) => (
-                  <GrantCard
-                    key={grant.id}
-                    grant={grant}
-                    onStatusChange={onStatusChange}
-                    onClick={() => onClickGrant(grant.id)}
-                  />
-                ))}
-                {columnGrants.length === 0 && (
-                  <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground">
-                    No grants
-                  </div>
-                )}
-              </div>
-            </div>
-          );
-        })}
+    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+      <div className="space-y-4">
+        <div className="flex gap-4 overflow-x-auto pb-4">
+          {pipelineStatuses.map((statusConfig) => (
+            <KanbanColumn
+              key={statusConfig.value}
+              statusConfig={statusConfig}
+              grants={grants.filter((g) => g.status === statusConfig.value)}
+              onStatusChange={onStatusChange}
+              onClickGrant={onClickGrant}
+              activeId={activeId}
+            />
+          ))}
+        </div>
+
+        {declinedGrants.length > 0 && (
+          <Card>
+            <CardHeader className="py-3">
+              <CardTitle className="text-sm font-medium">
+                Declined ({declinedGrants.length})
+              </CardTitle>
+            </CardHeader>
+            <CardContent className="space-y-2">
+              {declinedGrants.map((grant) => (
+                <button
+                  key={grant.id}
+                  onClick={() => onClickGrant(grant.id)}
+                  className="flex w-full items-center justify-between rounded-lg border p-3 text-left hover:bg-accent"
+                >
+                  <span className="font-medium">{grant.name}</span>
+                  <span className="text-sm text-muted-foreground">
+                    {formatCurrency(grant.amount_requested)}
+                  </span>
+                </button>
+              ))}
+            </CardContent>
+          </Card>
+        )}
       </div>
 
-      {declinedGrants.length > 0 && (
-        <Card>
-          <CardHeader className="py-3">
-            <CardTitle className="text-sm font-medium">
-              Declined ({declinedGrants.length})
-            </CardTitle>
-          </CardHeader>
-          <CardContent className="space-y-2">
-            {declinedGrants.map((grant) => (
-              <button
-                key={grant.id}
-                onClick={() => onClickGrant(grant.id)}
-                className="flex w-full items-center justify-between rounded-lg border p-3 text-left hover:bg-accent"
-              >
-                <span className="font-medium">{grant.name}</span>
-                <span className="text-sm text-muted-foreground">
-                  {formatCurrency(grant.amount_requested)}
-                </span>
-              </button>
-            ))}
-          </CardContent>
-        </Card>
-      )}
+      <DragOverlay>
+        {activeGrant && (
+          <div className="rotate-2 opacity-90">
+            <GrantCard grant={activeGrant} onStatusChange={() => {}} onClick={() => {}} />
+          </div>
+        )}
+      </DragOverlay>
+    </DndContext>
+  );
+}
+
+function DraggableGrantCard({
+  grant,
+  onStatusChange,
+  onClick,
+  isDragging,
+}: {
+  grant: GrantRecord;
+  onStatusChange: (id: string, status: string) => void;
+  onClick: () => void;
+  isDragging: boolean;
+}) {
+  const { attributes, listeners, setNodeRef, transform } = useDraggable({ id: grant.id });
+
+  const style = transform
+    ? { transform: CSS.Translate.toString(transform) }
+    : undefined;
+
+  return (
+    <div
+      ref={setNodeRef}
+      style={style}
+      {...attributes}
+      {...listeners}
+      className={isDragging ? 'opacity-40' : undefined}
+    >
+      <GrantCard grant={grant} onStatusChange={onStatusChange} onClick={onClick} />
     </div>
   );
 }
@@ -555,7 +658,7 @@ function GrantCard({
 
   return (
     <Card
-      className="cursor-pointer transition-shadow hover:shadow-md"
+      className="cursor-grab active:cursor-grabbing transition-shadow hover:shadow-md"
       onClick={onClick}
     >
       <CardContent className="p-4 space-y-3">
