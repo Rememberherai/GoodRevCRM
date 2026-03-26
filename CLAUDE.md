@@ -71,6 +71,17 @@ All new features MUST include MCP tool support. When adding a new feature:
 
 When committing to git, unless otherwise noted, only commit file changes from the current chat session. Exclude changes that were made elsewhere outside the current chat context.
 
+## Bug sweep
+
+When the user says **"do bug sweep"**, execute the following iterative protocol:
+
+1. **Read all uncommitted/modified files** (per `git status`) and any files they touch.
+2. **Identify and fix all bugs** — logic errors, type errors, missing null checks, broken edge cases, incorrect API usage, UI inconsistencies, etc. Do NOT refactor or add features; only fix bugs.
+3. **Run `npm run typecheck`** after fixes and resolve any new type errors introduced.
+4. **Mark the round complete** and immediately start the next round: re-read all modified files and look for any remaining or newly introduced bugs.
+5. **Repeat** until you complete **three consecutive rounds with zero bugs found**.
+6. Report a summary of all bugs fixed across all rounds, and confirm the three clean sweeps.
+
 ## Tracking incomplete work
 
 When something is left undone during a session (e.g., a feature partially implemented, a bug not fully fixed, or a task deferred), add a TODO item using the TodoWrite tool and also log it in `/docs/TODO.md` so it can be tracked across sessions.
