@@ -78,6 +78,95 @@ export interface RiskReferralReport {
   referrals_by_service: { service_type: string; count: number }[];
 }
 
+// ============================================================
+// Event Reports
+// ============================================================
+
+export interface EventOverviewReport {
+  total_events: number;
+  total_registrations: number;
+  total_check_ins: number;
+  avg_attendance_rate: number;
+  unduplicated_event_participants: number;
+  by_status: { status: string; count: number }[];
+  by_source: { source: string; count: number }[];
+  by_category: { category: string; count: number }[];
+  top_events_by_attendance: {
+    event_id: string;
+    title: string;
+    starts_at: string;
+    registrations: number;
+    checked_in: number;
+    attendance_rate: number;
+    capacity: number | null;
+    capacity_utilization: number | null;
+  }[];
+  monthly_events: { month: string; count: number; registrations: number; check_ins: number }[];
+}
+
+export interface IndividualEventReport {
+  event_id: string;
+  title: string;
+  starts_at: string;
+  ends_at: string | null;
+  status: string;
+  capacity: number | null;
+  registration_funnel: {
+    total_registered: number;
+    confirmed: number;
+    checked_in: number;
+    cancelled: number;
+    waitlisted: number;
+    pending_approval: number;
+    pending_waiver: number;
+  };
+  registration_timeline: { date: string; cumulative: number }[];
+  source_breakdown: { source: string; count: number }[];
+  ticket_type_breakdown: { ticket_type: string; count: number; revenue_cents: number }[];
+  waiver_completion_rate: number | null;
+  notes: {
+    id: string;
+    category: string | null;
+    content: string;
+    is_pinned: boolean;
+    created_at: string;
+    created_by_name: string;
+  }[];
+}
+
+export interface SeriesReport {
+  series_id: string;
+  title: string;
+  recurrence_frequency: string;
+  total_instances: number;
+  total_series_registrations: number;
+  attendance_trend: {
+    event_id: string;
+    title: string;
+    starts_at: string;
+    registrations: number;
+    checked_in: number;
+    attendance_rate: number;
+  }[];
+  retention: {
+    instance_number: number;
+    title: string;
+    series_registrants_present: number;
+    total_series_registrants: number;
+    retention_rate: number;
+  }[];
+  notes_summary: {
+    total_notes: number;
+    by_category: { category: string; count: number }[];
+    recent_notes: {
+      event_title: string;
+      content: string;
+      category: string | null;
+      created_at: string;
+    }[];
+  };
+}
+
 export async function getProgramPerformanceReport(
   supabase: Supabase,
   projectId: string,
@@ -724,5 +813,427 @@ export async function getRiskReferralReport(
     referrals_by_service: [...refServiceMap.entries()]
       .map(([service_type, count]) => ({ service_type, count }))
       .sort((a, b) => b.count - a.count),
+  };
+}
+
+// ============================================================
+// Event Reports
+// ============================================================
+
+export async function getEventOverviewReport(
+  supabase: Supabase,
+  projectId: string,
+  dateRange?: DateRangeFilter
+): Promise<EventOverviewReport> {
+  let eventsQuery = supabase
+    .from('events')
+    .select('id, title, starts_at, status, category, total_capacity')
+    .eq('project_id', projectId)
+    .is('deleted_at', null);
+  if (dateRange) {
+    eventsQuery = eventsQuery.gte('starts_at', dateRange.from).lte('starts_at', dateRange.to);
+  }
+
+  const { data: events } = await eventsQuery;
+  const eventList = events ?? [];
+
+  if (eventList.length === 0) {
+    return {
+      total_events: 0,
+      total_registrations: 0,
+      total_check_ins: 0,
+      avg_attendance_rate: 0,
+      unduplicated_event_participants: 0,
+      by_status: [],
+      by_source: [],
+      by_category: [],
+      top_events_by_attendance: [],
+      monthly_events: [],
+    };
+  }
+
+  const eventIds = eventList.map((e) => e.id);
+
+  // Fetch all registrations for these events (non-cancelled only for counts)
+  const { data: registrations } = await supabase
+    .from('event_registrations')
+    .select('id, event_id, person_id, status, checked_in_at, source')
+    .in('event_id', eventIds);
+  const regList = registrations ?? [];
+
+  // Aggregate by status
+  const statusMap = new Map<string, number>();
+  for (const e of eventList) {
+    const s = e.status ?? 'draft';
+    statusMap.set(s, (statusMap.get(s) ?? 0) + 1);
+  }
+
+  // Aggregate registrations by source
+  const sourceMap = new Map<string, number>();
+  for (const r of regList) {
+    const s = r.source ?? 'web';
+    sourceMap.set(s, (sourceMap.get(s) ?? 0) + 1);
+  }
+
+  // Aggregate by category
+  const categoryMap = new Map<string, number>();
+  for (const e of eventList) {
+    const c = e.category ?? 'uncategorized';
+    categoryMap.set(c, (categoryMap.get(c) ?? 0) + 1);
+  }
+
+  // Per-event aggregation
+  const eventRegMap = new Map<string, { registrations: number; checkedIn: number }>();
+  for (const r of regList) {
+    if (r.status === 'cancelled') continue;
+    const entry = eventRegMap.get(r.event_id) ?? { registrations: 0, checkedIn: 0 };
+    entry.registrations++;
+    if (r.checked_in_at) entry.checkedIn++;
+    eventRegMap.set(r.event_id, entry);
+  }
+
+  // Unduplicated participants
+  const uniquePersonIds = new Set(regList.filter((r) => r.person_id && r.status !== 'cancelled').map((r) => r.person_id));
+
+  // Totals
+  const totalRegistrations = regList.filter((r) => r.status !== 'cancelled').length;
+  const totalCheckIns = regList.filter((r) => r.checked_in_at).length;
+  const avgAttendanceRate = totalRegistrations > 0 ? (totalCheckIns / totalRegistrations) * 100 : 0;
+
+  // Top events by attendance
+  const topEvents = eventList
+    .map((e) => {
+      const stats = eventRegMap.get(e.id) ?? { registrations: 0, checkedIn: 0 };
+      const attendanceRate = stats.registrations > 0 ? (stats.checkedIn / stats.registrations) * 100 : 0;
+      const capacityUtil = e.total_capacity ? (stats.registrations / e.total_capacity) * 100 : null;
+      return {
+        event_id: e.id,
+        title: e.title,
+        starts_at: e.starts_at,
+        registrations: stats.registrations,
+        checked_in: stats.checkedIn,
+        attendance_rate: Math.round(attendanceRate * 10) / 10,
+        capacity: e.total_capacity,
+        capacity_utilization: capacityUtil !== null ? Math.round(capacityUtil * 10) / 10 : null,
+      };
+    })
+    .sort((a, b) => b.checked_in - a.checked_in)
+    .slice(0, 10);
+
+  // Monthly events
+  const monthlyMap = new Map<string, { count: number; registrations: number; check_ins: number }>();
+  for (const e of eventList) {
+    const month = e.starts_at?.slice(0, 7) ?? 'unknown';
+    const entry = monthlyMap.get(month) ?? { count: 0, registrations: 0, check_ins: 0 };
+    entry.count++;
+    const stats = eventRegMap.get(e.id);
+    if (stats) {
+      entry.registrations += stats.registrations;
+      entry.check_ins += stats.checkedIn;
+    }
+    monthlyMap.set(month, entry);
+  }
+
+  return {
+    total_events: eventList.length,
+    total_registrations: totalRegistrations,
+    total_check_ins: totalCheckIns,
+    avg_attendance_rate: Math.round(avgAttendanceRate * 10) / 10,
+    unduplicated_event_participants: uniquePersonIds.size,
+    by_status: [...statusMap.entries()].map(([status, count]) => ({ status, count })).sort((a, b) => b.count - a.count),
+    by_source: [...sourceMap.entries()].map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
+    by_category: [...categoryMap.entries()].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count),
+    top_events_by_attendance: topEvents,
+    monthly_events: [...monthlyMap.entries()]
+      .map(([month, data]) => ({ month, ...data }))
+      .sort((a, b) => a.month.localeCompare(b.month)),
+  };
+}
+
+export async function getIndividualEventReport(
+  supabase: Supabase,
+  projectId: string,
+  eventId: string
+): Promise<IndividualEventReport | null> {
+  const { data: event } = await supabase
+    .from('events')
+    .select('id, title, starts_at, ends_at, status, total_capacity')
+    .eq('id', eventId)
+    .eq('project_id', projectId)
+    .is('deleted_at', null)
+    .maybeSingle();
+
+  if (!event) return null;
+
+  // Registrations
+  const { data: registrations } = await supabase
+    .from('event_registrations')
+    .select('id, status, checked_in_at, source, created_at, waiver_status')
+    .eq('event_id', eventId);
+  const regList = registrations ?? [];
+
+  // Registration funnel
+  const funnel = {
+    total_registered: regList.length,
+    confirmed: regList.filter((r) => r.status === 'confirmed').length,
+    checked_in: regList.filter((r) => r.checked_in_at).length,
+    cancelled: regList.filter((r) => r.status === 'cancelled').length,
+    waitlisted: regList.filter((r) => r.status === 'waitlisted').length,
+    pending_approval: regList.filter((r) => r.status === 'pending_approval').length,
+    pending_waiver: regList.filter((r) => r.status === 'pending_waiver').length,
+  };
+
+  // Registration timeline (cumulative by day, excluding cancelled)
+  const activeRegs = regList
+    .filter((r) => r.status !== 'cancelled' && r.created_at)
+    .sort((a, b) => (a.created_at! < b.created_at! ? -1 : 1));
+  const timelineMap = new Map<string, number>();
+  let cumulative = 0;
+  for (const r of activeRegs) {
+    const day = r.created_at!.slice(0, 10);
+    cumulative++;
+    timelineMap.set(day, cumulative);
+  }
+  const timeline = [...timelineMap.entries()].map(([date, cum]) => ({ date, cumulative: cum }));
+
+  // Source breakdown
+  const sourceMap = new Map<string, number>();
+  for (const r of regList) {
+    if (r.status === 'cancelled') continue;
+    const s = r.source ?? 'web';
+    sourceMap.set(s, (sourceMap.get(s) ?? 0) + 1);
+  }
+
+  // Ticket type breakdown
+  const regIds = regList.map((r) => r.id);
+  let ticketBreakdown: { ticket_type: string; count: number; revenue_cents: number }[] = [];
+  if (regIds.length > 0) {
+    const { data: tickets } = await supabase
+      .from('event_registration_tickets')
+      .select('ticket_type_id')
+      .in('registration_id', regIds);
+
+    if (tickets && tickets.length > 0) {
+      const { data: ticketTypes } = await supabase
+        .from('event_ticket_types')
+        .select('id, name, price_cents')
+        .eq('event_id', eventId);
+      const typeMap = new Map((ticketTypes ?? []).map((t) => [t.id, t]));
+
+      const ticketCountMap = new Map<string, { count: number; revenue_cents: number }>();
+      for (const t of tickets) {
+        const tt = typeMap.get(t.ticket_type_id);
+        const name = tt?.name ?? 'Unknown';
+        const entry = ticketCountMap.get(name) ?? { count: 0, revenue_cents: 0 };
+        entry.count++;
+        entry.revenue_cents += tt?.price_cents ?? 0;
+        ticketCountMap.set(name, entry);
+      }
+      ticketBreakdown = [...ticketCountMap.entries()]
+        .map(([ticket_type, data]) => ({ ticket_type, ...data }))
+        .sort((a, b) => b.count - a.count);
+    }
+  }
+
+  // Waiver completion rate
+  const { data: waivers } = await supabase
+    .from('event_waivers')
+    .select('id')
+    .eq('event_id', eventId);
+  let waiverCompletionRate: number | null = null;
+  if (waivers && waivers.length > 0) {
+    const activeRegCount = regList.filter((r) => r.status !== 'cancelled').length;
+    const signedCount = regList.filter((r) => r.status !== 'cancelled' && r.waiver_status === 'signed').length;
+    waiverCompletionRate = activeRegCount > 0 ? Math.round((signedCount / activeRegCount) * 100 * 10) / 10 : 0;
+  }
+
+  // Notes with author info
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabaseAny = supabase as any;
+  const { data: notes } = await supabaseAny
+    .from('notes')
+    .select('id, category, content, is_pinned, created_at, author:users!notes_created_by_fkey(full_name, email)')
+    .eq('project_id', projectId)
+    .eq('event_id', eventId)
+    .order('is_pinned', { ascending: false })
+    .order('created_at', { ascending: false })
+    .limit(50);
+
+  const notesList = (notes ?? []).map((n: {
+    id: string;
+    category: string | null;
+    content: string;
+    is_pinned: boolean;
+    created_at: string;
+    author?: { full_name?: string; email?: string } | null;
+  }) => ({
+    id: n.id,
+    category: n.category,
+    content: n.content,
+    is_pinned: n.is_pinned ?? false,
+    created_at: n.created_at,
+    created_by_name: n.author?.full_name ?? n.author?.email ?? 'Unknown',
+  }));
+
+  return {
+    event_id: event.id,
+    title: event.title,
+    starts_at: event.starts_at,
+    ends_at: event.ends_at,
+    status: event.status ?? 'draft',
+    capacity: event.total_capacity,
+    registration_funnel: funnel,
+    registration_timeline: timeline,
+    source_breakdown: [...sourceMap.entries()].map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
+    ticket_type_breakdown: ticketBreakdown,
+    waiver_completion_rate: waiverCompletionRate,
+    notes: notesList,
+  };
+}
+
+export async function getSeriesReport(
+  supabase: Supabase,
+  projectId: string,
+  seriesId: string
+): Promise<SeriesReport | null> {
+  const { data: series } = await supabase
+    .from('event_series')
+    .select('id, title, recurrence_frequency')
+    .eq('id', seriesId)
+    .eq('project_id', projectId)
+    .maybeSingle();
+
+  if (!series) return null;
+
+  // Get all events in this series
+  const { data: events } = await supabase
+    .from('events')
+    .select('id, title, starts_at, series_index')
+    .eq('series_id', seriesId)
+    .eq('project_id', projectId)
+    .is('deleted_at', null)
+    .order('starts_at', { ascending: true });
+  const eventList = events ?? [];
+
+  // Series registrations
+  const { data: seriesRegs } = await supabase
+    .from('event_series_registrations')
+    .select('id, person_id, status')
+    .eq('series_id', seriesId);
+  const activeSeriesRegs = (seriesRegs ?? []).filter((r) => r.status === 'active');
+  const seriesPersonIds = new Set(activeSeriesRegs.map((r) => r.person_id).filter(Boolean));
+
+  if (eventList.length === 0) {
+    return {
+      series_id: series.id,
+      title: series.title,
+      recurrence_frequency: series.recurrence_frequency ?? 'weekly',
+      total_instances: 0,
+      total_series_registrations: activeSeriesRegs.length,
+      attendance_trend: [],
+      retention: [],
+      notes_summary: { total_notes: 0, by_category: [], recent_notes: [] },
+    };
+  }
+
+  const eventIds = eventList.map((e) => e.id);
+
+  // Fetch all registrations for series events
+  const { data: registrations } = await supabase
+    .from('event_registrations')
+    .select('id, event_id, person_id, status, checked_in_at')
+    .in('event_id', eventIds);
+  const regList = registrations ?? [];
+
+  // Per-event aggregation
+  const eventRegMap = new Map<string, { registrations: number; checkedIn: number; checkedInPersonIds: Set<string> }>();
+  for (const r of regList) {
+    if (r.status === 'cancelled') continue;
+    const entry = eventRegMap.get(r.event_id) ?? { registrations: 0, checkedIn: 0, checkedInPersonIds: new Set() };
+    entry.registrations++;
+    if (r.checked_in_at) {
+      entry.checkedIn++;
+      if (r.person_id) entry.checkedInPersonIds.add(r.person_id);
+    }
+    eventRegMap.set(r.event_id, entry);
+  }
+
+  // Attendance trend and retention
+  const attendanceTrend: SeriesReport['attendance_trend'] = [];
+  const retention: SeriesReport['retention'] = [];
+
+  for (let i = 0; i < eventList.length; i++) {
+    const e = eventList[i]!;
+    const stats = eventRegMap.get(e.id) ?? { registrations: 0, checkedIn: 0, checkedInPersonIds: new Set<string>() };
+    const attendanceRate = stats.registrations > 0 ? Math.round((stats.checkedIn / stats.registrations) * 100 * 10) / 10 : 0;
+
+    attendanceTrend.push({
+      event_id: e.id,
+      title: e.title,
+      starts_at: e.starts_at,
+      registrations: stats.registrations,
+      checked_in: stats.checkedIn,
+      attendance_rate: attendanceRate,
+    });
+
+    // Retention: how many series registrants attended this instance
+    let seriesRegistrantsPresent = 0;
+    if (seriesPersonIds.size > 0) {
+      for (const pid of seriesPersonIds) {
+        if (pid && stats.checkedInPersonIds.has(pid)) seriesRegistrantsPresent++;
+      }
+    }
+    retention.push({
+      instance_number: i + 1,
+      title: e.title,
+      series_registrants_present: seriesRegistrantsPresent,
+      total_series_registrants: seriesPersonIds.size,
+      retention_rate: seriesPersonIds.size > 0
+        ? Math.round((seriesRegistrantsPresent / seriesPersonIds.size) * 100 * 10) / 10
+        : 0,
+    });
+  }
+
+  // Notes summary
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const supabaseAny = supabase as any;
+  const { data: notes } = await supabaseAny
+    .from('notes')
+    .select('id, event_id, category, content, created_at')
+    .eq('project_id', projectId)
+    .in('event_id', eventIds)
+    .order('created_at', { ascending: false })
+    .limit(100);
+  const noteList: { id: string; event_id: string; category: string | null; content: string; created_at: string }[] = notes ?? [];
+
+  const noteCategoryMap = new Map<string, number>();
+  for (const n of noteList) {
+    const c = n.category ?? 'general';
+    noteCategoryMap.set(c, (noteCategoryMap.get(c) ?? 0) + 1);
+  }
+
+  const eventTitleMap = new Map(eventList.map((e) => [e.id, e.title]));
+  const recentNotes = noteList.slice(0, 5).map((n) => ({
+    event_title: eventTitleMap.get(n.event_id) ?? 'Unknown',
+    content: n.content,
+    category: n.category,
+    created_at: n.created_at,
+  }));
+
+  return {
+    series_id: series.id,
+    title: series.title,
+    recurrence_frequency: series.recurrence_frequency ?? 'weekly',
+    total_instances: eventList.length,
+    total_series_registrations: activeSeriesRegs.length,
+    attendance_trend: attendanceTrend,
+    retention,
+    notes_summary: {
+      total_notes: noteList.length,
+      by_category: [...noteCategoryMap.entries()]
+        .map(([category, count]) => ({ category, count }))
+        .sort((a, b) => b.count - a.count),
+      recent_notes: recentNotes,
+    },
   };
 }

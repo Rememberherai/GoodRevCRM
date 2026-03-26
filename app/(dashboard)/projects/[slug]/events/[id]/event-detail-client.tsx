@@ -17,6 +17,8 @@ import { EventCheckInTab } from '@/components/community/events/tabs/event-check-
 import { EventAttendanceTab } from '@/components/community/events/tabs/event-attendance-tab';
 import { EventNotesTab } from '@/components/community/events/tabs/event-notes-tab';
 import { EventWaiversTab } from '@/components/community/events/tabs/event-waivers-tab';
+import { EventDetailReportView } from '@/components/community/reports/event-detail-report';
+import type { IndividualEventReport } from '@/lib/community/reports';
 
 interface EventDetail {
   id: string;
@@ -71,6 +73,9 @@ export function EventDetailClient() {
   const [event, setEvent] = useState<EventDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [calendarSlug, setCalendarSlug] = useState<string | null>(null);
+  const [reportData, setReportData] = useState<IndividualEventReport | null>(null);
+  const [reportLoading, setReportLoading] = useState(false);
+  const [reportLoaded, setReportLoaded] = useState(false);
 
   const loadEvent = useCallback(async () => {
     try {
@@ -78,6 +83,7 @@ export function EventDetailClient() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setEvent(data.event);
+      setReportLoaded(false); // Reset so report re-fetches on next tab click
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load');
     } finally {
@@ -147,6 +153,21 @@ export function EventDetailClient() {
     });
   }
 
+  async function loadReport() {
+    if (reportLoaded) return;
+    setReportLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${slug}/community/reports?type=event_detail&eventId=${eventId}`);
+      const json = await res.json() as { event_detail?: IndividualEventReport };
+      setReportData(json.event_detail ?? null);
+      setReportLoaded(true);
+    } catch {
+      setReportData(null);
+    } finally {
+      setReportLoading(false);
+    }
+  }
+
   if (isLoading) return <div className="animate-pulse space-y-4"><div className="h-8 w-64 bg-muted rounded" /><div className="h-40 bg-muted rounded-xl" /></div>;
   if (!event) return <div className="text-center py-12 text-muted-foreground">Event not found</div>;
 
@@ -201,6 +222,7 @@ export function EventDetailClient() {
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
           <TabsTrigger value="waivers">Waivers{event.waiver_count ? ` (${event.waiver_count})` : ''}</TabsTrigger>
+          <TabsTrigger value="report" onClick={() => void loadReport()}>Report</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="space-y-4 mt-4">
@@ -298,6 +320,16 @@ export function EventDetailClient() {
 
         <TabsContent value="waivers" className="mt-4">
           <EventWaiversTab projectSlug={slug} eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="report" className="mt-4">
+          {reportLoading ? (
+            <div className="flex items-center justify-center py-20">
+              <div className="h-8 w-8 animate-spin rounded-full border-2 border-muted-foreground border-t-transparent" />
+            </div>
+          ) : (
+            <EventDetailReportView data={reportData} />
+          )}
         </TabsContent>
       </Tabs>
     </div>

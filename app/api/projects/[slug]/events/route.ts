@@ -77,8 +77,34 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to fetch events' }, { status: 500 });
     }
 
+    // Enrich with registration and check-in counts
+    const eventIds = (events ?? []).map((e) => e.id);
+    const regStatsMap = new Map<string, { registration_count: number; checked_in_count: number }>();
+
+    if (eventIds.length > 0) {
+      const { data: regs } = await supabase
+        .from('event_registrations')
+        .select('event_id, status, checked_in_at')
+        .in('event_id', eventIds);
+
+      if (regs) {
+        for (const r of regs) {
+          if (r.status === 'cancelled') continue;
+          const entry = regStatsMap.get(r.event_id) ?? { registration_count: 0, checked_in_count: 0 };
+          entry.registration_count++;
+          if (r.checked_in_at) entry.checked_in_count++;
+          regStatsMap.set(r.event_id, entry);
+        }
+      }
+    }
+
+    const enrichedEvents = (events ?? []).map((e) => {
+      const stats = regStatsMap.get(e.id) ?? { registration_count: 0, checked_in_count: 0 };
+      return { ...e, registration_count: stats.registration_count, checked_in_count: stats.checked_in_count };
+    });
+
     return NextResponse.json({
-      events,
+      events: enrichedEvents,
       pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) },
     });
   } catch (error) {

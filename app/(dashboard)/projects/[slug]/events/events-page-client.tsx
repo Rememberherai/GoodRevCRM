@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { CalendarDays, ChevronLeft, ChevronRight, ExternalLink, Plus, Repeat, Search, MapPin, Monitor, Settings2, Trash2, Users, X } from 'lucide-react';
+import { CalendarDays, CheckCircle2, ChevronLeft, ChevronRight, ExternalLink, Plus, Repeat, Search, MapPin, Monitor, Settings2, Trash2, Users, X } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -28,6 +28,8 @@ interface EventListItem {
   registration_enabled: boolean;
   cover_image_url: string | null;
   series_id: string | null;
+  registration_count?: number;
+  checked_in_count?: number;
 }
 
 interface Pagination {
@@ -472,8 +474,14 @@ export function EventsPageClient() {
                             ) : event.venue_name ? (
                               <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{event.venue_name}</span>
                             ) : null}
+                            {(event.registration_count ?? 0) > 0 && (
+                              <span className="flex items-center gap-1"><Users className="h-3 w-3" />{event.registration_count} reg</span>
+                            )}
+                            {(event.checked_in_count ?? 0) > 0 && (
+                              <span className="flex items-center gap-1"><CheckCircle2 className="h-3 w-3" />{event.checked_in_count} in</span>
+                            )}
                             {event.total_capacity && (
-                              <span className="flex items-center gap-1"><Users className="h-3 w-3" />Cap: {event.total_capacity}</span>
+                              <span className="flex items-center gap-1">Cap: {event.total_capacity}</span>
                             )}
                             {event.series_id && (
                               <Badge variant="outline" className="text-xs">Series</Badge>

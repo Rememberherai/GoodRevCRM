@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { format } from 'date-fns';
 import {
   BarChart3,
+  CalendarDays,
   Download,
   HandCoins,
   Home,
@@ -26,6 +27,9 @@ import { ContractorHoursReportView } from '@/components/community/reports/contra
 import { GrantsOverviewReportView } from '@/components/community/reports/grants-overview';
 import { EngagementTrendsReportView } from '@/components/community/reports/engagement-trends';
 import { RiskReferralsReportView } from '@/components/community/reports/risk-referrals';
+import { EventOverviewReportView } from '@/components/community/reports/event-overview';
+import { EventDetailReportView } from '@/components/community/reports/event-detail-report';
+import type { EventOverviewReport, IndividualEventReport } from '@/lib/community/reports';
 import type { DateRange } from '@/types/analytics';
 
 interface CommunityReportsResponse {
@@ -92,6 +96,7 @@ interface CommunityReportsResponse {
     referrals_by_status: { status: string; count: number }[];
     referrals_by_service: { service_type: string; count: number }[];
   };
+  event_overview?: EventOverviewReport;
 }
 
 function downloadCSV(filename: string, headers: string[], rows: string[][]) {
@@ -123,10 +128,15 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
   const [activeTab, setActiveTab] = useState('programs');
+  const [eventDrillDownId, setEventDrillDownId] = useState<string | null>(null);
+  const [eventDetailData, setEventDetailData] = useState<IndividualEventReport | null>(null);
+  const [eventDetailLoading, setEventDetailLoading] = useState(false);
 
   const loadReports = useCallback(async () => {
     setIsLoading(true);
     setError(null);
+    setEventDrillDownId(null);
+    setEventDetailData(null);
 
     try {
       let url = `/api/projects/${projectSlug}/community/reports?type=all`;
@@ -151,6 +161,25 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
   useEffect(() => {
     void loadReports();
   }, [loadReports]);
+
+  const loadEventDetail = useCallback(async (eventId: string) => {
+    setEventDetailLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${projectSlug}/community/reports?type=event_detail&eventId=${eventId}`);
+      const json = await response.json() as { event_detail?: IndividualEventReport };
+      setEventDetailData(json.event_detail ?? null);
+    } catch {
+      setEventDetailData(null);
+    } finally {
+      setEventDetailLoading(false);
+    }
+  }, [projectSlug]);
+
+  useEffect(() => {
+    if (eventDrillDownId) {
+      void loadEventDetail(eventDrillDownId);
+    }
+  }, [eventDrillDownId, loadEventDetail]);
 
   function handleExportCSV() {
     if (!data) return;
@@ -187,6 +216,12 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
         r.status, String(r.count), r.total_amount.toFixed(2),
       ]);
       downloadCSV('grants.csv', ['Status', 'Count', 'Amount'], rows);
+    } else if (activeTab === 'events' && data.event_overview) {
+      const rows = data.event_overview.top_events_by_attendance.map((r) => [
+        r.title, r.starts_at ?? '', String(r.registrations), String(r.checked_in),
+        String(r.attendance_rate), r.capacity_utilization !== null ? String(r.capacity_utilization) : '',
+      ]);
+      downloadCSV('events.csv', ['Event', 'Date', 'Registrations', 'Checked In', 'Attendance %', 'Capacity %'], rows);
     }
   }
 
@@ -242,7 +277,7 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
       {data && !isLoading && (
         <>
           {/* KPI Cards */}
-          <div className="grid gap-4 md:grid-cols-5">
+          <div className="grid gap-4 md:grid-cols-3 lg:grid-cols-6">
             <Card>
               <CardHeader className="pb-2">
                 <CardTitle className="text-sm">Programs</CardTitle>
@@ -303,6 +338,18 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
                 </div>
               </CardContent>
             </Card>
+            <Card>
+              <CardHeader className="pb-2">
+                <CardTitle className="text-sm">Events</CardTitle>
+                <CardDescription>Total events tracked</CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-2 text-2xl font-semibold">
+                  <CalendarDays className="h-5 w-5 text-muted-foreground" />
+                  {data.event_overview?.total_events ?? 0}
+                </div>
+              </CardContent>
+            </Card>
           </div>
 
           {/* Report Tabs */}
@@ -316,6 +363,7 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
               <TabsTrigger value="grants">Grants</TabsTrigger>
               <TabsTrigger value="trends">Trends</TabsTrigger>
               <TabsTrigger value="risk">Risk & Referrals</TabsTrigger>
+              <TabsTrigger value="events">Events</TabsTrigger>
             </TabsList>
 
             <TabsContent value="programs" className="pt-4">
@@ -341,6 +389,28 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
             </TabsContent>
             <TabsContent value="risk" className="pt-4">
               <RiskReferralsReportView data={data.risk_referral} />
+            </TabsContent>
+            <TabsContent value="events" className="pt-4">
+              {eventDrillDownId ? (
+                eventDetailLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <EventDetailReportView
+                    data={eventDetailData}
+                    onBack={() => {
+                      setEventDrillDownId(null);
+                      setEventDetailData(null);
+                    }}
+                  />
+                )
+              ) : (
+                <EventOverviewReportView
+                  data={data.event_overview}
+                  onDrillDown={(eventId) => setEventDrillDownId(eventId)}
+                />
+              )}
             </TabsContent>
           </Tabs>
         </>

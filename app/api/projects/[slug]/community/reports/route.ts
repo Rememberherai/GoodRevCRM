@@ -12,6 +12,9 @@ import {
   getGrantPipelineReport,
   getEngagementTrendsReport,
   getRiskReferralReport,
+  getEventOverviewReport,
+  getIndividualEventReport,
+  getSeriesReport,
   type DateRangeFilter,
 } from '@/lib/community/reports';
 
@@ -92,6 +95,24 @@ export async function GET(request: Request, context: RouteContext) {
 
     if (reportType === 'all' || reportType === 'risk_referral') {
       result.risk_referral = await getRiskReferralReport(supabase, project.id);
+    }
+
+    if (reportType === 'all' || reportType === 'event_overview') {
+      result.event_overview = await getEventOverviewReport(supabase, project.id, dateRange);
+    }
+
+    if (reportType === 'event_detail') {
+      const eventId = searchParams.get('eventId');
+      if (eventId) {
+        result.event_detail = await getIndividualEventReport(supabase, project.id, eventId);
+      }
+    }
+
+    if (reportType === 'series_report') {
+      const seriesId = searchParams.get('seriesId');
+      if (seriesId) {
+        result.series_report = await getSeriesReport(supabase, project.id, seriesId);
+      }
     }
 
     return NextResponse.json(result);
