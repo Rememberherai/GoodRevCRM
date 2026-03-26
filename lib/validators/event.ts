@@ -51,14 +51,27 @@ const eventBaseFields = z.object({
   requires_waiver: z.boolean().optional(),
 });
 
-export const createEventSchema = eventBaseFields.refine(
-  (data) => new Date(data.ends_at) > new Date(data.starts_at),
-  { message: 'End time must be after start time', path: ['ends_at'] }
-);
+export const createEventSchema = eventBaseFields
+  .refine(
+    (data) => new Date(data.ends_at) > new Date(data.starts_at),
+    { message: 'End time must be after start time', path: ['ends_at'] }
+  )
+  .refine(
+    (data) => {
+      if (data.registration_opens_at && data.registration_closes_at) {
+        return new Date(data.registration_closes_at) > new Date(data.registration_opens_at);
+      }
+      return true;
+    },
+    { message: 'Registration close time must be after open time', path: ['registration_closes_at'] }
+  );
 
 export const updateEventSchema = eventBaseFields.partial().superRefine((data, ctx) => {
   if (data.starts_at && data.ends_at && new Date(data.ends_at) <= new Date(data.starts_at)) {
     ctx.addIssue({ code: 'custom', message: 'End time must be after start time', path: ['ends_at'] });
+  }
+  if (data.registration_opens_at && data.registration_closes_at && new Date(data.registration_closes_at) <= new Date(data.registration_opens_at)) {
+    ctx.addIssue({ code: 'custom', message: 'Registration close time must be after open time', path: ['registration_closes_at'] });
   }
 });
 
@@ -67,7 +80,7 @@ export type UpdateEventInput = z.infer<typeof updateEventSchema>;
 
 // ── Ticket types ────────────────────────────────────────────
 
-export const createTicketTypeSchema = z.object({
+const ticketTypeBaseSchema = z.object({
   name: z.string().min(1).max(200),
   description: z.string().max(500).nullable().optional(),
   price_cents: z.literal(0).optional(),
@@ -80,7 +93,17 @@ export const createTicketTypeSchema = z.object({
   is_hidden: z.boolean().optional(),
 });
 
-export const updateTicketTypeSchema = createTicketTypeSchema.partial();
+export const createTicketTypeSchema = ticketTypeBaseSchema.superRefine((data, ctx) => {
+  if (data.sales_start_at && data.sales_end_at && new Date(data.sales_end_at) <= new Date(data.sales_start_at)) {
+    ctx.addIssue({ code: 'custom', message: 'Sales end time must be after start time', path: ['sales_end_at'] });
+  }
+});
+
+export const updateTicketTypeSchema = ticketTypeBaseSchema.partial().superRefine((data, ctx) => {
+  if (data.sales_start_at && data.sales_end_at && new Date(data.sales_end_at) <= new Date(data.sales_start_at)) {
+    ctx.addIssue({ code: 'custom', message: 'Sales end time must be after start time', path: ['sales_end_at'] });
+  }
+});
 
 export type CreateTicketTypeInput = z.infer<typeof createTicketTypeSchema>;
 export type UpdateTicketTypeInput = z.infer<typeof updateTicketTypeSchema>;
@@ -173,9 +196,31 @@ export const createEventSeriesSchema = eventSeriesBaseFields
       return true;
     },
     { message: 'Days of week are required for weekly/biweekly recurrence', path: ['recurrence_days_of_week'] }
+  )
+  .refine(
+    (data) => {
+      if (data.recurrence_frequency === 'monthly' && data.recurrence_day_position) {
+        return data.recurrence_days_of_week && data.recurrence_days_of_week.length > 0;
+      }
+      return true;
+    },
+    { message: 'Day of week is required when using day position for monthly recurrence', path: ['recurrence_days_of_week'] }
   );
 
-export const updateEventSeriesSchema = eventSeriesBaseFields.partial();
+export const updateEventSeriesSchema = eventSeriesBaseFields.partial().superRefine((data, ctx) => {
+  if (data.recurrence_until && data.recurrence_count) {
+    ctx.addIssue({ code: 'custom', message: 'Specify either recurrence_until or recurrence_count, not both', path: ['recurrence_until'] });
+  }
+  if (data.template_start_time && data.template_end_time && data.template_end_time <= data.template_start_time) {
+    ctx.addIssue({ code: 'custom', message: 'End time must be after start time', path: ['template_end_time'] });
+  }
+  if (
+    (data.recurrence_frequency === 'weekly' || data.recurrence_frequency === 'biweekly') &&
+    (!data.recurrence_days_of_week || data.recurrence_days_of_week.length === 0)
+  ) {
+    ctx.addIssue({ code: 'custom', message: 'Days of week are required for weekly/biweekly recurrence', path: ['recurrence_days_of_week'] });
+  }
+});
 
 export type CreateEventSeriesInput = z.infer<typeof createEventSeriesSchema>;
 export type UpdateEventSeriesInput = z.infer<typeof updateEventSeriesSchema>;

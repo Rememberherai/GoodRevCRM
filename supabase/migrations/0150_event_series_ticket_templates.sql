@@ -1,0 +1,2 @@
+ALTER TABLE public.event_series
+ADD COLUMN IF NOT EXISTS ticket_types JSONB NOT NULL DEFAULT '[]'::JSONB;

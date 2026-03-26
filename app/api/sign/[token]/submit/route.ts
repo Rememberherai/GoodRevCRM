@@ -8,6 +8,7 @@ import { submitSigningSchema } from '@/lib/validators/contract';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { syncEnrollmentFromCompletedWaiver } from '@/lib/community/waivers';
 import { syncContractorScopeFromCompletedDocument } from '@/lib/community/contractor-documents';
+import { syncRegistrationFromCompletedWaiver } from '@/lib/events/waivers';
 
 function escHtml(s: string): string {
   return s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
@@ -263,6 +264,14 @@ export async function POST(request: Request, context: RouteContext) {
       projectId: recipient.project_id,
     }).catch((error) => {
       console.error('[SIGN_SUBMIT] Failed to sync program enrollment from completed waiver:', error);
+    });
+
+    await syncRegistrationFromCompletedWaiver({
+      supabase,
+      documentId: document.id,
+      projectId: recipient.project_id,
+    }).catch((error) => {
+      console.error('[SIGN_SUBMIT] Failed to sync event registration from completed waiver:', error);
     });
 
     await syncContractorScopeFromCompletedDocument({

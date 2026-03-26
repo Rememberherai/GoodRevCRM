@@ -39,6 +39,8 @@ import {
   grantSchema,
 } from '@/lib/validators/community/grants';
 import { sendBroadcast } from '@/lib/community/broadcasts';
+import { generateSlug } from '@/lib/validation-helpers';
+import { promoteFromWaitlist } from '@/lib/events/service';
 import type { ProjectRole } from '@/types/user';
 import type { Database, Json } from '@/types/database';
 
@@ -2692,6 +2694,357 @@ defineCommunityTool({
     const results = await fetchHouseholdsByZipCodes(zip_codes, ctx.projectId);
     const total = results.reduce((sum, r) => sum + r.households, 0);
     return JSON.stringify({ results, total });
+  },
+});
+
+// ── Event tool schemas ──────────────────────────────────────────────────────
+const eventsListSchema = paginatedListSchema.extend({
+  status: z.string().optional(),
+  category: z.string().optional(),
+});
+
+const eventsCreateToolSchema = z.object({
+  title: z.string().min(1).max(200),
+  description: z.string().max(5000).nullable().optional(),
+  starts_at: z.string().datetime(),
+  ends_at: z.string().datetime(),
+  timezone: z.string().max(50).optional(),
+  location_type: z.enum(['in_person', 'virtual', 'hybrid']).optional(),
+  venue_name: z.string().max(200).nullable().optional(),
+  venue_address: z.string().max(500).nullable().optional(),
+  virtual_url: z.string().url().nullable().optional(),
+  category: z.string().max(50).nullable().optional(),
+  registration_enabled: z.boolean().optional(),
+  total_capacity: z.number().int().min(1).nullable().optional(),
+  visibility: z.enum(['public', 'unlisted', 'private']).optional(),
+  organizer_name: z.string().max(200).nullable().optional(),
+  organizer_email: z.string().email().nullable().optional(),
+});
+
+const eventsUpdateToolSchema = eventsCreateToolSchema.partial().extend({
+  id: z.string().uuid(),
+});
+
+const eventsPublishSchema = z.object({
+  id: z.string().uuid(),
+  action: z.enum(['publish', 'unpublish']).default('publish'),
+});
+
+const eventsListRegistrationsSchema = z.object({
+  event_id: z.string().uuid(),
+  status: z.string().optional(),
+});
+
+const eventsCheckInSchema = z.object({
+  registration_id: z.string().uuid().optional(),
+  qr_code: z.string().optional(),
+}).refine(
+  (data) => data.registration_id || data.qr_code,
+  { message: 'Must provide registration_id or qr_code' }
+);
+
+const eventsCancelRegistrationSchema = z.object({
+  registration_id: z.string().uuid(),
+});
+
+const eventsCreateTicketTypeSchema = z.object({
+  event_id: z.string().uuid(),
+  name: z.string().min(1).max(200),
+  description: z.string().max(500).nullable().optional(),
+  quantity_available: z.number().int().min(1).nullable().optional(),
+  max_per_order: z.number().int().min(1).max(100).optional(),
+});
+
+// ── Event tool definitions ──────────────────────────────────────────────────
+defineCommunityTool({
+  name: 'events.list',
+  description: 'List events with optional status/category filtering and pagination.',
+  resource: 'events',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsListSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsListSchema.parse(params);
+    const admin = createAdminClient();
+    const { offset, to } = paginate(parsed.page, parsed.limit);
+    let query = admin
+      .from('events')
+      .select('id, title, slug, status, starts_at, ends_at, location_type, venue_name, category, total_capacity, registration_enabled, updated_at', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .order('starts_at', { ascending: true })
+      .range(offset, to);
+    if (parsed.search) query = query.ilike('title', `%${parsed.search}%`);
+    if (parsed.status) query = query.eq('status', parsed.status);
+    if (parsed.category) query = query.eq('category', parsed.category);
+    const { data, error, count } = await query;
+    if (error) throw communityError(`Failed to list events: ${error.message}`);
+    return JSON.stringify({
+      events: data ?? [],
+      pagination: { page: parsed.page, limit: parsed.limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / parsed.limit) },
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'events.get',
+  description: 'Get a single event with registration counts and ticket types.',
+  resource: 'events',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: entityGetSchema,
+  handler: async (params, ctx) => {
+    const parsed = entityGetSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('events')
+      .select('*, event_ticket_types(*)')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id)
+      .single();
+    if (error || !data) throw communityError(`Event not found: ${error?.message ?? 'unknown error'}`);
+    const { count: regCount } = await admin
+      .from('event_registrations')
+      .select('id', { count: 'exact', head: true })
+      .eq('event_id', parsed.id)
+      .in('status', ['confirmed', 'pending_approval', 'pending_waiver']);
+    return JSON.stringify({ ...data, registration_count: regCount ?? 0 });
+  },
+});
+
+defineCommunityTool({
+  name: 'events.create',
+  description: 'Create a new event.',
+  resource: 'events',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const slug = generateSlug(parsed.title);
+    const { data, error } = await admin
+      .from('events')
+      .insert({
+        ...parsed,
+        slug,
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+      })
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to create event: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'event.created' as never,
+      entityType: 'event',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ event: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'events.update',
+  description: 'Update an event.',
+  resource: 'events',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsUpdateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsUpdateToolSchema.parse(params);
+    const admin = createAdminClient();
+    const { id, ...updates } = parsed;
+    const { data, error } = await admin
+      .from('events')
+      .update(updates)
+      .eq('project_id', ctx.projectId)
+      .eq('id', id)
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to update event: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'event',
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+    return JSON.stringify({ event: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'events.publish',
+  description: 'Publish or unpublish an event.',
+  resource: 'events',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsPublishSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsPublishSchema.parse(params);
+    const admin = createAdminClient();
+    const isPublish = parsed.action === 'publish';
+    const { data, error } = await admin
+      .from('events')
+      .update({
+        status: isPublish ? 'published' : 'draft',
+        published_at: isPublish ? new Date().toISOString() : null,
+      })
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id)
+      .select('id, title, status, published_at')
+      .single();
+    if (error || !data) throw communityError(`Failed to ${parsed.action} event: ${error?.message ?? 'unknown error'}`);
+    if (isPublish) {
+      emitAutomationEvent({
+        projectId: ctx.projectId,
+        triggerType: 'event.published' as never,
+        entityType: 'event',
+        entityId: data.id,
+        data: data as Record<string, unknown>,
+      });
+    }
+    return JSON.stringify({ event: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'events.list_registrations',
+  description: 'List registrations for an event.',
+  resource: 'events',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsListRegistrationsSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsListRegistrationsSchema.parse(params);
+    const admin = createAdminClient();
+    // Verify event belongs to project
+    const { data: event } = await admin
+      .from('events')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.event_id)
+      .single();
+    if (!event) throw communityError('Event not found');
+    let query = admin
+      .from('event_registrations')
+      .select('id, registrant_name, registrant_email, status, checked_in_at, created_at')
+      .eq('event_id', parsed.event_id)
+      .order('created_at', { ascending: false });
+    if (parsed.status) query = query.eq('status', parsed.status);
+    const { data, error } = await query;
+    if (error) throw communityError(`Failed to list registrations: ${error.message}`);
+    return JSON.stringify({ registrations: data ?? [] });
+  },
+});
+
+defineCommunityTool({
+  name: 'events.check_in',
+  description: 'Check in an attendee by registration ID or QR code.',
+  resource: 'events',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsCheckInSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsCheckInSchema.parse(params);
+    const admin = createAdminClient();
+    let registrationId = parsed.registration_id;
+    if (!registrationId && parsed.qr_code) {
+      const { data: ticket } = await admin
+        .from('event_registration_tickets')
+        .select('registration_id')
+        .eq('qr_code', parsed.qr_code)
+        .single();
+      if (!ticket) throw communityError('QR code not found');
+      registrationId = ticket.registration_id;
+    }
+    if (!registrationId) throw communityError('Must provide registration_id or qr_code');
+    // Verify registration belongs to project
+    const { data: reg } = await admin
+      .from('event_registrations')
+      .select('id, event_id, events!inner(project_id)')
+      .eq('id', registrationId)
+      .single();
+    if (!reg) throw communityError('Registration not found');
+    const eventData = reg.events as unknown as { project_id: string };
+    if (eventData.project_id !== ctx.projectId) throw communityError('Registration not found');
+    const { data, error } = await admin
+      .from('event_registrations')
+      .update({ checked_in_at: new Date().toISOString(), checked_in_by: ctx.userId })
+      .eq('id', registrationId)
+      .select('id, registrant_name, checked_in_at')
+      .single();
+    if (error || !data) throw communityError(`Failed to check in: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify({ checked_in: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'events.cancel_registration',
+  description: 'Cancel an event registration and promote from waitlist if applicable.',
+  resource: 'events',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsCancelRegistrationSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsCancelRegistrationSchema.parse(params);
+    const admin = createAdminClient();
+    // Verify registration belongs to project
+    const { data: reg } = await admin
+      .from('event_registrations')
+      .select('id, event_id, status, events!inner(project_id, waitlist_enabled)')
+      .eq('id', parsed.registration_id)
+      .single();
+    if (!reg) throw communityError('Registration not found');
+    const eventData = reg.events as unknown as { project_id: string; waitlist_enabled: boolean };
+    if (eventData.project_id !== ctx.projectId) throw communityError('Registration not found');
+    if (reg.status === 'cancelled') throw communityError('Registration is already cancelled');
+    const { data, error } = await admin
+      .from('event_registrations')
+      .update({ status: 'cancelled' })
+      .eq('id', parsed.registration_id)
+      .select('id, registrant_name, status')
+      .single();
+    if (error || !data) throw communityError(`Failed to cancel registration: ${error?.message ?? 'unknown error'}`);
+    if (eventData.waitlist_enabled) {
+      promoteFromWaitlist(reg.event_id).catch(err => console.error('Waitlist promotion failed:', err));
+    }
+    return JSON.stringify({ registration: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'events.create_ticket_type',
+  description: 'Add a ticket type to an event.',
+  resource: 'events',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: eventsCreateTicketTypeSchema,
+  handler: async (params, ctx) => {
+    const parsed = eventsCreateTicketTypeSchema.parse(params);
+    const admin = createAdminClient();
+    // Verify event belongs to project
+    const { data: event } = await admin
+      .from('events')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.event_id)
+      .single();
+    if (!event) throw communityError('Event not found');
+    const { data, error } = await admin
+      .from('event_ticket_types')
+      .insert({
+        event_id: parsed.event_id,
+        name: parsed.name,
+        description: parsed.description ?? null,
+        quantity_available: parsed.quantity_available ?? null,
+        max_per_order: parsed.max_per_order ?? 10,
+      })
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to create ticket type: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify({ ticket_type: data });
   },
 });
 

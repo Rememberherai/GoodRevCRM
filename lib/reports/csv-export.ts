@@ -4,10 +4,15 @@
  */
 
 function escapeCell(value: string): string {
-  if (value.includes(',') || value.includes('"') || value.includes('\n') || value.includes('\r')) {
-    return `"${value.replace(/"/g, '""')}"`;
+  // Prevent CSV injection: prefix formula-trigger characters with a single quote
+  // so spreadsheet apps don't interpret cell content as formulas.
+  const needsFormulaEscape = /^[=+\-@\t\r]/.test(value);
+  const escaped = needsFormulaEscape ? `'${value}` : value;
+
+  if (escaped.includes(',') || escaped.includes('"') || escaped.includes('\n') || escaped.includes('\r')) {
+    return `"${escaped.replace(/"/g, '""')}"`;
   }
-  return value;
+  return escaped;
 }
 
 function formatValue(value: unknown): string {

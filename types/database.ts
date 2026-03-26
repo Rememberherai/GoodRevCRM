@@ -4263,11 +4263,11 @@ export type Database = {
           recurrence_until: string | null
           registration_enabled: boolean
           require_approval: boolean
-          requires_waiver: boolean
           status: string
           tags: string[] | null
           template_end_time: string
           template_start_time: string
+          ticket_types: Json
           timezone: string
           title: string
           total_capacity: number | null
@@ -4307,11 +4307,11 @@ export type Database = {
           recurrence_until?: string | null
           registration_enabled?: boolean
           require_approval?: boolean
-          requires_waiver?: boolean
           status?: string
           tags?: string[] | null
           template_end_time: string
           template_start_time: string
+          ticket_types?: Json
           timezone?: string
           title: string
           total_capacity?: number | null
@@ -4351,11 +4351,11 @@ export type Database = {
           recurrence_until?: string | null
           registration_enabled?: boolean
           require_approval?: boolean
-          requires_waiver?: boolean
           status?: string
           tags?: string[] | null
           template_end_time?: string
           template_start_time?: string
+          ticket_types?: Json
           timezone?: string
           title?: string
           total_capacity?: number | null

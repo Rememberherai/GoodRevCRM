@@ -89,7 +89,8 @@ export async function GET(request: Request, context: RouteContext) {
     .single();
 
   const customFields = docMeta?.custom_fields as Record<string, unknown> | null;
-  const isLightweightWaiver = customFields?.kind === 'program_waiver' && typeof customFields?.html_content === 'string';
+  const isLightweightWaiver = typeof customFields?.html_content === 'string';
+  const documentKind = typeof customFields?.kind === 'string' ? customFields.kind : 'waiver';
 
   return NextResponse.json({
     document_title: document.title,
@@ -114,7 +115,7 @@ export async function GET(request: Request, context: RouteContext) {
       value: f.value,
     })),
     ...(isLightweightWaiver ? {
-      document_kind: 'program_waiver',
+      document_kind: documentKind,
       waiver_html: customFields!.html_content as string,
     } : {}),
   });

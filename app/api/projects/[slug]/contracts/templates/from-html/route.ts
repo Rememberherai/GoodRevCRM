@@ -35,7 +35,11 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Validation failed', details: result.error.flatten() }, { status: 400 });
   }
 
-  const { name, description, html_content, include_signature_line, program_id } = result.data;
+  const { name, description, html_content, include_signature_line, program_id, event_id } = result.data;
+
+  if (program_id && event_id) {
+    return NextResponse.json({ error: 'Provide either program_id or event_id, not both' }, { status: 400 });
+  }
 
   // Check that the HTML has actual text content, not just empty tags
   const textContent = html_content.replace(/<[^>]*>/g, '').replace(/&nbsp;/g, ' ').trim();
@@ -107,7 +111,7 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Failed to create template' }, { status: 500 });
   }
 
-  // Auto-link to program if program_id provided
+  // Auto-link to target entity if provided
   let waiver = null;
   if (program_id) {
     const { data: waiverRow, error: waiverError } = await supabase
@@ -118,6 +122,29 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (waiverError) {
       console.error('[WAIVER_FROM_HTML] Program waiver link failed:', waiverError);
+    } else {
+      waiver = waiverRow;
+    }
+  } else if (event_id) {
+    const { data: event } = await supabase
+      .from('events')
+      .select('id')
+      .eq('id', event_id)
+      .eq('project_id', project.id)
+      .single();
+
+    if (!event) {
+      return NextResponse.json({ error: 'Event not found in this project' }, { status: 404 });
+    }
+
+    const { data: waiverRow, error: waiverError } = await supabase
+      .from('event_waivers')
+      .insert({ event_id, template_id: template.id })
+      .select()
+      .single();
+
+    if (waiverError) {
+      console.error('[WAIVER_FROM_HTML] Event waiver link failed:', waiverError);
     } else {
       waiver = waiverRow;
     }

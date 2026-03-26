@@ -1380,3 +1380,16 @@ npm run typecheck && npm run lint && npm run build && npm run test
 - [ ] Workflow scheduling (cron-based triggers)
 - [ ] Bulk workflow operations (activate/deactivate multiple)
 - [ ] Workflow analytics dashboard (execution success rate, avg duration, etc.)
+
+---
+
+# Event Calendar — Remaining Items (2026-03-25)
+
+## Missing Features (from E2E sweep passes)
+- [ ] Event notes API routes (`app/api/projects/[slug]/events/[id]/notes/route.ts` and `[noteId]/route.ts`) — plan specifies event feedback/observations via polymorphic notes table with `event_id` + `category` fields
+- [ ] Event notes validator — add `event_id` and `category` fields to notes creation schema
+- [ ] Cover image upload route (`app/api/projects/[slug]/events/[id]/upload-cover/route.ts`) — follow `app/api/projects/[slug]/logo/route.ts` pattern, upload to `event-covers` storage bucket
+- [ ] Public series registration route (`app/api/events/register-series/route.ts`) — register for entire series, create `event_series_registrations` + individual `event_registrations` for all future instances
+- [ ] Embed pages (plan Step 11) — `app/events/embed/[calendarSlug]/page.tsx` and `app/events/embed/[calendarSlug]/[eventSlug]/page.tsx` with `postMessage` on registration success
+- [ ] Admin events list page pagination controls — currently only shows first 24 events with no next/prev buttons
+- [ ] Cancel page token validation on load — currently doesn't verify token until form submit

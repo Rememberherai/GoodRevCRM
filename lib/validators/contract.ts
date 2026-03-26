@@ -246,6 +246,7 @@ export const createWaiverFromHtmlSchema = z.object({
   html_content: z.string().min(1, 'Waiver content is required').max(100_000),
   include_signature_line: z.boolean().default(true),
   program_id: z.string().uuid().optional(),
+  event_id: z.string().uuid().optional(),
 });
 
 export type CreateWaiverFromHtmlInput = z.infer<typeof createWaiverFromHtmlSchema>;

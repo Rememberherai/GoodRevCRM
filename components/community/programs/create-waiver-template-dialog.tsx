@@ -23,7 +23,8 @@ interface CreateWaiverTemplateDialogProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   onCreated: () => void;
-  programId: string;
+  programId?: string;
+  eventId?: string;
 }
 
 type Mode = 'write' | 'upload';
@@ -33,6 +34,7 @@ export function CreateWaiverTemplateDialog({
   onOpenChange,
   onCreated,
   programId,
+  eventId,
 }: CreateWaiverTemplateDialogProps) {
   const params = useParams();
   const slug = params.slug as string;
@@ -61,6 +63,10 @@ export function CreateWaiverTemplateDialog({
   };
 
   const submitWriteMode = async () => {
+    if (!programId && !eventId) {
+      throw new Error('A program or event target is required');
+    }
+
     const response = await fetch(`/api/projects/${slug}/contracts/templates/from-html`, {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
@@ -69,7 +75,8 @@ export function CreateWaiverTemplateDialog({
         description: description || null,
         html_content: htmlContent,
         include_signature_line: includeSignatureLine,
-        program_id: programId,
+        ...(programId ? { program_id: programId } : {}),
+        ...(eventId ? { event_id: eventId } : {}),
       }),
     });
 
@@ -79,6 +86,7 @@ export function CreateWaiverTemplateDialog({
 
   const submitUploadMode = async () => {
     if (!file) throw new Error('No file selected');
+    if (!programId && !eventId) throw new Error('A program or event target is required');
 
     // 1. Upload the PDF
     const formData = new FormData();
@@ -113,13 +121,16 @@ export function CreateWaiverTemplateDialog({
 
     // 3. Link to program
     if (templateData.template) {
-      const linkResponse = await fetch(`/api/projects/${slug}/programs/${programId}/waivers`, {
+      const linkPath = programId
+        ? `/api/projects/${slug}/programs/${programId}/waivers`
+        : `/api/projects/${slug}/events/${eventId}/waivers`;
+      const linkResponse = await fetch(linkPath, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ template_id: templateData.template.id }),
       });
       if (!linkResponse.ok) {
-        console.error('[CREATE_WAIVER] Failed to link template to program');
+        console.error('[CREATE_WAIVER] Failed to link template to target');
       }
     }
   };
@@ -156,6 +167,7 @@ export function CreateWaiverTemplateDialog({
   };
 
   const canSubmit = name.trim() && (mode === 'write' ? htmlContent.trim() : file);
+  const targetLabel = eventId ? 'event' : 'program';
 
   return (
     <Dialog open={open} onOpenChange={handleClose}>
@@ -163,7 +175,7 @@ export function CreateWaiverTemplateDialog({
         <DialogHeader>
           <DialogTitle>Create Waiver Template</DialogTitle>
           <DialogDescription>
-            Create a new waiver that enrollees must sign. It will be linked to this program automatically.
+            Create a new waiver that participants must sign. It will be linked to this {targetLabel} automatically.
           </DialogDescription>
         </DialogHeader>
 
