@@ -481,7 +481,7 @@ export async function getContractorHoursReport(
 
   const contractorMap = new Map<string, { hours: number; jobs: Set<string>; outOfScopeJobs: number }>();
   for (const entry of timeEntries ?? []) {
-    const job = jobById.get(entry.job_id);
+    const job = entry.job_id ? jobById.get(entry.job_id) : undefined;
     if (!job?.contractor_id) continue;
 
     const durationMinutes = entry.duration_minutes ?? (
@@ -828,8 +828,7 @@ export async function getEventOverviewReport(
   let eventsQuery = supabase
     .from('events')
     .select('id, title, starts_at, status, category, total_capacity')
-    .eq('project_id', projectId)
-    .is('deleted_at', null);
+    .eq('project_id', projectId);
   if (dateRange) {
     eventsQuery = eventsQuery.gte('starts_at', dateRange.from).lte('starts_at', dateRange.to);
   }
@@ -960,7 +959,6 @@ export async function getIndividualEventReport(
     .select('id, title, starts_at, ends_at, status, total_capacity')
     .eq('id', eventId)
     .eq('project_id', projectId)
-    .is('deleted_at', null)
     .maybeSingle();
 
   if (!event) return null;
@@ -1111,7 +1109,6 @@ export async function getSeriesReport(
     .select('id, title, starts_at, series_index')
     .eq('series_id', seriesId)
     .eq('project_id', projectId)
-    .is('deleted_at', null)
     .order('starts_at', { ascending: true });
   const eventList = events ?? [];
 
