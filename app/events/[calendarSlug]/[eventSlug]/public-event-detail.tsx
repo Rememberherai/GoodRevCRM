@@ -2,13 +2,14 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, MapPin, Monitor, Repeat, User } from 'lucide-react';
+import { CalendarDays, Clock, MapPin, Monitor, Repeat, User, ArrowLeft, Share2, ExternalLink } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
 import { toast } from 'sonner';
+import Link from 'next/link';
 
 interface TicketType {
   id: string;
@@ -92,6 +93,8 @@ export function PublicEventDetail({
   const activeTicketTypes = isSeriesRegistration ? seriesTicketTypes : ticketTypes;
   const activeSelections = isSeriesRegistration ? seriesSelections : eventTicketSelections;
 
+  const eventDate = new Date(event.starts_at);
+
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', {
       timeZone: event.timezone || 'America/Denver',
@@ -99,6 +102,11 @@ export function PublicEventDetail({
       month: 'long',
       day: 'numeric',
       year: 'numeric',
+    });
+
+  const formatTime = (iso: string) =>
+    new Date(iso).toLocaleTimeString('en-US', {
+      timeZone: event.timezone || 'America/Denver',
       hour: 'numeric',
       minute: '2-digit',
       timeZoneName: 'short',
@@ -118,6 +126,15 @@ export function PublicEventDetail({
     });
     return `https://calendar.google.com/calendar/render?${params.toString()}`;
   })();
+
+  function handleShare() {
+    if (typeof navigator !== 'undefined' && navigator.share) {
+      navigator.share({ title: event.title, url: window.location.href }).catch(() => {});
+    } else if (typeof navigator !== 'undefined') {
+      navigator.clipboard.writeText(window.location.href);
+      toast.success('Link copied to clipboard');
+    }
+  }
 
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
@@ -210,92 +227,173 @@ export function PublicEventDetail({
   }
 
   return (
-    <div className="space-y-6">
-      {event.cover_image_url && (
-        <div className="overflow-hidden rounded-xl">
-          <img src={event.cover_image_url} alt={event.title} className="w-full h-64 object-cover" />
+    <div className="space-y-0">
+      {/* Hero section */}
+      {event.cover_image_url ? (
+        <div className="relative -mx-4 -mt-8 mb-6 sm:-mx-4">
+          <div className="h-56 sm:h-72 md:h-80 overflow-hidden">
+            <img src={event.cover_image_url} alt={event.title} className="w-full h-full object-cover" />
+            <div className="absolute inset-0 bg-gradient-to-t from-black/60 via-black/20 to-transparent" />
+          </div>
+          <div className="absolute bottom-0 left-0 right-0 p-4 sm:p-6">
+            <div className="mx-auto max-w-4xl">
+              {!embed && (
+                <Link href={`/events/${calendarSlug}`} className="inline-flex items-center gap-1 text-sm text-white/80 hover:text-white mb-3 transition-colors">
+                  <ArrowLeft className="h-3.5 w-3.5" />
+                  All Events
+                </Link>
+              )}
+              <div className="flex items-start gap-3">
+                <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white">{event.title}</h1>
+              </div>
+              <div className="flex flex-wrap items-center gap-2 mt-2">
+                {event.category && <Badge className="bg-white/20 text-white border-white/30 backdrop-blur-sm">{event.category}</Badge>}
+                {seriesId && seriesTitle && (
+                  <Badge variant="outline" className="bg-white/10 text-white/90 border-white/30 backdrop-blur-sm">
+                    <Repeat className="h-3 w-3 mr-1" />
+                    {seriesTitle}
+                  </Badge>
+                )}
+              </div>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="mb-6">
+          {!embed && (
+            <Link href={`/events/${calendarSlug}`} className="inline-flex items-center gap-1 text-sm text-muted-foreground hover:text-foreground mb-4 transition-colors">
+              <ArrowLeft className="h-3.5 w-3.5" />
+              All Events
+            </Link>
+          )}
+          <div className="flex items-start gap-3">
+            <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold">{event.title}</h1>
+          </div>
+          <div className="flex flex-wrap items-center gap-2 mt-2">
+            {event.category && <Badge variant="outline">{event.category}</Badge>}
+            {seriesId && seriesTitle && (
+              <div className="flex items-center gap-1.5 text-sm text-muted-foreground">
+                <Repeat className="h-3.5 w-3.5" />
+                <span>Part of: <strong className="text-foreground">{seriesTitle}</strong></span>
+              </div>
+            )}
+          </div>
         </div>
       )}
 
-      <div>
-        <div className="flex items-start gap-3">
-          <h1 className="text-3xl font-bold">{event.title}</h1>
-          {event.category && <Badge variant="outline">{event.category}</Badge>}
-        </div>
-        {seriesId && seriesTitle && (
-          <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
-            <Repeat className="h-4 w-4" />
-            <span>Part of the series: <strong className="text-foreground">{seriesTitle}</strong></span>
-          </div>
-        )}
-      </div>
-
       <div className="grid gap-6 md:grid-cols-3">
-        {/* Event details */}
-        <div className="md:col-span-2 space-y-4">
-          <Card>
-            <CardContent className="p-5 space-y-4">
-              <div className="flex items-center gap-3 text-sm">
-                <CalendarDays className="h-4 w-4 text-muted-foreground" />
-                <div>
-                  <p className="font-medium">{formatDate(event.starts_at)}</p>
-                  <p className="text-muted-foreground">to {formatDate(event.ends_at)}</p>
+        {/* Event details — left column */}
+        <div className="md:col-span-2 space-y-5">
+          {/* Key details card */}
+          <Card className="overflow-hidden">
+            <CardContent className="p-0">
+              <div className="grid sm:grid-cols-2 divide-y sm:divide-y-0 sm:divide-x divide-border">
+                {/* Date & Time */}
+                <div className="p-5 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex flex-col items-center rounded-lg bg-primary/10 px-3 py-2 flex-shrink-0">
+                      <span className="text-xs font-semibold text-primary uppercase">
+                        {eventDate.toLocaleDateString('en-US', { timeZone: event.timezone || 'America/Denver', month: 'short' })}
+                      </span>
+                      <span className="text-2xl font-bold text-primary leading-tight">
+                        {eventDate.toLocaleDateString('en-US', { timeZone: event.timezone || 'America/Denver', day: 'numeric' })}
+                      </span>
+                    </div>
+                    <div className="pt-1">
+                      <p className="font-semibold">{formatDate(event.starts_at)}</p>
+                      <div className="flex items-center gap-1.5 text-sm text-muted-foreground mt-1">
+                        <Clock className="h-3.5 w-3.5" />
+                        <span>{formatTime(event.starts_at)} – {formatTime(event.ends_at)}</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Location */}
+                <div className="p-5 space-y-3">
+                  <div className="flex items-start gap-3">
+                    <div className="flex h-12 w-12 items-center justify-center rounded-lg bg-muted flex-shrink-0">
+                      {event.location_type === 'virtual' ? (
+                        <Monitor className="h-5 w-5 text-muted-foreground" />
+                      ) : (
+                        <MapPin className="h-5 w-5 text-muted-foreground" />
+                      )}
+                    </div>
+                    <div className="pt-1">
+                      <p className="font-semibold">
+                        {event.location_type === 'virtual' ? 'Virtual Event' : event.venue_name || 'Location TBD'}
+                      </p>
+                      {event.venue_address && (
+                        <p className="text-sm text-muted-foreground mt-0.5">{event.venue_address}</p>
+                      )}
+                      {event.location_type === 'virtual' && event.virtual_url && (
+                        <a href={event.virtual_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-primary hover:underline mt-0.5">
+                          Join link <ExternalLink className="h-3 w-3" />
+                        </a>
+                      )}
+                    </div>
+                  </div>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 text-sm">
-                {event.location_type === 'virtual' ? (
-                  <Monitor className="h-4 w-4 text-muted-foreground" />
-                ) : (
-                  <MapPin className="h-4 w-4 text-muted-foreground" />
-                )}
-                <p>{location}</p>
-              </div>
-
-              {event.organizer_name && (
-                <div className="flex items-center gap-3 text-sm">
-                  <User className="h-4 w-4 text-muted-foreground" />
-                  <p>Organized by {event.organizer_name}</p>
+              {/* Organizer & actions bar */}
+              <div className="flex flex-wrap items-center justify-between gap-3 border-t px-5 py-3 bg-muted/30">
+                <div className="flex items-center gap-4">
+                  {event.organizer_name && (
+                    <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                      <User className="h-3.5 w-3.5" />
+                      <span>Organized by <strong className="text-foreground">{event.organizer_name}</strong></span>
+                    </div>
+                  )}
                 </div>
-              )}
-
-              <div className="flex flex-wrap gap-2 pt-2">
-                <Button variant="outline" size="sm" asChild>
-                  <a href={googleCalendarUrl} target="_blank" rel="noreferrer">
-                    Add to Google Calendar
-                  </a>
-                </Button>
-                <Button variant="outline" size="sm" asChild>
-                  <a href={`/api/events/ics?calendar=${calendarSlug}&event=${event.slug}`} download>
-                    Download .ics
-                  </a>
-                </Button>
+                <div className="flex items-center gap-2">
+                  <Button variant="ghost" size="sm" onClick={handleShare} className="text-xs">
+                    <Share2 className="h-3.5 w-3.5 mr-1" />
+                    Share
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild className="text-xs">
+                    <a href={googleCalendarUrl} target="_blank" rel="noreferrer">
+                      <CalendarDays className="h-3.5 w-3.5 mr-1" />
+                      Google Calendar
+                    </a>
+                  </Button>
+                  <Button variant="ghost" size="sm" asChild className="text-xs">
+                    <a href={`/api/events/ics?calendar=${calendarSlug}&event=${event.slug}`} download>
+                      <CalendarDays className="h-3.5 w-3.5 mr-1" />
+                      .ics
+                    </a>
+                  </Button>
+                </div>
               </div>
             </CardContent>
           </Card>
 
+          {/* Description */}
           {event.description_html ? (
             <Card>
-              <CardContent className="p-5 prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: event.description_html }} />
+              <CardHeader><CardTitle className="text-base">About this event</CardTitle></CardHeader>
+              <CardContent className="pt-0 prose prose-sm dark:prose-invert max-w-none" dangerouslySetInnerHTML={{ __html: event.description_html }} />
             </Card>
           ) : event.description ? (
             <Card>
-              <CardContent className="p-5">
-                <p className="text-sm whitespace-pre-wrap">{event.description}</p>
+              <CardHeader><CardTitle className="text-base">About this event</CardTitle></CardHeader>
+              <CardContent className="pt-0">
+                <p className="text-sm whitespace-pre-wrap leading-relaxed">{event.description}</p>
               </CardContent>
             </Card>
           ) : null}
 
+          {/* Cancellation policy */}
           {event.cancellation_policy && (
             <Card>
-              <CardHeader><CardTitle className="text-sm">Cancellation Policy</CardTitle></CardHeader>
+              <CardHeader><CardTitle className="text-sm text-muted-foreground">Cancellation Policy</CardTitle></CardHeader>
               <CardContent className="pt-0"><p className="text-sm text-muted-foreground">{event.cancellation_policy}</p></CardContent>
             </Card>
           )}
         </div>
 
-        {/* Registration form */}
-        <div>
+        {/* Registration form — right column */}
+        <div className="md:sticky md:top-4 self-start">
           {(() => {
             const now = new Date();
             const notYetOpen = event.registration_opens_at && new Date(event.registration_opens_at) > now;
@@ -304,9 +402,10 @@ export function PublicEventDetail({
 
             if (!event.registration_enabled) {
               return (
-                <Card>
-                  <CardContent className="p-5 text-center text-sm text-muted-foreground">
-                    Registration is currently closed for this event.
+                <Card className="border-dashed">
+                  <CardContent className="p-6 text-center">
+                    <CalendarDays className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">Registration is currently closed for this event.</p>
                   </CardContent>
                 </Card>
               );
@@ -314,9 +413,13 @@ export function PublicEventDetail({
 
             if (notYetOpen) {
               return (
-                <Card>
-                  <CardContent className="p-5 text-center text-sm text-muted-foreground">
-                    Registration opens on {new Date(event.registration_opens_at!).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}.
+                <Card className="border-dashed">
+                  <CardContent className="p-6 text-center">
+                    <Clock className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                    <p className="font-medium text-sm">Registration opens soon</p>
+                    <p className="text-xs text-muted-foreground mt-1">
+                      {new Date(event.registration_opens_at!).toLocaleDateString('en-US', { month: 'long', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}
+                    </p>
                   </CardContent>
                 </Card>
               );
@@ -324,9 +427,10 @@ export function PublicEventDetail({
 
             if (alreadyClosed) {
               return (
-                <Card>
-                  <CardContent className="p-5 text-center text-sm text-muted-foreground">
-                    Registration for this event has closed.
+                <Card className="border-dashed">
+                  <CardContent className="p-6 text-center">
+                    <CalendarDays className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                    <p className="text-sm text-muted-foreground">Registration for this event has closed.</p>
                   </CardContent>
                 </Card>
               );
@@ -334,9 +438,10 @@ export function PublicEventDetail({
 
             if (atCapacity && !seriesId) {
               return (
-                <Card>
-                  <CardContent className="p-5 text-center text-sm text-muted-foreground">
-                    This event is at full capacity.
+                <Card className="border-dashed">
+                  <CardContent className="p-6 text-center">
+                    <p className="font-medium text-sm">Event is at full capacity</p>
+                    <p className="text-xs text-muted-foreground mt-1">All spots have been filled.</p>
                   </CardContent>
                 </Card>
               );
@@ -344,38 +449,41 @@ export function PublicEventDetail({
 
             return null;
           })() || (event.registration_enabled && activeTicketTypes.length === 0 && (
-            <Card>
-              <CardContent className="p-5 text-center text-sm text-muted-foreground">
+            <Card className="border-dashed">
+              <CardContent className="p-6 text-center text-sm text-muted-foreground">
                 {isSeriesRegistration
                   ? 'Series registration is not available yet for this event.'
                   : 'Registration is being set up. Please check back soon.'}
               </CardContent>
             </Card>
           )) || (event.registration_enabled && activeTicketTypes.length > 0 && (
-            <Card>
-              <CardHeader>
-                <CardTitle className="text-base">Register</CardTitle>
+            <Card className="shadow-lg border-primary/20">
+              <CardHeader className="pb-3">
+                <CardTitle className="text-lg">Register</CardTitle>
                 {event.require_approval && (
                   <p className="text-xs text-muted-foreground">Registration requires approval</p>
                 )}
                 {event.remaining_capacity !== null && event.waitlist_enabled && event.remaining_capacity <= 0 && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400">Event is full — you will be added to the waitlist</p>
+                  <Badge variant="outline" className="text-amber-600 border-amber-300 w-fit">Waitlist</Badge>
                 )}
                 {seriesId && event.remaining_capacity !== null && event.remaining_capacity <= 0 && !event.waitlist_enabled && (
-                  <p className="text-xs text-amber-600 dark:text-amber-400">This instance is full, but you can still register for the full series.</p>
+                  <p className="text-xs text-amber-600 dark:text-amber-400">This instance is full, but you can register for the full series.</p>
                 )}
               </CardHeader>
               <CardContent>
                 {(seriesSuccessMessage || (embed && registrationStatus)) ? (
-                  <div className="space-y-2 text-sm">
-                    <p className="font-medium">{seriesSuccessMessage ? 'Series registration submitted.' : 'Registration submitted.'}</p>
+                  <div className="space-y-3 text-center py-4">
+                    <div className="h-12 w-12 rounded-full bg-green-100 dark:bg-green-900 flex items-center justify-center mx-auto">
+                      <CalendarDays className="h-6 w-6 text-green-600 dark:text-green-400" />
+                    </div>
+                    <p className="font-semibold">{seriesSuccessMessage ? 'Series registration confirmed!' : 'Registration submitted!'}</p>
                     {seriesSuccessMessage ? (
-                      <p className="text-muted-foreground">{seriesSuccessMessage}</p>
+                      <p className="text-sm text-muted-foreground">{seriesSuccessMessage}</p>
                     ) : (
-                      <p className="text-muted-foreground">
+                      <p className="text-sm text-muted-foreground">
                         {registrationStatus === 'confirmed'
-                          ? 'The parent page has been notified and your spot is confirmed.'
-                          : `The parent page has been notified. Current status: ${registrationStatus}.`}
+                          ? 'Your spot is confirmed.'
+                          : `Current status: ${registrationStatus}.`}
                       </p>
                     )}
                   </div>
@@ -383,36 +491,41 @@ export function PublicEventDetail({
                 <form onSubmit={handleRegister} className="space-y-4">
                   <div className="space-y-2">
                     <Label htmlFor="reg-name">Name *</Label>
-                    <Input id="reg-name" value={name} onChange={(e) => setName(e.target.value)} required />
+                    <Input id="reg-name" value={name} onChange={(e) => setName(e.target.value)} required placeholder="Your full name" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="reg-email">Email *</Label>
-                    <Input id="reg-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required />
+                    <Input id="reg-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} required placeholder="you@example.com" />
                   </div>
                   <div className="space-y-2">
                     <Label htmlFor="reg-phone">Phone</Label>
-                    <Input id="reg-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
+                    <Input id="reg-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} placeholder="Optional" />
                   </div>
 
                   {seriesId && (
                     <div className="space-y-2">
                       <Label>Registration Type</Label>
-                      <div className="space-y-1">
-                        <label className="flex items-center gap-2 cursor-pointer rounded border p-2 text-sm">
+                      <div className="space-y-2">
+                        <label className={`flex items-center gap-3 cursor-pointer rounded-lg border p-3 text-sm transition-colors ${registerMode === 'event' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'} ${event.remaining_capacity !== null && event.remaining_capacity <= 0 && !event.waitlist_enabled ? 'opacity-50 pointer-events-none' : ''}`}>
                           <input
                             type="radio"
                             name="registerMode"
                             checked={registerMode === 'event'}
                             onChange={() => setRegisterMode('event')}
                             disabled={event.remaining_capacity !== null && event.remaining_capacity <= 0 && !event.waitlist_enabled}
+                            className="accent-primary"
                           />
-                          <span className={event.remaining_capacity !== null && event.remaining_capacity <= 0 && !event.waitlist_enabled ? 'text-muted-foreground' : ''}>
-                            Register for this event only
-                          </span>
+                          <div>
+                            <p className="font-medium">This event only</p>
+                            <p className="text-xs text-muted-foreground">Register for just this date</p>
+                          </div>
                         </label>
-                        <label className="flex items-center gap-2 cursor-pointer rounded border p-2 text-sm">
-                          <input type="radio" name="registerMode" checked={registerMode === 'series'} onChange={() => setRegisterMode('series')} />
-                          Register for entire series
+                        <label className={`flex items-center gap-3 cursor-pointer rounded-lg border p-3 text-sm transition-colors ${registerMode === 'series' ? 'border-primary bg-primary/5' : 'hover:bg-muted/50'}`}>
+                          <input type="radio" name="registerMode" checked={registerMode === 'series'} onChange={() => setRegisterMode('series')} className="accent-primary" />
+                          <div>
+                            <p className="font-medium">Entire series</p>
+                            <p className="text-xs text-muted-foreground">Register for all upcoming events</p>
+                          </div>
                         </label>
                       </div>
                     </div>
@@ -422,10 +535,13 @@ export function PublicEventDetail({
                     <div className="space-y-3">
                       <Label>Tickets</Label>
                       {activeTicketTypes.map((tt) => (
-                        <div key={tt.id} className="flex items-center justify-between rounded border p-2">
-                          <div>
+                        <div key={tt.id} className="flex items-center justify-between rounded-lg border p-3">
+                          <div className="min-w-0 flex-1">
                             <p className="text-sm font-medium">{tt.name}</p>
-                            {tt.description && <p className="text-xs text-muted-foreground">{tt.description}</p>}
+                            {tt.description && <p className="text-xs text-muted-foreground mt-0.5">{tt.description}</p>}
+                            {!isSeriesRegistration && tt.remaining !== null && tt.remaining < 20 && tt.remaining > 0 && (
+                              <p className="text-xs text-amber-600 mt-0.5">{tt.remaining} left</p>
+                            )}
                           </div>
                           <Input
                             type="number"
@@ -444,16 +560,20 @@ export function PublicEventDetail({
                                 setEventTicketSelections((prev) => ({ ...prev, [tt.id]: quantity }));
                               }
                             }}
-                            className="w-16 text-center"
+                            className="w-16 text-center flex-shrink-0"
                           />
                         </div>
                       ))}
                     </div>
                   )}
 
-                  <Button type="submit" className="w-full" disabled={isSubmitting}>
-                    {isSubmitting ? 'Registering...' : 'Register'}
+                  <Button type="submit" className="w-full h-11 text-base font-semibold" disabled={isSubmitting}>
+                    {isSubmitting ? 'Registering...' : 'Register Now'}
                   </Button>
+
+                  {event.remaining_capacity !== null && event.remaining_capacity > 0 && event.remaining_capacity < 20 && (
+                    <p className="text-xs text-center text-amber-600">Only {event.remaining_capacity} spots remaining</p>
+                  )}
                 </form>
                 )}
               </CardContent>

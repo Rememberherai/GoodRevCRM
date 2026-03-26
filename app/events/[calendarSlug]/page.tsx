@@ -57,9 +57,14 @@ export default async function PublicCalendarPage({ params }: PageProps) {
 
   return (
     <div>
-      <div className="mb-8 text-center">
-        <h1 className="text-3xl font-bold">{settings.title}</h1>
-        {settings.description && <p className="mt-2 text-muted-foreground">{settings.description}</p>}
+      <div className="mb-8">
+        {settings.logo_url && (
+          <div className="flex justify-center mb-4">
+            <img src={settings.logo_url} alt="" className="h-12 w-auto" />
+          </div>
+        )}
+        <h1 className="text-3xl sm:text-4xl font-bold text-center">{settings.title}</h1>
+        {settings.description && <p className="mt-3 text-center text-muted-foreground max-w-2xl mx-auto">{settings.description}</p>}
       </div>
       <PublicEventList events={events} calendarSlug={calendarSlug} />
     </div>
