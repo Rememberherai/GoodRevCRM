@@ -173,7 +173,7 @@ export function MemberPermissionsDialog({
 
   return (
     <Dialog open={open} onOpenChange={onOpenChange}>
-      <DialogContent className="max-w-md">
+      <DialogContent className="max-w-2xl">
         <DialogHeader>
           <DialogTitle>Customize permissions</DialogTitle>
           <DialogDescription>
