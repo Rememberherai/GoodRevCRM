@@ -5,7 +5,7 @@
  */
 
 import { createServiceClient } from '@/lib/supabase/server';
-import { scorePersonMatch } from '@/lib/deduplication/detector';
+import { jaroWinkler } from '@/lib/deduplication/detector';
 import { getProjectSecret } from '@/lib/secrets';
 
 // ============================================================
@@ -183,29 +183,38 @@ export async function matchParsedNames(
   for (const entry of entries) {
     let bestMatch: { personId: string; confidence: number; name: string } | null = null;
 
+    const scannedName = entry.name.trim().toLowerCase();
+
     for (const person of people) {
       const fullName = [person.first_name, person.last_name].filter(Boolean).join(' ');
       if (!fullName && !person.email) continue;
 
-      const nameParts = entry.name.trim().split(/\s+/);
-      const result = scorePersonMatch(
-        {
-          first_name: nameParts[0] || null,
-          last_name: nameParts.slice(1).join(' ') || null,
-          email: entry.email ?? null,
-          phone: entry.phone ?? null,
-        },
-        {
-          first_name: person.first_name,
-          last_name: person.last_name,
-          email: person.email,
-          phone: person.phone,
-          mobile_phone: person.mobile_phone,
-        }
-      );
+      // Primary signal: name similarity via Jaro-Winkler
+      let score = 0;
+      if (fullName && scannedName) {
+        score = jaroWinkler(scannedName, fullName.toLowerCase());
+      }
 
-      if (!bestMatch || result.score > bestMatch.confidence) {
-        bestMatch = { personId: person.id, confidence: result.score, name: fullName || person.email || '' };
+      // Boost for exact email match
+      if (entry.email && person.email &&
+          entry.email.toLowerCase() === person.email.toLowerCase()) {
+        score = Math.min(1, score + 0.3);
+      }
+
+      // Boost for phone match (normalize to digits, compare last 7+)
+      const normalizeDigits = (p: string) => p.replace(/\D/g, '');
+      if (entry.phone) {
+        const scannedDigits = normalizeDigits(entry.phone);
+        const personDigits = person.phone ? normalizeDigits(person.phone) : '';
+        const mobileDigits = person.mobile_phone ? normalizeDigits(person.mobile_phone) : '';
+        if (scannedDigits.length >= 7 &&
+            (personDigits.endsWith(scannedDigits.slice(-7)) || mobileDigits.endsWith(scannedDigits.slice(-7)))) {
+          score = Math.min(1, score + 0.25);
+        }
+      }
+
+      if (!bestMatch || score > bestMatch.confidence) {
+        bestMatch = { personId: person.id, confidence: score, name: fullName || person.email || '' };
       }
     }
 
