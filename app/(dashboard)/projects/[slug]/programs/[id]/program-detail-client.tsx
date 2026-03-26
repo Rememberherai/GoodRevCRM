@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, CalendarRange, ShieldCheck, Trash2, Plus, FilePlus } from 'lucide-react';
+import { ArrowLeft, CalendarDays, CalendarRange, ShieldCheck, Trash2, Plus, FilePlus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -94,6 +94,9 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
   const [isAddingWaiver, setIsAddingWaiver] = useState(false);
   const [showCreateWaiver, setShowCreateWaiver] = useState(false);
 
+  // Linked events
+  const [linkedEvents, setLinkedEvents] = useState<{ id: string; title: string; status: string; starts_at: string; timezone: string }[]>([]);
+
   const loadProgram = useCallback(async () => {
     setIsLoading(true);
     setError(null);
@@ -137,10 +140,21 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
     }
   }, [slug]);
 
+  const loadLinkedEvents = useCallback(async () => {
+    try {
+      const res = await fetch(`/api/projects/${slug}/events?programId=${programId}&limit=50&sortBy=starts_at&sortOrder=asc`);
+      const data = await res.json();
+      if (res.ok) setLinkedEvents(data.events ?? []);
+    } catch {
+      // Non-critical
+    }
+  }, [slug, programId]);
+
   useEffect(() => {
     void loadProgram();
     void loadTemplates();
-  }, [loadProgram, loadTemplates]);
+    void loadLinkedEvents();
+  }, [loadProgram, loadTemplates, loadLinkedEvents]);
 
   const addWaiver = async () => {
     if (!selectedTemplateId) return;
@@ -302,6 +316,7 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
           <TabsTrigger value="info">Info</TabsTrigger>
           <TabsTrigger value="enrollments">Enrollments</TabsTrigger>
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
+          <TabsTrigger value="events">Events{linkedEvents.length > 0 ? ` (${linkedEvents.length})` : ''}</TabsTrigger>
           <TabsTrigger value="contributions">Contributions</TabsTrigger>
         </TabsList>
 
@@ -480,6 +495,43 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
             enrollments={enrollments}
             onSaved={() => void loadProgram()}
           />
+        </TabsContent>
+
+        <TabsContent value="events" className="pt-4">
+          <Card>
+            <CardHeader>
+              <CardTitle className="flex items-center gap-2"><CalendarDays className="h-4 w-4" />Linked Events</CardTitle>
+              <CardDescription>Events associated with this program.</CardDescription>
+            </CardHeader>
+            <CardContent>
+              {linkedEvents.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4 text-center">No events linked to this program yet.</p>
+              ) : (
+                <div className="space-y-2">
+                  {linkedEvents.map(evt => (
+                    <Link key={evt.id} href={`/projects/${slug}/events/${evt.id}`} className="block">
+                      <div className="flex items-center justify-between rounded-lg border p-3 hover:bg-muted/50 transition-colors">
+                        <div>
+                          <p className="font-medium text-sm">{evt.title}</p>
+                          <p className="text-xs text-muted-foreground">
+                            {new Date(evt.starts_at).toLocaleDateString('en-US', {
+                              timeZone: evt.timezone || 'America/Denver',
+                              weekday: 'short',
+                              month: 'short',
+                              day: 'numeric',
+                              hour: 'numeric',
+                              minute: '2-digit',
+                            })}
+                          </p>
+                        </div>
+                        <Badge variant="secondary">{evt.status}</Badge>
+                      </div>
+                    </Link>
+                  ))}
+                </div>
+              )}
+            </CardContent>
+          </Card>
         </TabsContent>
 
         <TabsContent value="contributions" className="pt-4">

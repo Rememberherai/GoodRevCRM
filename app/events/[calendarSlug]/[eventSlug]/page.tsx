@@ -1,6 +1,7 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import type { Metadata } from 'next';
+import { parseSeriesTicketTemplates } from '@/lib/events/series';
 import { PublicEventDetail } from './public-event-detail';
 
 interface PageProps {
@@ -114,11 +115,52 @@ export default async function PublicEventPage({ params }: PageProps) {
       : null,
   }));
 
+  // If event belongs to a series, fetch series info for series registration option
+  let seriesInfo: {
+    id: string;
+    title: string;
+    ticketTypes: Array<{
+      id: string;
+      name: string;
+      description: string | null;
+      quantity_available: number | null;
+      max_per_order: number;
+      remaining: number | null;
+    }>;
+  } | null = null;
+  if (event.series_id) {
+    const { data: series } = await supabase
+      .from('event_series')
+      .select('id, title, ticket_types')
+      .eq('id', event.series_id)
+      .single();
+    if (series) {
+      seriesInfo = {
+        id: series.id,
+        title: series.title,
+        ticketTypes: parseSeriesTicketTemplates(series.ticket_types)
+          .filter((ticketType) => ticketType.is_active && !ticketType.is_hidden)
+          .sort((a, b) => a.sort_order - b.sort_order)
+          .map((ticketType) => ({
+            id: ticketType.id,
+            name: ticketType.name,
+            description: ticketType.description,
+            quantity_available: ticketType.quantity_available,
+            max_per_order: ticketType.max_per_order,
+            remaining: ticketType.quantity_available,
+          })),
+      };
+    }
+  }
+
   return (
     <PublicEventDetail
       event={{ ...event, remaining_capacity: remainingCapacity }}
       ticketTypes={ticketTypesWithRemaining}
+      seriesTicketTypes={seriesInfo?.ticketTypes ?? []}
       calendarSlug={calendarSlug}
+      seriesId={seriesInfo?.id ?? null}
+      seriesTitle={seriesInfo?.title ?? null}
     />
   );
 }

@@ -2,7 +2,7 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { CalendarDays, MapPin, Monitor, User } from 'lucide-react';
+import { CalendarDays, MapPin, Monitor, Repeat, User } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -48,23 +48,49 @@ interface Props {
     cancellation_policy: string | null;
   };
   ticketTypes: TicketType[];
+  seriesTicketTypes?: TicketType[];
   calendarSlug: string;
   embed?: boolean;
+  seriesId?: string | null;
+  seriesTitle?: string | null;
 }
 
-export function PublicEventDetail({ event, ticketTypes, calendarSlug, embed = false }: Props) {
+export function PublicEventDetail({
+  event,
+  ticketTypes,
+  seriesTicketTypes = [],
+  calendarSlug,
+  embed = false,
+  seriesId = null,
+  seriesTitle = null,
+}: Props) {
   const router = useRouter();
   const [name, setName] = useState('');
   const [email, setEmail] = useState('');
   const [phone, setPhone] = useState('');
   const [registrationStatus, setRegistrationStatus] = useState<string | null>(null);
-  const [ticketSelections, setTicketSelections] = useState<Record<string, number>>(() => {
+  const [seriesSuccessMessage, setSeriesSuccessMessage] = useState<string | null>(null);
+  const [eventTicketSelections, setEventTicketSelections] = useState<Record<string, number>>(() => {
     if (ticketTypes.length > 0) {
       return { [ticketTypes[0]!.id]: 1 };
     }
     return {};
   });
+  const [seriesSelections, setSeriesSelections] = useState<Record<string, number>>(() => {
+    if (seriesTicketTypes.length > 0) {
+      return { [seriesTicketTypes[0]!.id]: 1 };
+    }
+    return {};
+  });
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const [registerMode, setRegisterMode] = useState<'event' | 'series'>(
+    seriesId && event.remaining_capacity !== null && event.remaining_capacity <= 0 && !event.waitlist_enabled
+      ? 'series'
+      : 'event'
+  );
+  const isSeriesRegistration = registerMode === 'series' && Boolean(seriesId);
+  const activeTicketTypes = isSeriesRegistration ? seriesTicketTypes : ticketTypes;
+  const activeSelections = isSeriesRegistration ? seriesSelections : eventTicketSelections;
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', {
@@ -96,7 +122,7 @@ export function PublicEventDetail({ event, ticketTypes, calendarSlug, embed = fa
   async function handleRegister(e: React.FormEvent) {
     e.preventDefault();
 
-    const selections = Object.entries(ticketSelections)
+    const selections = Object.entries(activeSelections)
       .filter(([, qty]) => qty > 0)
       .map(([ticket_type_id, quantity]) => ({ ticket_type_id, quantity }));
 
@@ -105,26 +131,62 @@ export function PublicEventDetail({ event, ticketTypes, calendarSlug, embed = fa
       return;
     }
 
+    if (
+      registerMode === 'event' &&
+      event.remaining_capacity !== null &&
+      event.remaining_capacity <= 0 &&
+      !event.waitlist_enabled
+    ) {
+      toast.error('This event is full. Register for the full series instead.');
+      return;
+    }
+
     setIsSubmitting(true);
 
     try {
+      const isSeries = registerMode === 'series' && seriesId;
 
-      const res = await fetch('/api/events/register', {
+      const endpoint = isSeries ? '/api/events/register-series' : '/api/events/register';
+      const body = isSeries
+        ? {
+            series_id: seriesId,
+            registrant_name: name,
+            registrant_email: email,
+            registrant_phone: phone || null,
+            ticket_selections: selections,
+          }
+        : {
+            event_id: event.id,
+            registrant_name: name,
+            registrant_email: email,
+            registrant_phone: phone || null,
+            ticket_selections: selections,
+          };
+
+      const res = await fetch(endpoint, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          event_id: event.id,
-          registrant_name: name,
-          registrant_email: email,
-          registrant_phone: phone || null,
-          ticket_selections: selections,
-        }),
+        body: JSON.stringify(body),
       });
 
       const data = await res.json();
 
       if (!res.ok) {
         toast.error(data.error || 'Registration failed');
+        setIsSubmitting(false);
+        return;
+      }
+
+      if (isSeries) {
+        const count = data.instanceCount ?? 0;
+        const failed = data.failedInstances?.length ?? 0;
+        toast.success(`Registered for ${count - failed} events in the series`);
+        setRegistrationStatus('confirmed');
+        setSeriesSuccessMessage(
+          failed > 0
+            ? `Registered for ${count - failed} events in this series. ${failed} future instance${failed === 1 ? '' : 's'} could not be registered.`
+            : `Registered for ${count} events in this series.`
+        );
         setIsSubmitting(false);
         return;
       }
@@ -160,6 +222,12 @@ export function PublicEventDetail({ event, ticketTypes, calendarSlug, embed = fa
           <h1 className="text-3xl font-bold">{event.title}</h1>
           {event.category && <Badge variant="outline">{event.category}</Badge>}
         </div>
+        {seriesId && seriesTitle && (
+          <div className="mt-2 flex items-center gap-2 text-sm text-muted-foreground">
+            <Repeat className="h-4 w-4" />
+            <span>Part of the series: <strong className="text-foreground">{seriesTitle}</strong></span>
+          </div>
+        )}
       </div>
 
       <div className="grid gap-6 md:grid-cols-3">
@@ -264,7 +332,7 @@ export function PublicEventDetail({ event, ticketTypes, calendarSlug, embed = fa
               );
             }
 
-            if (atCapacity) {
+            if (atCapacity && !seriesId) {
               return (
                 <Card>
                   <CardContent className="p-5 text-center text-sm text-muted-foreground">
@@ -275,13 +343,15 @@ export function PublicEventDetail({ event, ticketTypes, calendarSlug, embed = fa
             }
 
             return null;
-          })() || (event.registration_enabled && ticketTypes.length === 0 && (
+          })() || (event.registration_enabled && activeTicketTypes.length === 0 && (
             <Card>
               <CardContent className="p-5 text-center text-sm text-muted-foreground">
-                Registration is being set up. Please check back soon.
+                {isSeriesRegistration
+                  ? 'Series registration is not available yet for this event.'
+                  : 'Registration is being set up. Please check back soon.'}
               </CardContent>
             </Card>
-          )) || (event.registration_enabled && ticketTypes.length > 0 && (
+          )) || (event.registration_enabled && activeTicketTypes.length > 0 && (
             <Card>
               <CardHeader>
                 <CardTitle className="text-base">Register</CardTitle>
@@ -291,16 +361,23 @@ export function PublicEventDetail({ event, ticketTypes, calendarSlug, embed = fa
                 {event.remaining_capacity !== null && event.waitlist_enabled && event.remaining_capacity <= 0 && (
                   <p className="text-xs text-amber-600 dark:text-amber-400">Event is full — you will be added to the waitlist</p>
                 )}
+                {seriesId && event.remaining_capacity !== null && event.remaining_capacity <= 0 && !event.waitlist_enabled && (
+                  <p className="text-xs text-amber-600 dark:text-amber-400">This instance is full, but you can still register for the full series.</p>
+                )}
               </CardHeader>
               <CardContent>
-                {embed && registrationStatus ? (
+                {(seriesSuccessMessage || (embed && registrationStatus)) ? (
                   <div className="space-y-2 text-sm">
-                    <p className="font-medium">Registration submitted.</p>
-                    <p className="text-muted-foreground">
-                      {registrationStatus === 'confirmed'
-                        ? 'The parent page has been notified and your spot is confirmed.'
-                        : `The parent page has been notified. Current status: ${registrationStatus}.`}
-                    </p>
+                    <p className="font-medium">{seriesSuccessMessage ? 'Series registration submitted.' : 'Registration submitted.'}</p>
+                    {seriesSuccessMessage ? (
+                      <p className="text-muted-foreground">{seriesSuccessMessage}</p>
+                    ) : (
+                      <p className="text-muted-foreground">
+                        {registrationStatus === 'confirmed'
+                          ? 'The parent page has been notified and your spot is confirmed.'
+                          : `The parent page has been notified. Current status: ${registrationStatus}.`}
+                      </p>
+                    )}
                   </div>
                 ) : (
                 <form onSubmit={handleRegister} className="space-y-4">
@@ -317,10 +394,34 @@ export function PublicEventDetail({ event, ticketTypes, calendarSlug, embed = fa
                     <Input id="reg-phone" type="tel" value={phone} onChange={(e) => setPhone(e.target.value)} />
                   </div>
 
-                  {ticketTypes.length > 0 && (
+                  {seriesId && (
+                    <div className="space-y-2">
+                      <Label>Registration Type</Label>
+                      <div className="space-y-1">
+                        <label className="flex items-center gap-2 cursor-pointer rounded border p-2 text-sm">
+                          <input
+                            type="radio"
+                            name="registerMode"
+                            checked={registerMode === 'event'}
+                            onChange={() => setRegisterMode('event')}
+                            disabled={event.remaining_capacity !== null && event.remaining_capacity <= 0 && !event.waitlist_enabled}
+                          />
+                          <span className={event.remaining_capacity !== null && event.remaining_capacity <= 0 && !event.waitlist_enabled ? 'text-muted-foreground' : ''}>
+                            Register for this event only
+                          </span>
+                        </label>
+                        <label className="flex items-center gap-2 cursor-pointer rounded border p-2 text-sm">
+                          <input type="radio" name="registerMode" checked={registerMode === 'series'} onChange={() => setRegisterMode('series')} />
+                          Register for entire series
+                        </label>
+                      </div>
+                    </div>
+                  )}
+
+                  {activeTicketTypes.length > 0 && (
                     <div className="space-y-3">
                       <Label>Tickets</Label>
-                      {ticketTypes.map((tt) => (
+                      {activeTicketTypes.map((tt) => (
                         <div key={tt.id} className="flex items-center justify-between rounded border p-2">
                           <div>
                             <p className="text-sm font-medium">{tt.name}</p>
@@ -329,9 +430,20 @@ export function PublicEventDetail({ event, ticketTypes, calendarSlug, embed = fa
                           <Input
                             type="number"
                             min={0}
-                            max={tt.remaining != null ? Math.min(tt.max_per_order, tt.remaining) : tt.max_per_order}
-                            value={ticketSelections[tt.id] ?? 0}
-                            onChange={(e) => setTicketSelections(prev => ({ ...prev, [tt.id]: parseInt(e.target.value) || 0 }))}
+                            max={registerMode === 'series'
+                              ? tt.max_per_order
+                              : tt.remaining != null
+                                ? Math.min(tt.max_per_order, tt.remaining)
+                                : tt.max_per_order}
+                            value={activeSelections[tt.id] ?? 0}
+                            onChange={(e) => {
+                              const quantity = parseInt(e.target.value) || 0;
+                              if (isSeriesRegistration) {
+                                setSeriesSelections((prev) => ({ ...prev, [tt.id]: quantity }));
+                              } else {
+                                setEventTicketSelections((prev) => ({ ...prev, [tt.id]: quantity }));
+                              }
+                            }}
                             className="w-16 text-center"
                           />
                         </div>

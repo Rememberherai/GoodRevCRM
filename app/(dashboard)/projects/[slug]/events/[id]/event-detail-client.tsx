@@ -2,13 +2,21 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, CalendarDays, Copy, Download, MapPin, Monitor, Trash2, Users } from 'lucide-react';
+import { ArrowLeft, CalendarDays, Copy, Download, ExternalLink, MapPin, Monitor, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { toast } from 'sonner';
+import { EventCoverUpload } from '@/components/community/events/tabs/event-cover-upload';
+import { EventEditTab } from '@/components/community/events/tabs/event-edit-tab';
+import { EventTicketTypesTab } from '@/components/community/events/tabs/event-ticket-types-tab';
+import { EventRegistrationsTab } from '@/components/community/events/tabs/event-registrations-tab';
+import { EventCheckInTab } from '@/components/community/events/tabs/event-check-in-tab';
+import { EventAttendanceTab } from '@/components/community/events/tabs/event-attendance-tab';
+import { EventNotesTab } from '@/components/community/events/tabs/event-notes-tab';
+import { EventWaiversTab } from '@/components/community/events/tabs/event-waivers-tab';
 
 interface EventDetail {
   id: string;
@@ -32,6 +40,7 @@ interface EventDetail {
   series_id: string | null;
   program_id: string | null;
   add_to_crm: boolean;
+  cover_image_url: string | null;
   registration_count: number;
   registration_row_count?: number;
   registration_status_counts: {
@@ -41,26 +50,9 @@ interface EventDetail {
     pending_waiver: number;
     cancelled: number;
   };
-  ticket_types: TicketType[];
-}
-
-interface TicketType {
-  id: string;
-  name: string;
-  description: string | null;
-  quantity_available: number | null;
-  max_per_order: number;
-  is_active: boolean;
-}
-
-interface Registration {
-  id: string;
-  registrant_name: string;
-  registrant_email: string;
-  status: string;
-  checked_in_at: string | null;
-  created_at: string;
-  event_registration_tickets: { id: string; qr_code: string | null }[];
+  ticket_types: { id: string; name: string; description: string | null; quantity_available: number | null; max_per_order: number; is_active: boolean; sort_order: number }[];
+  waiver_count?: number;
+  [key: string]: unknown;
 }
 
 const statusColors: Record<string, string> = {
@@ -75,11 +67,10 @@ export function EventDetailClient() {
   const router = useRouter();
   const slug = params.slug as string;
   const eventId = params.id as string;
-  
+
   const [event, setEvent] = useState<EventDetail | null>(null);
-  const [registrations, setRegistrations] = useState<Registration[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [regLoading, setRegLoading] = useState(false);
+  const [calendarSlug, setCalendarSlug] = useState<string | null>(null);
 
   const loadEvent = useCallback(async () => {
     try {
@@ -94,18 +85,15 @@ export function EventDetailClient() {
     }
   }, [slug, eventId]);
 
-  const loadRegistrations = useCallback(async () => {
-    setRegLoading(true);
-    try {
-      const res = await fetch(`/api/projects/${slug}/events/${eventId}/registrations?limit=100`);
-      const data = await res.json();
-      if (res.ok) setRegistrations(data.registrations ?? []);
-    } catch (err) { console.error('Failed to load registrations:', err); } finally {
-      setRegLoading(false);
-    }
-  }, [slug, eventId]);
-
   useEffect(() => { void loadEvent(); }, [loadEvent]);
+
+  // Load calendar slug for public link
+  useEffect(() => {
+    fetch(`/api/projects/${slug}/events/calendar-settings`)
+      .then(res => res.json())
+      .then(data => { if (data.settings?.slug) setCalendarSlug(data.settings.slug); })
+      .catch(() => {});
+  }, [slug]);
 
   async function handlePublish() {
     const targetStatus = event?.status === 'published' ? 'draft' : 'published';
@@ -178,7 +166,14 @@ export function EventDetailClient() {
             <p className="text-sm text-muted-foreground">{formatDate(event.starts_at)}</p>
           </div>
         </div>
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-2 flex-wrap">
+          {event.status === 'published' && calendarSlug && (
+            <Button variant="outline" size="sm" asChild>
+              <a href={`/events/${calendarSlug}/${event.slug}`} target="_blank" rel="noopener noreferrer">
+                <ExternalLink className="mr-1 h-3 w-3" />View Public Page
+              </a>
+            </Button>
+          )}
           <Button variant="outline" size="sm" onClick={handlePublish}>
             {event.status === 'published' ? 'Unpublish' : 'Publish'}
           </Button>
@@ -196,14 +191,27 @@ export function EventDetailClient() {
         </div>
       </div>
 
-      <Tabs defaultValue="details" onValueChange={(v) => { if (v === 'registrations') void loadRegistrations(); }}>
-        <TabsList>
+      <Tabs defaultValue="details">
+        <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="edit">Edit</TabsTrigger>
           <TabsTrigger value="registrations">Registrations ({event.registration_row_count ?? event.registration_count})</TabsTrigger>
-          <TabsTrigger value="ticket-types">Ticket Types ({event.ticket_types.length})</TabsTrigger>
+          <TabsTrigger value="ticket-types">Tickets ({event.ticket_types.length})</TabsTrigger>
+          <TabsTrigger value="check-in">Check-in</TabsTrigger>
+          <TabsTrigger value="attendance">Attendance</TabsTrigger>
+          <TabsTrigger value="notes">Notes</TabsTrigger>
+          <TabsTrigger value="waivers">Waivers{event.waiver_count ? ` (${event.waiver_count})` : ''}</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="space-y-4 mt-4">
+          {/* Cover image */}
+          <EventCoverUpload
+            projectSlug={slug}
+            eventId={eventId}
+            currentUrl={event.cover_image_url}
+            onUploaded={() => void loadEvent()}
+          />
+
           <div className="grid gap-4 md:grid-cols-3">
             <Card className="md:col-span-2">
               <CardHeader>
@@ -264,75 +272,32 @@ export function EventDetailClient() {
           </div>
         </TabsContent>
 
+        <TabsContent value="edit" className="mt-4">
+          <EventEditTab projectSlug={slug} eventId={eventId} event={event} onUpdated={() => void loadEvent()} />
+        </TabsContent>
+
         <TabsContent value="registrations" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Registrations</CardTitle>
-              <CardDescription>All registrations for this event.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {regLoading ? (
-                <div className="space-y-2">{Array.from({ length: 3 }).map((_, i) => <div key={i} className="h-10 bg-muted rounded animate-pulse" />)}</div>
-              ) : registrations.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">No registrations yet.</p>
-              ) : (
-                <div className="overflow-x-auto">
-                  <table className="w-full text-sm">
-                    <thead>
-                      <tr className="border-b">
-                        <th className="px-2 py-2 text-left font-medium">Name</th>
-                        <th className="px-2 py-2 text-left font-medium">Email</th>
-                        <th className="px-2 py-2 text-left font-medium">Status</th>
-                        <th className="px-2 py-2 text-left font-medium">Checked In</th>
-                        <th className="px-2 py-2 text-left font-medium">Registered</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      {registrations.map((reg) => (
-                        <tr key={reg.id} className="border-b last:border-0">
-                          <td className="px-2 py-2">{reg.registrant_name}</td>
-                          <td className="px-2 py-2 text-muted-foreground">{reg.registrant_email}</td>
-                          <td className="px-2 py-2"><Badge variant="secondary">{reg.status}</Badge></td>
-                          <td className="px-2 py-2">{reg.checked_in_at ? new Date(reg.checked_in_at).toLocaleString() : '-'}</td>
-                          <td className="px-2 py-2 text-muted-foreground">{new Date(reg.created_at).toLocaleDateString()}</td>
-                        </tr>
-                      ))}
-                    </tbody>
-                  </table>
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <EventRegistrationsTab projectSlug={slug} eventId={eventId} />
         </TabsContent>
 
         <TabsContent value="ticket-types" className="mt-4">
-          <Card>
-            <CardHeader>
-              <CardTitle className="text-base">Ticket Types</CardTitle>
-              <CardDescription>Manage ticket tiers for this event.</CardDescription>
-            </CardHeader>
-            <CardContent>
-              {event.ticket_types.length === 0 ? (
-                <p className="text-sm text-muted-foreground py-4 text-center">No ticket types configured. A default &ldquo;General Admission&rdquo; ticket will be used.</p>
-              ) : (
-                <div className="space-y-3">
-                  {event.ticket_types.map((tt) => (
-                    <div key={tt.id} className="flex items-center justify-between rounded-lg border p-3">
-                      <div>
-                        <p className="font-medium">{tt.name}</p>
-                        {tt.description && <p className="text-xs text-muted-foreground">{tt.description}</p>}
-                      </div>
-                      <div className="flex items-center gap-4 text-sm">
-                        <span>Limit: {tt.quantity_available ?? 'Unlimited'}</span>
-                        <span>Max/order: {tt.max_per_order}</span>
-                        <Badge variant={tt.is_active ? 'default' : 'secondary'}>{tt.is_active ? 'Active' : 'Inactive'}</Badge>
-                      </div>
-                    </div>
-                  ))}
-                </div>
-              )}
-            </CardContent>
-          </Card>
+          <EventTicketTypesTab projectSlug={slug} eventId={eventId} ticketTypes={event.ticket_types} onUpdated={() => void loadEvent()} />
+        </TabsContent>
+
+        <TabsContent value="check-in" className="mt-4">
+          <EventCheckInTab projectSlug={slug} eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="attendance" className="mt-4">
+          <EventAttendanceTab projectSlug={slug} eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="notes" className="mt-4">
+          <EventNotesTab projectSlug={slug} eventId={eventId} />
+        </TabsContent>
+
+        <TabsContent value="waivers" className="mt-4">
+          <EventWaiversTab projectSlug={slug} eventId={eventId} />
         </TabsContent>
       </Tabs>
     </div>

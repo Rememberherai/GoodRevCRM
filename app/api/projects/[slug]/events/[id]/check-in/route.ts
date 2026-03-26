@@ -54,7 +54,7 @@ export async function POST(request: Request, context: RouteContext) {
     } else if (registration_id) {
       // Verify registration belongs to this event
       const { data: regCheck } = await supabase
-        .from('event_registrations').select('id, status').eq('id', registration_id).eq('event_id', id).single();
+        .from('event_registrations').select('id, status, registrant_name').eq('id', registration_id).eq('event_id', id).single();
       if (!regCheck) return NextResponse.json({ error: 'Registration not found for this event' }, { status: 404 });
       if (['cancelled', 'waitlisted'].includes(regCheck.status)) {
         return NextResponse.json({ error: `Cannot check in a ${regCheck.status} registration` }, { status: 409 });
@@ -113,6 +113,11 @@ export async function POST(request: Request, context: RouteContext) {
         return NextResponse.json({
           success: true,
           tickets_checked_in: tickets.length,
+          registration: {
+            id: registration_id,
+            registrant_name: regCheck.registrant_name,
+            checked_in_at: now,
+          },
         });
       }
 
@@ -139,7 +144,7 @@ export async function POST(request: Request, context: RouteContext) {
     // Verify ticket belongs to this event
     const { data: reg } = await supabase
       .from('event_registrations')
-      .select('id, event_id, person_id, status')
+      .select('id, event_id, person_id, status, registrant_name')
       .eq('id', ticketToCheckIn.registration_id)
       .single();
 
@@ -184,7 +189,15 @@ export async function POST(request: Request, context: RouteContext) {
       data: { event_id: id, ticket_id: ticketToCheckIn.id },
     }).catch(err => console.error('Failed to emit automation event:', err));
 
-    return NextResponse.json({ success: true, ticket_id: ticketToCheckIn.id });
+    return NextResponse.json({
+      success: true,
+      ticket_id: ticketToCheckIn.id,
+      registration: {
+        id: ticketToCheckIn.registration_id,
+        registrant_name: reg.registrant_name,
+        checked_in_at: now,
+      },
+    });
   } catch (error) {
     if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: 403 });
     console.error('Error in POST check-in:', error);

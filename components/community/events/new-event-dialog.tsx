@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -26,7 +26,18 @@ export function NewEventDialog({ open, onOpenChange, projectSlug, onCreated }: N
   const [venueName, setVenueName] = useState('');
   const [virtualUrl, setVirtualUrl] = useState('');
   const [category, setCategory] = useState('');
+  const [programId, setProgramId] = useState('');
+  const [programs, setPrograms] = useState<{ id: string; name: string }[]>([]);
   const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Denver';
+  const programSelectValue = programId || '__none__';
+
+  useEffect(() => {
+    if (!open) return;
+    fetch(`/api/projects/${projectSlug}/programs?limit=100`)
+      .then(res => res.json())
+      .then(data => { if (data.programs) setPrograms(data.programs); })
+      .catch(() => {});
+  }, [projectSlug, open]);
 
   async function handleSubmit(e: React.FormEvent) {
     e.preventDefault();
@@ -47,6 +58,7 @@ export function NewEventDialog({ open, onOpenChange, projectSlug, onCreated }: N
           venue_name: venueName.trim() || null,
           virtual_url: virtualUrl.trim() || null,
           category: category || null,
+          program_id: programId || null,
         }),
       });
 
@@ -73,6 +85,7 @@ export function NewEventDialog({ open, onOpenChange, projectSlug, onCreated }: N
     setVenueName('');
     setVirtualUrl('');
     setCategory('');
+    setProgramId('');
   }
 
   return (
@@ -132,6 +145,21 @@ export function NewEventDialog({ open, onOpenChange, projectSlug, onCreated }: N
               </Select>
             </div>
           </div>
+
+          {programs.length > 0 && (
+            <div className="space-y-2">
+              <Label>Program</Label>
+              <Select value={programSelectValue} onValueChange={(value) => setProgramId(value === '__none__' ? '' : value)}>
+                <SelectTrigger><SelectValue placeholder="None" /></SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="__none__">None</SelectItem>
+                  {programs.map(p => (
+                    <SelectItem key={p.id} value={p.id}>{p.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+          )}
 
           {(locationType === 'in_person' || locationType === 'hybrid') && (
             <div className="space-y-2">

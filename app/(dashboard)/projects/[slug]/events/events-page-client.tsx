@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { CalendarDays, Plus, Search, MapPin, Monitor, Users } from 'lucide-react';
+import { CalendarDays, Plus, Repeat, Search, MapPin, Monitor, Settings2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { NewEventDialog } from '@/components/community/events/new-event-dialog';
+import { NewSeriesDialog } from '@/components/community/events/new-series-dialog';
 
 interface EventListItem {
   id: string;
@@ -45,7 +46,10 @@ export function EventsPageClient() {
   const [events, setEvents] = useState<EventListItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
+  const [isSeriesDialogOpen, setIsSeriesDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [seriesList, setSeriesList] = useState<{ id: string; title: string; status: string; recurrence_frequency: string; program_id: string | null }[]>([]);
+  const [seriesLoading, setSeriesLoading] = useState(false);
 
   const loadEvents = useCallback(async (nextSearch: string, status: string) => {
     setIsLoading(true);
@@ -66,9 +70,26 @@ export function EventsPageClient() {
     }
   }, [slug]);
 
+  const loadSeries = useCallback(async () => {
+    setSeriesLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${slug}/events/series?limit=50`);
+      const data = await res.json();
+      if (res.ok) setSeriesList(data.series ?? []);
+    } catch {
+      console.error('Failed to load series');
+    } finally {
+      setSeriesLoading(false);
+    }
+  }, [slug]);
+
   useEffect(() => {
-    void loadEvents(search, statusFilter);
-  }, [loadEvents, search, statusFilter]);
+    if (statusFilter === 'series') {
+      void loadSeries();
+    } else {
+      void loadEvents(search, statusFilter);
+    }
+  }, [loadEvents, loadSeries, search, statusFilter]);
 
   function formatEventDate(startsAt: string, timezone: string) {
     return new Date(startsAt).toLocaleDateString('en-US', {
@@ -93,10 +114,21 @@ export function EventsPageClient() {
             <p className="text-sm text-muted-foreground">Manage events, registrations, and attendance.</p>
           </div>
         </div>
-        <Button onClick={() => setIsDialogOpen(true)}>
-          <Plus className="mr-2 h-4 w-4" />
-          New Event
-        </Button>
+        <div className="flex items-center gap-2">
+          <Link href={`/projects/${slug}/events/settings`}>
+            <Button variant="outline" size="icon">
+              <Settings2 className="h-4 w-4" />
+            </Button>
+          </Link>
+          <Button variant="outline" onClick={() => setIsSeriesDialogOpen(true)}>
+            <Repeat className="mr-2 h-4 w-4" />
+            New Series
+          </Button>
+          <Button onClick={() => setIsDialogOpen(true)}>
+            <Plus className="mr-2 h-4 w-4" />
+            New Event
+          </Button>
+        </div>
       </div>
 
       <Card>
@@ -132,6 +164,7 @@ export function EventsPageClient() {
               <TabsTrigger value="published">Published</TabsTrigger>
               <TabsTrigger value="completed">Completed</TabsTrigger>
               <TabsTrigger value="cancelled">Cancelled</TabsTrigger>
+              <TabsTrigger value="series">Series</TabsTrigger>
             </TabsList>
           </Tabs>
 
@@ -139,7 +172,40 @@ export function EventsPageClient() {
             <div className="rounded-md bg-destructive/10 p-4 text-sm text-destructive">{error}</div>
           )}
 
-          {isLoading ? (
+          {statusFilter === 'series' ? (
+            seriesLoading ? (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {Array.from({ length: 3 }).map((_, i) => (
+                  <div key={i} className="h-32 animate-pulse rounded-xl bg-muted" />
+                ))}
+              </div>
+            ) : seriesList.length === 0 ? (
+              <div className="flex flex-col items-center justify-center py-12 text-center">
+                <Repeat className="mb-4 h-12 w-12 text-muted-foreground" />
+                <h3 className="text-lg font-semibold">No series found</h3>
+                <p className="mt-1 text-sm text-muted-foreground">Create a recurring series to auto-generate events.</p>
+              </div>
+            ) : (
+              <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+                {seriesList.map(s => (
+                  <Link key={s.id} href={`/projects/${slug}/events/series/${s.id}`} className="group">
+                    <Card className="h-full transition-shadow hover:shadow-md">
+                      <CardContent className="p-4">
+                        <div className="mb-2 flex items-start justify-between gap-2">
+                          <h3 className="font-semibold leading-tight group-hover:text-primary">{s.title}</h3>
+                          <Badge variant="secondary" className={statusColors[s.status] ?? ''}>{s.status}</Badge>
+                        </div>
+                        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                          <Repeat className="h-3 w-3" />
+                          <span className="capitalize">{s.recurrence_frequency}</span>
+                        </div>
+                      </CardContent>
+                    </Card>
+                  </Link>
+                ))}
+              </div>
+            )
+          ) : isLoading ? (
             <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
               {Array.from({ length: 6 }).map((_, i) => (
                 <div key={i} className="h-48 animate-pulse rounded-xl bg-muted" />
@@ -210,6 +276,13 @@ export function EventsPageClient() {
         onOpenChange={setIsDialogOpen}
         projectSlug={slug}
         onCreated={() => void loadEvents(search, statusFilter)}
+      />
+
+      <NewSeriesDialog
+        open={isSeriesDialogOpen}
+        onOpenChange={setIsSeriesDialogOpen}
+        projectSlug={slug}
+        onCreated={() => { setStatusFilter('series'); void loadSeries(); }}
       />
     </div>
   );

@@ -77,7 +77,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const { data: oldReg } = await supabase
-      .from('event_registrations').select('status').eq('id', rid).eq('event_id', id).single();
+      .from('event_registrations').select('status, checked_in_at').eq('id', rid).eq('event_id', id).single();
     if (!oldReg) return NextResponse.json({ error: 'Registration not found' }, { status: 404 });
 
     const updates = validationResult.data;
@@ -85,6 +85,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     // Guard against empty update body
     if (!updates.status) {
       return NextResponse.json({ error: 'No updates provided' }, { status: 400 });
+    }
+
+    if (updates.status === 'cancelled' && oldReg.checked_in_at) {
+      return NextResponse.json({ error: 'Cannot cancel a checked-in registration' }, { status: 409 });
     }
 
     const updateData: Record<string, unknown> = {};

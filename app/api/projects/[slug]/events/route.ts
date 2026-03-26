@@ -56,6 +56,16 @@ export async function GET(request: Request, context: RouteContext) {
       query = query.eq('category', categoryFilter);
     }
 
+    const programIdFilter = searchParams.get('programId');
+    if (programIdFilter) {
+      query = query.eq('program_id', programIdFilter);
+    }
+
+    const seriesIdFilter = searchParams.get('seriesId');
+    if (seriesIdFilter) {
+      query = query.eq('series_id', seriesIdFilter);
+    }
+
     const ALLOWED_SORT = ['title', 'status', 'created_at', 'updated_at', 'starts_at', 'ends_at'];
     const ascending = sortOrder === 'asc';
     query = query.order(ALLOWED_SORT.includes(sortBy) ? sortBy : 'starts_at', { ascending });
