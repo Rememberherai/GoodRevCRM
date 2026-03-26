@@ -7,7 +7,7 @@ import { createBill } from '@/lib/assistant/accounting-bridge';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { createReceiptConfirmationSchema } from '@/lib/validators/community/receipts';
 import { syncJobAssignment, syncProgramSession, syncGrantDeadline } from '@/lib/assistant/calendar-bridge';
-import { checkContractorScopeMatch, formatWorkPlanLines } from '@/lib/community/jobs';
+import { checkContractorScopeMatch, formatWorkPlanLines, computeTimeEntryDurationMinutes } from '@/lib/community/jobs';
 import { createProjectNotification } from '@/lib/community/notifications';
 import { sendContractorDocuments, type ContractorDocumentKind } from '@/lib/community/contractor-documents';
 import { emitAutomationEvent } from '@/lib/automations/engine';
@@ -3902,6 +3902,204 @@ defineCommunityTool({
     }
 
     return JSON.stringify({ parsed_names: matched, summary });
+  },
+});
+
+// ─── Time Entries ────────────────────────────────────────────────────────────
+
+const timeEntriesListSchema = z.object({
+  contractor_id: z.string().uuid().optional(),
+  job_id: z.string().uuid().optional(),
+  from: z.string().optional(),
+  to: z.string().optional(),
+  limit: z.number().int().min(1).max(200).default(50),
+});
+
+const timeEntriesCreateSchema = z.object({
+  contractor_id: z.string().uuid().nullable().optional(),
+  job_id: z.string().uuid().nullable().optional(),
+  started_at: z.string(),
+  ended_at: z.string().nullable().optional(),
+  is_break: z.boolean().default(false),
+  category: z.string().max(100).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+}).superRefine((val, ctx) => {
+  if (!val.job_id && !val.contractor_id) {
+    ctx.addIssue({ code: z.ZodIssueCode.custom, message: 'Either job_id or contractor_id is required', path: ['job_id'] });
+  }
+});
+
+const timeEntriesUpdateSchema = z.object({
+  id: z.string().uuid(),
+  started_at: z.string().optional(),
+  ended_at: z.string().nullable().optional(),
+  is_break: z.boolean().optional(),
+  category: z.string().max(100).nullable().optional(),
+  notes: z.string().max(2000).nullable().optional(),
+});
+
+const timeEntriesDeleteSchema = z.object({
+  id: z.string().uuid(),
+});
+
+defineCommunityTool({
+  name: 'time_entries.list',
+  description: 'List time entries for the project. Filter by contractor, job, or date range.',
+  parameters: timeEntriesListSchema,
+  resource: 'jobs',
+  action: 'view',
+  roles: ['staff', 'case_manager', 'admin', 'owner'],
+  handler: async (params, ctx) => {
+    const parsed = timeEntriesListSchema.parse(params);
+    const supabase = createAdminClient();
+    let query = supabase
+      .from('job_time_entries')
+      .select('*, jobs(id, title, project_id), contractor:people!job_time_entries_contractor_id_fkey(id, first_name, last_name, project_id)')
+      .order('started_at', { ascending: false })
+      .limit(parsed.limit);
+    if (parsed.contractor_id) query = query.eq('contractor_id', parsed.contractor_id);
+    if (parsed.job_id) query = query.eq('job_id', parsed.job_id);
+    if (parsed.from) query = query.gte('started_at', parsed.from);
+    if (parsed.to) query = query.lte('started_at', `${parsed.to}T23:59:59.999Z`);
+    const { data, error } = await query;
+    if (error) throw new Error(error.message);
+    // Scope results to this project
+    const entries = (data ?? []).filter((e) => {
+      const jobProject = e.job_id ? (e.jobs as { project_id?: string } | null)?.project_id : null;
+      const contractorProject = !e.job_id ? (e.contractor as { project_id?: string } | null)?.project_id : null;
+      return jobProject === ctx.projectId || contractorProject === ctx.projectId;
+    });
+    return JSON.stringify({ entries });
+  },
+});
+
+defineCommunityTool({
+  name: 'time_entries.create',
+  description: 'Log a time entry for a contractor. job_id is optional for standalone entries.',
+  parameters: timeEntriesCreateSchema,
+  resource: 'jobs',
+  action: 'update',
+  roles: ['staff', 'admin', 'owner'],
+  handler: async (params, ctx) => {
+    const parsed = timeEntriesCreateSchema.parse(params);
+    const supabase = createAdminClient();
+    // Verify job belongs to this project and is not terminal if provided
+    if (parsed.job_id) {
+      const { data: job } = await supabase
+        .from('jobs')
+        .select('id, status')
+        .eq('id', parsed.job_id)
+        .eq('project_id', ctx.projectId)
+        .maybeSingle();
+      if (!job) throw new Error('Job not found in this project');
+      if (['completed', 'declined', 'pulled', 'cancelled'].includes(job.status)) {
+        throw new Error(`Cannot add time entries to a ${job.status} job`);
+      }
+    } else if (parsed.contractor_id) {
+      // For standalone entries, verify contractor belongs to this project
+      const { data: person } = await supabase
+        .from('people')
+        .select('id')
+        .eq('id', parsed.contractor_id)
+        .eq('project_id', ctx.projectId)
+        .maybeSingle();
+      if (!person) throw new Error('Contractor not found in this project');
+    }
+    const startedAt = parsed.started_at;
+    const endedAt = parsed.ended_at ?? null;
+    if (endedAt && Date.parse(endedAt) <= Date.parse(startedAt)) {
+      throw new Error('ended_at must be after started_at');
+    }
+    const durationMinutes = computeTimeEntryDurationMinutes(startedAt, endedAt);
+    const { data, error } = await supabase
+      .from('job_time_entries')
+      .insert({
+        job_id: parsed.job_id ?? null,
+        contractor_id: parsed.contractor_id ?? null,
+        started_at: startedAt,
+        ended_at: endedAt,
+        is_break: parsed.is_break,
+        duration_minutes: durationMinutes,
+        category: parsed.category ?? null,
+        notes: parsed.notes ?? null,
+      })
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message);
+    return JSON.stringify({ entry: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'time_entries.update',
+  description: 'Update a time entry by ID.',
+  parameters: timeEntriesUpdateSchema,
+  resource: 'jobs',
+  action: 'update',
+  roles: ['staff', 'admin', 'owner'],
+  handler: async (params, ctx) => {
+    const parsed = timeEntriesUpdateSchema.parse(params);
+    const supabase = createAdminClient();
+    const { data: existing, error: fetchError } = await supabase
+      .from('job_time_entries')
+      .select('*, jobs(project_id), contractor:people!job_time_entries_contractor_id_fkey(project_id)')
+      .eq('id', parsed.id)
+      .single();
+    if (fetchError || !existing) throw new Error('Time entry not found');
+    // Verify belongs to this project
+    const jobProject = existing.job_id ? (existing.jobs as { project_id?: string } | null)?.project_id : null;
+    const contractorProject = !existing.job_id ? (existing.contractor as { project_id?: string } | null)?.project_id : null;
+    if (jobProject !== ctx.projectId && contractorProject !== ctx.projectId) throw new Error('Time entry not found');
+    const startedAt = parsed.started_at ?? existing.started_at;
+    const endedAt = parsed.ended_at === undefined ? existing.ended_at : parsed.ended_at;
+    if (endedAt && Date.parse(endedAt) <= Date.parse(startedAt)) {
+      throw new Error('ended_at must be after started_at');
+    }
+    const durationMinutes = computeTimeEntryDurationMinutes(startedAt, endedAt ?? null);
+    const { data, error } = await supabase
+      .from('job_time_entries')
+      .update({
+        started_at: startedAt,
+        ended_at: endedAt,
+        is_break: parsed.is_break ?? existing.is_break,
+        duration_minutes: durationMinutes,
+        category: parsed.category === undefined ? existing.category : (parsed.category ?? null),
+        notes: parsed.notes === undefined ? existing.notes : (parsed.notes ?? null),
+      })
+      .eq('id', parsed.id)
+      .select('*')
+      .single();
+    if (error) throw new Error(error.message);
+    return JSON.stringify({ entry: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'time_entries.delete',
+  description: 'Delete a time entry by ID. Requires admin role.',
+  parameters: timeEntriesDeleteSchema,
+  resource: 'jobs',
+  action: 'delete',
+  roles: ['admin', 'owner'],
+  handler: async (params, ctx) => {
+    const parsed = timeEntriesDeleteSchema.parse(params);
+    const supabase = createAdminClient();
+    // Verify belongs to this project before deleting
+    const { data: existing } = await supabase
+      .from('job_time_entries')
+      .select('job_id, contractor_id, jobs(project_id), contractor:people!job_time_entries_contractor_id_fkey(project_id)')
+      .eq('id', parsed.id)
+      .maybeSingle();
+    if (!existing) throw new Error('Time entry not found');
+    const jobProject = existing.job_id ? (existing.jobs as { project_id?: string } | null)?.project_id : null;
+    const contractorProject = !existing.job_id ? (existing.contractor as { project_id?: string } | null)?.project_id : null;
+    if (jobProject !== ctx.projectId && contractorProject !== ctx.projectId) throw new Error('Time entry not found');
+    const { error } = await supabase
+      .from('job_time_entries')
+      .delete()
+      .eq('id', parsed.id);
+    if (error) throw new Error(error.message);
+    return JSON.stringify({ deleted: true, id: parsed.id });
   },
 });
 

@@ -8,6 +8,7 @@ const CONTRACTOR_PREFIXES = new Set([
   'jobs',
   'calendar',
   'receipts',
+  'time_entries',
 ]);
 
 function getToolShape(tool: CommunityChatTool) {

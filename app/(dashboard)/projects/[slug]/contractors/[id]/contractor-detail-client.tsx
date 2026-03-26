@@ -4,10 +4,14 @@ import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
 import { ArrowLeft, HardHat, Plus } from 'lucide-react';
+import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
+import { Input } from '@/components/ui/input';
+import { Label } from '@/components/ui/label';
 import { NewScopeDialog } from '@/components/community/contractors/new-scope-dialog';
+import { LogTimeDialog } from '@/components/community/contractors/log-time-dialog';
 
 interface ContractorPerson {
   id: string;
@@ -37,7 +41,25 @@ interface JobRecord {
   status: string;
   priority: string;
   deadline: string | null;
-  time_entries?: Array<{ duration_minutes: number | null }>;
+}
+
+interface TimeEntryRow {
+  id: string;
+  started_at: string;
+  ended_at: string | null;
+  is_break: boolean;
+  duration_minutes: number | null;
+  category: string | null;
+  notes: string | null;
+  jobs?: { id: string; title: string } | null;
+}
+
+function startOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth(), 1).toISOString().slice(0, 10);
+}
+
+function endOfMonth(date: Date) {
+  return new Date(date.getFullYear(), date.getMonth() + 1, 0).toISOString().slice(0, 10);
 }
 
 export function ContractorDetailClient({ contractorId }: { contractorId: string }) {
@@ -49,6 +71,12 @@ export function ContractorDetailClient({ contractorId }: { contractorId: string 
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showNewScope, setShowNewScope] = useState(false);
+  const [showLogTime, setShowLogTime] = useState(false);
+
+  const [timeEntries, setTimeEntries] = useState<TimeEntryRow[]>([]);
+  const [teLoading, setTeLoading] = useState(true);
+  const [teFrom, setTeFrom] = useState(() => startOfMonth(new Date()));
+  const [teTo, setTeTo] = useState(() => endOfMonth(new Date()));
 
   const loadData = useCallback(async () => {
     setLoading(true);
@@ -78,13 +106,41 @@ export function ContractorDetailClient({ contractorId }: { contractorId: string 
     }
   }, [contractorId, slug]);
 
+  const loadTimeEntries = useCallback(async () => {
+    setTeLoading(true);
+    try {
+      const params = new URLSearchParams({
+        contractor_id: contractorId,
+        from: teFrom,
+        to: teTo,
+        limit: '200',
+      });
+      const response = await fetch(`/api/projects/${slug}/time-entries?${params}`);
+      const data = await response.json() as { entries?: TimeEntryRow[]; error?: string };
+      if (!response.ok) throw new Error(data.error ?? 'Failed to load time entries');
+      setTimeEntries(data.entries ?? []);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load time entries');
+    } finally {
+      setTeLoading(false);
+    }
+  }, [contractorId, slug, teFrom, teTo]);
+
   useEffect(() => {
     void loadData();
   }, [loadData]);
 
-  const totalMinutes = useMemo(
-    () => jobs.reduce((sum, job) => sum + (job.time_entries ?? []).reduce((inner, entry) => inner + (entry.duration_minutes ?? 0), 0), 0),
-    [jobs]
+  useEffect(() => {
+    void loadTimeEntries();
+  }, [loadTimeEntries]);
+
+  const workMinutes = useMemo(
+    () => timeEntries.filter((e) => !e.is_break).reduce((sum, entry) => sum + (entry.duration_minutes ?? 0), 0),
+    [timeEntries]
+  );
+  const breakMinutes = useMemo(
+    () => timeEntries.filter((e) => e.is_break).reduce((sum, entry) => sum + (entry.duration_minutes ?? 0), 0),
+    [timeEntries]
   );
 
   if (loading) {
@@ -130,8 +186,8 @@ export function ContractorDetailClient({ contractorId }: { contractorId: string 
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge variant="secondary">{scopes[0]?.status?.replace(/_/g, ' ') ?? 'no scope'}</Badge>
-          <Badge variant="outline">{jobs.filter((job) => job.status !== 'completed').length} active jobs</Badge>
-          <Badge variant="outline">{Math.floor(totalMinutes / 60)}h {totalMinutes % 60}m logged</Badge>
+          <Badge variant="outline">{jobs.filter((job) => !['completed', 'declined', 'pulled', 'cancelled'].includes(job.status)).length} active jobs</Badge>
+          <Badge variant="outline">{Math.floor(workMinutes / 60)}h {workMinutes % 60}m work</Badge>
         </div>
       </div>
 
@@ -211,12 +267,120 @@ export function ContractorDetailClient({ contractorId }: { contractorId: string 
         </Card>
       </div>
 
+      {/* Time Entries card — full width below the grid */}
+      <Card>
+        <CardHeader>
+          <div className="flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <CardTitle>Time Entries</CardTitle>
+              <CardDescription>All logged hours including standalone entries not tied to a job.</CardDescription>
+            </div>
+            <div className="flex flex-wrap items-center gap-2">
+              <div className="flex items-center gap-1.5 text-sm">
+                <Label htmlFor="te-from" className="sr-only">From</Label>
+                <Input
+                  id="te-from"
+                  type="date"
+                  value={teFrom}
+                  onChange={(e) => setTeFrom(e.target.value)}
+                  className="h-8 w-36 text-xs"
+                />
+                <span className="text-muted-foreground">—</span>
+                <Label htmlFor="te-to" className="sr-only">To</Label>
+                <Input
+                  id="te-to"
+                  type="date"
+                  value={teTo}
+                  onChange={(e) => setTeTo(e.target.value)}
+                  className="h-8 w-36 text-xs"
+                />
+              </div>
+              <Button size="sm" variant="outline" onClick={() => setShowLogTime(true)}>
+                <Plus className="mr-2 h-4 w-4" />
+                Add Entry
+              </Button>
+            </div>
+          </div>
+        </CardHeader>
+        <CardContent>
+          {teLoading ? (
+            <div className="h-24 animate-pulse rounded-xl bg-muted" />
+          ) : (
+            <div className="space-y-3">
+              {timeEntries.length > 0 && (
+                <div className="flex flex-wrap gap-4 rounded-lg border bg-muted/30 px-4 py-3 text-sm">
+                  <div>
+                    <span className="text-muted-foreground">Work: </span>
+                    <span className="font-semibold">{Math.floor(workMinutes / 60)}h {workMinutes % 60}m</span>
+                  </div>
+                  <div>
+                    <span className="text-muted-foreground">Break: </span>
+                    <span className="font-semibold">{Math.floor(breakMinutes / 60)}h {breakMinutes % 60}m</span>
+                  </div>
+                </div>
+              )}
+              {timeEntries.length === 0 ? (
+                <div className="rounded-lg border border-dashed p-6 text-center text-sm text-muted-foreground">
+                  No time entries for this period.
+                </div>
+              ) : (
+                <div className="overflow-x-auto">
+                  <table className="w-full text-sm">
+                    <thead>
+                      <tr className="border-b text-xs uppercase tracking-wide text-muted-foreground">
+                        <th className="pb-2 pr-4 text-left font-medium">Date</th>
+                        <th className="pb-2 pr-4 text-left font-medium">Job</th>
+                        <th className="pb-2 pr-4 text-left font-medium">Category</th>
+                        <th className="pb-2 pr-4 text-left font-medium">Type</th>
+                        <th className="pb-2 text-right font-medium">Duration</th>
+                      </tr>
+                    </thead>
+                    <tbody className="divide-y">
+                      {timeEntries.map((entry) => (
+                        <tr key={entry.id} className="py-2">
+                          <td className="py-2 pr-4 text-muted-foreground">
+                            {new Date(entry.started_at).toLocaleDateString()}
+                          </td>
+                          <td className="py-2 pr-4">
+                            {entry.jobs?.title ?? <span className="text-muted-foreground">—</span>}
+                          </td>
+                          <td className="py-2 pr-4 text-muted-foreground">{entry.category ?? '—'}</td>
+                          <td className="py-2 pr-4">
+                            <Badge variant={entry.is_break ? 'secondary' : 'outline'} className="text-xs">
+                              {entry.is_break ? 'Break' : 'Work'}
+                            </Badge>
+                          </td>
+                          <td className="py-2 text-right font-medium tabular-nums">
+                            {entry.duration_minutes != null
+                              ? `${Math.floor(entry.duration_minutes / 60)}h ${entry.duration_minutes % 60}m`
+                              : 'Running'}
+                          </td>
+                        </tr>
+                      ))}
+                    </tbody>
+                  </table>
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
+      </Card>
+
       <NewScopeDialog
         open={showNewScope}
         onOpenChange={setShowNewScope}
         projectSlug={slug}
         contractorId={contractorId}
         onCreated={() => void loadData()}
+      />
+
+      <LogTimeDialog
+        open={showLogTime}
+        onOpenChange={setShowLogTime}
+        projectSlug={slug}
+        contractorPersonId={contractorId}
+        mode="admin"
+        onCreated={() => void loadTimeEntries()}
       />
     </div>
   );

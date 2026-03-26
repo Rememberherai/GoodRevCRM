@@ -80,13 +80,13 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { data: jobCheck } = await supabase
       .from('jobs')
-      .select('id, status')
+      .select('id, status, contractor_id')
       .eq('id', id)
       .eq('project_id', project.id)
       .maybeSingle();
     if (!jobCheck) return NextResponse.json({ error: 'Job not found' }, { status: 404 });
 
-    const terminalStatuses = ['completed', 'declined', 'pulled'];
+    const terminalStatuses = ['completed', 'declined', 'pulled', 'cancelled'];
     if (terminalStatuses.includes(jobCheck.status)) {
       return NextResponse.json({ error: `Cannot add time entries to a ${jobCheck.status} job` }, { status: 409 });
     }
@@ -95,32 +95,38 @@ export async function POST(request: Request, context: RouteContext) {
     const validation = createTimeEntrySchema.safeParse({
       ...body,
       job_id: id,
+      contractor_id: jobCheck.contractor_id ?? undefined,
       started_at: body.started_at ?? new Date().toISOString(),
     });
     if (!validation.success) {
       return NextResponse.json({ error: 'Validation failed', details: validation.error.flatten() }, { status: 400 });
     }
 
-    const { data: activeEntry } = await supabase
-      .from('job_time_entries')
-      .select('id')
-      .eq('job_id', id)
-      .is('ended_at', null)
-      .limit(1)
-      .maybeSingle();
+    // Only block open (no ended_at) entries when one is already running
+    if (!validation.data.ended_at) {
+      const { data: activeEntry } = await supabase
+        .from('job_time_entries')
+        .select('id')
+        .eq('job_id', id)
+        .is('ended_at', null)
+        .limit(1)
+        .maybeSingle();
 
-    if (activeEntry) {
-      return NextResponse.json({ error: 'An active time entry is already running for this job' }, { status: 409 });
+      if (activeEntry) {
+        return NextResponse.json({ error: 'An active time entry is already running for this job' }, { status: 409 });
+      }
     }
 
     const { data: entry, error } = await supabase
       .from('job_time_entries')
       .insert({
         job_id: id,
+        contractor_id: jobCheck.contractor_id ?? null,
         started_at: validation.data.started_at,
         ended_at: validation.data.ended_at ?? null,
         is_break: validation.data.is_break,
         duration_minutes: computeTimeEntryDurationMinutes(validation.data.started_at, validation.data.ended_at ?? null),
+        category: validation.data.category ?? null,
         notes: typeof body.notes === 'string' ? body.notes.slice(0, 2000) : null,
       })
       .select('*')
@@ -130,11 +136,20 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to create time entry' }, { status: 500 });
     }
 
-    await supabase
-      .from('jobs')
-      .update({ status: entry.is_break ? 'paused' : 'in_progress' })
-      .eq('project_id', project.id)
-      .eq('id', id);
+    // Only advance status for jobs that are already in an active state (not assigned/terminal)
+    // For 'accepted' jobs, always move to 'in_progress' (a break on an unstarted job still starts it)
+    const shouldUpdateStatus =
+      jobCheck.status === 'accepted' ||
+      jobCheck.status === 'in_progress' ||
+      jobCheck.status === 'paused';
+    if (shouldUpdateStatus) {
+      const nextStatus = jobCheck.status === 'accepted' ? 'in_progress' : (entry.is_break ? 'paused' : 'in_progress');
+      await supabase
+        .from('jobs')
+        .update({ status: nextStatus })
+        .eq('project_id', project.id)
+        .eq('id', id);
+    }
 
     emitAutomationEvent({ projectId: project.id, triggerType: 'entity.created', entityType: 'job', entityId: id, data: { job_id: id, time_entry: entry } as unknown as Record<string, unknown> });
     return NextResponse.json({ entry }, { status: 201 });
@@ -199,9 +214,15 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const startedAt = validation.data.started_at ?? entry.started_at;
     const endedAt = validation.data.ended_at === undefined ? entry.ended_at : validation.data.ended_at;
+    if (endedAt && Date.parse(endedAt) <= Date.parse(startedAt)) {
+      return NextResponse.json({ error: 'ended_at must be after started_at' }, { status: 400 });
+    }
     const notes = body.notes === undefined
       ? entry.notes
       : (typeof body.notes === 'string' ? body.notes.slice(0, 2000) : (body.notes === null ? null : entry.notes));
+    const category = validation.data.category === undefined
+      ? entry.category
+      : (validation.data.category ?? null);
 
     const { data: updatedEntry, error } = await supabase
       .from('job_time_entries')
@@ -210,6 +231,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         ended_at: endedAt,
         is_break: validation.data.is_break ?? entry.is_break,
         duration_minutes: computeTimeEntryDurationMinutes(startedAt, endedAt ?? null),
+        category,
         notes,
       })
       .eq('id', entry.id)
@@ -220,7 +242,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to update time entry' }, { status: 500 });
     }
 
-    const terminalStatuses = ['completed', 'declined', 'pulled'];
+    const terminalStatuses = ['completed', 'declined', 'pulled', 'cancelled'];
     const nextStatus = !updatedEntry.ended_at
       ? (updatedEntry.is_break ? 'paused' : 'in_progress')
       : undefined;

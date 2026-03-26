@@ -97,6 +97,7 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
                 <ToolGroup name="Receipt Processing" tools={['process_image', 'confirm']} />
                 <ToolGroup name="Contractors" tools={['create_scope', 'send_documents', 'onboard']} />
                 <ToolGroup name="Jobs" tools={['assign', 'pull', 'list_for_contractor', 'my_jobs', 'my_calendar', 'work_plan']} />
+                <ToolGroup name="Time Entries" tools={['list', 'create', 'update', 'delete']} />
                 <ToolGroup name="Grants" tools={['list', 'get', 'create', 'update', 'draft_narrative', 'draft_budget', 'list_documents', 'update_document', 'list_reports', 'create_report', 'update_report', 'search_federal', 'import_federal']} />
                 <ToolGroup name="Census" tools={['lookup_households']} />
                 <ToolGroup name="Calendar Sync" tools={['sync_program', 'sync_job', 'sync_grant']} />

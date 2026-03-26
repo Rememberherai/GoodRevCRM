@@ -62,11 +62,13 @@ export const jobSchema = z.object({
 });
 
 const timeEntryBaseSchema = z.object({
-  job_id: optionalUuidSchema,
+  job_id: z.string().uuid().nullable().optional(),
+  contractor_id: z.string().uuid().nullable().optional(),
   started_at: dateTimeSchema,
   ended_at: z.string().nullable().optional(),
   is_break: z.boolean().default(false),
   duration_minutes: z.number().int().nonnegative().nullable().optional(),
+  category: z.string().max(100).nullable().optional(),
 });
 
 function validateTimeEntry(
@@ -77,7 +79,7 @@ function validateTimeEntry(
     return;
   }
 
-  if (value.ended_at && Date.parse(value.ended_at) < Date.parse(value.started_at)) {
+  if (value.ended_at && Date.parse(value.ended_at) <= Date.parse(value.started_at)) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
       message: 'ended_at must be after started_at',
@@ -92,5 +94,14 @@ export const createContractorScopeSchema = contractorScopeSchema;
 export const updateContractorScopeSchema = contractorScopeSchema.partial();
 export const createJobSchema = jobSchema;
 export const updateJobSchema = jobSchema.partial();
-export const createTimeEntrySchema = timeEntrySchema;
+export const createTimeEntrySchema = timeEntryBaseSchema.superRefine((val, ctx) => {
+  validateTimeEntry(val, ctx);
+  if (!val.job_id && !val.contractor_id) {
+    ctx.addIssue({
+      code: z.ZodIssueCode.custom,
+      message: 'Either job_id or contractor_id is required',
+      path: ['job_id'],
+    });
+  }
+});
 export const updateTimeEntrySchema = timeEntryBaseSchema.partial().superRefine(validateTimeEntry);

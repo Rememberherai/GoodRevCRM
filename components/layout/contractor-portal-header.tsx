@@ -1,7 +1,7 @@
 'use client';
 
 import Link from 'next/link';
-import { MessageSquare, User, BriefcaseBusiness } from 'lucide-react';
+import { MessageSquare, User, BriefcaseBusiness, Clock } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { useChatStore } from '@/stores/chat';
 
@@ -34,6 +34,12 @@ export function ContractorPortalHeader({ projectName, projectSlug }: ContractorP
             <Link href={`/contractor/${projectSlug}/profile`}>
               <User className="mr-2 h-4 w-4" />
               Profile
+            </Link>
+          </Button>
+          <Button variant="ghost" asChild>
+            <Link href={`/contractor/${projectSlug}/timesheet`}>
+              <Clock className="mr-2 h-4 w-4" />
+              Timesheet
             </Link>
           </Button>
           <Button variant="outline" onClick={toggleChat}>

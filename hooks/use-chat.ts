@@ -129,6 +129,9 @@ const MUTATING_TOOLS = new Set([
   'service_types.create', 'service_types.update', 'service_types.delete',
   'service_types_create', 'service_types_update', 'service_types_delete',
   'bug_reports.update_status', 'bug_reports_update_status',
+  'time_entries.create', 'time_entries_create',
+  'time_entries.update', 'time_entries_update',
+  'time_entries.delete', 'time_entries_delete',
 ]);
 
 function normalizeToolName(toolName: string) {
@@ -341,6 +344,7 @@ export function useChat(projectSlug: string) {
     } finally {
       setStreaming(false);
       resetStreamingContent();
+      finalizeToolCalls();
       abortRef.current = null;
     }
   }, [projectSlug, loadConversations, pathname, router, setError, setStreaming, resetStreamingContent, clearToolCalls, addMessage, setCurrentConversationId, addToolCall, updateToolCallResult, appendStreamingContent, finalizeToolCalls]);

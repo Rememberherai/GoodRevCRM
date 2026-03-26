@@ -6121,39 +6121,52 @@ export type Database = {
       }
       job_time_entries: {
         Row: {
+          category: string | null
+          contractor_id: string | null
           created_at: string
           duration_minutes: number | null
           ended_at: string | null
           id: string
           is_break: boolean
-          job_id: string
+          job_id: string | null
           notes: string | null
           started_at: string
           updated_at: string
         }
         Insert: {
+          category?: string | null
+          contractor_id?: string | null
           created_at?: string
           duration_minutes?: number | null
           ended_at?: string | null
           id?: string
           is_break?: boolean
-          job_id: string
+          job_id?: string | null
           notes?: string | null
           started_at: string
           updated_at?: string
         }
         Update: {
+          category?: string | null
+          contractor_id?: string | null
           created_at?: string
           duration_minutes?: number | null
           ended_at?: string | null
           id?: string
           is_break?: boolean
-          job_id?: string
+          job_id?: string | null
           notes?: string | null
           started_at?: string
           updated_at?: string
         }
         Relationships: [
+          {
+            foreignKeyName: "job_time_entries_contractor_id_fkey"
+            columns: ["contractor_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "job_time_entries_job_id_fkey"
             columns: ["job_id"]

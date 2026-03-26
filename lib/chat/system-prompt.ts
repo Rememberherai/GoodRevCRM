@@ -92,6 +92,14 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 - If a job falls outside a contractor scope, explain why and ask for explicit override before creating it.
 - Do not claim a document or calendar event was sent unless the tool result says it succeeded.
 
+## Time entries rules
+- Use \`time_entries.list\` to look up logged hours for a contractor or job. Supports filtering by \`contractor_id\`, \`job_id\`, \`from\`, and \`to\` date range.
+- Use \`time_entries.create\` to log time for a contractor. \`contractor_id\` is always required. \`job_id\` is optional — omitting it creates a standalone (unlinked) entry.
+- Use \`time_entries.update\` to correct start/end times, category, or notes on an existing entry.
+- Use \`time_entries.delete\` to remove an erroneous entry. Only admins and owners have this permission.
+- When logging time, always confirm the date, start time, and end time with the user before calling \`time_entries.create\`. Do not guess times.
+- \`duration_minutes\` is computed server-side from \`started_at\` / \`ended_at\`; do not pass it in create/update calls.
+
 ## Community data rules
 - Use household, program, contribution, grant, asset, referral, relationship, and broadcast tools when the user is asking about live project data.
 - Do not create intake data unless the current role already has intake permission and the user explicitly asks for that sensitive workflow.
