@@ -40,7 +40,7 @@ export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl;
 
   // Public routes that don't require authentication
-  const publicRoutes = ['/login', '/auth/callback', '/invite', '/sign', '/book', '/events'];
+  const publicRoutes = ['/login', '/signup', '/forgot-password', '/reset-password', '/auth/callback', '/invite', '/sign', '/book', '/events'];
   const isPublicRoute = publicRoutes.some((route) => pathname.startsWith(route));
 
   // API routes and static assets
@@ -55,7 +55,7 @@ export async function middleware(request: NextRequest) {
   }
 
   // If logged in and trying to access login page or root, redirect to projects
-  if (user && (pathname === '/login' || pathname === '/')) {
+  if (user && (pathname === '/login' || pathname === '/signup' || pathname === '/')) {
     const url = request.nextUrl.clone();
     url.pathname = '/projects';
     return NextResponse.redirect(url);

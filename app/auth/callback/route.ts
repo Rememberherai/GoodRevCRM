@@ -4,10 +4,18 @@ import { NextResponse } from 'next/server';
 export async function GET(request: Request) {
   const { searchParams, origin } = new URL(request.url);
   const code = searchParams.get('code');
+  const errorDescription = searchParams.get('error_description');
   let next = searchParams.get('next') ?? '/projects';
 
   if (!next.startsWith('/') || next.startsWith('//')) {
     next = '/projects';
+  }
+
+  // Handle errors from Supabase (e.g., expired confirmation links)
+  if (errorDescription) {
+    return NextResponse.redirect(
+      `${origin}/login?error=${encodeURIComponent(errorDescription)}`
+    );
   }
 
   if (code) {

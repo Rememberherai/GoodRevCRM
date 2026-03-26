@@ -83,11 +83,11 @@ export function useAuth() {
     await supabase.auth.signOut();
   }, [supabase.auth]);
 
-  const signInWithGoogle = useCallback(async () => {
+  const signInWithGoogle = useCallback(async (redirectTo?: string) => {
     const { error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
-        redirectTo: `${window.location.origin}/auth/callback`,
+        redirectTo: redirectTo || `${window.location.origin}/auth/callback`,
         queryParams: {
           access_type: 'offline',
           prompt: 'consent',
@@ -100,6 +100,41 @@ export function useAuth() {
     }
   }, [supabase.auth]);
 
+  const signInWithMagicLink = useCallback(async (email: string, emailRedirectTo?: string) => {
+    const { error } = await supabase.auth.signInWithOtp({
+      email,
+      options: {
+        emailRedirectTo: emailRedirectTo || `${window.location.origin}/auth/callback`,
+      },
+    });
+
+    if (error) {
+      throw error;
+    }
+  }, [supabase.auth]);
+
+  const signInWithEmail = useCallback(async (email: string, password: string) => {
+    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    if (error) {
+      throw error;
+    }
+  }, [supabase.auth]);
+
+  const signUp = useCallback(async (email: string, password: string, fullName?: string) => {
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: fullName ? { full_name: fullName } : undefined,
+        emailRedirectTo: `${window.location.origin}/auth/callback`,
+      },
+    });
+    if (error) {
+      throw error;
+    }
+    return data;
+  }, [supabase.auth]);
+
   return {
     user: state.user,
     session: state.session,
@@ -108,5 +143,8 @@ export function useAuth() {
     isSystemAdmin: state.isSystemAdmin,
     signOut,
     signInWithGoogle,
+    signInWithMagicLink,
+    signInWithEmail,
+    signUp,
   };
 }

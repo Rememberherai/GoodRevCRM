@@ -252,6 +252,15 @@ export default function InviteAcceptPage() {
               <p className="text-xs text-center text-muted-foreground">
                 Sign in with the email address this invitation was sent to
               </p>
+              <p className="text-sm text-center text-muted-foreground">
+                Don&apos;t have an account?{' '}
+                <a
+                  href={`/signup?next=/invite/${token}`}
+                  className="text-foreground hover:underline font-medium"
+                >
+                  Sign up
+                </a>
+              </p>
             </div>
           ) : emailMismatch ? (
             <div className="space-y-3">

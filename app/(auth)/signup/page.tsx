@@ -1,77 +1,72 @@
 'use client';
 
 import { Suspense, useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import { useSearchParams } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Mail, CheckCircle } from 'lucide-react';
+import { Loader2, CheckCircle } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 
-function LoginForm() {
+function SignUpForm() {
+  const [fullName, setFullName] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
-  const [showPassword, setShowPassword] = useState(false);
+  const [confirmPassword, setConfirmPassword] = useState('');
+  const [isLoading, setIsLoading] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
-  const [isEmailLoading, setIsEmailLoading] = useState(false);
-  const [magicLinkSent, setMagicLinkSent] = useState(false);
+  const [emailSent, setEmailSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
-  const router = useRouter();
-  const urlError = searchParams.get('error');
   const next = searchParams.get('next') ?? '/projects';
 
   const supabase = createClient();
 
-  const handleMagicLink = async (e: React.FormEvent) => {
+  const handleSignUp = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!email.trim()) return;
+    if (password !== confirmPassword) {
+      setError('Passwords do not match.');
+      return;
+    }
+    if (password.length < 6) {
+      setError('Password must be at least 6 characters.');
+      return;
+    }
 
-    setIsEmailLoading(true);
+    setIsLoading(true);
     setError(null);
 
     try {
       const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
-      const { error } = await supabase.auth.signInWithOtp({
+      const { data, error } = await supabase.auth.signUp({
         email,
-        options: { emailRedirectTo: redirectTo },
+        password,
+        options: {
+          data: fullName ? { full_name: fullName } : undefined,
+          emailRedirectTo: redirectTo,
+        },
       });
       if (error) throw error;
-      setMagicLinkSent(true);
+      // Supabase returns a user with empty identities array for duplicate emails
+      // (to prevent email enumeration) instead of throwing an error
+      if (data.user && data.user.identities && data.user.identities.length === 0) {
+        setError('An account with this email already exists. Try signing in instead.');
+        return;
+      }
+      setEmailSent(true);
     } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to send magic link';
-      setError(message);
-    } finally {
-      setIsEmailLoading(false);
-    }
-  };
-
-  const handlePasswordLogin = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!email.trim() || !password) return;
-
-    setIsEmailLoading(true);
-    setError(null);
-
-    try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
-      if (error) throw error;
-      router.push(next);
-    } catch (err: unknown) {
-      const message = err instanceof Error ? err.message : 'Failed to sign in';
-      if (message.includes('Email not confirmed')) {
-        setError('Please check your email and confirm your account before signing in.');
-      } else if (message.includes('Invalid login credentials')) {
-        setError('Invalid email or password. If you signed up with Google, use the Google button below.');
+      const message = err instanceof Error ? err.message : 'Failed to create account';
+      if (message.includes('already registered')) {
+        setError('An account with this email already exists. Try signing in instead.');
       } else {
         setError(message);
       }
     } finally {
-      setIsEmailLoading(false);
+      setIsLoading(false);
     }
   };
 
@@ -98,7 +93,27 @@ function LoginForm() {
     }
   };
 
-  if (magicLinkSent) {
+  const handleResendEmail = async () => {
+    setIsLoading(true);
+    setError(null);
+    try {
+      const { error } = await supabase.auth.resend({
+        type: 'signup',
+        email,
+        options: {
+          emailRedirectTo: `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`,
+        },
+      });
+      if (error) throw error;
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to resend email';
+      setError(message);
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
+  if (emailSent) {
     return (
       <Card className="w-full max-w-md">
         <CardHeader className="text-center">
@@ -107,23 +122,42 @@ function LoginForm() {
           </div>
           <CardTitle className="text-2xl font-bold">Check Your Email</CardTitle>
           <CardDescription>
-            We sent a magic link to <span className="font-medium text-foreground">{email}</span>
+            We sent a confirmation link to <span className="font-medium text-foreground">{email}</span>
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
           <p className="text-sm text-center text-muted-foreground">
-            Click the link in the email to sign in. It may take a minute to arrive.
+            Click the link in the email to activate your account. It may take a minute to arrive.
           </p>
+          {error && (
+            <Alert variant="destructive">
+              <AlertDescription>{error}</AlertDescription>
+            </Alert>
+          )}
           <Button
             variant="outline"
             className="w-full"
-            onClick={() => {
-              setMagicLinkSent(false);
-              setEmail('');
-            }}
+            onClick={handleResendEmail}
+            disabled={isLoading}
           >
-            Use a different email
+            {isLoading ? (
+              <>
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+                Sending...
+              </>
+            ) : (
+              'Resend confirmation email'
+            )}
           </Button>
+          <p className="text-sm text-center text-muted-foreground">
+            Already confirmed?{' '}
+            <Link
+              href={`/login${next !== '/projects' ? `?next=${encodeURIComponent(next)}` : ''}`}
+              className="text-foreground hover:underline font-medium"
+            >
+              Sign in
+            </Link>
+          </p>
         </CardContent>
       </Card>
     );
@@ -132,25 +166,31 @@ function LoginForm() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl font-bold">GoodRev CRM</CardTitle>
+        <CardTitle className="text-2xl font-bold">Create Account</CardTitle>
         <CardDescription>
-          Sign in to access your research CRM
+          Sign up for GoodRev CRM
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-4">
-        {(urlError || error) && (
+        {error && (
           <Alert variant="destructive">
-            <AlertDescription>
-              {error
-                ? error
-                : urlError === 'auth_callback_error'
-                  ? 'There was a problem signing you in. Please try again.'
-                  : decodeURIComponent(urlError || 'An error occurred. Please try again.')}
-            </AlertDescription>
+            <AlertDescription>{error}</AlertDescription>
           </Alert>
         )}
 
-        <form onSubmit={showPassword ? handlePasswordLogin : handleMagicLink} className="space-y-3">
+        <form onSubmit={handleSignUp} className="space-y-3">
+          <div className="space-y-2">
+            <Label htmlFor="fullName">Full name</Label>
+            <Input
+              id="fullName"
+              type="text"
+              placeholder="Jane Smith"
+              value={fullName}
+              onChange={(e) => setFullName(e.target.value)}
+              autoComplete="name"
+            />
+          </div>
+
           <div className="space-y-2">
             <Label htmlFor="email">Email</Label>
             <Input
@@ -164,60 +204,48 @@ function LoginForm() {
             />
           </div>
 
-          {showPassword && (
-            <div className="space-y-2">
-              <div className="flex items-center justify-between">
-                <Label htmlFor="password">Password</Label>
-                <Link
-                  href={`/forgot-password${email ? `?email=${encodeURIComponent(email)}` : ''}`}
-                  className="text-xs text-muted-foreground hover:text-foreground"
-                >
-                  Forgot password?
-                </Link>
-              </div>
-              <Input
-                id="password"
-                type="password"
-                value={password}
-                onChange={(e) => setPassword(e.target.value)}
-                required
-                autoComplete="current-password"
-              />
-            </div>
-          )}
+          <div className="space-y-2">
+            <Label htmlFor="password">Password</Label>
+            <Input
+              id="password"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              required
+              minLength={6}
+              autoComplete="new-password"
+            />
+          </div>
+
+          <div className="space-y-2">
+            <Label htmlFor="confirmPassword">Confirm password</Label>
+            <Input
+              id="confirmPassword"
+              type="password"
+              value={confirmPassword}
+              onChange={(e) => setConfirmPassword(e.target.value)}
+              required
+              minLength={6}
+              autoComplete="new-password"
+            />
+          </div>
 
           <Button
             type="submit"
-            disabled={isEmailLoading}
+            disabled={isLoading}
             className="w-full"
             size="lg"
           >
-            {isEmailLoading ? (
+            {isLoading ? (
               <>
                 <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-                {showPassword ? 'Signing in...' : 'Sending link...'}
+                Creating account...
               </>
-            ) : showPassword ? (
-              'Sign in'
             ) : (
-              <>
-                <Mail className="mr-2 h-4 w-4" />
-                Send magic link
-              </>
+              'Create account'
             )}
           </Button>
         </form>
-
-        <button
-          type="button"
-          onClick={() => {
-            setShowPassword(!showPassword);
-            setError(null);
-          }}
-          className="w-full text-xs text-center text-muted-foreground hover:text-foreground transition-colors"
-        >
-          {showPassword ? 'Use magic link instead' : 'Or use password'}
-        </button>
 
         <div className="relative">
           <div className="absolute inset-0 flex items-center">
@@ -249,12 +277,12 @@ function LoginForm() {
         </Button>
 
         <p className="text-sm text-center text-muted-foreground">
-          Don&apos;t have an account?{' '}
+          Already have an account?{' '}
           <Link
-            href={`/signup${next !== '/projects' ? `?next=${encodeURIComponent(next)}` : ''}`}
+            href={`/login${next !== '/projects' ? `?next=${encodeURIComponent(next)}` : ''}`}
             className="text-foreground hover:underline font-medium"
           >
-            Sign up
+            Sign in
           </Link>
         </p>
       </CardContent>
@@ -262,28 +290,29 @@ function LoginForm() {
   );
 }
 
-function LoginFormSkeleton() {
+function SignUpFormSkeleton() {
   return (
     <Card className="w-full max-w-md">
       <CardHeader className="text-center">
-        <Skeleton className="h-8 w-32 mx-auto mb-2" />
+        <Skeleton className="h-8 w-40 mx-auto mb-2" />
         <Skeleton className="h-4 w-48 mx-auto" />
       </CardHeader>
       <CardContent className="space-y-4">
         <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
+        <Skeleton className="h-10 w-full" />
         <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-12 w-full" />
-        <Skeleton className="h-4 w-64 mx-auto" />
       </CardContent>
     </Card>
   );
 }
 
-export default function LoginPage() {
+export default function SignUpPage() {
   return (
     <div className="min-h-screen flex items-center justify-center bg-background p-4">
-      <Suspense fallback={<LoginFormSkeleton />}>
-        <LoginForm />
+      <Suspense fallback={<SignUpFormSkeleton />}>
+        <SignUpForm />
       </Suspense>
     </div>
   );
