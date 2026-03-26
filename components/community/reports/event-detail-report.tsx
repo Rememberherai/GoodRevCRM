@@ -79,7 +79,7 @@ export function EventDetailReportView({ data, onBack }: EventDetailReportViewPro
       <Card>
         <CardHeader>
           <CardTitle>Event Report</CardTitle>
-          <CardDescription>Event not found.</CardDescription>
+          <CardDescription>No report data available. This may be due to insufficient permissions or the project type not supporting reports.</CardDescription>
         </CardHeader>
       </Card>
     );

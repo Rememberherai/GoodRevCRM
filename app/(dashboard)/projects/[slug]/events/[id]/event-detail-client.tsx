@@ -158,10 +158,16 @@ export function EventDetailClient() {
     setReportLoading(true);
     try {
       const res = await fetch(`/api/projects/${slug}/community/reports?type=event_detail&eventId=${eventId}`);
-      const json = await res.json() as { event_detail?: IndividualEventReport };
-      setReportData(json.event_detail ?? null);
+      const json = await res.json() as { event_detail?: IndividualEventReport; error?: string };
+      if (!res.ok) {
+        toast.error(json.error ?? 'Failed to load report');
+        setReportData(null);
+      } else {
+        setReportData(json.event_detail ?? null);
+      }
       setReportLoaded(true);
     } catch {
+      toast.error('Failed to load report');
       setReportData(null);
     } finally {
       setReportLoading(false);
