@@ -4247,6 +4247,9 @@ export type Database = {
           description: string | null
           description_html: string | null
           generation_horizon_days: number
+          generation_progress: number | null
+          generation_status: string
+          generation_total: number | null
           id: string
           last_generated_date: string | null
           location_type: string
@@ -4256,7 +4259,7 @@ export type Database = {
           program_id: string | null
           project_id: string
           recurrence_count: number | null
-          recurrence_day_position: number | null
+          recurrence_day_positions: number[] | null
           recurrence_days_of_week: string[] | null
           recurrence_frequency: string
           recurrence_interval: number
@@ -4291,6 +4294,9 @@ export type Database = {
           description?: string | null
           description_html?: string | null
           generation_horizon_days?: number
+          generation_progress?: number | null
+          generation_status?: string
+          generation_total?: number | null
           id?: string
           last_generated_date?: string | null
           location_type?: string
@@ -4300,7 +4306,7 @@ export type Database = {
           program_id?: string | null
           project_id: string
           recurrence_count?: number | null
-          recurrence_day_position?: number | null
+          recurrence_day_positions?: number[] | null
           recurrence_days_of_week?: string[] | null
           recurrence_frequency: string
           recurrence_interval?: number
@@ -4335,6 +4341,9 @@ export type Database = {
           description?: string | null
           description_html?: string | null
           generation_horizon_days?: number
+          generation_progress?: number | null
+          generation_status?: string
+          generation_total?: number | null
           id?: string
           last_generated_date?: string | null
           location_type?: string
@@ -4344,7 +4353,7 @@ export type Database = {
           program_id?: string | null
           project_id?: string
           recurrence_count?: number | null
-          recurrence_day_position?: number | null
+          recurrence_day_positions?: number[] | null
           recurrence_days_of_week?: string[] | null
           recurrence_frequency?: string
           recurrence_interval?: number
@@ -5263,6 +5272,7 @@ export type Database = {
           funder_organization_id: string | null
           id: string
           indirect_cost_rate: number | null
+          is_discovered: boolean
           loi_due_at: string | null
           match_required: number | null
           match_type: string | null
@@ -5271,6 +5281,7 @@ export type Database = {
           program_id: string | null
           project_id: string
           report_due_at: string | null
+          source_url: string | null
           status: string
           total_award_amount: number | null
           updated_at: string
@@ -5292,6 +5303,7 @@ export type Database = {
           funder_organization_id?: string | null
           id?: string
           indirect_cost_rate?: number | null
+          is_discovered?: boolean
           loi_due_at?: string | null
           match_required?: number | null
           match_type?: string | null
@@ -5300,6 +5312,7 @@ export type Database = {
           program_id?: string | null
           project_id: string
           report_due_at?: string | null
+          source_url?: string | null
           status?: string
           total_award_amount?: number | null
           updated_at?: string
@@ -5321,6 +5334,7 @@ export type Database = {
           funder_organization_id?: string | null
           id?: string
           indirect_cost_rate?: number | null
+          is_discovered?: boolean
           loi_due_at?: string | null
           match_required?: number | null
           match_type?: string | null
@@ -5329,6 +5343,7 @@ export type Database = {
           program_id?: string | null
           project_id?: string
           report_due_at?: string | null
+          source_url?: string | null
           status?: string
           total_award_amount?: number | null
           updated_at?: string
