@@ -2437,6 +2437,122 @@ defineCommunityTool({
   },
 });
 
+const grantContactAddSchema = z.object({
+  grant_id: z.string().uuid().describe('The grant ID'),
+  person_id: z.string().uuid().describe('The person ID to add as a contact'),
+  role: z.string().max(200).nullable().optional().describe('Optional role (e.g. Program Officer, Internal Lead, Grants Writer)'),
+  notes: z.string().max(2000).nullable().optional().describe('Optional notes about this contact relationship'),
+});
+
+const grantContactRemoveSchema = z.object({
+  grant_id: z.string().uuid().describe('The grant ID'),
+  contact_id: z.string().uuid().describe('The grant_contacts record ID to remove'),
+});
+
+defineCommunityTool({
+  name: 'grants.list_contacts',
+  description: 'List all contacts associated with a grant, including their roles.',
+  resource: 'grants',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: entityGetSchema,
+  handler: async (params, ctx) => {
+    const parsed = entityGetSchema.parse(params);
+    const admin = createAdminClient();
+
+    // Verify grant belongs to project
+    const { data: grant } = await admin
+      .from('grants')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id)
+      .single();
+    if (!grant) throw communityError('Grant not found');
+
+    const { data, error } = await admin
+      .from('grant_contacts')
+      .select('id, role, notes, created_at, person:people(id, first_name, last_name, email, title)')
+      .eq('grant_id', parsed.id)
+      .order('created_at', { ascending: true });
+    if (error) throw communityError(`Failed to list contacts: ${error.message}`);
+
+    return JSON.stringify({ contacts: data ?? [] });
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.add_contact',
+  description: 'Add a person as a contact on a grant with an optional role (e.g. Program Officer, Internal Lead, Co-Applicant, Board Sponsor, Fiscal Agent, Evaluator, Grants Writer, Legal / Compliance, Finance Contact).',
+  resource: 'grants',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: grantContactAddSchema,
+  handler: async (params, ctx) => {
+    const parsed = grantContactAddSchema.parse(params);
+    const admin = createAdminClient();
+
+    // Verify grant belongs to project
+    const { data: grant } = await admin
+      .from('grants')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.grant_id)
+      .single();
+    if (!grant) throw communityError('Grant not found');
+
+    // Verify person belongs to project
+    const { data: person } = await admin
+      .from('people')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.person_id)
+      .single();
+    if (!person) throw communityError('Person not found');
+
+    const { data, error } = await admin
+      .from('grant_contacts')
+      .insert({ grant_id: parsed.grant_id, person_id: parsed.person_id, role: parsed.role ?? null, notes: parsed.notes ?? null })
+      .select('id, role, notes, created_at, person:people(id, first_name, last_name, email, title)')
+      .single();
+    if (error) {
+      if (error.code === '23505') throw communityError('This person is already a contact on this grant');
+      throw communityError(`Failed to add contact: ${error.message}`);
+    }
+    return JSON.stringify({ contact: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'grants.remove_contact',
+  description: 'Remove a contact from a grant by the grant_contacts record ID.',
+  resource: 'grants',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: grantContactRemoveSchema,
+  handler: async (params, ctx) => {
+    const parsed = grantContactRemoveSchema.parse(params);
+    const admin = createAdminClient();
+
+    // Verify grant belongs to project
+    const { data: grant } = await admin
+      .from('grants')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.grant_id)
+      .single();
+    if (!grant) throw communityError('Grant not found');
+
+    const { error } = await admin
+      .from('grant_contacts')
+      .delete()
+      .eq('id', parsed.contact_id)
+      .eq('grant_id', parsed.grant_id);
+    if (error) throw communityError(`Failed to remove contact: ${error.message}`);
+
+    return JSON.stringify({ success: true });
+  },
+});
+
 defineCommunityTool({
   name: 'grants.search_federal',
   description: 'Search Grants.gov for federal funding opportunities by keyword, category, or eligibility type. Returns up to 15 results by default.',

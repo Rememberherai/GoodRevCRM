@@ -121,7 +121,7 @@ export async function POST(request: Request, context: RouteContext) {
       entityType: 'grant' as never,
       entityId: data.id,
       data: data as unknown as Record<string, unknown>,
-    });
+    }).catch(() => {});
 
     return NextResponse.json({ grant: data }, { status: 201 });
   } catch (error) {

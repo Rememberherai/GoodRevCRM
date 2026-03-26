@@ -5094,6 +5094,48 @@ export type Database = {
           },
         ]
       }
+      grant_contacts: {
+        Row: {
+          created_at: string
+          grant_id: string
+          id: string
+          notes: string | null
+          person_id: string
+          role: string | null
+        }
+        Insert: {
+          created_at?: string
+          grant_id: string
+          id?: string
+          notes?: string | null
+          person_id: string
+          role?: string | null
+        }
+        Update: {
+          created_at?: string
+          grant_id?: string
+          id?: string
+          notes?: string | null
+          person_id?: string
+          role?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grant_contacts_grant_id_fkey"
+            columns: ["grant_id"]
+            isOneToOne: false
+            referencedRelation: "grants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grant_contacts_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       grant_documents: {
         Row: {
           created_at: string

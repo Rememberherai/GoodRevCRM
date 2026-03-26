@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Award, CalendarClock, ChevronDown, ChevronRight, ClipboardList, DollarSign, Download, ExternalLink, FileText, Mail, Paperclip, Plus, Star, Trash2, Upload } from 'lucide-react';
+import { ArrowLeft, Award, CalendarClock, ChevronDown, ChevronRight, ClipboardList, DollarSign, Download, ExternalLink, FileText, Mail, Paperclip, Plus, Star, Trash2, Upload, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -95,6 +95,27 @@ interface OutreachRecord {
   created_at: string;
   person?: { id: string; first_name: string | null; last_name: string | null; email: string | null } | null;
 }
+
+interface GrantContact {
+  id: string;
+  role: string | null;
+  notes: string | null;
+  created_at: string;
+  person: { id: string; first_name: string | null; last_name: string | null; email: string | null; title: string | null } | null;
+}
+
+const STANDARD_ROLES = [
+  'Program Officer',
+  'Internal Lead',
+  'Co-Applicant',
+  'Board Sponsor',
+  'Fiscal Agent',
+  'Evaluator',
+  'Grants Writer',
+  'Legal / Compliance',
+  'Finance Contact',
+  'Other',
+];
 
 const STATUSES = [
   { value: 'researching', label: 'Researching' },
@@ -220,6 +241,14 @@ export default function GrantDetailClient() {
   const [isSaving, setIsSaving] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [showSendEmail, setShowSendEmail] = useState(false);
+  // Grant contacts (multi-contact junction table)
+  const [contacts, setContacts] = useState<GrantContact[]>([]);
+  const [addContactPersonId, setAddContactPersonId] = useState<string | null>(null);
+  const [addContactRole, setAddContactRole] = useState('');
+  const [addContactRoleCustom, setAddContactRoleCustom] = useState('');
+  const [isAddingContact, setIsAddingContact] = useState(false);
+  const [contactError, setContactError] = useState<string | null>(null);
+  const [emailTargetContact, setEmailTargetContact] = useState<GrantContact | null>(null);
   const [showPostAward, setShowPostAward] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -240,7 +269,6 @@ export default function GrantDetailClient() {
   const [editReportDueAt, setEditReportDueAt] = useState('');
   const [editNotes, setEditNotes] = useState('');
   const [editFunderOrgId, setEditFunderOrgId] = useState<string | null>(null);
-  const [editContactPersonId, setEditContactPersonId] = useState<string | null>(null);
   // Strategic planning editable fields
   const [editCategory, setEditCategory] = useState('');
   const [editFundingRangeMin, setEditFundingRangeMin] = useState('');
@@ -273,7 +301,6 @@ export default function GrantDetailClient() {
     setEditReportDueAt(g.report_due_at?.split('T')[0] ?? '');
     setEditNotes(g.notes ?? '');
     setEditFunderOrgId(g.funder_organization_id);
-    setEditContactPersonId(g.contact_person_id);
     // Strategic planning
     setEditCategory(g.category ?? '');
     setEditFundingRangeMin(g.funding_range_min?.toString() ?? '');
@@ -305,11 +332,12 @@ export default function GrantDetailClient() {
     setIsLoading(true);
     setError(null);
     try {
-      const [grantRes, outreachRes, docsRes, reportsRes] = await Promise.all([
+      const [grantRes, outreachRes, docsRes, reportsRes, contactsRes] = await Promise.all([
         fetch(`/api/projects/${slug}/grants/${id}`),
         fetch(`/api/projects/${slug}/grants/${id}/outreach`),
         fetch(`/api/projects/${slug}/grants/${id}/documents`),
         fetch(`/api/projects/${slug}/grants/${id}/reports`),
+        fetch(`/api/projects/${slug}/grants/${id}/contacts`),
       ]);
 
       const grantJson = await grantRes.json() as { grant?: GrantDetail; error?: string };
@@ -325,6 +353,9 @@ export default function GrantDetailClient() {
 
       const reportsJson = await reportsRes.json() as { reports?: ReportSchedule[] };
       setReports(reportsJson.reports ?? []);
+
+      const contactsJson = await contactsRes.json() as { contacts?: GrantContact[] };
+      setContacts(contactsJson.contacts ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch grant');
     } finally {
@@ -346,7 +377,6 @@ export default function GrantDetailClient() {
         application_due_at: editApplicationDueAt || null,
         report_due_at: editReportDueAt || null,
         funder_organization_id: editFunderOrgId || null,
-        contact_person_id: editContactPersonId || null,
         // Strategic planning fields
         category: editCategory || null,
         key_intel: editKeyIntel || null,
@@ -549,14 +579,53 @@ export default function GrantDetailClient() {
     }
   };
 
+  const handleAddContact = async () => {
+    if (!addContactPersonId) return;
+    setIsAddingContact(true);
+    setContactError(null);
+    try {
+      const role = addContactRole === 'Other' ? (addContactRoleCustom.trim() || 'Other') : addContactRole;
+      const res = await fetch(`/api/projects/${slug}/grants/${id}/contacts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ person_id: addContactPersonId, role: role || null }),
+      });
+      const json = await res.json() as { contact?: GrantContact; error?: string };
+      if (!res.ok) throw new Error(json.error ?? 'Failed to add contact');
+      if (json.contact) setContacts(prev => [...prev, json.contact!]);
+      setAddContactPersonId(null);
+      setAddContactRole('');
+      setAddContactRoleCustom('');
+    } catch (err) {
+      setContactError(err instanceof Error ? err.message : 'Failed to add contact');
+    } finally {
+      setIsAddingContact(false);
+    }
+  };
+
+  const handleRemoveContact = async (contactId: string) => {
+    setContactError(null);
+    try {
+      const res = await fetch(`/api/projects/${slug}/grants/${id}/contacts/${contactId}`, { method: 'DELETE' });
+      if (!res.ok) {
+        const json = await res.json() as { error?: string };
+        throw new Error(json.error ?? 'Failed to remove contact');
+      }
+      setContacts(prev => prev.filter(c => c.id !== contactId));
+      if (emailTargetContact?.id === contactId) setEmailTargetContact(null);
+    } catch (err) {
+      setContactError(err instanceof Error ? err.message : 'Failed to remove contact');
+    }
+  };
+
   const handleOutreachEmailSuccess = useCallback(async () => {
-    if (grant?.contact?.id) {
+    if (emailTargetContact?.person?.id) {
       try {
         await fetch(`/api/projects/${slug}/grants/${id}/outreach`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
           body: JSON.stringify({
-            contact_person_id: grant.contact.id,
+            contact_person_id: emailTargetContact.person.id,
             subject: 'Email sent',
             body: 'Outreach email sent via Gmail',
           }),
@@ -572,7 +641,7 @@ export default function GrantDetailClient() {
     } catch {
       // Silently fail
     }
-  }, [slug, id, grant?.contact?.id]);
+  }, [slug, id, emailTargetContact?.person?.id]);
 
   if (isLoading) return (
     <div className="space-y-6">
@@ -729,13 +798,88 @@ export default function GrantDetailClient() {
                     placeholder="Select funder..."
                   />
                 </div>
-                <div className="space-y-2">
-                  <Label>Contact Person</Label>
+              </div>
+
+              {/* Contacts */}
+              <div className="border rounded-lg p-4 space-y-3 bg-muted/20">
+                <h3 className="text-sm font-semibold flex items-center gap-2">
+                  <UserPlus className="h-4 w-4" /> Contacts
+                </h3>
+
+                {contacts.length > 0 && (
+                  <div className="space-y-2">
+                    {contacts.map((c) => (
+                      <div key={c.id} className="flex items-center justify-between rounded border bg-background px-3 py-2">
+                        <div className="flex items-center gap-3 min-w-0">
+                          <div className="min-w-0">
+                            <p className="text-sm font-medium truncate">
+                              {[c.person?.first_name, c.person?.last_name].filter(Boolean).join(' ') || 'Unknown'}
+                            </p>
+                            {c.role && <p className="text-xs text-muted-foreground">{c.role}</p>}
+                            {c.person?.email && <p className="text-xs text-muted-foreground">{c.person.email}</p>}
+                          </div>
+                        </div>
+                        <div className="flex items-center gap-1 shrink-0">
+                          {c.person?.email && (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              title="Send email"
+                              onClick={() => { setEmailTargetContact(c); setShowSendEmail(true); }}
+                            >
+                              <Mail className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
+                          <Button
+                            variant="ghost"
+                            size="icon"
+                            className="h-7 w-7 text-destructive hover:text-destructive"
+                            onClick={() => handleRemoveContact(c.id)}
+                          >
+                            <X className="h-3.5 w-3.5" />
+                          </Button>
+                        </div>
+                      </div>
+                    ))}
+                  </div>
+                )}
+
+                {/* Add contact form */}
+                <div className="flex flex-col gap-2">
                   <PersonCombobox
-                    value={editContactPersonId}
-                    onValueChange={setEditContactPersonId}
-                    placeholder="Select contact..."
+                    value={addContactPersonId}
+                    onValueChange={(v) => { setAddContactPersonId(v); setContactError(null); }}
+                    placeholder="Add a contact person..."
                   />
+                  {addContactPersonId && (
+                    <div className="flex gap-2">
+                      <Select value={addContactRole || '__none__'} onValueChange={(v) => setAddContactRole(v === '__none__' ? '' : v)}>
+                        <SelectTrigger className="flex-1">
+                          <SelectValue placeholder="Select role..." />
+                        </SelectTrigger>
+                        <SelectContent>
+                          <SelectItem value="__none__">No role</SelectItem>
+                          {STANDARD_ROLES.map((r) => (
+                            <SelectItem key={r} value={r}>{r}</SelectItem>
+                          ))}
+                        </SelectContent>
+                      </Select>
+                      {addContactRole === 'Other' && (
+                        <Input
+                          className="flex-1"
+                          placeholder="Describe role..."
+                          value={addContactRoleCustom}
+                          onChange={(e) => setAddContactRoleCustom(e.target.value)}
+                          maxLength={200}
+                        />
+                      )}
+                      <Button size="sm" onClick={handleAddContact} disabled={isAddingContact}>
+                        <Plus className="h-4 w-4 mr-1" /> Add
+                      </Button>
+                    </div>
+                  )}
+                  {contactError && <p className="text-xs text-destructive">{contactError}</p>}
                 </div>
               </div>
 
@@ -1051,26 +1195,32 @@ export default function GrantDetailClient() {
                 <CardTitle>Outreach History</CardTitle>
                 <CardDescription>Communication with grantor contacts</CardDescription>
               </div>
-              {grant.contact && (
-                <Button
-                  size="sm"
-                  onClick={() => setShowSendEmail(true)}
-                  disabled={!grant.contact.email}
-                  title={!grant.contact.email ? 'Contact person has no email address' : undefined}
-                >
-                  <Mail className="mr-1 h-4 w-4" /> Send Email
-                </Button>
+              {contacts.some(c => c.person?.email) && (
+                <div className="flex gap-2 flex-wrap">
+                  {contacts.filter(c => c.person?.email).map(c => (
+                    <Button
+                      key={c.id}
+                      size="sm"
+                      variant="outline"
+                      onClick={() => { setEmailTargetContact(c); setShowSendEmail(true); }}
+                    >
+                      <Mail className="mr-1 h-4 w-4" />
+                      {[c.person?.first_name, c.person?.last_name].filter(Boolean).join(' ')}
+                      {c.role ? ` (${c.role})` : ''}
+                    </Button>
+                  ))}
+                </div>
               )}
             </CardHeader>
             <CardContent>
-              {!grant.contact && (
+              {contacts.length === 0 && (
                 <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground mb-4">
-                  Add a contact person to this grant on the Info tab to send outreach emails.
+                  Add contacts to this grant on the Info tab to send outreach emails.
                 </div>
               )}
-              {grant.contact && !grant.contact.email && (
+              {contacts.length > 0 && !contacts.some(c => c.person?.email) && (
                 <div className="rounded-lg border border-dashed p-4 text-center text-sm text-muted-foreground mb-4">
-                  The contact person does not have an email address. Add one to their profile to send outreach.
+                  None of the contacts have email addresses. Add emails to their profiles to send outreach.
                 </div>
               )}
               {outreach.length === 0 ? (
@@ -1226,13 +1376,13 @@ export default function GrantDetailClient() {
         </TabsContent>
       </Tabs>
 
-      {grant.contact?.email && (
+      {emailTargetContact?.person?.email && (
         <SendEmailModal
           open={showSendEmail}
-          onOpenChange={setShowSendEmail}
+          onOpenChange={(open) => { setShowSendEmail(open); if (!open) setEmailTargetContact(null); }}
           projectSlug={slug}
-          defaultTo={grant.contact.email}
-          personId={grant.contact.id}
+          defaultTo={emailTargetContact.person.email}
+          personId={emailTargetContact.person.id}
           organizationId={grant.funder_organization_id ?? undefined}
           onSuccess={handleOutreachEmailSuccess}
         />

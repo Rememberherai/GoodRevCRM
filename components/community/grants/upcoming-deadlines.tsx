@@ -71,7 +71,7 @@ export function UpcomingDeadlines() {
   const fetchDeadlines = useCallback(async () => {
     setIsLoading(true);
     try {
-      const res = await fetch(`/api/projects/${slug}/grants?limit=100`);
+      const res = await fetch(`/api/projects/${slug}/grants?limit=100&discovered=false`);
       const json = await res.json() as { grants?: GrantRecord[] };
       setDeadlines(computeDeadlines(json.grants ?? []));
     } catch {

@@ -113,7 +113,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         entityType: 'grant' as never,
         entityId: id,
         data: data as unknown as Record<string, unknown>,
-      });
+      }).catch(() => {});
     }
 
     // Detect status change → emit specific trigger
@@ -126,7 +126,7 @@ export async function PATCH(request: Request, context: RouteContext) {
         entityId: id,
         data: data as unknown as Record<string, unknown>,
         previousData: { status: existingGrant.status },
-      });
+      }).catch(() => {});
     }
 
     // When status transitions to 'awarded', auto-create a contribution of type 'grant'
@@ -157,7 +157,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       entityId: id,
       data: data as unknown as Record<string, unknown>,
       previousData: existingGrant as unknown as Record<string, unknown>,
-    });
+    }).catch(() => {});
 
     return NextResponse.json({ grant: data });
   } catch (error) {
@@ -208,7 +208,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       entityType: 'grant' as never,
       entityId: id,
       data: { id, project_id: project.id },
-    });
+    }).catch(() => {});
 
     return NextResponse.json({ success: true });
   } catch (error) {

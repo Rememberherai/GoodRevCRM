@@ -133,9 +133,9 @@ export async function POST(request: Request, context: RouteContext) {
         }
       }
 
-      // Parse amounts (use != null to preserve numeric 0)
-      const amountRequested = row.amount_requested != null ? Number(row.amount_requested) : null;
-      const amountAwarded = row.amount_awarded != null ? Number(row.amount_awarded) : null;
+      // Parse amounts (use != null and non-empty-string to preserve numeric 0)
+      const amountRequested = row.amount_requested != null && row.amount_requested !== '' ? Number(row.amount_requested) : null;
+      const amountAwarded = row.amount_awarded != null && row.amount_awarded !== '' ? Number(row.amount_awarded) : null;
 
       if (amountRequested != null && (isNaN(amountRequested) || amountRequested < 0)) {
         results.push({ row: i + 1, success: false, error: `Invalid amount_requested: ${row.amount_requested}` });
@@ -146,11 +146,11 @@ export async function POST(request: Request, context: RouteContext) {
         continue;
       }
 
-      // Parse new numeric fields (use != null to preserve numeric 0)
-      const fundingRangeMin = row.funding_range_min != null ? Number(row.funding_range_min) : null;
-      const fundingRangeMax = row.funding_range_max != null ? Number(row.funding_range_max) : null;
-      const missionFit = row.mission_fit != null ? Number(row.mission_fit) : null;
-      const tier = row.tier != null ? Number(row.tier) : null;
+      // Parse new numeric fields (use != null and non-empty-string to preserve numeric 0)
+      const fundingRangeMin = row.funding_range_min != null && row.funding_range_min !== '' ? Number(row.funding_range_min) : null;
+      const fundingRangeMax = row.funding_range_max != null && row.funding_range_max !== '' ? Number(row.funding_range_max) : null;
+      const missionFit = row.mission_fit != null && row.mission_fit !== '' ? Number(row.mission_fit) : null;
+      const tier = row.tier != null && row.tier !== '' ? Number(row.tier) : null;
 
       // Validate category
       const category = row.category?.toLowerCase().trim() || null;
