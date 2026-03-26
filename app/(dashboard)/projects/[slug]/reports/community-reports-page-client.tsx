@@ -29,7 +29,8 @@ import { EngagementTrendsReportView } from '@/components/community/reports/engag
 import { RiskReferralsReportView } from '@/components/community/reports/risk-referrals';
 import { EventOverviewReportView } from '@/components/community/reports/event-overview';
 import { EventDetailReportView } from '@/components/community/reports/event-detail-report';
-import type { EventOverviewReport, IndividualEventReport } from '@/lib/community/reports';
+import { SeriesReportView } from '@/components/community/reports/series-report';
+import type { EventOverviewReport, IndividualEventReport, SeriesReport } from '@/lib/community/reports';
 import type { DateRange } from '@/types/analytics';
 
 interface CommunityReportsResponse {
@@ -131,12 +132,17 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
   const [eventDrillDownId, setEventDrillDownId] = useState<string | null>(null);
   const [eventDetailData, setEventDetailData] = useState<IndividualEventReport | null>(null);
   const [eventDetailLoading, setEventDetailLoading] = useState(false);
+  const [seriesDrillDownId, setSeriesDrillDownId] = useState<string | null>(null);
+  const [seriesDetailData, setSeriesDetailData] = useState<SeriesReport | null>(null);
+  const [seriesDetailLoading, setSeriesDetailLoading] = useState(false);
 
   const loadReports = useCallback(async () => {
     setIsLoading(true);
     setError(null);
     setEventDrillDownId(null);
     setEventDetailData(null);
+    setSeriesDrillDownId(null);
+    setSeriesDetailData(null);
 
     try {
       let url = `/api/projects/${projectSlug}/community/reports?type=all`;
@@ -166,7 +172,10 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
     setEventDetailLoading(true);
     try {
       const response = await fetch(`/api/projects/${projectSlug}/community/reports?type=event_detail&eventId=${eventId}`);
-      const json = await response.json() as { event_detail?: IndividualEventReport };
+      const json = await response.json() as { event_detail?: IndividualEventReport; error?: string };
+      if (!response.ok) {
+        throw new Error(json.error ?? 'Failed to load event report');
+      }
       setEventDetailData(json.event_detail ?? null);
     } catch {
       setEventDetailData(null);
@@ -180,6 +189,28 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
       void loadEventDetail(eventDrillDownId);
     }
   }, [eventDrillDownId, loadEventDetail]);
+
+  const loadSeriesDetail = useCallback(async (seriesId: string) => {
+    setSeriesDetailLoading(true);
+    try {
+      const response = await fetch(`/api/projects/${projectSlug}/community/reports?type=series_report&seriesId=${seriesId}`);
+      const json = await response.json() as { series_report?: SeriesReport; error?: string };
+      if (!response.ok) {
+        throw new Error(json.error ?? 'Failed to load series report');
+      }
+      setSeriesDetailData(json.series_report ?? null);
+    } catch {
+      setSeriesDetailData(null);
+    } finally {
+      setSeriesDetailLoading(false);
+    }
+  }, [projectSlug]);
+
+  useEffect(() => {
+    if (seriesDrillDownId) {
+      void loadSeriesDetail(seriesDrillDownId);
+    }
+  }, [seriesDrillDownId, loadSeriesDetail]);
 
   function handleExportCSV() {
     if (!data) return;
@@ -391,7 +422,21 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
               <RiskReferralsReportView data={data.risk_referral} />
             </TabsContent>
             <TabsContent value="events" className="pt-4">
-              {eventDrillDownId ? (
+              {seriesDrillDownId ? (
+                seriesDetailLoading ? (
+                  <div className="flex items-center justify-center py-20">
+                    <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
+                  </div>
+                ) : (
+                  <SeriesReportView
+                    data={seriesDetailData}
+                    onBack={() => {
+                      setSeriesDrillDownId(null);
+                      setSeriesDetailData(null);
+                    }}
+                  />
+                )
+              ) : eventDrillDownId ? (
                 eventDetailLoading ? (
                   <div className="flex items-center justify-center py-20">
                     <Loader2 className="h-8 w-8 animate-spin text-muted-foreground" />
@@ -409,6 +454,7 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
                 <EventOverviewReportView
                   data={data.event_overview}
                   onDrillDown={(eventId) => setEventDrillDownId(eventId)}
+                  onSeriesDrillDown={(seriesId) => setSeriesDrillDownId(seriesId)}
                 />
               )}
             </TabsContent>

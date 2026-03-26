@@ -141,6 +141,41 @@ export function EventDetailReportView({ data, onBack }: EventDetailReportViewPro
         </CardContent>
       </Card>
 
+      {/* Attendee Composition */}
+      {funnel.checked_in > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Attendee Composition</CardTitle>
+            <CardDescription>New vs returning among checked-in attendees</CardDescription>
+          </CardHeader>
+          <CardContent>
+            <div className="grid gap-4 sm:grid-cols-3">
+              <div className="rounded-lg border border-green-200 bg-green-50/50 p-4 text-center dark:border-green-800 dark:bg-green-950/30">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">New</div>
+                <div className="mt-1 text-2xl font-semibold text-green-600 dark:text-green-400">{data.new_attendees}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {funnel.checked_in > 0 ? Math.round((data.new_attendees / funnel.checked_in) * 100) : 0}%
+                </div>
+              </div>
+              <div className="rounded-lg border border-blue-200 bg-blue-50/50 p-4 text-center dark:border-blue-800 dark:bg-blue-950/30">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Returning</div>
+                <div className="mt-1 text-2xl font-semibold text-blue-600 dark:text-blue-400">{data.returning_attendees}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {funnel.checked_in > 0 ? Math.round((data.returning_attendees / funnel.checked_in) * 100) : 0}%
+                </div>
+              </div>
+              <div className="rounded-lg border bg-muted/50 p-4 text-center">
+                <div className="text-xs uppercase tracking-wide text-muted-foreground">Unlinked</div>
+                <div className="mt-1 text-2xl font-semibold">{data.unlinked_registrations}</div>
+                <div className="mt-1 text-xs text-muted-foreground">
+                  {funnel.checked_in > 0 ? Math.round((data.unlinked_registrations / funnel.checked_in) * 100) : 0}%
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Charts */}
       <div className="grid gap-4 lg:grid-cols-2">
         {/* Registration Timeline */}

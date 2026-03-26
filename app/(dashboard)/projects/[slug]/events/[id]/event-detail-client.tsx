@@ -76,6 +76,7 @@ export function EventDetailClient() {
   const [reportData, setReportData] = useState<IndividualEventReport | null>(null);
   const [reportLoading, setReportLoading] = useState(false);
   const [reportLoaded, setReportLoaded] = useState(false);
+  const [activeTab, setActiveTab] = useState('details');
 
   const loadEvent = useCallback(async () => {
     try {
@@ -83,6 +84,7 @@ export function EventDetailClient() {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setEvent(data.event);
+      setReportData(null);
       setReportLoaded(false); // Reset so report re-fetches on next tab click
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to load');
@@ -93,6 +95,29 @@ export function EventDetailClient() {
 
   useEffect(() => { void loadEvent(); }, [loadEvent]);
 
+  const loadReport = useCallback(async () => {
+    if (reportLoaded) return;
+    setReportLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${slug}/community/reports?type=event_detail&eventId=${eventId}`);
+      const json = await res.json() as { event_detail?: IndividualEventReport; error?: string };
+      if (!res.ok) {
+        setReportData(null);
+        setReportLoaded(false);
+        toast.error(json.error ?? 'Failed to load report');
+      } else {
+        setReportData(json.event_detail ?? null);
+        setReportLoaded(true);
+      }
+    } catch {
+      toast.error('Failed to load report');
+      setReportData(null);
+      setReportLoaded(false);
+    } finally {
+      setReportLoading(false);
+    }
+  }, [slug, eventId, reportLoaded]);
+
   // Load calendar slug for public link
   useEffect(() => {
     fetch(`/api/projects/${slug}/events/calendar-settings`)
@@ -100,6 +125,12 @@ export function EventDetailClient() {
       .then(data => { if (data.settings?.slug) setCalendarSlug(data.settings.slug); })
       .catch(() => {});
   }, [slug]);
+
+  useEffect(() => {
+    if (activeTab === 'report' && !reportLoaded && !reportLoading) {
+      void loadReport();
+    }
+  }, [activeTab, reportLoaded, reportLoading, loadReport]);
 
   async function handlePublish() {
     const targetStatus = event?.status === 'published' ? 'draft' : 'published';
@@ -153,27 +184,6 @@ export function EventDetailClient() {
     });
   }
 
-  async function loadReport() {
-    if (reportLoaded) return;
-    setReportLoading(true);
-    try {
-      const res = await fetch(`/api/projects/${slug}/community/reports?type=event_detail&eventId=${eventId}`);
-      const json = await res.json() as { event_detail?: IndividualEventReport; error?: string };
-      if (!res.ok) {
-        toast.error(json.error ?? 'Failed to load report');
-        setReportData(null);
-      } else {
-        setReportData(json.event_detail ?? null);
-      }
-      setReportLoaded(true);
-    } catch {
-      toast.error('Failed to load report');
-      setReportData(null);
-    } finally {
-      setReportLoading(false);
-    }
-  }
-
   if (isLoading) return <div className="animate-pulse space-y-4"><div className="h-8 w-64 bg-muted rounded" /><div className="h-40 bg-muted rounded-xl" /></div>;
   if (!event) return <div className="text-center py-12 text-muted-foreground">Event not found</div>;
 
@@ -218,7 +228,7 @@ export function EventDetailClient() {
         </div>
       </div>
 
-      <Tabs defaultValue="details">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList className="flex-wrap h-auto gap-1">
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="edit">Edit</TabsTrigger>
@@ -228,7 +238,7 @@ export function EventDetailClient() {
           <TabsTrigger value="attendance">Attendance</TabsTrigger>
           <TabsTrigger value="notes">Notes</TabsTrigger>
           <TabsTrigger value="waivers">Waivers{event.waiver_count ? ` (${event.waiver_count})` : ''}</TabsTrigger>
-          <TabsTrigger value="report" onClick={() => void loadReport()}>Report</TabsTrigger>
+          <TabsTrigger value="report">Report</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="space-y-4 mt-4">

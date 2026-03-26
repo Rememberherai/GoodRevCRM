@@ -88,10 +88,9 @@ export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
       </div>
 
       {/* KPI Cards */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
+      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-6">
         <KpiCard label="Instances" value={data.total_instances} />
         <KpiCard label="Series Registrations" value={data.total_series_registrations} />
-        <KpiCard label="Total Notes" value={data.notes_summary.total_notes} />
         <KpiCard
           label="Avg Attendance Rate"
           value={
@@ -100,6 +99,9 @@ export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
               : '—'
           }
         />
+        <KpiCard label="Total Notes" value={data.notes_summary.total_notes} />
+        <KpiCard label="New to Series" value={data.new_to_series} className="border-green-200 dark:border-green-800" />
+        <KpiCard label="Returning in Series" value={data.returning_in_series} className="border-blue-200 dark:border-blue-800" />
       </div>
 
       {/* Charts */}
@@ -172,6 +174,8 @@ export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
                   <th className="pb-2 pr-4 font-medium text-right">Registrations</th>
                   <th className="pb-2 pr-4 font-medium text-right">Checked In</th>
                   <th className="pb-2 pr-4 font-medium text-right">Attendance %</th>
+                  <th className="pb-2 pr-4 font-medium text-right">New to Series</th>
+                  <th className="pb-2 pr-4 font-medium text-right">Returning</th>
                   <th className="pb-2 font-medium text-right">Retention %</th>
                 </tr>
               </thead>
@@ -192,6 +196,8 @@ export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
                           {instance.attendance_rate}%
                         </Badge>
                       </td>
+                      <td className="py-2 pr-4 text-right text-green-600 dark:text-green-400">{instance.new_to_series}</td>
+                      <td className="py-2 pr-4 text-right text-blue-600 dark:text-blue-400">{instance.returning_in_series}</td>
                       <td className="py-2 text-right">
                         {ret ? `${ret.retention_rate}%` : '—'}
                       </td>
@@ -250,9 +256,9 @@ export function SeriesReportView({ data, onBack }: SeriesReportViewProps) {
   );
 }
 
-function KpiCard({ label, value }: { label: string; value: string | number }) {
+function KpiCard({ label, value, className }: { label: string; value: string | number; className?: string }) {
   return (
-    <Card>
+    <Card className={className}>
       <CardContent className="pt-6">
         <div className="text-xs uppercase tracking-wide text-muted-foreground">{label}</div>
         <div className="mt-1 text-2xl font-semibold">{value}</div>

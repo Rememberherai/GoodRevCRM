@@ -88,6 +88,9 @@ export interface EventOverviewReport {
   total_check_ins: number;
   avg_attendance_rate: number;
   unduplicated_event_participants: number;
+  new_attendees: number;
+  returning_attendees: number;
+  unlinked_registrations: number;
   by_status: { status: string; count: number }[];
   by_source: { source: string; count: number }[];
   by_category: { category: string; count: number }[];
@@ -100,8 +103,20 @@ export interface EventOverviewReport {
     attendance_rate: number;
     capacity: number | null;
     capacity_utilization: number | null;
+    series_id: string | null;
   }[];
   monthly_events: { month: string; count: number; registrations: number; check_ins: number }[];
+  new_vs_returning_by_month: { month: string; new_attendees: number; returning_attendees: number; unique_attendees: number }[];
+  by_category_stats: {
+    category: string;
+    event_count: number;
+    registrations: number;
+    check_ins: number;
+    attendance_rate: number;
+    unique_participants: number;
+    new_attendees: number;
+    returning_attendees: number;
+  }[];
 }
 
 export interface IndividualEventReport {
@@ -124,6 +139,9 @@ export interface IndividualEventReport {
   source_breakdown: { source: string; count: number }[];
   ticket_type_breakdown: { ticket_type: string; count: number; revenue_cents: number }[];
   waiver_completion_rate: number | null;
+  new_attendees: number;
+  returning_attendees: number;
+  unlinked_registrations: number;
   notes: {
     id: string;
     category: string | null;
@@ -140,6 +158,8 @@ export interface SeriesReport {
   recurrence_frequency: string;
   total_instances: number;
   total_series_registrations: number;
+  new_to_series: number;
+  returning_in_series: number;
   attendance_trend: {
     event_id: string;
     title: string;
@@ -147,6 +167,8 @@ export interface SeriesReport {
     registrations: number;
     checked_in: number;
     attendance_rate: number;
+    new_to_series: number;
+    returning_in_series: number;
   }[];
   retention: {
     instance_number: number;
@@ -820,6 +842,54 @@ export async function getRiskReferralReport(
 // Event Reports
 // ============================================================
 
+/**
+ * Fetches the earliest checked_in_at for each person across all project events.
+ * Returns Map<person_id, earliest_checked_in_at>.
+ * Scopes through events table since event_registrations has no project_id.
+ */
+async function getProjectAttendanceHistory(
+  supabase: Supabase,
+  projectEventIds: string[],
+  personIds: string[]
+): Promise<Map<string, string>> {
+  if (personIds.length === 0 || projectEventIds.length === 0) return new Map();
+
+  const result = new Map<string, string>();
+  const PERSON_CHUNK_SIZE = 500;
+  const EVENT_CHUNK_SIZE = 200;
+
+  for (let personIndex = 0; personIndex < personIds.length; personIndex += PERSON_CHUNK_SIZE) {
+    const personChunk = personIds.slice(personIndex, personIndex + PERSON_CHUNK_SIZE);
+
+    for (let eventIndex = 0; eventIndex < projectEventIds.length; eventIndex += EVENT_CHUNK_SIZE) {
+      const eventChunk = projectEventIds.slice(eventIndex, eventIndex + EVENT_CHUNK_SIZE);
+      const { data, error } = await supabase
+        .from('event_registrations')
+        .select('person_id, checked_in_at')
+        .in('event_id', eventChunk)
+        .in('person_id', personChunk)
+        .not('checked_in_at', 'is', null)
+        .neq('status', 'cancelled');
+
+      if (error) {
+        throw new Error(`Failed to load attendance history: ${error.message}`);
+      }
+
+      if (!data) continue;
+
+      for (const r of data) {
+        if (!r.person_id || !r.checked_in_at) continue;
+        const existing = result.get(r.person_id);
+        if (!existing || r.checked_in_at < existing) {
+          result.set(r.person_id, r.checked_in_at);
+        }
+      }
+    }
+  }
+
+  return result;
+}
+
 export async function getEventOverviewReport(
   supabase: Supabase,
   projectId: string,
@@ -827,7 +897,7 @@ export async function getEventOverviewReport(
 ): Promise<EventOverviewReport> {
   let eventsQuery = supabase
     .from('events')
-    .select('id, title, starts_at, status, category, total_capacity')
+    .select('id, title, starts_at, status, category, total_capacity, series_id')
     .eq('project_id', projectId);
   if (dateRange) {
     eventsQuery = eventsQuery.gte('starts_at', dateRange.from).lte('starts_at', dateRange.to);
@@ -843,11 +913,16 @@ export async function getEventOverviewReport(
       total_check_ins: 0,
       avg_attendance_rate: 0,
       unduplicated_event_participants: 0,
+      new_attendees: 0,
+      returning_attendees: 0,
+      unlinked_registrations: 0,
       by_status: [],
       by_source: [],
       by_category: [],
       top_events_by_attendance: [],
       monthly_events: [],
+      new_vs_returning_by_month: [],
+      by_category_stats: [],
     };
   }
 
@@ -896,7 +971,7 @@ export async function getEventOverviewReport(
 
   // Totals
   const totalRegistrations = regList.filter((r) => r.status !== 'cancelled').length;
-  const totalCheckIns = regList.filter((r) => r.checked_in_at).length;
+  const totalCheckIns = regList.filter((r) => r.checked_in_at && r.status !== 'cancelled').length;
   const avgAttendanceRate = totalRegistrations > 0 ? (totalCheckIns / totalRegistrations) * 100 : 0;
 
   // Top events by attendance
@@ -914,6 +989,7 @@ export async function getEventOverviewReport(
         attendance_rate: Math.round(attendanceRate * 10) / 10,
         capacity: e.total_capacity,
         capacity_utilization: capacityUtil !== null ? Math.round(capacityUtil * 10) / 10 : null,
+        series_id: e.series_id ?? null,
       };
     })
     .sort((a, b) => b.checked_in - a.checked_in)
@@ -933,12 +1009,140 @@ export async function getEventOverviewReport(
     monthlyMap.set(month, entry);
   }
 
+  // --- New/Returning attendee analysis ---
+  // Collect checked-in person_ids from current scope
+  const checkedInPersonIds = new Set<string>();
+  const unlinkedCheckedIn = regList.filter((r) => r.checked_in_at && !r.person_id && r.status !== 'cancelled').length;
+  for (const r of regList) {
+    if (r.checked_in_at && r.person_id && r.status !== 'cancelled') {
+      checkedInPersonIds.add(r.person_id);
+    }
+  }
+
+  // Fetch all project event IDs (for history scope — may include events outside date range)
+  let allProjectEventIds = eventIds;
+  if (dateRange) {
+    const { data: allEvents } = await supabase
+      .from('events')
+      .select('id')
+      .eq('project_id', projectId);
+    allProjectEventIds = (allEvents ?? []).map((e) => e.id);
+  }
+
+  // Get attendance history for all checked-in people
+  const attendanceHistory = await getProjectAttendanceHistory(supabase, allProjectEventIds, [...checkedInPersonIds]);
+
+  // Determine the scope boundary for new/returning
+  const scopeStart = dateRange?.from ?? eventList.reduce((min, e) => (e.starts_at < min ? e.starts_at : min), eventList[0]!.starts_at);
+
+  let newAttendees = 0;
+  let returningAttendees = 0;
+  // Map person_id -> new/returning for reuse in category stats
+  const personClassification = new Map<string, 'new' | 'returning'>();
+  for (const pid of checkedInPersonIds) {
+    const firstCheckedIn = attendanceHistory.get(pid);
+    if (!firstCheckedIn || firstCheckedIn >= scopeStart) {
+      newAttendees++;
+      personClassification.set(pid, 'new');
+    } else {
+      returningAttendees++;
+      personClassification.set(pid, 'returning');
+    }
+  }
+
+  // Build event-to-category lookup
+  const eventCategoryMap = new Map(eventList.map((e) => [e.id, e.category ?? 'uncategorized']));
+  const eventMonthMap = new Map(eventList.map((e) => [e.id, e.starts_at?.slice(0, 7) ?? 'unknown']));
+
+  // Build by_category_stats
+  const categoryStatsMap = new Map<string, {
+    event_count: number;
+    registrations: number;
+    check_ins: number;
+    personIds: Set<string>;
+    newAttendees: number;
+    returningAttendees: number;
+  }>();
+  for (const e of eventList) {
+    const cat = e.category ?? 'uncategorized';
+    if (!categoryStatsMap.has(cat)) {
+      categoryStatsMap.set(cat, { event_count: 0, registrations: 0, check_ins: 0, personIds: new Set(), newAttendees: 0, returningAttendees: 0 });
+    }
+    const entry = categoryStatsMap.get(cat)!;
+    entry.event_count++;
+    const stats = eventRegMap.get(e.id);
+    if (stats) {
+      entry.registrations += stats.registrations;
+      entry.check_ins += stats.checkedIn;
+    }
+  }
+  // Assign people to categories based on which events they checked into
+  for (const r of regList) {
+    if (r.status === 'cancelled' || !r.checked_in_at || !r.person_id) continue;
+    const cat = eventCategoryMap.get(r.event_id) ?? 'uncategorized';
+    const entry = categoryStatsMap.get(cat);
+    if (entry) {
+      entry.personIds.add(r.person_id);
+    }
+  }
+  // Classify new/returning per category (project-global definition)
+  for (const [, entry] of categoryStatsMap) {
+    for (const pid of entry.personIds) {
+      const classification = personClassification.get(pid);
+      if (classification === 'new') entry.newAttendees++;
+      else if (classification === 'returning') entry.returningAttendees++;
+    }
+  }
+
+  const byCategoryStats = [...categoryStatsMap.entries()]
+    .map(([category, s]) => ({
+      category,
+      event_count: s.event_count,
+      registrations: s.registrations,
+      check_ins: s.check_ins,
+      attendance_rate: s.registrations > 0 ? Math.round((s.check_ins / s.registrations) * 100 * 10) / 10 : 0,
+      unique_participants: s.personIds.size,
+      new_attendees: s.newAttendees,
+      returning_attendees: s.returningAttendees,
+    }))
+    .sort((a, b) => b.check_ins - a.check_ins);
+
+  // Build new_vs_returning_by_month (deduplicated by person_id per month)
+  const monthlyNR = new Map<string, { newPids: Set<string>; returningPids: Set<string> }>();
+  for (const r of regList) {
+    if (r.status === 'cancelled' || !r.checked_in_at || !r.person_id) continue;
+    const month = eventMonthMap.get(r.event_id) ?? 'unknown';
+    if (!monthlyNR.has(month)) monthlyNR.set(month, { newPids: new Set(), returningPids: new Set() });
+    const entry = monthlyNR.get(month)!;
+    const firstCheckedIn = attendanceHistory.get(r.person_id);
+    const firstAttendanceMonth = firstCheckedIn?.slice(0, 7) ?? month;
+    if (firstAttendanceMonth === month) {
+      entry.newPids.add(r.person_id);
+      entry.returningPids.delete(r.person_id);
+    } else {
+      if (!entry.newPids.has(r.person_id)) {
+        entry.returningPids.add(r.person_id);
+      }
+    }
+  }
+  const newVsReturningByMonth = [...monthlyNR.entries()]
+    .map(([month, s]) => ({
+      month,
+      new_attendees: s.newPids.size,
+      returning_attendees: s.returningPids.size,
+      unique_attendees: new Set([...s.newPids, ...s.returningPids]).size,
+    }))
+    .sort((a, b) => a.month.localeCompare(b.month));
+
   return {
     total_events: eventList.length,
     total_registrations: totalRegistrations,
     total_check_ins: totalCheckIns,
     avg_attendance_rate: Math.round(avgAttendanceRate * 10) / 10,
     unduplicated_event_participants: uniquePersonIds.size,
+    new_attendees: newAttendees,
+    returning_attendees: returningAttendees,
+    unlinked_registrations: unlinkedCheckedIn,
     by_status: [...statusMap.entries()].map(([status, count]) => ({ status, count })).sort((a, b) => b.count - a.count),
     by_source: [...sourceMap.entries()].map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
     by_category: [...categoryMap.entries()].map(([category, count]) => ({ category, count })).sort((a, b) => b.count - a.count),
@@ -946,6 +1150,8 @@ export async function getEventOverviewReport(
     monthly_events: [...monthlyMap.entries()]
       .map(([month, data]) => ({ month, ...data }))
       .sort((a, b) => a.month.localeCompare(b.month)),
+    new_vs_returning_by_month: newVsReturningByMonth,
+    by_category_stats: byCategoryStats,
   };
 }
 
@@ -966,7 +1172,7 @@ export async function getIndividualEventReport(
   // Registrations
   const { data: registrations } = await supabase
     .from('event_registrations')
-    .select('id, status, checked_in_at, source, created_at, waiver_status')
+    .select('id, person_id, status, checked_in_at, source, created_at, waiver_status')
     .eq('event_id', eventId);
   const regList = registrations ?? [];
 
@@ -1073,6 +1279,40 @@ export async function getIndividualEventReport(
     created_by_name: n.author?.full_name ?? n.author?.email ?? 'Unknown',
   }));
 
+  // --- New/Returning attendee analysis ---
+  const checkedInPersonIds = new Set<string>();
+  let unlinkedRegs = 0;
+  for (const r of regList) {
+    if (r.status === 'cancelled' || !r.checked_in_at) continue;
+    if (r.person_id) checkedInPersonIds.add(r.person_id);
+    else unlinkedRegs++;
+  }
+
+  let newAttendeesCount = 0;
+  let returningAttendeesCount = 0;
+
+  if (checkedInPersonIds.size > 0) {
+    // Get all project event IDs for scoping
+    const { data: projectEvents } = await supabase
+      .from('events')
+      .select('id')
+      .eq('project_id', projectId);
+    const projectEventIds = (projectEvents ?? []).map((e) => e.id);
+
+    // Get attendance history
+    const history = await getProjectAttendanceHistory(supabase, projectEventIds, [...checkedInPersonIds]);
+
+    for (const pid of checkedInPersonIds) {
+      const firstCheckedIn = history.get(pid);
+      // If their first check-in is at or after this event's start, they're new
+      if (!firstCheckedIn || firstCheckedIn >= event.starts_at) {
+        newAttendeesCount++;
+      } else {
+        returningAttendeesCount++;
+      }
+    }
+  }
+
   return {
     event_id: event.id,
     title: event.title,
@@ -1085,6 +1325,9 @@ export async function getIndividualEventReport(
     source_breakdown: [...sourceMap.entries()].map(([source, count]) => ({ source, count })).sort((a, b) => b.count - a.count),
     ticket_type_breakdown: ticketBreakdown,
     waiver_completion_rate: waiverCompletionRate,
+    new_attendees: newAttendeesCount,
+    returning_attendees: returningAttendeesCount,
+    unlinked_registrations: unlinkedRegs,
     notes: notesList,
   };
 }
@@ -1127,6 +1370,8 @@ export async function getSeriesReport(
       recurrence_frequency: series.recurrence_frequency ?? 'weekly',
       total_instances: 0,
       total_series_registrations: activeSeriesRegs.length,
+      new_to_series: 0,
+      returning_in_series: 0,
       attendance_trend: [],
       retention: [],
       notes_summary: { total_notes: 0, by_category: [], recent_notes: [] },
@@ -1155,14 +1400,29 @@ export async function getSeriesReport(
     eventRegMap.set(r.event_id, entry);
   }
 
-  // Attendance trend and retention
+  // Attendance trend, retention, and new-to-series tracking
   const attendanceTrend: SeriesReport['attendance_trend'] = [];
   const retention: SeriesReport['retention'] = [];
+  const cumulativeSeriesAttendees = new Set<string>(); // tracks people seen in earlier instances
+  const allSeriesAttendees = new Set<string>(); // all unique people across entire series
+  const multiInstanceAttendees = new Set<string>(); // people who attended 2+ instances
 
   for (let i = 0; i < eventList.length; i++) {
     const e = eventList[i]!;
     const stats = eventRegMap.get(e.id) ?? { registrations: 0, checkedIn: 0, checkedInPersonIds: new Set<string>() };
     const attendanceRate = stats.registrations > 0 ? Math.round((stats.checkedIn / stats.registrations) * 100 * 10) / 10 : 0;
+
+    // New-to-series vs returning-in-series for this instance
+    let newToSeriesCount = 0;
+    let returningInSeriesCount = 0;
+    for (const pid of stats.checkedInPersonIds) {
+      if (cumulativeSeriesAttendees.has(pid)) {
+        returningInSeriesCount++;
+        multiInstanceAttendees.add(pid);
+      } else {
+        newToSeriesCount++;
+      }
+    }
 
     attendanceTrend.push({
       event_id: e.id,
@@ -1171,7 +1431,15 @@ export async function getSeriesReport(
       registrations: stats.registrations,
       checked_in: stats.checkedIn,
       attendance_rate: attendanceRate,
+      new_to_series: newToSeriesCount,
+      returning_in_series: returningInSeriesCount,
     });
+
+    // Add this instance's attendees to cumulative set AFTER counting
+    for (const pid of stats.checkedInPersonIds) {
+      cumulativeSeriesAttendees.add(pid);
+      allSeriesAttendees.add(pid);
+    }
 
     // Retention: how many series registrants attended this instance
     let seriesRegistrantsPresent = 0;
@@ -1223,6 +1491,8 @@ export async function getSeriesReport(
     recurrence_frequency: series.recurrence_frequency ?? 'weekly',
     total_instances: eventList.length,
     total_series_registrations: activeSeriesRegs.length,
+    new_to_series: allSeriesAttendees.size,
+    returning_in_series: multiInstanceAttendees.size,
     attendance_trend: attendanceTrend,
     retention,
     notes_summary: {
