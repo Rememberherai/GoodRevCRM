@@ -7,6 +7,7 @@ import {
   DndContext,
   DragOverlay,
   PointerSensor,
+  pointerWithin,
   useSensor,
   useSensors,
   useDroppable,
@@ -497,13 +498,12 @@ function KanbanColumn({
   const { setNodeRef, isOver } = useDroppable({ id: statusConfig.value });
 
   return (
-    <div className="w-72 flex-shrink-0">
+    <div ref={setNodeRef} className="w-72 flex-shrink-0">
       <div className="mb-3 flex items-center gap-2">
         <Badge className={statusConfig.color}>{statusConfig.label}</Badge>
         <span className="text-sm text-muted-foreground">({grants.length})</span>
       </div>
       <div
-        ref={setNodeRef}
         className={`space-y-3 min-h-[60px] rounded-lg transition-colors ${isOver ? 'bg-accent/50 ring-2 ring-primary/30' : ''}`}
       >
         {grants.map((grant) => (
@@ -561,7 +561,7 @@ function KanbanView({
   }
 
   return (
-    <DndContext sensors={sensors} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
+    <DndContext sensors={sensors} collisionDetection={pointerWithin} onDragStart={handleDragStart} onDragEnd={handleDragEnd}>
       <div className="space-y-4">
         <div className="flex gap-4 overflow-x-auto pb-4">
           {pipelineStatuses.map((statusConfig) => (
