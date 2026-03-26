@@ -12,22 +12,34 @@ import { getProjectSecret } from '@/lib/secrets';
 // OCR via OpenRouter
 // ============================================================
 
-interface ParsedName {
+export interface ParsedName {
   raw_text: string;
+  raw_email: string | null;
+  raw_phone: string | null;
   matched_person_id: string | null;
   match_confidence: number;
   suggested_name: string;
   match_status: 'matched' | 'possible' | 'unmatched';
+  /** true when the scanned email is not already on the matched person */
+  new_email: boolean;
+  /** true when the scanned phone is not already on the matched person */
+  new_phone: boolean;
+}
+
+interface ScannedEntry {
+  name: string;
+  email?: string | null;
+  phone?: string | null;
 }
 
 /**
- * Parse names from a sign-in sheet image using Claude Vision via OpenRouter.
+ * Parse names (and optionally emails/phones) from a sign-in sheet image using Vision via OpenRouter.
  */
 export async function parseSignInSheet(
   projectId: string,
   imageBase64: string,
   mimeType: string
-): Promise<string[]> {
+): Promise<ScannedEntry[]> {
   const apiKey = await getProjectSecret(projectId, 'openrouter_api_key');
   if (!apiKey) {
     throw new Error('OpenRouter API key not configured for this project');
@@ -57,12 +69,12 @@ export async function parseSignInSheet(
             },
             {
               type: 'text',
-              text: 'Extract all handwritten names from this sign-in sheet. Return ONLY a JSON array of strings, one per name. Example: ["John Smith", "Jane Doe"]. If you cannot read a name clearly, include your best guess. Do not include any other text.',
+              text: 'Extract all entries from this sign-in sheet. For each person, extract their name, and if visible, their email address and phone number. Return ONLY a JSON array of objects. Example: [{"name": "John Smith", "email": "john@example.com", "phone": "555-1234"}, {"name": "Jane Doe"}]. If a field is not present or unreadable, omit it. If you cannot read a name clearly, include your best guess. Do not include any other text.',
             },
           ],
         },
       ],
-      max_tokens: 2000,
+      max_tokens: 4000,
     }),
   });
 
@@ -91,8 +103,26 @@ export async function parseSignInSheet(
   if (!jsonMatch) return [];
 
   try {
-    const names = JSON.parse(jsonMatch[0]) as string[];
-    return names.filter((n: unknown) => typeof n === 'string' && n.trim().length > 0);
+    const parsed = JSON.parse(jsonMatch[0]) as unknown[];
+    const entries: ScannedEntry[] = [];
+
+    for (const item of parsed) {
+      // Support both string format (legacy) and object format
+      if (typeof item === 'string' && item.trim().length > 0) {
+        entries.push({ name: item.trim() });
+      } else if (item && typeof item === 'object' && 'name' in item) {
+        const obj = item as { name?: string; email?: string; phone?: string };
+        if (typeof obj.name === 'string' && obj.name.trim().length > 0) {
+          entries.push({
+            name: obj.name.trim(),
+            email: typeof obj.email === 'string' && obj.email.trim() ? obj.email.trim() : null,
+            phone: typeof obj.phone === 'string' && obj.phone.trim() ? obj.phone.trim() : null,
+          });
+        }
+      }
+    }
+
+    return entries;
   } catch {
     console.error('Failed to parse OCR response:', content);
     return [];
@@ -103,11 +133,18 @@ export async function parseSignInSheet(
 // Fuzzy match parsed names against project people
 // ============================================================
 
+export interface MatchNameEntry {
+  name: string;
+  email?: string | null;
+  phone?: string | null;
+}
+
 /**
  * Match parsed names against all people in a project using fuzzy matching.
+ * Accepts either plain string names (legacy) or objects with name/email/phone.
  */
 export async function matchParsedNames(
-  names: string[],
+  names: (string | MatchNameEntry)[],
   projectId: string
 ): Promise<ParsedName[]> {
   const supabase = createServiceClient();
@@ -115,63 +152,112 @@ export async function matchParsedNames(
   // Load all people in the project
   const { data: people } = await supabase
     .from('people')
-    .select('id, first_name, last_name, email')
+    .select('id, first_name, last_name, email, phone, mobile_phone')
     .eq('project_id', projectId)
     .is('deleted_at', null);
 
+  // Normalize input to entries
+  const entries: MatchNameEntry[] = names.map(n =>
+    typeof n === 'string' ? { name: n } : n
+  );
+
   if (!people || people.length === 0) {
-    return names.map((name) => ({
-      raw_text: name,
+    return entries.map((entry) => ({
+      raw_text: entry.name,
+      raw_email: entry.email ?? null,
+      raw_phone: entry.phone ?? null,
       matched_person_id: null,
       match_confidence: 0,
-      suggested_name: name,
+      suggested_name: entry.name,
       match_status: 'unmatched' as const,
+      new_email: false,
+      new_phone: false,
     }));
   }
 
+  // Index people by ID for quick lookup
+  const peopleById = new Map(people.map(p => [p.id, p]));
+
   const results: ParsedName[] = [];
 
-  for (const rawName of names) {
+  for (const entry of entries) {
     let bestMatch: { personId: string; confidence: number; name: string } | null = null;
 
     for (const person of people) {
       const fullName = [person.first_name, person.last_name].filter(Boolean).join(' ');
-      if (!fullName) continue;
+      if (!fullName && !person.email) continue;
 
-      const nameParts = rawName.trim().split(/\s+/);
+      const nameParts = entry.name.trim().split(/\s+/);
       const result = scorePersonMatch(
-        { first_name: nameParts[0] || null, last_name: nameParts.slice(1).join(' ') || null, email: null },
-        { first_name: person.first_name, last_name: person.last_name, email: person.email }
+        {
+          first_name: nameParts[0] || null,
+          last_name: nameParts.slice(1).join(' ') || null,
+          email: entry.email ?? null,
+          phone: entry.phone ?? null,
+        },
+        {
+          first_name: person.first_name,
+          last_name: person.last_name,
+          email: person.email,
+          phone: person.phone,
+          mobile_phone: person.mobile_phone,
+        }
       );
 
       if (!bestMatch || result.score > bestMatch.confidence) {
-        bestMatch = { personId: person.id, confidence: result.score, name: fullName };
+        bestMatch = { personId: person.id, confidence: result.score, name: fullName || person.email || '' };
       }
     }
 
+    // Check if the scanned email/phone is new info for the matched person
+    function detectNewInfo(personId: string | null) {
+      if (!personId) return { newEmail: false, newPhone: false };
+      const person = peopleById.get(personId);
+      if (!person) return { newEmail: false, newPhone: false };
+
+      const newEmail = !!(entry.email && !person.email);
+      const newPhone = !!(entry.phone && !person.phone && !person.mobile_phone);
+
+      return { newEmail, newPhone };
+    }
+
     if (bestMatch && bestMatch.confidence > 0.85) {
+      const { newEmail, newPhone } = detectNewInfo(bestMatch.personId);
       results.push({
-        raw_text: rawName,
+        raw_text: entry.name,
+        raw_email: entry.email ?? null,
+        raw_phone: entry.phone ?? null,
         matched_person_id: bestMatch.personId,
         match_confidence: bestMatch.confidence,
         suggested_name: bestMatch.name,
         match_status: 'matched',
+        new_email: newEmail,
+        new_phone: newPhone,
       });
     } else if (bestMatch && bestMatch.confidence > 0.65) {
+      const { newEmail, newPhone } = detectNewInfo(bestMatch.personId);
       results.push({
-        raw_text: rawName,
+        raw_text: entry.name,
+        raw_email: entry.email ?? null,
+        raw_phone: entry.phone ?? null,
         matched_person_id: bestMatch.personId,
         match_confidence: bestMatch.confidence,
         suggested_name: bestMatch.name,
         match_status: 'possible',
+        new_email: newEmail,
+        new_phone: newPhone,
       });
     } else {
       results.push({
-        raw_text: rawName,
+        raw_text: entry.name,
+        raw_email: entry.email ?? null,
+        raw_phone: entry.phone ?? null,
         matched_person_id: null,
         match_confidence: bestMatch?.confidence ?? 0,
-        suggested_name: rawName,
+        suggested_name: entry.name,
         match_status: 'unmatched',
+        new_email: false,
+        new_phone: false,
       });
     }
   }

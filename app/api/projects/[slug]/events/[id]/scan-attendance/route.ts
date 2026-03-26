@@ -49,14 +49,14 @@ export async function POST(request: Request, context: RouteContext) {
     const buffer = await file.arrayBuffer();
     const base64 = Buffer.from(buffer).toString('base64');
 
-    const parsedNames = await parseSignInSheet(project.id, base64, file.type);
+    const scannedEntries = await parseSignInSheet(project.id, base64, file.type);
 
-    if (parsedNames.length === 0) {
+    if (scannedEntries.length === 0) {
       return NextResponse.json({ parsed_names: [], message: 'No names could be extracted from the image' });
     }
 
-    // Fuzzy match against project people
-    const matchedNames = await matchParsedNames(parsedNames, project.id);
+    // Fuzzy match against project people (using name + email + phone)
+    const matchedNames = await matchParsedNames(scannedEntries, project.id);
 
     return NextResponse.json({ parsed_names: matchedNames });
   } catch (error) {

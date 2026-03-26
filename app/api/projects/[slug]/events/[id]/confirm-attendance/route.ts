@@ -15,6 +15,12 @@ const confirmAttendanceSchema = z.object({
     raw_text: z.string(),
     person_id: z.string().uuid().nullable().optional(),
     create_new: z.boolean().default(false),
+    email: z.string().nullable().optional().transform(v => {
+      if (!v) return null;
+      // Only keep if it looks like a valid email; silently discard partial input
+      return /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(v) ? v : null;
+    }),
+    phone: z.string().max(30).nullable().optional().transform(v => v || null),
   })).min(1),
 });
 
@@ -105,6 +111,8 @@ export async function POST(request: Request, context: RouteContext) {
               first_name: firstName,
               last_name: lastName || '(unknown)',
               created_by: user.id,
+              email: confirmation.email ?? null,
+              phone: confirmation.phone ?? null,
             })
             .select('id')
             .single();
@@ -121,6 +129,24 @@ export async function POST(request: Request, context: RouteContext) {
       }
 
       if (!personId) continue;
+
+      // Update matched person with new email/phone from scan if they don't have one
+      if (!confirmation.create_new && (confirmation.email || confirmation.phone)) {
+        const { data: existingPerson } = await serviceClient
+          .from('people')
+          .select('email, phone, mobile_phone')
+          .eq('id', personId)
+          .single();
+
+        if (existingPerson) {
+          const updates: Record<string, string> = {};
+          if (confirmation.email && !existingPerson.email) updates.email = confirmation.email;
+          if (confirmation.phone && !existingPerson.phone && !existingPerson.mobile_phone) updates.phone = confirmation.phone;
+          if (Object.keys(updates).length > 0) {
+            await serviceClient.from('people').update(updates).eq('id', personId).eq('project_id', project.id);
+          }
+        }
+      }
 
       // Create registration with source 'manual' and mark as checked in
       const { data: reg } = await supabase
@@ -175,7 +201,7 @@ export async function POST(request: Request, context: RouteContext) {
         }
       } else {
         // Create new registration
-        const { data: person } = await supabase
+        const { data: person } = await serviceClient
           .from('people')
           .select('email, first_name, last_name')
           .eq('id', personId)
@@ -200,7 +226,7 @@ export async function POST(request: Request, context: RouteContext) {
           .single();
 
         if (insertErr || !insertedRegistration) {
-          console.error('Failed to create manual registration:', insertErr.message);
+          console.error('Failed to create manual registration:', insertErr?.message);
           continue;
         }
 
