@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { CalendarDays, Plus, Repeat, Search, MapPin, Monitor, Settings2, Users } from 'lucide-react';
+import { CalendarDays, ExternalLink, Plus, Repeat, Search, MapPin, Monitor, Settings2, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -50,6 +50,7 @@ export function EventsPageClient() {
   const [error, setError] = useState<string | null>(null);
   const [seriesList, setSeriesList] = useState<{ id: string; title: string; status: string; recurrence_frequency: string; program_id: string | null }[]>([]);
   const [seriesLoading, setSeriesLoading] = useState(false);
+  const [calendarSlug, setCalendarSlug] = useState<string | null>(null);
 
   const loadEvents = useCallback(async (nextSearch: string, status: string) => {
     setIsLoading(true);
@@ -81,6 +82,17 @@ export function EventsPageClient() {
     } finally {
       setSeriesLoading(false);
     }
+  }, [slug]);
+
+  useEffect(() => {
+    fetch(`/api/projects/${slug}/events/calendar-settings`)
+      .then(res => res.json())
+      .then(data => {
+        if (data.settings?.is_enabled && data.settings?.slug) {
+          setCalendarSlug(data.settings.slug);
+        }
+      })
+      .catch(() => {});
   }, [slug]);
 
   useEffect(() => {
@@ -131,6 +143,33 @@ export function EventsPageClient() {
           </Button>
         </div>
       </div>
+
+      {calendarSlug && (
+        <div className="flex items-center justify-between rounded-lg border bg-muted/50 px-4 py-3">
+          <div className="flex items-center gap-2 text-sm">
+            <ExternalLink className="h-4 w-4 text-muted-foreground" />
+            <span className="text-muted-foreground">Public calendar:</span>
+            <a
+              href={`/events/${calendarSlug}`}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-medium text-primary hover:underline"
+            >
+              {typeof window !== 'undefined' ? `${window.location.origin}/events/${calendarSlug}` : `/events/${calendarSlug}`}
+            </a>
+          </div>
+          <Button
+            variant="outline"
+            size="sm"
+            onClick={() => {
+              const url = `${window.location.origin}/events/${calendarSlug}`;
+              navigator.clipboard.writeText(url);
+            }}
+          >
+            Copy Link
+          </Button>
+        </div>
+      )}
 
       <Card>
         <CardHeader className="gap-4 md:flex-row md:items-center md:justify-between">
