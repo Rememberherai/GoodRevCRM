@@ -38,6 +38,7 @@ import { useProjectStore } from '@/stores/project';
 import { ResearchSettingsPanel } from '@/components/settings/research-settings';
 import { MemberList } from '@/components/team/member-list';
 import { InviteMemberDialog } from '@/components/team/invite-member-dialog';
+import { MemberPermissionsDialog } from '@/components/team/member-permissions-dialog';
 import { useAuth } from '@/hooks/use-auth';
 import { AutomationPanel } from '@/components/automations/automation-panel';
 import { ContactProvidersSettings } from '@/components/settings/contact-providers-settings';
@@ -86,6 +87,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
   const [membersLoading, setMembersLoading] = useState(true);
   const [currentUserRole, setCurrentUserRole] = useState<ProjectRole>('member');
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
+  const [permissionsUserId, setPermissionsUserId] = useState<string | null>(null);
   const router = useRouter();
   const { currentProject, setCurrentProject, updateProject, removeProject } = useProjectStore();
   const { user } = useAuth();
@@ -418,6 +420,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             projectType={projectType}
             onUpdateRole={handleUpdateRole}
             onRemove={handleRemoveMember}
+            onOpenPermissions={setPermissionsUserId}
             loading={membersLoading}
           />
         </CardContent>
@@ -429,6 +432,25 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
         projectType={projectType}
         onInvite={handleInvite}
       />
+
+      {permissionsUserId && (() => {
+        const member = members.find((m) => m.user_id === permissionsUserId);
+        if (!member) {
+          setPermissionsUserId(null);
+          return null;
+        }
+        return (
+          <MemberPermissionsDialog
+            open={true}
+            onOpenChange={(open) => { if (!open) setPermissionsUserId(null); }}
+            projectSlug={slug}
+            projectType={projectType}
+            userId={permissionsUserId}
+            memberName={member.user.full_name ?? member.user.email}
+            memberRole={member.role}
+          />
+        );
+      })()}
     </>
   );
 

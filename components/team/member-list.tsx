@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { MoreHorizontal, Shield, ShieldCheck, User, Eye, Trash2 } from 'lucide-react';
+import { MoreHorizontal, Shield, ShieldCheck, User, Eye, Trash2, SlidersHorizontal } from 'lucide-react';
 import { formatDistanceToNow } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,6 +47,7 @@ interface MemberListProps {
   projectType?: ProjectType;
   onUpdateRole: (userId: string, role: ProjectRole) => Promise<void>;
   onRemove: (userId: string) => Promise<void>;
+  onOpenPermissions?: (userId: string) => void;
   loading?: boolean;
 }
 
@@ -91,6 +92,7 @@ export function MemberList({
   projectType = 'standard',
   onUpdateRole,
   onRemove,
+  onOpenPermissions,
   loading = false,
 }: MemberListProps) {
   const [removeDialogOpen, setRemoveDialogOpen] = useState(false);
@@ -222,6 +224,17 @@ export function MemberList({
                                 Make {role}
                               </DropdownMenuItem>
                             ))}
+                          <DropdownMenuSeparator />
+                        </>
+                      )}
+                      {onOpenPermissions && canUpdateRole(member.role) && (
+                        <>
+                          <DropdownMenuItem
+                            onClick={() => onOpenPermissions(member.user_id)}
+                          >
+                            <SlidersHorizontal className="h-4 w-4 mr-2" />
+                            Customize permissions
+                          </DropdownMenuItem>
                           <DropdownMenuSeparator />
                         </>
                       )}

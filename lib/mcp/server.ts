@@ -16,6 +16,7 @@ import { registerCommunityTools } from './tools/community';
 import { registerCommunityContractorTools } from './tools/contractors';
 import { registerServiceTypeTools } from './tools/service-types';
 import { registerBugReportTools } from './tools/bug-reports';
+import { registerMemberTools } from './tools/members';
 import type { McpContext } from '@/types/mcp';
 
 const SERVER_NAME = 'goodrev-crm';
@@ -39,6 +40,7 @@ export function createMcpServer(getContext: () => McpContext): McpServer {
     registerOrganizationTools(server, getContext);
     registerPeopleTools(server, getContext);
     registerSearchTools(server, getContext);
+    registerMemberTools(server, getContext);
     registerBugReportTools(server, getContext);
     return server;
   }
@@ -47,6 +49,7 @@ export function createMcpServer(getContext: () => McpContext): McpServer {
     registerCommunityTools(server, getContext);
     registerCommunityContractorTools(server, getContext);
     registerServiceTypeTools(server, getContext);
+    registerMemberTools(server, getContext);
     registerBugReportTools(server, getContext);
     registerCommunityResources(server, getContext);
     registerCommunityPrompts(server);
@@ -66,6 +69,7 @@ export function createMcpServer(getContext: () => McpContext): McpServer {
   registerProductTools(server, getContext);
   registerQuoteTools(server, getContext);
   registerDispositionTools(server, getContext);
+  registerMemberTools(server, getContext);
   registerBugReportTools(server, getContext);
 
   // Register MCP resources

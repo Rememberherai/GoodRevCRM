@@ -1,7 +1,7 @@
 import type { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 import type { ProjectRole } from '@/types/user';
-import { ProjectAccessError } from './permissions';
+import { ProjectAccessError, getOverride } from './permissions';
 
 export type CommunityResource =
   | 'households'
@@ -209,9 +209,23 @@ export async function requireCommunityPermission(
   }
 
   const role = membership.role as ProjectRole;
-  if (!checkCommunityPermission(role, resource, action)) {
-    throw new ProjectAccessError(`Missing community permission '${resource}:${action}'`);
+
+  // Fast path: role already has permission — skip override DB query entirely
+  if (checkCommunityPermission(role, resource, action)) {
+    return role;
   }
 
-  return role;
+  // Role lacks permission — check for a per-user override before denying
+  const override = await getOverride(supabase, userId, projectId, resource);
+  if (override === true && action === 'view') {
+    // Grant override: allow view unconditionally; write actions still require role support
+    return role;
+  }
+
+  if (override === false) {
+    throw new ProjectAccessError(`Access to '${resource}' is restricted`);
+  }
+
+  // No override or grant doesn't cover this action — deny
+  throw new ProjectAccessError(`Missing community permission '${resource}:${action}'`);
 }

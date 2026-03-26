@@ -85,3 +85,24 @@ export const acceptInvitationSchema = z.object({
 });
 
 export type AcceptInvitationInput = z.infer<typeof acceptInvitationSchema>;
+
+// Permission override resources
+export const communityResources = [
+  'households', 'intake', 'programs', 'contributions', 'community_assets',
+  'risk_scores', 'referrals', 'relationships', 'broadcasts', 'grants', 'jobs',
+  'assistant_ap', 'dashboard', 'reports', 'settings', 'public_dashboard', 'events',
+] as const;
+
+export const standardResources = [
+  'dashboard', 'contacts', 'pipelines', 'grants', 'reports', 'automations', 'settings',
+] as const;
+
+export const allResources = [...new Set([...communityResources, ...standardResources])] as const;
+
+// Upsert a single permission override
+export const upsertOverrideSchema = z.object({
+  resource: z.string().min(1).max(64),
+  granted: z.boolean(),
+});
+
+export type UpsertOverrideInput = z.infer<typeof upsertOverrideSchema>;
