@@ -1,12 +1,14 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams, useRouter, useSearchParams } from 'next/navigation';
-import { Award, Plus, List, LayoutGrid, Upload, Search, ArrowRight, Star, Trash2 } from 'lucide-react';
+import { Award, Plus, List, LayoutGrid, Upload, Search, ArrowRight, Star, Trash2, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
+import { Input } from '@/components/ui/input';
 import { Skeleton } from '@/components/ui/skeleton';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { NewGrantDialog } from '@/components/community/grants/new-grant-dialog';
 import { GrantImportDialog } from '@/components/grants/grant-import-dialog';
 import { toast } from 'sonner';
@@ -52,9 +54,7 @@ function formatCurrency(amount: number | null) {
   return new Intl.NumberFormat('en-US', { style: 'currency', currency: 'USD', maximumFractionDigits: 0 }).format(amount);
 }
 
-/** Parse date string as local time (avoids UTC off-by-one for date-only strings like YYYY-MM-DD). */
 function parseLocalDate(dateStr: string) {
-  // If it's a date-only string, append T00:00:00 to parse as local time
   if (/^\d{4}-\d{2}-\d{2}$/.test(dateStr)) return new Date(dateStr + 'T00:00:00');
   return new Date(dateStr);
 }
@@ -75,17 +75,40 @@ function getNextDeadline(grant: GrantRecord) {
     { type: 'Application', date: grant.application_due_at },
     { type: 'Report', date: grant.report_due_at },
   ].filter((d) => d.date && parseLocalDate(d.date) >= now);
-
   deadlines.sort((a, b) => parseLocalDate(a.date!).getTime() - parseLocalDate(b.date!).getTime());
   return deadlines[0] ?? null;
 }
 
 function isOverdue(dateStr: string | null) {
   if (!dateStr) return false;
-  // A deadline is overdue after end-of-day (not at start-of-day)
   const deadline = parseLocalDate(dateStr);
   deadline.setHours(23, 59, 59, 999);
   return deadline < new Date();
+}
+
+function applyFilters(
+  grants: GrantRecord[],
+  search: string,
+  tier: string,
+  category: string,
+  urgency: string,
+  status: string,
+) {
+  let result = grants;
+  if (search.trim()) {
+    const q = search.toLowerCase();
+    result = result.filter(
+      (g) =>
+        g.name.toLowerCase().includes(q) ||
+        g.funder?.name?.toLowerCase().includes(q) ||
+        g.notes?.toLowerCase().includes(q),
+    );
+  }
+  if (tier) result = result.filter((g) => g.tier === Number(tier));
+  if (category) result = result.filter((g) => g.category === category);
+  if (urgency) result = result.filter((g) => g.urgency === urgency);
+  if (status) result = result.filter((g) => g.status === status);
+  return result;
 }
 
 export default function GrantsPageClient() {
@@ -102,13 +125,35 @@ export default function GrantsPageClient() {
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
   const [activeTab, setActiveTab] = useState<'pipeline' | 'discovered'>(initialTab);
 
+  // Filters
+  const [search, setSearch] = useState('');
+  const [filterTier, setFilterTier] = useState('');
+  const [filterCategory, setFilterCategory] = useState('');
+  const [filterUrgency, setFilterUrgency] = useState('');
+  const [filterStatus, setFilterStatus] = useState('');
+
+  const hasActiveFilters = !!(search || filterTier || filterCategory || filterUrgency || filterStatus);
+
+  const clearFilters = () => {
+    setSearch('');
+    setFilterTier('');
+    setFilterCategory('');
+    setFilterUrgency('');
+    setFilterStatus('');
+  };
+
+  const filteredGrants = useMemo(
+    () => applyFilters(grants, search, filterTier, filterCategory, filterUrgency, filterStatus),
+    [grants, search, filterTier, filterCategory, filterUrgency, filterStatus],
+  );
+
   const fetchGrants = useCallback(async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
     setError(null);
     try {
       const [pipelineRes, discoveredRes] = await Promise.all([
-        fetch(`/api/projects/${slug}/grants?limit=100&discovered=false`),
-        fetch(`/api/projects/${slug}/grants?limit=100&discovered=true`),
+        fetch(`/api/projects/${slug}/grants?limit=500&discovered=false`),
+        fetch(`/api/projects/${slug}/grants?limit=500&discovered=true`),
       ]);
       if (!pipelineRes.ok) throw new Error('Failed to fetch grants');
       if (!discoveredRes.ok) throw new Error('Failed to fetch discovered grants');
@@ -142,9 +187,7 @@ export default function GrantsPageClient() {
 
   const dismissGrant = async (grantId: string) => {
     try {
-      const res = await fetch(`/api/projects/${slug}/grants/${grantId}`, {
-        method: 'DELETE',
-      });
+      const res = await fetch(`/api/projects/${slug}/grants/${grantId}`, { method: 'DELETE' });
       if (!res.ok) throw new Error('Failed to dismiss grant');
       toast.success('Grant dismissed');
       await fetchGrants(false);
@@ -246,6 +289,85 @@ export default function GrantsPageClient() {
         </button>
       </div>
 
+      {/* Filter Bar — pipeline tab only */}
+      {activeTab === 'pipeline' && (
+        <div className="flex flex-wrap items-center gap-2">
+          <div className="relative flex-1 min-w-[180px] max-w-xs">
+            <Search className="absolute left-2.5 top-2.5 h-4 w-4 text-muted-foreground" />
+            <Input
+              placeholder="Search grants..."
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8 h-9"
+            />
+          </div>
+
+          <Select value={filterTier || '__all__'} onValueChange={(v) => setFilterTier(v === '__all__' ? '' : v)}>
+            <SelectTrigger className="h-9 w-[110px]">
+              <SelectValue placeholder="Tier" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Tiers</SelectItem>
+              <SelectItem value="1">Tier 1</SelectItem>
+              <SelectItem value="2">Tier 2</SelectItem>
+              <SelectItem value="3">Tier 3</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={filterCategory || '__all__'} onValueChange={(v) => setFilterCategory(v === '__all__' ? '' : v)}>
+            <SelectTrigger className="h-9 w-[130px]">
+              <SelectValue placeholder="Category" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Categories</SelectItem>
+              <SelectItem value="federal">Federal</SelectItem>
+              <SelectItem value="state">State</SelectItem>
+              <SelectItem value="corporate">Corporate</SelectItem>
+              <SelectItem value="foundation">Foundation</SelectItem>
+              <SelectItem value="individual">Individual</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={filterUrgency || '__all__'} onValueChange={(v) => setFilterUrgency(v === '__all__' ? '' : v)}>
+            <SelectTrigger className="h-9 w-[120px]">
+              <SelectValue placeholder="Urgency" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Urgency</SelectItem>
+              <SelectItem value="critical">Critical</SelectItem>
+              <SelectItem value="high">High</SelectItem>
+              <SelectItem value="medium">Medium</SelectItem>
+              <SelectItem value="low">Low</SelectItem>
+            </SelectContent>
+          </Select>
+
+          <Select value={filterStatus || '__all__'} onValueChange={(v) => setFilterStatus(v === '__all__' ? '' : v)}>
+            <SelectTrigger className="h-9 w-[140px]">
+              <SelectValue placeholder="Status" />
+            </SelectTrigger>
+            <SelectContent>
+              <SelectItem value="__all__">All Statuses</SelectItem>
+              {GRANT_STATUSES.map((s) => (
+                <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+              ))}
+            </SelectContent>
+          </Select>
+
+          {hasActiveFilters && (
+            <Button variant="ghost" size="sm" className="h-9 gap-1.5 text-muted-foreground" onClick={clearFilters}>
+              <X className="h-3.5 w-3.5" />
+              Clear
+            </Button>
+          )}
+
+          {hasActiveFilters && (
+            <span className="text-sm text-muted-foreground">
+              {filteredGrants.length} of {grants.length}
+            </span>
+          )}
+        </div>
+      )}
+
       {/* Error */}
       {error && (
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
@@ -266,13 +388,13 @@ export default function GrantsPageClient() {
       {!isLoading && activeTab === 'pipeline' && (
         viewMode === 'kanban' ? (
           <KanbanView
-            grants={grants}
+            grants={filteredGrants}
             onStatusChange={handleStatusChange}
             onClickGrant={(id) => router.push(`/projects/${slug}/grants/${id}`)}
           />
         ) : (
           <ListView
-            grants={grants}
+            grants={filteredGrants}
             onClickGrant={(id) => router.push(`/projects/${slug}/grants/${id}`)}
           />
         )
@@ -356,7 +478,6 @@ function KanbanView({
   onStatusChange: (id: string, status: string) => void;
   onClickGrant: (id: string) => void;
 }) {
-  // Only show pipeline statuses (not declined)
   const pipelineStatuses = GRANT_STATUSES.filter((s) => s.value !== 'declined');
   const declinedGrants = grants.filter((g) => g.status === 'declined');
 
@@ -429,7 +550,6 @@ function GrantCard({
 }) {
   const nextDeadline = getNextDeadline(grant);
   const currentIdx = GRANT_STATUSES.findIndex((s) => s.value === grant.status);
-  // Allow advancing through pipeline statuses (up to but not including closed/declined)
   const pipelineEnd = GRANT_STATUSES.findIndex((s) => s.value === 'closed');
   const nextStatus = currentIdx >= 0 && currentIdx < pipelineEnd - 1 ? GRANT_STATUSES[currentIdx + 1] : null;
 
@@ -527,7 +647,7 @@ function ListView({
       <CardContent>
         {grants.length === 0 ? (
           <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
-            No grants yet. Click &quot;New Grant&quot; to get started.
+            No grants match your filters.
           </div>
         ) : (
           <div className="space-y-2">
@@ -541,7 +661,7 @@ function ListView({
                   className="flex w-full items-center gap-4 rounded-lg border p-4 text-left transition-colors hover:bg-accent"
                 >
                   <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-2 flex-wrap">
                       <span className="font-medium truncate">{grant.name}</span>
                       <Badge className={statusConfig.color}>{statusConfig.label}</Badge>
                       {grant.category && (
