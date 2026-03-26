@@ -99,23 +99,21 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to create series' }, { status: 500 });
     }
 
-    // Auto-generate instances
-    let instanceCount = 0;
-    try {
-      instanceCount = await generateSeriesInstances(series.id);
-    } catch (genError) {
-      console.error('Error generating series instances:', genError);
-    }
+    // Fire-and-forget: generate instances in the background so the API responds immediately.
+    // The series detail page polls generation_status to show progress.
+    generateSeriesInstances(series.id)
+      .then((instanceCount) => {
+        emitAutomationEvent({
+          projectId: project.id,
+          triggerType: 'event.created',
+          entityType: 'event_series',
+          entityId: series.id,
+          data: { ...series as Record<string, unknown>, instances_generated: instanceCount },
+        }).catch(err => console.error('Failed to emit automation event:', err));
+      })
+      .catch(err => console.error('Error generating series instances:', err));
 
-    emitAutomationEvent({
-      projectId: project.id,
-      triggerType: 'event.created',
-      entityType: 'event_series',
-      entityId: series.id,
-      data: { ...series as Record<string, unknown>, instances_generated: instanceCount },
-    }).catch(err => console.error('Failed to emit automation event:', err));
-
-    return NextResponse.json({ series, instances_generated: instanceCount }, { status: 201 });
+    return NextResponse.json({ series, instances_generated: 0, generating: true }, { status: 201 });
   } catch (error) {
     if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: 403 });
     console.error('Error in POST series:', error);

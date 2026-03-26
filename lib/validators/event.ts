@@ -151,7 +151,7 @@ const eventSeriesBaseFields = z.object({
   recurrence_interval: z.number().int().min(1).max(12).optional(),
   recurrence_until: z.string().date().nullable().optional(),
   recurrence_count: z.number().int().min(1).max(365).nullable().optional(),
-  recurrence_day_position: z.number().int().min(1).max(5).nullable().optional(),
+  recurrence_day_positions: z.array(z.number().int().min(1).max(5)).min(1).max(5).nullable().optional(),
   template_start_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
   template_end_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
   timezone: z.string().max(50).optional(),
@@ -199,7 +199,7 @@ export const createEventSeriesSchema = eventSeriesBaseFields
   )
   .refine(
     (data) => {
-      if (data.recurrence_frequency === 'monthly' && data.recurrence_day_position) {
+      if (data.recurrence_frequency === 'monthly' && data.recurrence_day_positions?.length) {
         return data.recurrence_days_of_week && data.recurrence_days_of_week.length > 0;
       }
       return true;

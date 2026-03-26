@@ -16,7 +16,10 @@ interface SeriesDetail {
   status: string;
   recurrence_frequency: string;
   recurrence_days_of_week: string[] | null;
-  recurrence_day_position: number | null;
+  recurrence_day_positions: number[] | null;
+  generation_status: string;
+  generation_progress: number | null;
+  generation_total: number | null;
   recurrence_until: string | null;
   recurrence_count: number | null;
   template_start_time: string;
@@ -26,7 +29,6 @@ interface SeriesDetail {
   venue_name: string | null;
   virtual_url: string | null;
   program_id: string | null;
-  instance_count: number;
 }
 
 interface EventInstance {
@@ -69,14 +71,16 @@ export function SeriesDetailClient() {
 
   const apiBase = `/api/projects/${slug}/events/series/${seriesId}`;
 
-  const loadSeries = useCallback(async () => {
+  const loadSeries = useCallback(async (silent = false) => {
     try {
       const res = await fetch(apiBase);
       const data = await res.json();
       if (!res.ok) throw new Error(data.error);
       setSeries(data.series);
     } catch (err) {
-      toast.error(err instanceof Error ? err.message : 'Failed to load series');
+      if (!silent) {
+        toast.error(err instanceof Error ? err.message : 'Failed to load series');
+      }
     } finally {
       setIsLoading(false);
     }
@@ -109,6 +113,16 @@ export function SeriesDetailClient() {
     void loadInstances();
     void loadRegistrations();
   }, [loadSeries, loadInstances, loadRegistrations]);
+
+  // Poll for generation progress
+  useEffect(() => {
+    if (series?.generation_status !== 'generating') return;
+    const interval = setInterval(() => {
+      void loadSeries(true);
+      void loadInstances();
+    }, 2000);
+    return () => clearInterval(interval);
+  }, [series?.generation_status, loadSeries, loadInstances]);
 
   async function handleGenerate() {
     setIsGenerating(true);
@@ -158,9 +172,12 @@ export function SeriesDetailClient() {
     if (series.recurrence_days_of_week?.length) {
       summary += ` on ${series.recurrence_days_of_week.join(', ')}`;
     }
-    if (series.recurrence_day_position) {
-      const pos = ['', '1st', '2nd', '3rd', '4th', '5th'][series.recurrence_day_position] || '';
-      summary = `${pos} ${series.recurrence_days_of_week?.[0] ?? ''} monthly`;
+    if (series.recurrence_day_positions?.length) {
+      const posLabels = ['', '1st', '2nd', '3rd', '4th', 'last'];
+      const dayNames: Record<string, string> = { MO: 'Monday', TU: 'Tuesday', WE: 'Wednesday', TH: 'Thursday', FR: 'Friday', SA: 'Saturday', SU: 'Sunday' };
+      const positions = series.recurrence_day_positions.map(p => posLabels[p] || '').filter(Boolean).join(' & ');
+      const dayLabel = dayNames[series.recurrence_days_of_week?.[0] ?? ''] ?? series.recurrence_days_of_week?.[0] ?? '';
+      summary = `${positions} ${dayLabel} monthly`;
     }
     return summary;
   }
@@ -186,14 +203,34 @@ export function SeriesDetailClient() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button variant="outline" size="sm" onClick={handleGenerate} disabled={isGenerating}>
-            <Plus className="mr-1 h-3 w-3" />{isGenerating ? 'Generating...' : 'Generate More'}
+          <Button variant="outline" size="sm" onClick={handleGenerate} disabled={isGenerating || series.generation_status === 'generating'}>
+            <Plus className="mr-1 h-3 w-3" />{isGenerating || series.generation_status === 'generating' ? 'Generating...' : 'Generate More'}
           </Button>
           <Button variant="destructive" size="sm" onClick={handleDelete}>
             <Trash2 className="mr-1 h-3 w-3" />Delete Series
           </Button>
         </div>
       </div>
+
+      {/* Generation progress banner */}
+      {series.generation_status === 'generating' && (
+        <div className="rounded-lg border border-blue-200 bg-blue-50 dark:border-blue-800 dark:bg-blue-950 p-4">
+          <div className="flex items-center justify-between mb-2">
+            <p className="text-sm font-medium text-blue-800 dark:text-blue-200">
+              Generating event instances...
+            </p>
+            <p className="text-sm text-blue-600 dark:text-blue-400">
+              {series.generation_progress ?? 0} / {series.generation_total ?? 0}
+            </p>
+          </div>
+          <div className="w-full bg-blue-200 dark:bg-blue-800 rounded-full h-2">
+            <div
+              className="bg-blue-600 dark:bg-blue-400 h-2 rounded-full transition-all duration-500"
+              style={{ width: `${series.generation_total ? Math.round(((series.generation_progress ?? 0) / series.generation_total) * 100) : 0}%` }}
+            />
+          </div>
+        </div>
+      )}
 
       {/* Info */}
       <div className="grid gap-4 md:grid-cols-3">
@@ -220,7 +257,7 @@ export function SeriesDetailClient() {
               </div>
               <div>
                 <span className="text-muted-foreground">Instances:</span>
-                <p>{series.instance_count}</p>
+                <p>{instances.length}</p>
               </div>
               {series.recurrence_until && (
                 <div>

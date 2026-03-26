@@ -66,7 +66,7 @@ function asRuleDate(dateStr: string): Date {
 }
 
 function buildSeriesOccurrenceDateStrings(params: {
-  series: Pick<EventSeriesRow, 'generation_horizon_days' | 'recurrence_count' | 'recurrence_day_position' | 'recurrence_days_of_week' | 'recurrence_frequency' | 'recurrence_interval' | 'recurrence_until'>;
+  series: Pick<EventSeriesRow, 'generation_horizon_days' | 'recurrence_count' | 'recurrence_day_positions' | 'recurrence_days_of_week' | 'recurrence_frequency' | 'recurrence_interval' | 'recurrence_until'>;
   startDateStr: string;
   endDateStr?: string;
   countOverride?: number | null;
@@ -76,16 +76,26 @@ function buildSeriesOccurrenceDateStrings(params: {
     ? 2
     : (params.series.recurrence_interval ?? 1);
 
-  const byweekday = (params.series.recurrence_days_of_week as string[] || [])
-    .map((d) => {
+  const dayPositions = (params.series.recurrence_day_positions as number[] | null) ?? [];
+  const days = (params.series.recurrence_days_of_week as string[] || []);
+
+  // For monthly with day positions (e.g. 1st+3rd Monday), create a weekday entry
+  // for each (day, position) combination so RRule generates all of them.
+  const byweekday: Weekday[] = [];
+  if (params.series.recurrence_frequency === 'monthly' && dayPositions.length > 0) {
+    for (const d of days) {
       const day = DAY_MAP[d];
-      if (!day) return null;
-      if (params.series.recurrence_frequency === 'monthly' && params.series.recurrence_day_position) {
-        return day.nth(params.series.recurrence_day_position === 5 ? -1 : params.series.recurrence_day_position);
+      if (!day) continue;
+      for (const pos of dayPositions) {
+        byweekday.push(day.nth(pos === 5 ? -1 : pos));
       }
-      return day;
-    })
-    .filter((d): d is Weekday => d !== null);
+    }
+  } else {
+    for (const d of days) {
+      const day = DAY_MAP[d];
+      if (day) byweekday.push(day);
+    }
+  }
 
   const horizonEnd = params.endDateStr
     ? asRuleDate(params.endDateStr)
@@ -523,8 +533,9 @@ export async function generateSeriesInstances(
   );
   const ticketTemplates = parseSeriesTicketTemplates(series.ticket_types);
 
-  let count = 0;
-  let maxIndex = 0;
+  // Filter to only new dates
+  const newDates = dates.filter(d => d && !existingDates.has(d));
+  if (newDates.length === 0) return 0;
 
   // Get current max series_index
   const { data: maxIndexResult } = await supabase
@@ -535,39 +546,73 @@ export async function generateSeriesInstances(
     .limit(1)
     .maybeSingle();
 
-  maxIndex = maxIndexResult?.series_index ?? 0;
+  let maxIndex = maxIndexResult?.series_index ?? 0;
 
-  for (const dateStr of dates) {
-    if (existingDates.has(dateStr)) continue;
-    if (!dateStr) continue;
+  // Mark generation as in-progress
+  await supabase.from('event_series').update({
+    generation_status: 'generating',
+    generation_progress: 0,
+    generation_total: newDates.length,
+  }).eq('id', seriesId);
 
-    maxIndex++;
-    const created = await createSeriesInstance({
-      supabase,
-      series,
-      seriesId,
-      seriesIndex: maxIndex,
-      dateStr,
-      ticketTemplates,
-    });
+  let count = 0;
+  let lastCreatedDate: string | null = null;
 
-    if (!created) continue;
+  try {
+    // Process in batches of 10 with progress updates
+    const BATCH_SIZE = 10;
+    for (let i = 0; i < newDates.length; i += BATCH_SIZE) {
+      const batch = newDates.slice(i, i + BATCH_SIZE);
+      const batchWithDates = batch.map((dateStr) => {
+        if (!dateStr) return { dateStr, idx: 0, skip: true };
+        return { dateStr, idx: ++maxIndex, skip: false };
+      });
+      const results = await Promise.all(
+        batchWithDates.map(async ({ dateStr, idx, skip }) => {
+          if (skip) return false;
+          return createSeriesInstance({
+            supabase,
+            series,
+            seriesId,
+            seriesIndex: idx,
+            dateStr,
+            ticketTemplates,
+          });
+        })
+      );
 
-    count++;
-    existingDates.add(dateStr);
+      // Track the last successfully created date from this batch
+      for (let j = results.length - 1; j >= 0; j--) {
+        const entry = batchWithDates[j];
+        if (results[j] && entry) {
+          lastCreatedDate = entry.dateStr;
+          break;
+        }
+      }
+      count += results.filter(Boolean).length;
+
+      // Update progress
+      await supabase.from('event_series').update({
+        generation_progress: Math.min(i + BATCH_SIZE, newDates.length),
+      }).eq('id', seriesId);
+    }
+  } catch (genErr) {
+    console.error('Error during series instance generation:', genErr);
   }
 
-  // Update last_generated_date
-  if (count > 0) {
-    const lastDate = dates[dates.length - 1]!;
-    const { error: updateError } = await supabase
-      .from('event_series')
-      .update({ last_generated_date: lastDate })
-      .eq('id', seriesId);
+  // Update last_generated_date and mark generation complete (always reset status even on partial failure)
+  const { error: updateError } = await supabase
+    .from('event_series')
+    .update({
+      ...(lastCreatedDate ? { last_generated_date: lastCreatedDate } : {}),
+      generation_status: 'idle',
+      generation_progress: 0,
+      generation_total: 0,
+    })
+    .eq('id', seriesId);
 
-    if (updateError) {
-      console.error('Failed to update last_generated_date for series', seriesId, ':', updateError.message);
-    }
+  if (updateError) {
+    console.error('Failed to update generation status for series', seriesId, ':', updateError.message);
   }
 
   return count;

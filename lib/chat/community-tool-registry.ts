@@ -2770,7 +2770,7 @@ const eventSeriesBaseToolSchema = z.object({
   recurrence_interval: z.number().int().min(1).max(12).optional(),
   recurrence_until: z.string().date().nullable().optional(),
   recurrence_count: z.number().int().min(1).max(365).nullable().optional(),
-  recurrence_day_position: z.number().int().min(1).max(5).nullable().optional(),
+  recurrence_day_positions: z.array(z.number().int().min(1).max(5)).min(1).max(5).nullable().optional(),
   template_start_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
   template_end_time: z.string().regex(/^\d{2}:\d{2}(:\d{2})?$/),
   timezone: z.string().max(50).optional(),
@@ -2813,7 +2813,7 @@ function validateSeriesToolInput(data: {
   recurrence_days_of_week?: string[] | null;
   recurrence_until?: string | null;
   recurrence_count?: number | null;
-  recurrence_day_position?: number | null;
+  recurrence_day_positions?: number[] | null;
   template_start_time?: string | null;
   template_end_time?: string | null;
 }) {
@@ -2838,7 +2838,7 @@ function validateSeriesToolInput(data: {
 
   if (
     data.recurrence_frequency === 'monthly' &&
-    data.recurrence_day_position &&
+    data.recurrence_day_positions?.length &&
     (!data.recurrence_days_of_week || data.recurrence_days_of_week.length === 0)
   ) {
     throw communityError('Monthly series with day position require a recurrence day.');
@@ -3372,7 +3372,7 @@ defineCommunityTool({
       'recurrence_interval',
       'recurrence_until',
       'recurrence_count',
-      'recurrence_day_position',
+      'recurrence_day_positions',
       'template_start_time',
       'template_end_time',
       'timezone',

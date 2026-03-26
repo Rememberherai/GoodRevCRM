@@ -1,6 +1,7 @@
 'use client';
 
 import { useEffect, useState } from 'react';
+import { useRouter } from 'next/navigation';
 import { Plus, Trash2 } from 'lucide-react';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Button } from '@/components/ui/button';
@@ -34,7 +35,16 @@ const DAYS = [
   { value: 'SU', label: 'Sun' },
 ] as const;
 
+const DAY_POSITIONS = [
+  { value: 1, label: '1st' },
+  { value: 2, label: '2nd' },
+  { value: 3, label: '3rd' },
+  { value: 4, label: '4th' },
+  { value: 5, label: 'Last' },
+] as const;
+
 export function NewSeriesDialog({ open, onOpenChange, projectSlug, onCreated }: NewSeriesDialogProps) {
+  const router = useRouter();
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [programs, setPrograms] = useState<{ id: string; name: string }[]>([]);
 
@@ -43,8 +53,8 @@ export function NewSeriesDialog({ open, onOpenChange, projectSlug, onCreated }: 
   const [description, setDescription] = useState('');
   const [frequency, setFrequency] = useState('weekly');
   const [daysOfWeek, setDaysOfWeek] = useState<string[]>([]);
-  const [dayPosition, setDayPosition] = useState('');
-  const [endMode, setEndMode] = useState<'until' | 'count'>('count');
+  const [dayPositions, setDayPositions] = useState<number[]>([]);
+  const [endMode, setEndMode] = useState<'until' | 'count' | 'ongoing'>('count');
   const [recurrenceUntil, setRecurrenceUntil] = useState('');
   const [recurrenceCount, setRecurrenceCount] = useState('10');
   const [startTime, setStartTime] = useState('09:00');
@@ -56,7 +66,6 @@ export function NewSeriesDialog({ open, onOpenChange, projectSlug, onCreated }: 
   const [ticketTypes, setTicketTypes] = useState<TicketTemplate[]>([]);
 
   const browserTimezone = Intl.DateTimeFormat().resolvedOptions().timeZone || 'America/Denver';
-  const dayPositionValue = dayPosition || '__by_date__';
   const programSelectValue = programId || '__none__';
 
   useEffect(() => {
@@ -67,12 +76,19 @@ export function NewSeriesDialog({ open, onOpenChange, projectSlug, onCreated }: 
       .catch(() => {});
   }, [projectSlug, open]);
 
+  const showDayPositions = frequency === 'monthly';
   const showDaysOfWeek = frequency === 'weekly' || frequency === 'biweekly' ||
-    (frequency === 'monthly' && dayPosition !== '');
+    (frequency === 'monthly' && dayPositions.length > 0);
 
   function toggleDay(day: string) {
     setDaysOfWeek(prev =>
       prev.includes(day) ? prev.filter(d => d !== day) : [...prev, day]
+    );
+  }
+
+  function toggleDayPosition(pos: number) {
+    setDayPositions(prev =>
+      prev.includes(pos) ? prev.filter(p => p !== pos) : [...prev, pos].sort()
     );
   }
 
@@ -113,13 +129,14 @@ export function NewSeriesDialog({ open, onOpenChange, projectSlug, onCreated }: 
       };
 
       if (daysOfWeek.length > 0) body.recurrence_days_of_week = daysOfWeek;
-      if (dayPosition) body.recurrence_day_position = parseInt(dayPosition, 10);
+      if (dayPositions.length > 0) body.recurrence_day_positions = dayPositions;
 
       if (endMode === 'until' && recurrenceUntil) {
         body.recurrence_until = recurrenceUntil;
       } else if (endMode === 'count' && recurrenceCount) {
         body.recurrence_count = parseInt(recurrenceCount, 10);
       }
+      // 'ongoing' mode: neither recurrence_until nor recurrence_count — uses generation_horizon_days (default 90)
 
       if (ticketTypes.length > 0) {
         body.ticket_types = ticketTypes
@@ -140,10 +157,15 @@ export function NewSeriesDialog({ open, onOpenChange, projectSlug, onCreated }: 
       const data = await res.json();
       if (!res.ok) throw new Error(data.error ?? 'Failed to create series');
 
-      toast.success(`Series created with ${data.instances_generated} event instances`);
+      toast.success('Series created! Generating event instances in the background...');
       onCreated();
       onOpenChange(false);
       resetForm();
+
+      // Navigate to the series detail page so they can see generation progress
+      if (data.series?.id) {
+        router.push(`/projects/${projectSlug}/events/series/${data.series.id}`);
+      }
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create series');
     } finally {
@@ -156,7 +178,7 @@ export function NewSeriesDialog({ open, onOpenChange, projectSlug, onCreated }: 
     setDescription('');
     setFrequency('weekly');
     setDaysOfWeek([]);
-    setDayPosition('');
+    setDayPositions([]);
     setEndMode('count');
     setRecurrenceUntil('');
     setRecurrenceCount('10');
@@ -191,7 +213,7 @@ export function NewSeriesDialog({ open, onOpenChange, projectSlug, onCreated }: 
           {/* Recurrence */}
           <div className="space-y-2">
             <Label>Frequency *</Label>
-            <Select value={frequency} onValueChange={setFrequency}>
+            <Select value={frequency} onValueChange={(v) => { setFrequency(v); if (v !== 'monthly') setDayPositions([]); }}>
               <SelectTrigger><SelectValue /></SelectTrigger>
               <SelectContent>
                 <SelectItem value="daily">Daily</SelectItem>
@@ -202,20 +224,21 @@ export function NewSeriesDialog({ open, onOpenChange, projectSlug, onCreated }: 
             </Select>
           </div>
 
-          {frequency === 'monthly' && (
+          {showDayPositions && (
             <div className="space-y-2">
-              <Label>Day Position (optional)</Label>
-              <Select value={dayPositionValue} onValueChange={(value) => setDayPosition(value === '__by_date__' ? '' : value)}>
-                <SelectTrigger><SelectValue placeholder="Day of month" /></SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="__by_date__">By date</SelectItem>
-                  <SelectItem value="1">1st</SelectItem>
-                  <SelectItem value="2">2nd</SelectItem>
-                  <SelectItem value="3">3rd</SelectItem>
-                  <SelectItem value="4">4th</SelectItem>
-                  <SelectItem value="5">5th (last)</SelectItem>
-                </SelectContent>
-              </Select>
+              <Label>Which occurrence(s) in the month?</Label>
+              <p className="text-xs text-muted-foreground">Select one or more (e.g. 1st & 3rd for &ldquo;1st and 3rd Monday&rdquo;). Leave empty for same date each month.</p>
+              <div className="flex flex-wrap gap-2">
+                {DAY_POSITIONS.map(pos => (
+                  <label key={pos.value} className="flex items-center gap-1.5 cursor-pointer">
+                    <Checkbox
+                      checked={dayPositions.includes(pos.value)}
+                      onCheckedChange={() => toggleDayPosition(pos.value)}
+                    />
+                    <span className="text-sm">{pos.label}</span>
+                  </label>
+                ))}
+              </div>
             </div>
           )}
 
@@ -238,21 +261,31 @@ export function NewSeriesDialog({ open, onOpenChange, projectSlug, onCreated }: 
 
           {/* End condition */}
           <div className="space-y-2">
-            <Label>End After</Label>
-            <div className="flex items-center gap-2">
+            <Label>Duration</Label>
+            <div className="flex items-center gap-3">
               <label className="flex items-center gap-1.5 cursor-pointer">
                 <input type="radio" name="endMode" checked={endMode === 'count'} onChange={() => setEndMode('count')} />
                 <span className="text-sm">Count</span>
               </label>
               <label className="flex items-center gap-1.5 cursor-pointer">
                 <input type="radio" name="endMode" checked={endMode === 'until'} onChange={() => setEndMode('until')} />
-                <span className="text-sm">Date</span>
+                <span className="text-sm">End Date</span>
+              </label>
+              <label className="flex items-center gap-1.5 cursor-pointer">
+                <input type="radio" name="endMode" checked={endMode === 'ongoing'} onChange={() => setEndMode('ongoing')} />
+                <span className="text-sm">Ongoing</span>
               </label>
             </div>
-            {endMode === 'count' ? (
+            {endMode === 'count' && (
               <Input type="number" min="1" max="365" value={recurrenceCount} onChange={e => setRecurrenceCount(e.target.value)} placeholder="Number of instances" />
-            ) : (
+            )}
+            {endMode === 'until' && (
               <Input type="date" value={recurrenceUntil} onChange={e => setRecurrenceUntil(e.target.value)} />
+            )}
+            {endMode === 'ongoing' && (
+              <p className="text-xs text-muted-foreground">
+                Events will be generated 90 days ahead on a rolling basis. New instances are added automatically as time passes.
+              </p>
             )}
           </div>
 

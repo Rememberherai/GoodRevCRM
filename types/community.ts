@@ -503,7 +503,7 @@ export interface EventSeries extends CommunityTimestamps {
   recurrence_interval: number;
   recurrence_until: string | null;
   recurrence_count: number | null;
-  recurrence_day_position: number | null;
+  recurrence_day_positions: number[] | null;
   template_start_time: string;
   template_end_time: string;
   timezone: string;
