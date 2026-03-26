@@ -6,7 +6,7 @@ export interface ProjectSettings {
   customRoles?: string[];
 }
 
-export type ProjectType = 'standard' | 'community';
+export type ProjectType = 'standard' | 'community' | 'grants';
 export type AccountingTarget = 'goodrev' | 'quickbooks' | 'none';
 
 export type Project = Database['public']['Tables']['projects']['Row'];

@@ -1,14 +1,16 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
-import { Award, Globe, Plus, List, LayoutGrid } from 'lucide-react';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
+import { Award, Globe, Plus, List, LayoutGrid, Upload, Search, ArrowRight, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Skeleton } from '@/components/ui/skeleton';
 import { NewGrantDialog } from '@/components/community/grants/new-grant-dialog';
 import { DiscoverGrantsDialog } from '@/components/community/grants/discover-grants-dialog';
+import { GrantImportDialog } from '@/components/grants/grant-import-dialog';
+import { toast } from 'sonner';
 
 interface GrantRecord {
   id: string;
@@ -23,6 +25,8 @@ interface GrantRecord {
   contact_person_id: string | null;
   assigned_to: string | null;
   notes: string | null;
+  is_discovered: boolean;
+  source_url: string | null;
   created_at: string;
   updated_at: string;
   funder?: { id: string; name: string } | null;
@@ -84,21 +88,32 @@ function isOverdue(dateStr: string | null) {
 export default function GrantsPageClient() {
   const { slug } = useParams<{ slug: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
+  const initialTab = searchParams.get('tab') === 'discovered' ? 'discovered' : 'pipeline';
   const [grants, setGrants] = useState<GrantRecord[]>([]);
+  const [discoveredGrants, setDiscoveredGrants] = useState<GrantRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [showNewDialog, setShowNewDialog] = useState(false);
   const [showDiscoverDialog, setShowDiscoverDialog] = useState(false);
+  const [showImportDialog, setShowImportDialog] = useState(false);
   const [viewMode, setViewMode] = useState<'kanban' | 'list'>('kanban');
+  const [activeTab, setActiveTab] = useState<'pipeline' | 'discovered'>(initialTab);
 
   const fetchGrants = useCallback(async (showLoading = true) => {
     if (showLoading) setIsLoading(true);
     setError(null);
     try {
-      const res = await fetch(`/api/projects/${slug}/grants?limit=100`);
-      const json = await res.json() as { grants?: GrantRecord[]; error?: string };
-      if (!res.ok) throw new Error(json.error ?? 'Failed to fetch grants');
-      setGrants(json.grants ?? []);
+      const [pipelineRes, discoveredRes] = await Promise.all([
+        fetch(`/api/projects/${slug}/grants?limit=100&discovered=false`),
+        fetch(`/api/projects/${slug}/grants?limit=100&discovered=true`),
+      ]);
+      if (!pipelineRes.ok) throw new Error('Failed to fetch grants');
+      if (!discoveredRes.ok) throw new Error('Failed to fetch discovered grants');
+      const pipelineJson = await pipelineRes.json() as { grants?: GrantRecord[]; error?: string };
+      const discoveredJson = await discoveredRes.json() as { grants?: GrantRecord[]; error?: string };
+      setGrants(pipelineJson.grants ?? []);
+      setDiscoveredGrants(discoveredJson.grants ?? []);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch grants');
     } finally {
@@ -107,6 +122,34 @@ export default function GrantsPageClient() {
   }, [slug]);
 
   useEffect(() => { fetchGrants(); }, [fetchGrants]);
+
+  const promoteGrant = async (grantId: string) => {
+    try {
+      const res = await fetch(`/api/projects/${slug}/grants/${grantId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_discovered: false, status: 'researching' }),
+      });
+      if (!res.ok) throw new Error('Failed to promote grant');
+      toast.success('Grant added to pipeline');
+      await fetchGrants(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to promote');
+    }
+  };
+
+  const dismissGrant = async (grantId: string) => {
+    try {
+      const res = await fetch(`/api/projects/${slug}/grants/${grantId}`, {
+        method: 'DELETE',
+      });
+      if (!res.ok) throw new Error('Failed to dismiss grant');
+      toast.success('Grant dismissed');
+      await fetchGrants(false);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to dismiss');
+    }
+  };
 
   const handleStatusChange = async (grantId: string, newStatus: string) => {
     try {
@@ -142,21 +185,29 @@ export default function GrantsPageClient() {
           </div>
         </div>
         <div className="flex items-center gap-2">
-          <Button
-            variant={viewMode === 'kanban' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('kanban')}
-          >
-            <LayoutGrid className="mr-1 h-4 w-4" />
-            Pipeline
-          </Button>
-          <Button
-            variant={viewMode === 'list' ? 'default' : 'outline'}
-            size="sm"
-            onClick={() => setViewMode('list')}
-          >
-            <List className="mr-1 h-4 w-4" />
-            List
+          {activeTab === 'pipeline' && (
+            <>
+              <Button
+                variant={viewMode === 'kanban' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('kanban')}
+              >
+                <LayoutGrid className="mr-1 h-4 w-4" />
+                Pipeline
+              </Button>
+              <Button
+                variant={viewMode === 'list' ? 'default' : 'outline'}
+                size="sm"
+                onClick={() => setViewMode('list')}
+              >
+                <List className="mr-1 h-4 w-4" />
+                List
+              </Button>
+            </>
+          )}
+          <Button variant="outline" onClick={() => setShowImportDialog(true)}>
+            <Upload className="mr-2 h-4 w-4" />
+            Import
           </Button>
           <Button variant="outline" onClick={() => setShowDiscoverDialog(true)}>
             <Globe className="mr-2 h-4 w-4" />
@@ -167,6 +218,34 @@ export default function GrantsPageClient() {
             New Grant
           </Button>
         </div>
+      </div>
+
+      {/* Tab Switcher */}
+      <div className="flex gap-1 border-b">
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'pipeline'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+          onClick={() => setActiveTab('pipeline')}
+        >
+          Pipeline ({grants.length})
+        </button>
+        <button
+          className={`px-4 py-2 text-sm font-medium border-b-2 transition-colors ${
+            activeTab === 'discovered'
+              ? 'border-primary text-foreground'
+              : 'border-transparent text-muted-foreground hover:text-foreground'
+          }`}
+          onClick={() => setActiveTab('discovered')}
+        >
+          <Search className="inline mr-1 h-3.5 w-3.5" />
+          Discovered
+          {discoveredGrants.length > 0 && (
+            <Badge variant="secondary" className="ml-1.5 text-xs">{discoveredGrants.length}</Badge>
+          )}
+        </button>
       </div>
 
       {/* Error */}
@@ -185,8 +264,8 @@ export default function GrantsPageClient() {
         </div>
       )}
 
-      {/* Content — keep showing stale data even if a background refresh failed */}
-      {!isLoading && (
+      {/* Pipeline Tab */}
+      {!isLoading && activeTab === 'pipeline' && (
         viewMode === 'kanban' ? (
           <KanbanView
             grants={grants}
@@ -201,6 +280,61 @@ export default function GrantsPageClient() {
         )
       )}
 
+      {/* Discovered Tab */}
+      {!isLoading && activeTab === 'discovered' && (
+        <div className="space-y-3">
+          {discoveredGrants.length === 0 ? (
+            <Card>
+              <CardContent className="py-8 text-center text-sm text-muted-foreground">
+                No discovered grants. Use the Discover page to find and save grant opportunities.
+              </CardContent>
+            </Card>
+          ) : (
+            discoveredGrants.map((grant) => (
+              <Card key={grant.id}>
+                <CardContent className="pt-4 pb-4">
+                  <div className="flex items-start justify-between gap-4">
+                    <div className="flex-1 min-w-0">
+                      <h4 className="font-medium">{grant.name}</h4>
+                      {grant.funder?.name && (
+                        <p className="text-sm text-muted-foreground">{grant.funder.name}</p>
+                      )}
+                      <div className="flex gap-2 mt-2">
+                        {grant.amount_requested != null && (
+                          <Badge variant="secondary">{formatCurrency(grant.amount_requested)}</Badge>
+                        )}
+                        {grant.application_due_at && (
+                          <Badge variant="outline">Due: {formatDate(grant.application_due_at)}</Badge>
+                        )}
+                      </div>
+                      {grant.source_url && (
+                        <a
+                          href={grant.source_url}
+                          target="_blank"
+                          rel="noopener noreferrer"
+                          className="text-xs text-primary hover:underline mt-1 inline-block"
+                        >
+                          View Source
+                        </a>
+                      )}
+                    </div>
+                    <div className="flex items-center gap-2 shrink-0">
+                      <Button size="sm" onClick={() => promoteGrant(grant.id)}>
+                        <ArrowRight className="mr-1 h-4 w-4" />
+                        Add to Pipeline
+                      </Button>
+                      <Button size="sm" variant="ghost" onClick={() => dismissGrant(grant.id)}>
+                        <Trash2 className="h-4 w-4 text-muted-foreground" />
+                      </Button>
+                    </div>
+                  </div>
+                </CardContent>
+              </Card>
+            ))
+          )}
+        </div>
+      )}
+
       <NewGrantDialog
         open={showNewDialog}
         onOpenChange={setShowNewDialog}
@@ -209,6 +343,11 @@ export default function GrantsPageClient() {
       <DiscoverGrantsDialog
         open={showDiscoverDialog}
         onOpenChange={setShowDiscoverDialog}
+        onImported={fetchGrants}
+      />
+      <GrantImportDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
         onImported={fetchGrants}
       />
     </div>

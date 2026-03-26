@@ -30,6 +30,7 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
   // Future: persist model preference and pass to API route
 
   const isCommunity = projectType === 'community';
+  const isGrants = projectType === 'grants';
 
   return (
     <div className="flex flex-col h-full">
@@ -70,7 +71,21 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
         <div className="space-y-2">
           <Label className="text-xs font-medium">Available Tools</Label>
           <div className="rounded-md border p-3 space-y-2">
-            {isCommunity ? (
+            {isGrants ? (
+              <>
+                <ToolGroup name="Grants" tools={['list', 'get', 'create', 'update', 'draft_narrative', 'draft_budget', 'list_documents', 'update_document', 'list_reports', 'create_report', 'update_report', 'search_federal', 'import_federal']} />
+                <ToolGroup name="Organizations" tools={['list', 'get', 'create', 'update', 'delete', 'get_people']} />
+                <ToolGroup name="People" tools={['list', 'get', 'create', 'update', 'delete', 'link_organization']} />
+                <ToolGroup name="Tasks" tools={['list', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="Notes" tools={['list', 'create', 'update', 'delete']} />
+                <ToolGroup name="Search" tools={['global']} />
+                <ToolGroup name="Tags" tools={['list', 'create', 'assign', 'get_entity_tags']} />
+                <ToolGroup name="Comments" tools={['list', 'create']} />
+                <ToolGroup name="Content Library" tools={['list', 'search', 'get', 'create', 'update', 'delete']} />
+                <ToolGroup name="Calendar Sync" tools={['sync_grant']} />
+                <ToolGroup name="Bug Reports" tools={['list', 'update_status']} />
+              </>
+            ) : isCommunity ? (
               <>
                 <ToolGroup name="Households" tools={['list', 'get', 'create', 'update']} />
                 <ToolGroup name="Programs" tools={['list', 'get', 'create', 'update', 'enroll', 'record_attendance', 'list_waivers', 'add_waiver', 'remove_waiver']} />
@@ -143,7 +158,9 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
             )}
           </div>
           <p className="text-xs text-muted-foreground">
-            {isCommunity
+            {isGrants
+              ? 'The assistant can manage your grant pipeline, discover funding opportunities, draft narratives and budgets, manage documents and reports, and track compliance.'
+              : isCommunity
               ? 'The assistant can manage community records, process receipts, coordinate contractor onboarding, manage jobs, send broadcasts, and push calendar events for community workflows in this phase.'
               : 'The AI can use these tools to read and modify your CRM data across all entity types.'}
           </p>

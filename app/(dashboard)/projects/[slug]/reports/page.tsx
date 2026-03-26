@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { ReportsPageClient } from './reports-page-client';
 import { CommunityReportsPageClient } from './community-reports-page-client';
+import { GrantsReportsPageClient } from './grants-reports-page-client';
 
 interface ReportsPageProps {
   params: Promise<{ slug: string }>;
@@ -19,6 +20,10 @@ export default async function ReportsPage({ params }: ReportsPageProps) {
 
   if (project?.project_type === 'community') {
     return <CommunityReportsPageClient projectSlug={slug} />;
+  }
+
+  if (project?.project_type === 'grants') {
+    return <GrantsReportsPageClient projectSlug={slug} />;
   }
 
   return <ReportsPageClient projectSlug={slug} currentUserId={user?.id ?? ''} />;

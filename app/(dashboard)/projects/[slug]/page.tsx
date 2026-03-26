@@ -6,6 +6,7 @@ import { DashboardActivityCenter } from '@/components/dashboard/activity-center'
 import { AnalyticsDashboard } from '@/components/dashboard/analytics-dashboard';
 import { NewsHeadlines } from '@/components/dashboard/news-headlines';
 import { CommunityDashboardClient } from '@/components/community/dashboard/community-dashboard-client';
+import { GrantsDashboardClient } from '@/components/grants/dashboard/grants-dashboard-client';
 import { getCommunityDashboardData } from '@/lib/community/dashboard';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { ProjectRole } from '@/types/user';
@@ -66,6 +67,10 @@ export default async function ProjectDashboard({ params }: ProjectDashboardProps
         canSeeDetail={canSeeDetail}
       />
     );
+  }
+
+  if (project?.project_type === 'grants') {
+    return <GrantsDashboardClient projectSlug={slug} />;
   }
 
   // Fetch counts for dashboard widgets

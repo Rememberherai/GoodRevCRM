@@ -20,7 +20,7 @@ export async function GET(request: Request, context: RouteContext) {
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
-    if (!project || project.project_type !== 'community')
+    if (!project || !['community', 'grants'].includes(project.project_type))
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     await requireCommunityPermission(supabase, user.id, project.id, 'grants', 'view');

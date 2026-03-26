@@ -94,10 +94,12 @@ export function ProjectsPageClient({ projects }: ProjectsPageClientProps) {
                       className={
                         project.project_type === 'community'
                           ? 'bg-emerald-500/15 text-emerald-500 hover:bg-emerald-500/25 border-0'
-                          : 'bg-blue-500/15 text-blue-500 hover:bg-blue-500/25 border-0'
+                          : project.project_type === 'grants'
+                            ? 'bg-amber-500/15 text-amber-500 hover:bg-amber-500/25 border-0'
+                            : 'bg-blue-500/15 text-blue-500 hover:bg-blue-500/25 border-0'
                       }
                     >
-                      {project.project_type === 'community' ? 'Community' : 'Sales'}
+                      {project.project_type === 'community' ? 'Community' : project.project_type === 'grants' ? 'Grants' : 'Sales'}
                     </Badge>
                   </div>
                 </CardContent>

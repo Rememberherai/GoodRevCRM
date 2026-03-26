@@ -42,6 +42,9 @@ export const grantSchema = z.object({
   closeout_date: z.string().nullable().optional(),
   program_id: optionalUuidSchema,
   contract_document_id: optionalUuidSchema,
+  // Discovery fields
+  is_discovered: z.boolean().optional(),
+  source_url: z.string().max(2000, 'Source URL must be 2000 characters or less').nullable().optional(),
 });
 
 export const createGrantSchema = grantSchema;

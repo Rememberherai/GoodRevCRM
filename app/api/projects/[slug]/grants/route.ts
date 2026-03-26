@@ -25,7 +25,7 @@ export async function GET(request: Request, context: RouteContext) {
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
-    if (!project || project.project_type !== 'community')
+    if (!project || !['community', 'grants'].includes(project.project_type))
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     await requireCommunityPermission(supabase, user.id, project.id, 'grants', 'view');
@@ -38,6 +38,7 @@ export async function GET(request: Request, context: RouteContext) {
     const status = searchParams.get('status');
     const funderId = searchParams.get('funder_organization_id');
     const assignedTo = searchParams.get('assigned_to');
+    const discovered = searchParams.get('discovered');
     const offset = (page - 1) * limit;
 
     let query = supabase
@@ -50,6 +51,10 @@ export async function GET(request: Request, context: RouteContext) {
       .eq('project_id', project.id)
       .order('updated_at', { ascending: false })
       .range(offset, offset + limit - 1);
+
+    // Filter by discovered status: 'true' = only discovered, 'false' = only pipeline, omitted = all
+    if (discovered === 'true') query = query.eq('is_discovered', true);
+    else if (discovered === 'false') query = query.eq('is_discovered', false);
 
     if (status) query = query.eq('status', status);
     if (funderId) query = query.eq('funder_organization_id', funderId);
@@ -83,7 +88,7 @@ export async function POST(request: Request, context: RouteContext) {
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
-    if (!project || project.project_type !== 'community')
+    if (!project || !['community', 'grants'].includes(project.project_type))
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     await requireCommunityPermission(supabase, user.id, project.id, 'grants', 'create');

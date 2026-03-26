@@ -4,7 +4,8 @@ export type ImportExportEntityType =
   | 'person'
   | 'organization'
   | 'opportunity'
-  | 'task';
+  | 'task'
+  | 'grant';
 
 export type ImportStatus =
   | 'pending'
@@ -129,4 +130,16 @@ export const taskFields: FieldDefinition[] = [
   { name: 'status', label: 'Status', type: 'string', required: false },
   { name: 'priority', label: 'Priority', type: 'string', required: false },
   { name: 'due_date', label: 'Due Date', type: 'date', required: false },
+];
+
+export const grantFields: FieldDefinition[] = [
+  { name: 'name', label: 'Grant Name', type: 'string', required: true },
+  { name: 'status', label: 'Status', type: 'string', required: false },
+  { name: 'amount_requested', label: 'Amount Requested', type: 'number', required: false },
+  { name: 'amount_awarded', label: 'Amount Awarded', type: 'number', required: false },
+  { name: 'funder_name', label: 'Funder Organization', type: 'string', required: false },
+  { name: 'loi_due_at', label: 'LOI Due Date', type: 'date', required: false },
+  { name: 'application_due_at', label: 'Application Due Date', type: 'date', required: false },
+  { name: 'report_due_at', label: 'Report Due Date', type: 'date', required: false },
+  { name: 'notes', label: 'Notes', type: 'string', required: false },
 ];

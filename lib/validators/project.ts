@@ -20,7 +20,7 @@ export const projectSettingsSchema = z.object({
 
 export type ProjectSettings = z.infer<typeof projectSettingsSchema>;
 
-export const projectTypeSchema = z.enum(['standard', 'community']).default('standard');
+export const projectTypeSchema = z.enum(['standard', 'community', 'grants']).default('standard');
 export const accountingTargetSchema = z.enum(['goodrev', 'quickbooks', 'none']).nullable().optional();
 export const frameworkTypeSchema = z.enum(['ccf', 'vital_conditions', 'custom']).nullable().optional();
 
@@ -71,6 +71,15 @@ function validateCommunityFields(
         code: z.ZodIssueCode.custom,
         path: ['accounting_target'],
         message: 'Community projects require an accounting target selection',
+      });
+    }
+  }
+  if (value.project_type === 'grants') {
+    if (!value.accounting_target) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        path: ['accounting_target'],
+        message: 'Grants projects require an accounting target selection',
       });
     }
   }

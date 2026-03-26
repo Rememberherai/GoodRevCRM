@@ -259,6 +259,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
 
   const projectType = (currentProject?.project_type as ProjectType | undefined) ?? 'standard';
   const isCommunity = projectType === 'community';
+  const isGrants = projectType === 'grants';
 
   // Shared content blocks used across both layouts
   const generalContent = (
@@ -440,7 +441,72 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
         </p>
       </div>
 
-      {isCommunity ? (
+      {isGrants ? (
+        /* ── Grants project layout ── */
+        <Tabs defaultValue="general">
+          <TabsList className="flex flex-wrap h-auto gap-1">
+            <TabsTrigger value="general" className="gap-2">
+              <Settings className="h-4 w-4" />
+              General
+            </TabsTrigger>
+            <TabsTrigger value="members" className="gap-2">
+              <Users className="h-4 w-4" />
+              Team
+            </TabsTrigger>
+            <TabsTrigger value="automation" className="gap-2">
+              <Zap className="h-4 w-4" />
+              Automation
+            </TabsTrigger>
+            <TabsTrigger value="integrations" className="gap-2">
+              <Plug className="h-4 w-4" />
+              Integrations
+            </TabsTrigger>
+          </TabsList>
+
+          <TabsContent value="general" className="space-y-6 mt-6">
+            {generalContent}
+            {dangerZoneContent}
+          </TabsContent>
+
+          <TabsContent value="members" className="space-y-6 mt-6">
+            {membersContent}
+          </TabsContent>
+
+          <TabsContent value="automation" className="mt-6">
+            <Tabs defaultValue="automations">
+              <TabsList>
+                <TabsTrigger value="automations">Automations</TabsTrigger>
+                <TabsTrigger value="scheduler">Scheduler</TabsTrigger>
+              </TabsList>
+              <TabsContent value="automations" className="space-y-6 mt-4">
+                <AutomationPanel slug={slug} />
+              </TabsContent>
+              <TabsContent value="scheduler" className="space-y-6 mt-4">
+                <SchedulerPanel slug={slug} />
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+
+          <TabsContent value="integrations" className="mt-6">
+            <Tabs defaultValue="mcp">
+              <TabsList>
+                <TabsTrigger value="mcp">MCP</TabsTrigger>
+                <TabsTrigger value="api-keys">API Keys</TabsTrigger>
+                <TabsTrigger value="connections">Connections</TabsTrigger>
+              </TabsList>
+              <TabsContent value="mcp" className="space-y-6 mt-4">
+                <McpSettingsPanel slug={slug} />
+              </TabsContent>
+              <TabsContent value="api-keys" className="space-y-6 mt-4">
+                <ProjectSecretsPanel slug={slug} />
+              </TabsContent>
+              <TabsContent value="connections" className="space-y-6 mt-4">
+                <ApiConnectionsPanel slug={slug} />
+              </TabsContent>
+            </Tabs>
+          </TabsContent>
+        </Tabs>
+      ) : isCommunity ? (
         /* ── Community project layout (8 tabs, single row) ── */
         <Tabs defaultValue="general">
           <TabsList className="flex flex-wrap h-auto gap-1">

@@ -26,6 +26,7 @@ import {
   organizationFields,
   opportunityFields,
   taskFields,
+  grantFields,
 } from '@/types/import-export';
 
 interface ImportWizardProps {
@@ -41,6 +42,7 @@ const entityFieldMap: Record<ImportExportEntityType, FieldDefinition[]> = {
   organization: organizationFields,
   opportunity: opportunityFields,
   task: taskFields,
+  grant: grantFields,
 };
 
 export function ImportWizard({ projectSlug, onComplete, onCancel }: ImportWizardProps) {

@@ -28,6 +28,7 @@ import {
   Megaphone,
   Globe,
   ExternalLink,
+  Search,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -61,6 +62,16 @@ const standardNavItems: NavItem[] = [
   { title: 'Workflows', href: '/workflows', icon: GitBranch },
 ];
 
+const grantsNavItems: NavItem[] = [
+  { title: 'Dashboard', href: '', icon: LayoutDashboard },
+  { title: 'Grants Pipeline', href: '/grants', icon: Award },
+  { title: 'Organizations', href: '/organizations', icon: Building2 },
+  { title: 'People', href: '/people', icon: Users },
+  { title: 'Discover', href: '/grants/discover', icon: Search },
+  { title: 'Content Library', href: '/content-library', icon: Library },
+  { title: 'Reporting', href: '/reports', icon: BarChart3 },
+];
+
 const communityNavItems: NavItem[] = [
   { title: 'Dashboard', href: '', icon: LayoutDashboard },
   { title: 'Households', href: '/households', icon: Home },
@@ -90,7 +101,11 @@ export function ProjectSidebar({ project, role, className }: ProjectSidebarProps
   const toggleChat = useChatStore((s) => s.toggle);
   const chatOpen = useChatStore((s) => s.isOpen);
 
-  let navItems = project.project_type === 'community' ? communityNavItems : standardNavItems;
+  let navItems = project.project_type === 'community'
+    ? communityNavItems
+    : project.project_type === 'grants'
+      ? grantsNavItems
+      : standardNavItems;
 
   if (project.project_type === 'community') {
     if (role === 'board_viewer') {

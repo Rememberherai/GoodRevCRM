@@ -30,6 +30,7 @@ import {
   organizationFields,
   opportunityFields,
   taskFields,
+  grantFields,
 } from '@/types/import-export';
 
 interface ExportDialogProps {
@@ -44,6 +45,7 @@ const entityFieldMap: Record<ImportExportEntityType, FieldDefinition[]> = {
   organization: organizationFields,
   opportunity: opportunityFields,
   task: taskFields,
+  grant: grantFields,
 };
 
 const formatIcons: Record<ExportFormat, typeof FileText> = {

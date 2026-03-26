@@ -5,6 +5,10 @@ import { requireCommunityPermission } from '@/lib/projects/community-permissions
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { z } from 'zod';
 
+function escapeHtml(str: string): string {
+  return str.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;').replace(/"/g, '&quot;');
+}
+
 const createOutreachSchema = z.object({
   contact_person_id: z.string().uuid('Valid contact person ID required'),
   subject: z.string().min(1, 'Subject is required').max(500),
@@ -28,7 +32,7 @@ export async function GET(_request: Request, context: RouteContext) {
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
-    if (!project || project.project_type !== 'community')
+    if (!project || !['community', 'grants'].includes(project.project_type))
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     await requireCommunityPermission(supabase, user.id, project.id, 'grants', 'view');
@@ -89,7 +93,7 @@ export async function POST(request: Request, context: RouteContext) {
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
-    if (!project || project.project_type !== 'community')
+    if (!project || !['community', 'grants'].includes(project.project_type))
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     await requireCommunityPermission(supabase, user.id, project.id, 'grants', 'update');
@@ -130,7 +134,7 @@ export async function POST(request: Request, context: RouteContext) {
         project_id: project.id,
         person_id: body.contact_person_id,
         content: `[grant:${id}] ${body.subject}\n\n${body.body}`,
-        content_html: `<p><strong>[Grant Outreach: ${grant.name}]</strong></p><p><strong>${body.subject}</strong></p>${body.body}`,
+        content_html: `<p><strong>[Grant Outreach: ${escapeHtml(grant.name)}]</strong></p><p><strong>${escapeHtml(body.subject)}</strong></p><p>${escapeHtml(body.body).replace(/\n/g, '<br>')}</p>`,
         created_by: user.id,
       })
       .select()
@@ -141,9 +145,9 @@ export async function POST(request: Request, context: RouteContext) {
     emitAutomationEvent({
       projectId: project.id,
       triggerType: 'entity.created',
-      entityType: 'grant' as never,
-      entityId: id,
-      data: { ...note as unknown as Record<string, unknown>, outreach_type: 'grant' },
+      entityType: 'note' as never,
+      entityId: (note as { id: string }).id,
+      data: { ...note as unknown as Record<string, unknown>, outreach_type: 'grant', grant_id: id },
     });
 
     return NextResponse.json({ outreach: note }, { status: 201 });

@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Building2, Users, ArrowLeft, ArrowRight } from 'lucide-react';
+import { Loader2, Building2, Users, Award, ArrowLeft, ArrowRight } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -48,6 +48,12 @@ const PROJECT_TYPES: { value: ProjectType; title: string; description: string; i
     title: 'Community Center',
     description: 'Households, programs, contributions, contractors, and impact tracking.',
     icon: Users,
+  },
+  {
+    value: 'grants',
+    title: 'Grants Management',
+    description: 'Grant pipeline, multi-source discovery, documents, reports, and compliance tracking.',
+    icon: Award,
   },
 ];
 
@@ -106,9 +112,13 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
 
   const projectType = form.watch('project_type');
   const isCommunity = projectType === 'community';
+  const isGrants = projectType === 'grants';
 
-  // Steps: 0 = type, 1 = framework (community only), 2 = accounting (community only), 3 = details
-  const detailsStep = isCommunity ? 3 : 1;
+  // Steps: 0 = type
+  // Community: 1 = framework, 2 = accounting, 3 = details
+  // Grants: 1 = accounting, 2 = details
+  // Standard: 1 = details
+  const detailsStep = isCommunity ? 3 : isGrants ? 2 : 1;
 
   const onSubmit = async (values: CreateProjectInput) => {
     setIsLoading(true);
@@ -123,7 +133,7 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
           description: values.description || null,
           project_type: values.project_type,
           framework_type: isCommunity ? values.framework_type : undefined,
-          accounting_target: isCommunity ? values.accounting_target : undefined,
+          accounting_target: (isCommunity || isGrants) ? values.accounting_target : undefined,
         }),
       });
 
@@ -169,12 +179,14 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
   const canAdvance = () => {
     if (step === 0) return true;
     if (step === 1 && isCommunity) return !!frameworkType;
+    if (step === 1 && isGrants) return !!accountingTarget;
     if (step === 2 && isCommunity) return !!accountingTarget;
     return true;
   };
 
   const handleNext = () => {
-    if (step === 0 && !isCommunity) {
+    if (step === 0 && !isCommunity && !isGrants) {
+      // Standard: skip to details
       setStep(detailsStep);
     } else {
       setStep(step + 1);
@@ -182,7 +194,8 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
   };
 
   const handleBack = () => {
-    if (step === detailsStep && !isCommunity) {
+    if (step === detailsStep && !isCommunity && !isGrants) {
+      // Standard: back to type selection
       setStep(0);
     } else {
       setStep(step - 1);
@@ -197,7 +210,7 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
           <DialogDescription>
             {step === 0 && 'Choose the type of project you want to create.'}
             {step === 1 && isCommunity && 'Select an impact measurement framework.'}
-            {step === 2 && isCommunity && 'Choose your accounting integration.'}
+            {((step === 2 && isCommunity) || (step === 1 && isGrants)) && 'Choose your accounting integration.'}
             {step === detailsStep && 'Enter your project details.'}
           </DialogDescription>
         </DialogHeader>
@@ -281,8 +294,8 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
               />
             )}
 
-            {/* Step 2: Accounting Target (community only) */}
-            {step === 2 && isCommunity && (
+            {/* Accounting Target (community step 2, grants step 1) */}
+            {((step === 2 && isCommunity) || (step === 1 && isGrants)) && (
               <FormField
                 control={form.control}
                 name="accounting_target"
@@ -329,7 +342,7 @@ export function NewProjectDialog({ open, onOpenChange }: NewProjectDialogProps) 
                       <FormLabel>Name</FormLabel>
                       <FormControl>
                         <Input
-                          placeholder={isCommunity ? 'Eastside Community Center' : 'My Project'}
+                          placeholder={isCommunity ? 'Eastside Community Center' : isGrants ? 'FY2026 Grant Portfolio' : 'My Project'}
                           {...field}
                           onChange={(e) => {
                             field.onChange(e);

@@ -6411,3 +6411,54 @@ export async function executeTool(
 export function getToolNames(): string[] {
   return tools.map((t) => t.name);
 }
+
+// ── Grants Project Helpers ───────────────────────────────────────────────────
+// Grants projects need a subset of standard CRM tools (orgs, people, tasks,
+// notes, search, content library) alongside the grant-specific community tools.
+
+const GRANTS_STANDARD_PREFIXES = [
+  'organizations.',
+  'people.',
+  'tasks.',
+  'notes.',
+  'search.',
+  'content.',
+  'tags.',
+  'comments.',
+  'bug_reports.',
+];
+
+export function getStandardToolsForGrants(): ToolDefinition[] {
+  return tools
+    .filter((t) => GRANTS_STANDARD_PREFIXES.some((p) => t.name.startsWith(p)))
+    .map((tool) => {
+      const schema = z.toJSONSchema(tool.parameters) as Record<string, unknown>;
+      delete schema.$schema;
+      return {
+        type: 'function' as const,
+        function: {
+          name: toApiName(tool.name),
+          description: tool.description,
+          parameters: schema,
+        },
+      };
+    });
+}
+
+export async function executeStandardToolForGrants(
+  name: string,
+  args: Record<string, unknown>,
+  ctx: McpContext
+): Promise<string> {
+  const tool = tools.find((t) =>
+    GRANTS_STANDARD_PREFIXES.some((p) => t.name.startsWith(p)) &&
+    (t.name === name || toApiName(t.name) === name)
+  );
+  if (!tool) return '';  // Return empty so caller can fall through to community tools
+  checkPermission(ctx.role, tool.minRole);
+  const parsed = tool.parameters.safeParse(args);
+  if (!parsed.success) {
+    throw new Error(`Invalid parameters for ${name}: ${parsed.error.message}`);
+  }
+  return tool.handler(parsed.data as Record<string, unknown>, ctx);
+}

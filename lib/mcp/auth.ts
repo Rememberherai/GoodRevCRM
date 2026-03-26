@@ -101,7 +101,7 @@ export async function authenticateApiKey(
 
   return {
     projectId: apiKey.project_id as string,
-    projectType: project.project_type as 'standard' | 'community',
+    projectType: project.project_type as 'standard' | 'community' | 'grants',
     userId: apiKey.created_by as string,
     role: apiKey.role,
     apiKeyId: apiKey.id as string,

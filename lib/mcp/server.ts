@@ -33,6 +33,16 @@ export function createMcpServer(getContext: () => McpContext): McpServer {
 
   const context = getContext();
 
+  if (context.projectType === 'grants') {
+    // Grants projects get community grant tools + standard CRM tools for orgs, people, search
+    registerCommunityTools(server, getContext);
+    registerOrganizationTools(server, getContext);
+    registerPeopleTools(server, getContext);
+    registerSearchTools(server, getContext);
+    registerBugReportTools(server, getContext);
+    return server;
+  }
+
   if (context.projectType === 'community') {
     registerCommunityTools(server, getContext);
     registerCommunityContractorTools(server, getContext);

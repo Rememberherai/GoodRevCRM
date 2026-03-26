@@ -25,7 +25,7 @@ export async function GET(_request: Request, context: RouteContext) {
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
-    if (!project || project.project_type !== 'community')
+    if (!project || !['community', 'grants'].includes(project.project_type))
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     await requireCommunityPermission(supabase, user.id, project.id, 'grants', 'view');
@@ -64,7 +64,7 @@ export async function PATCH(request: Request, context: RouteContext) {
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
-    if (!project || project.project_type !== 'community')
+    if (!project || !['community', 'grants'].includes(project.project_type))
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     await requireCommunityPermission(supabase, user.id, project.id, 'grants', 'update');
@@ -181,7 +181,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
-    if (!project || project.project_type !== 'community')
+    if (!project || !['community', 'grants'].includes(project.project_type))
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
 
     await requireCommunityPermission(supabase, user.id, project.id, 'grants', 'delete');

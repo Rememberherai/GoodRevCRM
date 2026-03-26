@@ -3,7 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
 import type { ChatMessageWithTools, ToolCallFunction } from '@/lib/openrouter/client';
-import { getToolDefinitions, executeTool } from '@/lib/chat/tool-registry';
+import { getToolDefinitions, executeTool, getStandardToolsForGrants, executeStandardToolForGrants } from '@/lib/chat/tool-registry';
 import { getCommunityToolDefinitions, executeCommunityTool } from '@/lib/chat/community-tool-registry';
 import { buildSystemPrompt } from '@/lib/chat/system-prompt';
 import { isMcpRole, isStandardMcpRole, type McpContext } from '@/types/mcp';
@@ -57,7 +57,7 @@ export async function POST(request: Request, context: RouteContext) {
     if (!isMcpRole(membership.role)) {
       return NextResponse.json({ error: 'Unsupported project role' }, { status: 403 });
     }
-    if (project.project_type !== 'community' && !isStandardMcpRole(membership.role)) {
+    if (!['community', 'grants'].includes(project.project_type) && !isStandardMcpRole(membership.role)) {
       return NextResponse.json({ error: 'Unsupported project role' }, { status: 403 });
     }
     if (
@@ -102,7 +102,7 @@ export async function POST(request: Request, context: RouteContext) {
     const adminSupabase = createAdminClient();
     const mcpContext: McpContext = {
       projectId: project.id,
-      projectType: project.project_type as 'standard' | 'community',
+      projectType: project.project_type as 'standard' | 'community' | 'grants',
       userId: user.id,
       role: membership.role,
       apiKeyId: 'chat-session',
@@ -172,7 +172,12 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const isCommunityProject = project.project_type === 'community';
-    const toolDefs = isCommunityProject ? getCommunityToolDefinitions(membership.role) : getToolDefinitions();
+    const isGrantsProject = project.project_type === 'grants';
+    const toolDefs = isGrantsProject
+      ? [...getCommunityToolDefinitions(membership.role), ...getStandardToolsForGrants()]
+      : isCommunityProject
+        ? getCommunityToolDefinitions(membership.role)
+        : getToolDefinitions();
     const openrouter = await getProjectOpenRouterClient(project.id);
     const encoder = new TextEncoder();
 
@@ -232,9 +237,12 @@ export async function POST(request: Request, context: RouteContext) {
 
                 let toolResult: string;
                 try {
-                  toolResult = isCommunityProject
-                    ? await executeCommunityTool(toolCall.function.name, parsedArgs, mcpContext)
-                    : await executeTool(toolCall.function.name, parsedArgs, mcpContext);
+                  toolResult = isGrantsProject
+                    ? (await executeStandardToolForGrants(toolCall.function.name, parsedArgs, mcpContext)
+                        || await executeCommunityTool(toolCall.function.name, parsedArgs, mcpContext))
+                    : isCommunityProject
+                      ? await executeCommunityTool(toolCall.function.name, parsedArgs, mcpContext)
+                      : await executeTool(toolCall.function.name, parsedArgs, mcpContext);
                 } catch (err) {
                   toolResult = JSON.stringify({ error: err instanceof Error ? err.message : 'Tool execution failed' });
                 }
