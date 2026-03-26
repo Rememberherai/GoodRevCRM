@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, HardHat, Plus } from 'lucide-react';
+import { ArrowLeft, ExternalLink, HardHat, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -173,16 +173,24 @@ export function ContractorDetailClient({ contractorId }: { contractorId: string 
       </Button>
 
       <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <HardHat className="h-5 w-5" />
+        <div className="flex items-center justify-between gap-3">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <HardHat className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">
+                {[person.first_name, person.last_name].filter(Boolean).join(' ') || person.email || 'Unnamed contractor'}
+              </h2>
+              <div className="text-sm text-muted-foreground">{person.email || person.phone || 'No contact details'}</div>
+            </div>
           </div>
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">
-              {[person.first_name, person.last_name].filter(Boolean).join(' ') || person.email || 'Unnamed contractor'}
-            </h2>
-            <div className="text-sm text-muted-foreground">{person.email || person.phone || 'No contact details'}</div>
-          </div>
+          <Button variant="outline" size="sm" asChild>
+            <Link href={`/contractor/${slug}`} target="_blank">
+              <ExternalLink className="mr-2 h-4 w-4" />
+              View Contractor Portal
+            </Link>
+          </Button>
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge variant="secondary">{scopes[0]?.status?.replace(/_/g, ' ') ?? 'no scope'}</Badge>
