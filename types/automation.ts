@@ -107,7 +107,15 @@ export type TriggerType =
   | 'event.registration.cancelled'
   | 'event.registration.waitlisted'
   | 'event.registration.checked_in'
-  | 'event.capacity_reached';
+  | 'event.capacity_reached'
+  // Asset access events
+  | 'asset_access.submitted'
+  | 'asset_access.verified'
+  | 'asset_access.confirmed'
+  | 'asset_access.denied'
+  | 'asset_access.cancelled'
+  | 'asset_access.rescheduled'
+  | 'asset_access.returned';
 
 export type ActionType =
   | 'create_task'
@@ -176,7 +184,8 @@ export type AutomationEntityType =
   | 'event_registration'
   | 'event_ticket_type'
   | 'event_series'
-  | 'event_series_registration';
+  | 'event_series_registration'
+  | 'asset_access_booking';
 
 export type ExecutionStatus =
   | 'success'
@@ -429,6 +438,18 @@ export const triggerTypeGroups = {
       { type: 'event.registration.waitlisted' as TriggerType, label: 'Registration Waitlisted', description: 'When a registration is placed on the waitlist' },
       { type: 'event.registration.checked_in' as TriggerType, label: 'Attendee Checked In', description: 'When an attendee is checked in at an event' },
       { type: 'event.capacity_reached' as TriggerType, label: 'Event Capacity Reached', description: 'When an event reaches full capacity' },
+    ],
+  },
+  assetAccess: {
+    label: 'Asset Access',
+    triggers: [
+      { type: 'asset_access.submitted' as TriggerType, label: 'Access Requested', description: 'When a guest submits an asset access request' },
+      { type: 'asset_access.verified' as TriggerType, label: 'Access Verified', description: 'When a guest verifies their email for an asset request' },
+      { type: 'asset_access.confirmed' as TriggerType, label: 'Access Confirmed', description: 'When an asset access booking is confirmed' },
+      { type: 'asset_access.denied' as TriggerType, label: 'Access Denied', description: 'When an asset access request is denied' },
+      { type: 'asset_access.cancelled' as TriggerType, label: 'Access Cancelled', description: 'When an asset access booking is cancelled' },
+      { type: 'asset_access.rescheduled' as TriggerType, label: 'Access Rescheduled', description: 'When an asset access booking is rescheduled' },
+      { type: 'asset_access.returned' as TriggerType, label: 'Asset Returned', description: 'When a loanable asset is returned' },
     ],
   },
 };

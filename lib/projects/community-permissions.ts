@@ -20,7 +20,8 @@ export type CommunityResource =
   | 'reports'
   | 'settings'
   | 'public_dashboard'
-  | 'events';
+  | 'events'
+  | 'asset_access';
 
 export type CommunityAction = 'view' | 'create' | 'update' | 'delete' | 'export_pii' | 'manage';
 
@@ -45,6 +46,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
     settings: ['view', 'update'],
     public_dashboard: ['manage'],
     events: ['view', 'create', 'update', 'delete', 'export_pii', 'manage'],
+    asset_access: ['view', 'manage'],
   },
   admin: {
     households: ['view', 'create', 'update', 'delete'],
@@ -64,6 +66,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
     settings: ['view', 'update'],
     public_dashboard: ['manage'],
     events: ['view', 'create', 'update', 'delete', 'export_pii', 'manage'],
+    asset_access: ['view', 'manage'],
   },
   staff: {
     households: ['view', 'create', 'update', 'delete'],
@@ -83,6 +86,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
     settings: ['view'],
     public_dashboard: NO_ACTIONS,
     events: ['view', 'create', 'update'],
+    asset_access: ['view', 'manage'],
   },
   case_manager: {
     households: ['view', 'create', 'update', 'delete'],
@@ -102,6 +106,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
     settings: ['view'],
     public_dashboard: NO_ACTIONS,
     events: ['view', 'create', 'update'],
+    asset_access: ['view'],
   },
   contractor: {
     households: NO_ACTIONS,
@@ -121,6 +126,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
     settings: ['view'],
     public_dashboard: NO_ACTIONS,
     events: NO_ACTIONS,
+    asset_access: NO_ACTIONS,
   },
   board_viewer: {
     households: NO_ACTIONS,
@@ -140,6 +146,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
     settings: NO_ACTIONS,
     public_dashboard: NO_ACTIONS,
     events: NO_ACTIONS,
+    asset_access: NO_ACTIONS,
   },
   member: {
     households: NO_ACTIONS,
@@ -159,6 +166,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
     settings: ['view'],
     public_dashboard: NO_ACTIONS,
     events: NO_ACTIONS,
+    asset_access: NO_ACTIONS,
   },
   viewer: {
     households: NO_ACTIONS,
@@ -178,6 +186,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
     settings: ['view'],
     public_dashboard: NO_ACTIONS,
     events: NO_ACTIONS,
+    asset_access: NO_ACTIONS,
   },
 };
 

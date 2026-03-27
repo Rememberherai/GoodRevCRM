@@ -71,6 +71,7 @@ const entityTableMap: Record<AutomationEntityType, string> = {
   event_ticket_type: 'event_ticket_types',
   event_series: 'event_series',
   event_series_registration: 'event_series_registrations',
+  asset_access_booking: 'bookings',
 };
 
 /**

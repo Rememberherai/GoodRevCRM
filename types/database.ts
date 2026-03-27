@@ -457,6 +457,208 @@ export type Database = {
           },
         ]
       }
+      asset_access_events: {
+        Row: {
+          action: string
+          actor_id: string | null
+          actor_type: string
+          booking_id: string | null
+          created_at: string
+          id: string
+          metadata: Json
+          notes: string | null
+          project_id: string
+          verification_id: string | null
+        }
+        Insert: {
+          action: string
+          actor_id?: string | null
+          actor_type: string
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          project_id: string
+          verification_id?: string | null
+        }
+        Update: {
+          action?: string
+          actor_id?: string | null
+          actor_type?: string
+          booking_id?: string | null
+          created_at?: string
+          id?: string
+          metadata?: Json
+          notes?: string | null
+          project_id?: string
+          verification_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_access_events_booking_id_fkey"
+            columns: ["booking_id"]
+            isOneToOne: false
+            referencedRelation: "bookings"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_access_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "asset_access_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_access_events_verification_id_fkey"
+            columns: ["verification_id"]
+            isOneToOne: false
+            referencedRelation: "asset_access_verifications"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_access_settings: {
+        Row: {
+          accent_color: string | null
+          created_at: string
+          description: string | null
+          id: string
+          is_enabled: boolean
+          logo_url: string | null
+          project_id: string
+          slug: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          accent_color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_enabled?: boolean
+          logo_url?: string | null
+          project_id: string
+          slug: string
+          title?: string
+          updated_at?: string
+        }
+        Update: {
+          accent_color?: string | null
+          created_at?: string
+          description?: string | null
+          id?: string
+          is_enabled?: boolean
+          logo_url?: string | null
+          project_id?: string
+          slug?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_access_settings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "asset_access_settings_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: true
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      asset_access_verifications: {
+        Row: {
+          asset_id: string
+          created_at: string
+          email: string
+          event_type_id: string
+          expires_at: string
+          guest_name: string
+          id: string
+          project_id: string
+          requested_end_at: string
+          requested_start_at: string
+          responses: Json
+          status: string
+          token: string
+          verified_at: string | null
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          email: string
+          event_type_id: string
+          expires_at: string
+          guest_name: string
+          id?: string
+          project_id: string
+          requested_end_at: string
+          requested_start_at: string
+          responses?: Json
+          status: string
+          token: string
+          verified_at?: string | null
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          email?: string
+          event_type_id?: string
+          expires_at?: string
+          guest_name?: string
+          id?: string
+          project_id?: string
+          requested_end_at?: string
+          requested_start_at?: string
+          responses?: Json
+          status?: string
+          token?: string
+          verified_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "asset_access_verifications_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "community_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_access_verifications_event_type_id_fkey"
+            columns: ["event_type_id"]
+            isOneToOne: false
+            referencedRelation: "event_types"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "asset_access_verifications_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "asset_access_verifications_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       automation_executions: {
         Row: {
           actions_results: Json
@@ -1914,14 +2116,164 @@ export type Database = {
           },
         ]
       }
+      community_asset_approvers: {
+        Row: {
+          asset_id: string
+          created_at: string
+          id: string
+          project_id: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          id?: string
+          project_id: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          id?: string
+          project_id?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_asset_approvers_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "community_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_asset_approvers_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "community_asset_approvers_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_asset_approvers_user_id_fkey"
+            columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      community_asset_person_approvals: {
+        Row: {
+          asset_id: string
+          created_at: string
+          created_by: string | null
+          expires_at: string | null
+          id: string
+          notes: string | null
+          person_id: string
+          project_id: string
+          revoked_at: string | null
+          revoked_by: string | null
+          status: string
+          updated_at: string
+        }
+        Insert: {
+          asset_id: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          person_id: string
+          project_id: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          status: string
+          updated_at?: string
+        }
+        Update: {
+          asset_id?: string
+          created_at?: string
+          created_by?: string | null
+          expires_at?: string | null
+          id?: string
+          notes?: string | null
+          person_id?: string
+          project_id?: string
+          revoked_at?: string | null
+          revoked_by?: string | null
+          status?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "community_asset_person_approvals_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "community_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_asset_person_approvals_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_asset_person_approvals_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_asset_person_approvals_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "community_asset_person_approvals_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "community_asset_person_approvals_revoked_by_fkey"
+            columns: ["revoked_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       community_assets: {
         Row: {
+          access_enabled: boolean
+          access_instructions: string | null
+          access_mode: string
           address_city: string | null
           address_country: string | null
           address_postal_code: string | null
           address_state: string | null
           address_street: string | null
+          approval_policy: string
+          booking_owner_user_id: string | null
           category: string
+          concurrent_capacity: number
           condition: string
           created_at: string
           description: string | null
@@ -1933,18 +2285,29 @@ export type Database = {
           name: string
           notes: string | null
           project_id: string
+          public_description: string | null
+          public_name: string | null
+          public_visibility: string
+          resource_slug: string | null
+          return_required: boolean
           steward_organization_id: string | null
           steward_person_id: string | null
           updated_at: string
           value_estimate: number | null
         }
         Insert: {
+          access_enabled?: boolean
+          access_instructions?: string | null
+          access_mode?: string
           address_city?: string | null
           address_country?: string | null
           address_postal_code?: string | null
           address_state?: string | null
           address_street?: string | null
+          approval_policy?: string
+          booking_owner_user_id?: string | null
           category: string
+          concurrent_capacity?: number
           condition?: string
           created_at?: string
           description?: string | null
@@ -1956,18 +2319,29 @@ export type Database = {
           name: string
           notes?: string | null
           project_id: string
+          public_description?: string | null
+          public_name?: string | null
+          public_visibility?: string
+          resource_slug?: string | null
+          return_required?: boolean
           steward_organization_id?: string | null
           steward_person_id?: string | null
           updated_at?: string
           value_estimate?: number | null
         }
         Update: {
+          access_enabled?: boolean
+          access_instructions?: string | null
+          access_mode?: string
           address_city?: string | null
           address_country?: string | null
           address_postal_code?: string | null
           address_state?: string | null
           address_street?: string | null
+          approval_policy?: string
+          booking_owner_user_id?: string | null
           category?: string
+          concurrent_capacity?: number
           condition?: string
           created_at?: string
           description?: string | null
@@ -1979,12 +2353,24 @@ export type Database = {
           name?: string
           notes?: string | null
           project_id?: string
+          public_description?: string | null
+          public_name?: string | null
+          public_visibility?: string
+          resource_slug?: string | null
+          return_required?: boolean
           steward_organization_id?: string | null
           steward_person_id?: string | null
           updated_at?: string
           value_estimate?: number | null
         }
         Relationships: [
+          {
+            foreignKeyName: "community_assets_booking_owner_user_id_fkey"
+            columns: ["booking_owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "community_assets_dimension_id_fkey"
             columns: ["dimension_id"]
@@ -12656,6 +13042,28 @@ export type Database = {
       }
       count_active_projects_7d: { Args: never; Returns: number }
       count_projects_missing_api_key: { Args: never; Returns: number }
+      create_asset_booking_if_available: {
+        Args: {
+          p_asset_id: string
+          p_booking_owner_user_id: string
+          p_buffer_after: string
+          p_buffer_before: string
+          p_end_at: string
+          p_event_type_id: string
+          p_invitee_email: string
+          p_invitee_name: string
+          p_invitee_notes: string
+          p_invitee_phone: string
+          p_invitee_timezone: string
+          p_location: string
+          p_meeting_url: string
+          p_project_id: string
+          p_requires_confirmation: boolean
+          p_responses: Json
+          p_start_at: string
+        }
+        Returns: string
+      }
       create_bill:
         | {
             Args: {

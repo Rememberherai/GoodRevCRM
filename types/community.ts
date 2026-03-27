@@ -21,6 +21,25 @@ export type ContributionStatus = 'pledged' | 'received' | 'completed' | 'cancell
 export type CommunityAssetCategory = 'facility' | 'land' | 'equipment' | 'vehicle' | 'technology' | 'other';
 export type CommunityAssetCondition = 'excellent' | 'good' | 'fair' | 'poor';
 
+export type AssetAccessMode = 'tracked_only' | 'reservable' | 'loanable' | 'hybrid';
+export type AssetApprovalPolicy = 'open_auto' | 'open_review' | 'approved_only';
+export type AssetPublicVisibility = 'listed' | 'unlisted';
+export type AssetAccessVerificationStatus = 'pending' | 'verified' | 'expired';
+export type AssetAccessEventAction =
+  | 'submitted'
+  | 'verification_sent'
+  | 'verified'
+  | 'queued_for_review'
+  | 'auto_confirmed'
+  | 'approved'
+  | 'denied'
+  | 'cancelled'
+  | 'rescheduled'
+  | 'access_granted'
+  | 'returned';
+export type AssetAccessActorType = 'system' | 'guest' | 'user';
+export type PersonApprovalStatus = 'active' | 'revoked';
+
 export type ContractorScopeStatus = 'draft' | 'pending_signature' | 'active' | 'expired' | 'cancelled';
 export type JobStatus =
   | 'draft'
@@ -288,6 +307,18 @@ export interface CommunityAsset extends CommunityTimestamps {
   steward_person_id: string | null;
   steward_organization_id: string | null;
   notes: string | null;
+  // Asset access fields
+  access_mode: AssetAccessMode;
+  access_enabled: boolean;
+  resource_slug: string | null;
+  public_name: string | null;
+  public_description: string | null;
+  approval_policy: AssetApprovalPolicy;
+  public_visibility: AssetPublicVisibility;
+  access_instructions: string | null;
+  booking_owner_user_id: string | null;
+  concurrent_capacity: number;
+  return_required: boolean;
 }
 export type CommunityAssetInsert = CommunityInsert<CommunityAsset>;
 export type CommunityAssetUpdate = CommunityUpdate<CommunityAsset>;
@@ -496,6 +527,85 @@ export interface PublicDashboardShareLink extends CommunityTimestamps {
 }
 export type PublicDashboardShareLinkInsert = CommunityInsert<PublicDashboardShareLink>;
 export type PublicDashboardShareLinkUpdate = CommunityUpdate<PublicDashboardShareLink>;
+
+// ── Asset Access ────────────────────────────────────────────
+
+export interface AssetAccessSettings extends CommunityTimestamps {
+  id: string;
+  project_id: string;
+  slug: string;
+  title: string;
+  description: string | null;
+  logo_url: string | null;
+  accent_color: string | null;
+  is_enabled: boolean;
+}
+export type AssetAccessSettingsInsert = CommunityInsert<AssetAccessSettings>;
+export type AssetAccessSettingsUpdate = CommunityUpdate<AssetAccessSettings>;
+
+export interface CommunityAssetApprover extends CommunityTimestamps {
+  id: string;
+  project_id: string;
+  asset_id: string;
+  user_id: string;
+}
+export type CommunityAssetApproverInsert = CommunityInsert<CommunityAssetApprover>;
+
+export interface CommunityAssetPersonApproval extends CommunityTimestamps {
+  id: string;
+  project_id: string;
+  asset_id: string;
+  person_id: string;
+  status: PersonApprovalStatus;
+  notes: string | null;
+  expires_at: string | null;
+  created_by: string | null;
+  revoked_by: string | null;
+  revoked_at: string | null;
+}
+export type CommunityAssetPersonApprovalInsert = CommunityInsert<CommunityAssetPersonApproval>;
+export type CommunityAssetPersonApprovalUpdate = CommunityUpdate<CommunityAssetPersonApproval>;
+
+export interface AssetAccessVerification {
+  id: string;
+  token: string;
+  project_id: string;
+  asset_id: string;
+  event_type_id: string;
+  email: string;
+  guest_name: string;
+  requested_start_at: string;
+  requested_end_at: string;
+  responses: Record<string, unknown>;
+  status: AssetAccessVerificationStatus;
+  verified_at: string | null;
+  expires_at: string;
+  created_at: string;
+}
+
+export interface AssetAccessEvent {
+  id: string;
+  project_id: string;
+  booking_id: string | null;
+  verification_id: string | null;
+  action: AssetAccessEventAction;
+  actor_type: AssetAccessActorType;
+  actor_id: string | null;
+  notes: string | null;
+  metadata: Record<string, unknown>;
+  created_at: string;
+}
+
+// Derived UI states for asset access bookings
+export type AssetAccessDerivedState =
+  | 'pending_verification'
+  | 'pending_review'
+  | 'confirmed'
+  | 'denied'
+  | 'cancelled'
+  | 'completed'
+  | 'overdue'
+  | 'rescheduled';
 
 // ── Event Calendar ──────────────────────────────────────────
 
