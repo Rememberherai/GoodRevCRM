@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useRef, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Award, CalendarClock, ChevronDown, ChevronRight, ClipboardList, DollarSign, Download, ExternalLink, FileText, Mail, Paperclip, Plus, Star, Trash2, Upload, UserPlus, X } from 'lucide-react';
+import { ArrowLeft, Award, BookOpen, CalendarClock, ChevronDown, ChevronRight, ClipboardList, DollarSign, Download, ExternalLink, FileText, Mail, Paperclip, Plus, Save, Search, Star, Trash2, Upload, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -17,6 +17,10 @@ import { SendEmailModal } from '@/components/gmail';
 import { PersonCombobox } from '@/components/ui/person-combobox';
 import { OrganizationCombobox } from '@/components/ui/organization-combobox';
 import { Skeleton } from '@/components/ui/skeleton';
+import { toast } from 'sonner';
+import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
+import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
+import { ANSWER_BANK_CATEGORIES, type AnswerBankEntry } from '@/components/grants/answer-bank/answer-bank-page-client';
 
 interface GrantDetail {
   id: string;
@@ -290,6 +294,16 @@ export default function GrantDetailClient() {
   const [editIndirectCostRate, setEditIndirectCostRate] = useState('');
   const [editAgreementStatus, setEditAgreementStatus] = useState('');
   const [editCloseoutDate, setEditCloseoutDate] = useState('');
+
+  // Answer Bank state
+  const [answerBankOpen, setAnswerBankOpen] = useState(false);
+  const [answerBankTarget, setAnswerBankTarget] = useState<'notes' | 'key_intel'>('notes');
+  const [answerBankSearch, setAnswerBankSearch] = useState('');
+  const [answerBankEntries, setAnswerBankEntries] = useState<AnswerBankEntry[]>([]);
+  const [answerBankLoading, setAnswerBankLoading] = useState(false);
+  const [saveToAnswerBankOpen, setSaveToAnswerBankOpen] = useState(false);
+  const [saveAnswerBankTitle, setSaveAnswerBankTitle] = useState('');
+  const [saveAnswerBankCategory, setSaveAnswerBankCategory] = useState('other');
 
   const populateForm = (g: GrantDetail) => {
     setEditName(g.name);
@@ -615,6 +629,58 @@ export default function GrantDetailClient() {
       if (emailTargetContact?.id === contactId) setEmailTargetContact(null);
     } catch (err) {
       setContactError(err instanceof Error ? err.message : 'Failed to remove contact');
+    }
+  };
+
+  const openAnswerBank = (target: 'notes' | 'key_intel') => {
+    setAnswerBankTarget(target);
+    setAnswerBankSearch('');
+    setAnswerBankEntries([]);
+    setAnswerBankOpen(true);
+    fetchAnswerBankEntries('');
+  };
+
+  const fetchAnswerBankEntries = async (q: string) => {
+    setAnswerBankLoading(true);
+    try {
+      const params = new URLSearchParams();
+      if (q) params.set('q', q);
+      const res = await fetch(`/api/projects/${slug}/grants/answer-bank?${params}`);
+      if (!res.ok) throw new Error('Failed to load');
+      const data = await res.json();
+      setAnswerBankEntries(data.entries ?? []);
+    } catch {
+      // silently fail — picker is non-critical
+    } finally {
+      setAnswerBankLoading(false);
+    }
+  };
+
+  const handleInsertFromAnswerBank = async (entry: AnswerBankEntry) => {
+    if (answerBankTarget === 'notes') {
+      setEditNotes((prev) => prev ? `${prev}\n\n${entry.content}` : entry.content);
+    } else {
+      setEditKeyIntel((prev) => prev ? `${prev}\n\n${entry.content}` : entry.content);
+    }
+    setAnswerBankOpen(false);
+    fetch(`/api/projects/${slug}/grants/answer-bank/${entry.id}?use=true`, { method: 'PATCH' }).catch(() => {});
+  };
+
+  const handleSaveToAnswerBank = async () => {
+    if (!saveAnswerBankTitle.trim() || !editNotes.trim()) return;
+    try {
+      const res = await fetch(`/api/projects/${slug}/grants/answer-bank`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ title: saveAnswerBankTitle.trim(), category: saveAnswerBankCategory, content: editNotes.trim() }),
+      });
+      if (!res.ok) throw new Error((await res.json()).error ?? 'Failed to save');
+      setSaveToAnswerBankOpen(false);
+      setSaveAnswerBankTitle('');
+      setSaveAnswerBankCategory('other');
+      toast.success('Saved to Answer Bank');
+    } catch (e) {
+      toast.error(e instanceof Error ? e.message : 'Failed to save');
     }
   };
 
@@ -967,7 +1033,13 @@ export default function GrantDetailClient() {
                 </div>
 
                 <div className="space-y-2">
-                  <Label>Key Intel</Label>
+                  <div className="flex items-center justify-between">
+                    <Label>Key Intel</Label>
+                    <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1 text-muted-foreground" onClick={() => openAnswerBank('key_intel')}>
+                      <BookOpen className="h-3 w-3" />
+                      Insert from Answer Bank
+                    </Button>
+                  </div>
                   <Textarea value={editKeyIntel} onChange={(e) => setEditKeyIntel(e.target.value)} rows={3} maxLength={10000} placeholder="Strategic insights about this funder, recent shifts in priorities, key contacts..." />
                 </div>
 
@@ -978,7 +1050,21 @@ export default function GrantDetailClient() {
               </div>
 
               <div className="space-y-2">
-                <Label>Notes</Label>
+                <div className="flex items-center justify-between">
+                  <Label>Notes</Label>
+                  <div className="flex items-center gap-1">
+                    <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1 text-muted-foreground" onClick={() => openAnswerBank('notes')}>
+                      <BookOpen className="h-3 w-3" />
+                      Insert from Answer Bank
+                    </Button>
+                    {editNotes.trim() && (
+                      <Button type="button" variant="ghost" size="sm" className="h-6 px-2 text-xs gap-1 text-muted-foreground" onClick={() => { setSaveAnswerBankTitle(''); setSaveAnswerBankCategory('other'); setSaveToAnswerBankOpen(true); }}>
+                        <Save className="h-3 w-3" />
+                        Save to Answer Bank
+                      </Button>
+                    )}
+                  </div>
+                </div>
                 <Textarea value={editNotes} onChange={(e) => setEditNotes(e.target.value)} rows={4} maxLength={5000} />
               </div>
 
@@ -1387,6 +1473,102 @@ export default function GrantDetailClient() {
           onSuccess={handleOutreachEmailSuccess}
         />
       )}
+
+      {/* Answer Bank picker sheet */}
+      <Sheet open={answerBankOpen} onOpenChange={setAnswerBankOpen}>
+        <SheetContent className="w-[480px] sm:max-w-[480px] flex flex-col">
+          <SheetHeader>
+            <SheetTitle className="flex items-center gap-2">
+              <BookOpen className="h-5 w-5" />
+              Insert from Answer Bank
+            </SheetTitle>
+          </SheetHeader>
+          <p className="text-sm text-muted-foreground">
+            Click an entry to append it to {answerBankTarget === 'notes' ? 'Notes' : 'Key Intel'}.
+          </p>
+          <div className="relative mt-2">
+            <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+            <Input
+              className="pl-9"
+              placeholder="Search entries..."
+              value={answerBankSearch}
+              onChange={(e) => {
+                setAnswerBankSearch(e.target.value);
+                fetchAnswerBankEntries(e.target.value);
+              }}
+            />
+          </div>
+          <div className="flex-1 overflow-y-auto space-y-2 mt-3">
+            {answerBankLoading ? (
+              <div className="space-y-2">
+                {[1, 2, 3].map((i) => <Skeleton key={i} className="h-20 w-full" />)}
+              </div>
+            ) : answerBankEntries.length === 0 ? (
+              <div className="text-center py-10 text-muted-foreground text-sm">
+                {answerBankSearch ? 'No entries match your search' : 'No entries in Answer Bank yet'}
+              </div>
+            ) : (
+              answerBankEntries.map((entry) => (
+                <button
+                  key={entry.id}
+                  className="w-full text-left rounded-lg border p-3 hover:bg-accent transition-colors space-y-1"
+                  onClick={() => handleInsertFromAnswerBank(entry)}
+                >
+                  <div className="flex items-center gap-2">
+                    <span className="font-medium text-sm">{entry.title}</span>
+                    <Badge variant="secondary" className="text-[10px] px-1.5 py-0">
+                      {ANSWER_BANK_CATEGORIES.find((c) => c.value === entry.category)?.label ?? entry.category}
+                    </Badge>
+                  </div>
+                  <p className="text-xs text-muted-foreground line-clamp-2">{entry.content}</p>
+                </button>
+              ))
+            )}
+          </div>
+        </SheetContent>
+      </Sheet>
+
+      {/* Save to Answer Bank dialog */}
+      <Dialog open={saveToAnswerBankOpen} onOpenChange={setSaveToAnswerBankOpen}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Save to Answer Bank</DialogTitle>
+          </DialogHeader>
+          <div className="space-y-4">
+            <div className="space-y-1.5">
+              <Label>Title</Label>
+              <Input
+                value={saveAnswerBankTitle}
+                onChange={(e) => setSaveAnswerBankTitle(e.target.value)}
+                placeholder="e.g. Mission Statement"
+              />
+            </div>
+            <div className="space-y-1.5">
+              <Label>Category</Label>
+              <Select value={saveAnswerBankCategory} onValueChange={setSaveAnswerBankCategory}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  {ANSWER_BANK_CATEGORIES.map((c) => (
+                    <SelectItem key={c.value} value={c.value}>{c.label}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
+              <Label>Content (from Notes)</Label>
+              <p className="text-sm text-muted-foreground line-clamp-4 rounded border p-2 bg-muted/40">
+                {editNotes}
+              </p>
+            </div>
+          </div>
+          <DialogFooter>
+            <Button variant="outline" onClick={() => setSaveToAnswerBankOpen(false)}>Cancel</Button>
+            <Button onClick={handleSaveToAnswerBank} disabled={!saveAnswerBankTitle.trim()}>Save</Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
     </div>
   );
 }

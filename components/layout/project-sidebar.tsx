@@ -29,6 +29,7 @@ import {
   Megaphone,
   Globe,
   Search,
+  BookOpen,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -70,6 +71,8 @@ const grantsNavItems: NavItem[] = [
   { title: 'Organizations', href: '/organizations', icon: Building2 },
   { title: 'People', href: '/people', icon: Users },
   { title: 'Discover', href: '/grants/discover', icon: Search, resource: 'grants' },
+  { title: 'Answer Bank', href: '/grants/answer-bank', icon: BookOpen, resource: 'grants' },
+  { title: 'Calendar', href: '/grants/calendar', icon: CalendarDays, resource: 'grants' },
   { title: 'Content Library', href: '/content-library', icon: Library },
   { title: 'Reporting', href: '/reports', icon: BarChart3, resource: 'reports' },
 ];

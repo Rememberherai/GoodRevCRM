@@ -5094,6 +5094,73 @@ export type Database = {
           },
         ]
       }
+      grant_answer_bank: {
+        Row: {
+          category: string
+          content: string
+          created_at: string
+          created_by: string | null
+          deleted_at: string | null
+          id: string
+          last_used_at: string | null
+          project_id: string
+          tags: string[]
+          title: string
+          updated_at: string
+          usage_count: number
+        }
+        Insert: {
+          category?: string
+          content: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          last_used_at?: string | null
+          project_id: string
+          tags?: string[]
+          title: string
+          updated_at?: string
+          usage_count?: number
+        }
+        Update: {
+          category?: string
+          content?: string
+          created_at?: string
+          created_by?: string | null
+          deleted_at?: string | null
+          id?: string
+          last_used_at?: string | null
+          project_id?: string
+          tags?: string[]
+          title?: string
+          updated_at?: string
+          usage_count?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grant_answer_bank_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "grant_answer_bank_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "grant_answer_bank_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       grant_contacts: {
         Row: {
           created_at: string
