@@ -118,6 +118,7 @@ const DURATION_PRESETS = [
   { label: '1 day', value: 480 },
 ];
 
+
 function formatDuration(minutes: number): string {
   if (minutes < 60) return `${minutes} min`;
   const hours = Math.floor(minutes / 60);
@@ -307,12 +308,12 @@ export function BookingPresetsTab({ assetId }: { assetId: string }) {
                 No booking options yet
               </h3>
               <p className="mt-1 text-sm text-muted-foreground">
-                Add booking options like &quot;Borrow for 1 day&quot; or &quot;Reserve for 2 hours&quot; so
-                community members can request access to this asset.
+                Set a booking owner in the Access tab to auto-generate default options, or add a
+                custom option below.
               </p>
               <Button className="mt-4" onClick={openCreateDialog}>
                 <Plus className="mr-2 h-4 w-4" />
-                Create First Option
+                Add Booking Option
               </Button>
             </div>
           ) : (
