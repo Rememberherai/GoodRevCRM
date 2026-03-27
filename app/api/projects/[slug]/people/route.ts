@@ -13,6 +13,14 @@ interface RouteContext {
   params: Promise<{ slug: string }>;
 }
 
+function sanitizePersonForResponse(person: Record<string, unknown>) {
+  const { kiosk_pin_hmac, ...rest } = person;
+  return {
+    ...rest,
+    pin_set: kiosk_pin_hmac != null,
+  };
+}
+
 // GET /api/projects/[slug]/people - List people
 export async function GET(request: Request, context: RouteContext) {
   try {
@@ -52,6 +60,7 @@ export async function GET(request: Request, context: RouteContext) {
     const sortOrder = searchParams.get('sortOrder') ?? 'desc';
     const organizationId = searchParams.get('organizationId');
     const isContractor = searchParams.get('is_contractor');
+    const isEmployee = searchParams.get('is_employee');
     const householdless = searchParams.get('householdless');
 
     const offset = (page - 1) * limit;
@@ -123,6 +132,12 @@ export async function GET(request: Request, context: RouteContext) {
       query = query.eq('is_contractor', false);
     }
 
+    if (isEmployee === 'true') {
+      query = query.eq('is_employee', true);
+    } else if (isEmployee === 'false') {
+      query = query.eq('is_employee', false);
+    }
+
     // Apply sorting
     const ALLOWED_SORT_COLUMNS = ['first_name', 'last_name', 'email', 'created_at', 'updated_at', 'job_title', 'disposition_id'];
     const ascending = sortOrder === 'asc';
@@ -168,7 +183,7 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     return NextResponse.json({
-      people: enrichedPeople,
+      people: idsOnly ? enrichedPeople : enrichedPeople.map(sanitizePersonForResponse),
       pagination: {
         page,
         limit,

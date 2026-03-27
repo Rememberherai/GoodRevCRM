@@ -64,11 +64,13 @@ export const jobSchema = z.object({
 const timeEntryBaseSchema = z.object({
   job_id: z.string().uuid().nullable().optional(),
   contractor_id: z.string().uuid().nullable().optional(),
+  person_id: z.string().uuid().nullable().optional(),
   started_at: dateTimeSchema,
   ended_at: z.string().nullable().optional(),
   is_break: z.boolean().default(false),
   duration_minutes: z.number().int().nonnegative().nullable().optional(),
   category: z.string().max(100).nullable().optional(),
+  entry_source: z.enum(['job_tracker', 'portal', 'kiosk', 'admin', 'legacy']).optional(),
 });
 
 function validateTimeEntry(
@@ -96,10 +98,10 @@ export const createJobSchema = jobSchema;
 export const updateJobSchema = jobSchema.partial();
 export const createTimeEntrySchema = timeEntryBaseSchema.superRefine((val, ctx) => {
   validateTimeEntry(val, ctx);
-  if (!val.job_id && !val.contractor_id) {
+  if (!val.job_id && !val.contractor_id && !val.person_id) {
     ctx.addIssue({
       code: z.ZodIssueCode.custom,
-      message: 'Either job_id or contractor_id is required',
+      message: 'Either job_id, contractor_id, or person_id is required',
       path: ['job_id'],
     });
   }

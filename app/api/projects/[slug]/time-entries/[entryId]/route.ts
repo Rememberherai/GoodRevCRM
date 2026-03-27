@@ -1,10 +1,12 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { updateTimeEntrySchema } from '@/lib/validators/community/contractors';
 import { computeTimeEntryDurationMinutes } from '@/lib/community/jobs';
 import { emitAutomationEvent } from '@/lib/automations/engine';
+import type { Json } from '@/types/database';
 
 interface RouteContext {
   params: Promise<{ slug: string; entryId: string }>;
@@ -13,7 +15,7 @@ interface RouteContext {
 async function resolveEntry(supabase: Awaited<ReturnType<typeof createClient>>, entryId: string, projectId: string) {
   const { data: entry } = await supabase
     .from('job_time_entries')
-    .select('*, jobs(id, project_id), contractor:people!job_time_entries_contractor_id_fkey(id, project_id)')
+    .select('*, jobs(id, project_id), contractor:people!job_time_entries_contractor_id_fkey(id, project_id), person:people!job_time_entries_person_id_fkey(id, project_id)')
     .eq('id', entryId)
     .maybeSingle();
 
@@ -26,9 +28,41 @@ async function resolveEntry(supabase: Awaited<ReturnType<typeof createClient>>, 
   const contractorProject = !entry.job_id && entry.contractor
     ? (entry.contractor as { project_id?: string }).project_id
     : null;
+  const personProject = !entry.job_id && entry.person
+    ? (entry.person as { project_id?: string }).project_id
+    : null;
 
-  if (jobProject !== projectId && contractorProject !== projectId) return null;
+  if (jobProject !== projectId && contractorProject !== projectId && personProject !== projectId) return null;
   return entry;
+}
+
+async function writeAudit(params: {
+  timeEntryId: string;
+  projectId: string;
+  personId: string | null;
+  action: 'insert' | 'update' | 'delete';
+  changedBy: string;
+  changedByRole: string;
+  entrySource: string | null;
+  oldData?: Json | null;
+  newData?: Json | null;
+}) {
+  try {
+    const adminClient = createAdminClient();
+    await adminClient.from('time_entry_audit').insert({
+      time_entry_id: params.timeEntryId,
+      project_id: params.projectId,
+      person_id: params.personId,
+      action: params.action,
+      changed_by: params.changedBy,
+      changed_by_role: params.changedByRole,
+      entry_source: params.entrySource,
+      old_data: params.oldData ?? null,
+      new_data: params.newData ?? null,
+    });
+  } catch (err) {
+    console.error('Failed to write time_entry_audit row:', err);
+  }
 }
 
 export async function PATCH(request: Request, context: RouteContext) {
@@ -90,12 +124,25 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to update time entry' }, { status: 500 });
     }
 
-    const refId = entry.job_id ?? entry.contractor_id ?? '';
+    const workerId = (entry.person_id ?? entry.contractor_id ?? null);
+    await writeAudit({
+      timeEntryId: entryId,
+      projectId: project.id,
+      personId: workerId,
+      action: 'update',
+      changedBy: user.id,
+      changedByRole: 'admin',
+      entrySource: entry.entry_source ?? null,
+      oldData: entry as unknown as Json,
+      newData: updatedEntry as unknown as Json,
+    });
+
+    const refId = entry.job_id ?? entry.contractor_id ?? entry.person_id ?? '';
     emitAutomationEvent({
       projectId: project.id,
       triggerType: 'entity.updated',
       entityType: 'job',
-      entityId: refId,
+      entityId: refId as string,
       data: { time_entry: updatedEntry } as unknown as Record<string, unknown>,
     });
 
@@ -131,6 +178,19 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     const entry = await resolveEntry(supabase, entryId, project.id);
     if (!entry) return NextResponse.json({ error: 'Time entry not found' }, { status: 404 });
+
+    // Write audit row BEFORE deleting
+    const workerId = (entry.person_id ?? entry.contractor_id ?? null);
+    await writeAudit({
+      timeEntryId: entryId,
+      projectId: project.id,
+      personId: workerId,
+      action: 'delete',
+      changedBy: user.id,
+      changedByRole: 'admin',
+      entrySource: entry.entry_source ?? null,
+      oldData: entry as unknown as Json,
+    });
 
     const { error } = await supabase
       .from('job_time_entries')

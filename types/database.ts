@@ -6126,10 +6126,12 @@ export type Database = {
           created_at: string
           duration_minutes: number | null
           ended_at: string | null
+          entry_source: string | null
           id: string
           is_break: boolean
           job_id: string | null
           notes: string | null
+          person_id: string | null
           started_at: string
           updated_at: string
         }
@@ -6139,10 +6141,12 @@ export type Database = {
           created_at?: string
           duration_minutes?: number | null
           ended_at?: string | null
+          entry_source?: string | null
           id?: string
           is_break?: boolean
           job_id?: string | null
           notes?: string | null
+          person_id?: string | null
           started_at: string
           updated_at?: string
         }
@@ -6152,10 +6156,12 @@ export type Database = {
           created_at?: string
           duration_minutes?: number | null
           ended_at?: string | null
+          entry_source?: string | null
           id?: string
           is_break?: boolean
           job_id?: string | null
           notes?: string | null
+          person_id?: string | null
           started_at?: string
           updated_at?: string
         }
@@ -6172,6 +6178,13 @@ export type Database = {
             columns: ["job_id"]
             isOneToOne: false
             referencedRelation: "jobs"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "job_time_entries_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
             referencedColumns: ["id"]
           },
         ]
@@ -6449,6 +6462,68 @@ export type Database = {
             columns: ["journal_entry_id"]
             isOneToOne: false
             referencedRelation: "journal_entries"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      kiosk_punches: {
+        Row: {
+          action: string
+          created_at: string
+          id: string
+          ip_address: string | null
+          person_id: string
+          project_id: string
+          punched_at: string
+          time_entry_id: string | null
+        }
+        Insert: {
+          action: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          person_id: string
+          project_id: string
+          punched_at?: string
+          time_entry_id?: string | null
+        }
+        Update: {
+          action?: string
+          created_at?: string
+          id?: string
+          ip_address?: string | null
+          person_id?: string
+          project_id?: string
+          punched_at?: string
+          time_entry_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "kiosk_punches_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kiosk_punches_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "kiosk_punches_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "kiosk_punches_time_entry_id_fkey"
+            columns: ["time_entry_id"]
+            isOneToOne: false
+            referencedRelation: "job_time_entries"
             referencedColumns: ["id"]
           },
         ]
@@ -7952,8 +8027,10 @@ export type Database = {
           first_name: string
           id: string
           is_contractor: boolean
+          is_employee: boolean
           is_volunteer: boolean
           job_title: string | null
+          kiosk_pin_hmac: string | null
           last_name: string
           latitude: number | null
           linkedin_outreach_status: string | null
@@ -7991,8 +8068,10 @@ export type Database = {
           first_name: string
           id?: string
           is_contractor?: boolean
+          is_employee?: boolean
           is_volunteer?: boolean
           job_title?: string | null
+          kiosk_pin_hmac?: string | null
           last_name: string
           latitude?: number | null
           linkedin_outreach_status?: string | null
@@ -8030,8 +8109,10 @@ export type Database = {
           first_name?: string
           id?: string
           is_contractor?: boolean
+          is_employee?: boolean
           is_volunteer?: boolean
           job_title?: string | null
+          kiosk_pin_hmac?: string | null
           last_name?: string
           latitude?: number | null
           linkedin_outreach_status?: string | null
@@ -11585,6 +11666,48 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      time_entry_audit: {
+        Row: {
+          action: string
+          changed_at: string
+          changed_by: string | null
+          changed_by_role: string | null
+          entry_source: string | null
+          id: string
+          new_data: Json | null
+          old_data: Json | null
+          person_id: string | null
+          project_id: string
+          time_entry_id: string
+        }
+        Insert: {
+          action: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_role?: string | null
+          entry_source?: string | null
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          person_id?: string | null
+          project_id: string
+          time_entry_id: string
+        }
+        Update: {
+          action?: string
+          changed_at?: string
+          changed_by?: string | null
+          changed_by_role?: string | null
+          entry_source?: string | null
+          id?: string
+          new_data?: Json | null
+          old_data?: Json | null
+          person_id?: string | null
+          project_id?: string
+          time_entry_id?: string
+        }
+        Relationships: []
       }
       user_sessions: {
         Row: {
