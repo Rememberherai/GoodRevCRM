@@ -53,6 +53,7 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 - **Programs**: List, inspect, create, update, enroll participants, record batch attendance, and manage waiver requirements (list, add, remove waiver templates per program)
 - **Contributions**: List, inspect, create, and update money, in-kind, volunteer, grant, and service contributions
 - **Community Assets**: List, inspect, create, and update community assets and facilities
+- **Asset Access**: List and review asset booking requests (approve, deny, grant access and approve). Mark loanable assets as returned. Manage per-asset approvers and pre-approved people. View and update asset access settings (access mode, approval policy, capacity, public visibility).
 - **Referrals / Relationships / Broadcasts**: Track referrals, manage relationship records, create broadcast drafts, and send approved broadcasts
 - **Receipt Processing**: Extract vendor, date, amount, and likely coding details from uploaded receipt images or invoices
 - **Accounts Payable Execution**: After explicit user confirmation, create a receipt confirmation record and route the bill to GoodRev Accounting or QuickBooks depending on the project's accounting target

@@ -91,6 +91,7 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
                 <ToolGroup name="Programs" tools={['list', 'get', 'create', 'update', 'enroll', 'record_attendance', 'list_waivers', 'add_waiver', 'remove_waiver']} />
                 <ToolGroup name="Contributions" tools={['list', 'get', 'create', 'update']} />
                 <ToolGroup name="Assets" tools={['list', 'get', 'create', 'update']} />
+                <ToolGroup name="Asset Access" tools={['list_requests', 'review_request', 'mark_returned', 'list_approvers', 'add_approver', 'remove_approver', 'list_approved_people', 'grant_person_approval', 'revoke_person_approval', 'get_settings', 'update_settings']} />
                 <ToolGroup name="Referrals" tools={['list', 'get', 'create', 'update']} />
                 <ToolGroup name="Relationships" tools={['list', 'create']} />
                 <ToolGroup name="Broadcasts" tools={['list', 'create', 'send']} />

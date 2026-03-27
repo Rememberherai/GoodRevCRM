@@ -26,6 +26,11 @@ import {
   updateCommunityAssetSchema,
 } from '@/lib/validators/community/assets';
 import {
+  reviewActionSchema,
+  updateAssetAccessSettingsSchema,
+} from '@/lib/validators/asset-access';
+import { reviewAssetBooking, markAssetReturned } from '@/lib/asset-access/service';
+import {
   referralBaseSchema,
   updateReferralSchema,
 } from '@/lib/validators/community/referrals';
@@ -1071,6 +1076,368 @@ defineCommunityTool({
       data: data as Record<string, unknown>,
     });
     return JSON.stringify({ asset: data });
+  },
+});
+
+// ── Asset Access tools ──────────────────────────────────────────
+
+defineCommunityTool({
+  name: 'asset_access.list_requests',
+  description: 'List asset access requests (bookings linked to assets).',
+  resource: 'asset_access',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: z.object({
+    status: z.enum(['pending', 'confirmed', 'cancelled', 'completed']).optional(),
+    asset_id: z.string().uuid().optional(),
+    page: z.number().int().min(1).default(1),
+    limit: z.number().int().min(1).max(100).default(50),
+  }),
+  handler: async (params, ctx) => {
+    const parsed = z.object({
+      status: z.enum(['pending', 'confirmed', 'cancelled', 'completed']).optional(),
+      asset_id: z.string().uuid().optional(),
+      page: z.number().int().min(1).default(1),
+      limit: z.number().int().min(1).max(100).default(50),
+    }).parse(params);
+    const admin = createAdminClient();
+    const { offset, to } = paginate(parsed.page, parsed.limit);
+    let query = admin
+      .from('bookings')
+      .select('*, event_types!inner(id, title, asset_id, duration_minutes, community_assets(id, name, access_mode, return_required))')
+      .not('event_types.asset_id', 'is', null)
+      .eq('project_id', ctx.projectId)
+      .order('created_at', { ascending: false })
+      .range(offset, to);
+    if (parsed.status) query = query.eq('status', parsed.status);
+    if (parsed.asset_id) query = query.eq('event_types.asset_id', parsed.asset_id);
+    const { data, error } = await query;
+    if (error) throw communityError(`Failed to list asset access requests: ${error.message}`);
+    return JSON.stringify({ requests: data ?? [], page: parsed.page, limit: parsed.limit });
+  },
+});
+
+defineCommunityTool({
+  name: 'asset_access.review_request',
+  description: 'Approve or deny an asset access request (booking). Use grant_access_and_approve to also pre-approve the person for future access.',
+  resource: 'asset_access',
+  action: 'manage',
+  roles: ['owner', 'admin', 'staff'],
+  parameters: z.object({
+    booking_id: z.string().uuid(),
+    action: reviewActionSchema,
+    notes: z.string().max(2000).optional(),
+    expires_at: z.string().datetime().nullable().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const parsed = z.object({
+      booking_id: z.string().uuid(),
+      action: reviewActionSchema,
+      notes: z.string().max(2000).optional(),
+      expires_at: z.string().datetime().nullable().optional(),
+    }).parse(params);
+
+    let personId: string | undefined;
+    if (parsed.action === 'grant_access_and_approve') {
+      // Look up the person by booking's invitee_email
+      const admin = createAdminClient();
+      const { data: booking } = await admin
+        .from('bookings')
+        .select('invitee_email')
+        .eq('id', parsed.booking_id)
+        .single();
+      if (booking?.invitee_email) {
+        const { data: person } = await admin
+          .from('people')
+          .select('id')
+          .eq('project_id', ctx.projectId)
+          .ilike('email', booking.invitee_email)
+          .limit(1)
+          .maybeSingle();
+        personId = person?.id;
+        if (!personId) throw communityError('Could not find a matching person record for the invitee email. Create the person first or use "approve" instead.');
+      }
+    }
+
+    const result = await reviewAssetBooking({
+      bookingId: parsed.booking_id,
+      action: parsed.action,
+      reviewerUserId: ctx.userId,
+      notes: parsed.notes,
+      personId,
+      expires_at: parsed.expires_at,
+    });
+    if (!result.success) throw communityError(result.error ?? 'Review failed');
+    return JSON.stringify({ success: true, action: parsed.action, booking_id: parsed.booking_id });
+  },
+});
+
+defineCommunityTool({
+  name: 'asset_access.mark_returned',
+  description: 'Mark a loanable asset booking as returned (completed).',
+  resource: 'asset_access',
+  action: 'manage',
+  roles: ['owner', 'admin', 'staff'],
+  parameters: z.object({
+    booking_id: z.string().uuid(),
+    notes: z.string().max(2000).optional(),
+  }),
+  handler: async (params, ctx) => {
+    const parsed = z.object({
+      booking_id: z.string().uuid(),
+      notes: z.string().max(2000).optional(),
+    }).parse(params);
+    const result = await markAssetReturned(parsed.booking_id, ctx.userId, parsed.notes);
+    if (!result.success) throw communityError(result.error ?? 'Mark returned failed');
+    return JSON.stringify({ success: true, booking_id: parsed.booking_id });
+  },
+});
+
+defineCommunityTool({
+  name: 'asset_access.list_approvers',
+  description: 'List approvers for a community asset.',
+  resource: 'asset_access',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: z.object({
+    asset_id: z.string().uuid(),
+  }),
+  handler: async (params, ctx) => {
+    const parsed = z.object({ asset_id: z.string().uuid() }).parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('community_asset_approvers')
+      .select('id, asset_id, user_id, created_at, user:users(id, display_name, email)')
+      .eq('asset_id', parsed.asset_id)
+      .eq('project_id', ctx.projectId);
+    if (error) throw communityError(`Failed to list approvers: ${error.message}`);
+    return JSON.stringify({ approvers: data ?? [] });
+  },
+});
+
+defineCommunityTool({
+  name: 'asset_access.add_approver',
+  description: 'Add an approver to a community asset.',
+  resource: 'asset_access',
+  action: 'manage',
+  roles: ['owner', 'admin'],
+  parameters: z.object({
+    asset_id: z.string().uuid(),
+    user_id: z.string().uuid(),
+  }),
+  handler: async (params, ctx) => {
+    const parsed = z.object({
+      asset_id: z.string().uuid(),
+      user_id: z.string().uuid(),
+    }).parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('community_asset_approvers')
+      .insert({
+        asset_id: parsed.asset_id,
+        user_id: parsed.user_id,
+        project_id: ctx.projectId,
+      })
+      .select('*')
+      .single();
+    if (error) throw communityError(`Failed to add approver: ${error.message}`);
+    return JSON.stringify({ approver: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'asset_access.remove_approver',
+  description: 'Remove an approver from a community asset.',
+  resource: 'asset_access',
+  action: 'manage',
+  roles: ['owner', 'admin'],
+  parameters: z.object({
+    asset_id: z.string().uuid(),
+    user_id: z.string().uuid(),
+  }),
+  handler: async (params, ctx) => {
+    const parsed = z.object({
+      asset_id: z.string().uuid(),
+      user_id: z.string().uuid(),
+    }).parse(params);
+    const admin = createAdminClient();
+    const { error } = await admin
+      .from('community_asset_approvers')
+      .delete()
+      .eq('asset_id', parsed.asset_id)
+      .eq('user_id', parsed.user_id)
+      .eq('project_id', ctx.projectId);
+    if (error) throw communityError(`Failed to remove approver: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+defineCommunityTool({
+  name: 'asset_access.list_approved_people',
+  description: 'List pre-approved people for a community asset.',
+  resource: 'asset_access',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: z.object({
+    asset_id: z.string().uuid(),
+  }),
+  handler: async (params, ctx) => {
+    const parsed = z.object({ asset_id: z.string().uuid() }).parse(params);
+    const admin = createAdminClient();
+    const now = new Date().toISOString();
+    const { data, error } = await admin
+      .from('community_asset_person_approvals')
+      .select('id, asset_id, person_id, status, notes, expires_at, created_at, person:people(id, first_name, last_name, email)')
+      .eq('asset_id', parsed.asset_id)
+      .eq('project_id', ctx.projectId)
+      .eq('status', 'active')
+      .or(`expires_at.is.null,expires_at.gt.${now}`);
+    if (error) throw communityError(`Failed to list approved people: ${error.message}`);
+    return JSON.stringify({ approved_people: data ?? [] });
+  },
+});
+
+defineCommunityTool({
+  name: 'asset_access.grant_person_approval',
+  description: 'Grant a person pre-approval for a community asset.',
+  resource: 'asset_access',
+  action: 'manage',
+  roles: ['owner', 'admin', 'staff'],
+  parameters: z.object({
+    asset_id: z.string().uuid(),
+    person_id: z.string().uuid(),
+    notes: z.string().max(2000).nullable().optional(),
+    expires_at: z.string().datetime().nullable().optional(),
+  }),
+  handler: async (params, ctx) => {
+    const parsed = z.object({
+      asset_id: z.string().uuid(),
+      person_id: z.string().uuid(),
+      notes: z.string().max(2000).nullable().optional(),
+      expires_at: z.string().datetime().nullable().optional(),
+    }).parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('community_asset_person_approvals')
+      .upsert(
+        {
+          project_id: ctx.projectId,
+          asset_id: parsed.asset_id,
+          person_id: parsed.person_id,
+          status: 'active',
+          notes: parsed.notes ?? null,
+          expires_at: parsed.expires_at ?? null,
+          created_by: ctx.userId,
+        },
+        { onConflict: 'asset_id,person_id' }
+      )
+      .select('*')
+      .single();
+    if (error) throw communityError(`Failed to grant person approval: ${error.message}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.created',
+      entityType: 'community_asset',
+      entityId: parsed.asset_id,
+      data: { approval: data as unknown as Record<string, unknown>, action: 'person_approved' },
+    }).catch((e) => console.error('Failed to emit asset access person_approved:', e));
+    return JSON.stringify({ approval: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'asset_access.revoke_person_approval',
+  description: "Revoke a person's pre-approval for a community asset.",
+  resource: 'asset_access',
+  action: 'manage',
+  roles: ['owner', 'admin', 'staff'],
+  parameters: z.object({
+    asset_id: z.string().uuid(),
+    person_id: z.string().uuid(),
+  }),
+  handler: async (params, ctx) => {
+    const parsed = z.object({
+      asset_id: z.string().uuid(),
+      person_id: z.string().uuid(),
+    }).parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('community_asset_person_approvals')
+      .update({
+        status: 'revoked',
+        revoked_by: ctx.userId,
+        revoked_at: new Date().toISOString(),
+      })
+      .eq('asset_id', parsed.asset_id)
+      .eq('person_id', parsed.person_id)
+      .eq('project_id', ctx.projectId)
+      .select('*')
+      .single();
+    if (error) throw communityError(`Failed to revoke person approval: ${error.message}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'community_asset',
+      entityId: parsed.asset_id,
+      data: { approval: data as unknown as Record<string, unknown>, action: 'person_revoked' },
+    }).catch((e) => console.error('Failed to emit asset access person_revoked:', e));
+    return JSON.stringify({ success: true });
+  },
+});
+
+defineCommunityTool({
+  name: 'asset_access.get_settings',
+  description: 'Get access settings for a community asset.',
+  resource: 'asset_access',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: z.object({
+    asset_id: z.string().uuid(),
+  }),
+  handler: async (params, ctx) => {
+    const parsed = z.object({ asset_id: z.string().uuid() }).parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('community_assets')
+      .select('id, name, access_mode, access_enabled, resource_slug, public_name, public_description, approval_policy, public_visibility, access_instructions, booking_owner_user_id, concurrent_capacity, return_required')
+      .eq('id', parsed.asset_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+    if (error || !data) throw communityError(`Asset not found: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify({ settings: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'asset_access.update_settings',
+  description: 'Update access settings for a community asset (access mode, approval policy, capacity, public visibility, etc.).',
+  resource: 'asset_access',
+  action: 'manage',
+  roles: ['owner', 'admin'],
+  parameters: updateAssetAccessSettingsSchema.extend({
+    asset_id: z.string().uuid(),
+  }),
+  handler: async (params, ctx) => {
+    const schema = updateAssetAccessSettingsSchema.extend({ asset_id: z.string().uuid() });
+    const parsed = schema.parse(params);
+    const { asset_id, ...updates } = parsed;
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('community_assets')
+      .update(updates)
+      .eq('id', asset_id)
+      .eq('project_id', ctx.projectId)
+      .select('id, name, access_mode, access_enabled, resource_slug, public_name, public_description, approval_policy, public_visibility, access_instructions, booking_owner_user_id, concurrent_capacity, return_required')
+      .single();
+    if (error || !data) throw communityError(`Failed to update asset access settings: ${error?.message ?? 'unknown error'}`);
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'entity.updated',
+      entityType: 'community_asset',
+      entityId: data.id,
+      data: data as unknown as Record<string, unknown>,
+    }).catch((e) => console.error('Failed to emit asset access settings update:', e));
+    return JSON.stringify({ settings: data });
   },
 });
 

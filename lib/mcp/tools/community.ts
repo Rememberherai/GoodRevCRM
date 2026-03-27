@@ -14,6 +14,7 @@ const CORE_PREFIXES = new Set([
   'grants',
   'census',
   'events',
+  'asset_access',
 ]);
 
 function getToolShape(tool: CommunityChatTool) {

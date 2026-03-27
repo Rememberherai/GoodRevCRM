@@ -132,6 +132,13 @@ const MUTATING_TOOLS = new Set([
   'time_entries.create', 'time_entries_create',
   'time_entries.update', 'time_entries_update',
   'time_entries.delete', 'time_entries_delete',
+  'asset_access.review_request', 'asset_access_review_request',
+  'asset_access.mark_returned', 'asset_access_mark_returned',
+  'asset_access.add_approver', 'asset_access_add_approver',
+  'asset_access.remove_approver', 'asset_access_remove_approver',
+  'asset_access.grant_person_approval', 'asset_access_grant_person_approval',
+  'asset_access.revoke_person_approval', 'asset_access_revoke_person_approval',
+  'asset_access.update_settings', 'asset_access_update_settings',
 ]);
 
 function normalizeToolName(toolName: string) {
