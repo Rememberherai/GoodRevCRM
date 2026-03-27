@@ -156,6 +156,7 @@ export function ProjectSidebar({ project, role, deniedResources, className }: Pr
             <Link
               key={item.title}
               href={href}
+              data-tour-id={item.href || 'dashboard'}
               className={cn(
                 'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
                 isActive
@@ -192,6 +193,7 @@ export function ProjectSidebar({ project, role, deniedResources, className }: Pr
             <Link
               key={item.title}
               href={href}
+              data-tour-id={item.href || 'dashboard'}
               className={cn(
                 'flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors',
                 isActive

@@ -9,7 +9,9 @@ import { CommunityDashboardClient } from '@/components/community/dashboard/commu
 import { GrantsDashboardClient } from '@/components/grants/dashboard/grants-dashboard-client';
 import { getCommunityDashboardData } from '@/lib/community/dashboard';
 import type { CompanyContext } from '@/lib/validators/project';
+import { ProjectTour } from '@/components/tour/project-tour';
 import type { ProjectRole } from '@/types/user';
+import type { ProjectType } from '@/types/project';
 
 interface ProjectDashboardProps {
   params: Promise<{ slug: string }>;
@@ -61,16 +63,24 @@ export default async function ProjectDashboard({ params }: ProjectDashboardProps
     const canSeeDetail = membership?.role !== 'board_viewer' && membership?.role !== 'contractor';
 
     return (
-      <CommunityDashboardClient
-        projectSlug={slug}
-        initialData={dashboardData}
-        canSeeDetail={canSeeDetail}
-      />
+      <>
+        <CommunityDashboardClient
+          projectSlug={slug}
+          initialData={dashboardData}
+          canSeeDetail={canSeeDetail}
+        />
+        <ProjectTour projectId={projectId} projectType={project.project_type as ProjectType} />
+      </>
     );
   }
 
   if (project?.project_type === 'grants') {
-    return <GrantsDashboardClient projectSlug={slug} />;
+    return (
+      <>
+        <GrantsDashboardClient projectSlug={slug} />
+        <ProjectTour projectId={projectId} projectType={project.project_type as ProjectType} />
+      </>
+    );
   }
 
   // Fetch counts for dashboard widgets
@@ -160,6 +170,8 @@ export default async function ProjectDashboard({ params }: ProjectDashboardProps
       <DashboardActivityCenter projectSlug={slug} />
 
       <AnalyticsDashboard projectSlug={slug} currentUserId={currentUserId} />
+
+      <ProjectTour projectId={projectId} projectType={(project?.project_type ?? 'standard') as ProjectType} />
     </div>
   );
 }

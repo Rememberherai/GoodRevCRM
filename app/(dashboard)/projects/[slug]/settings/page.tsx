@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug, Plug2, KeyRound, Clock, Package, Tag, Wrench, MapPin } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug, Plug2, KeyRound, Clock, Package, Tag, Wrench, MapPin, RotateCcw } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
@@ -35,6 +35,7 @@ import { toast } from 'sonner';
 import { LogoUpload } from '@/components/ui/logo-upload';
 import { Label } from '@/components/ui/label';
 import { useProjectStore } from '@/stores/project';
+import { useTourStore } from '@/stores/tour';
 import { ResearchSettingsPanel } from '@/components/settings/research-settings';
 import { MemberList } from '@/components/team/member-list';
 import { InviteMemberDialog } from '@/components/team/invite-member-dialog';
@@ -352,6 +353,32 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
     </Card>
   );
 
+  const handleReplayTour = () => {
+    useTourStore.getState().clearSeen(currentProject?.id ?? '');
+    // Navigate to dashboard — ProjectTour there will auto-launch since localStorage was cleared
+    router.push(`/projects/${slug}`);
+  };
+
+  const tourReplayContent = (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2">
+          <RotateCcw className="h-5 w-5" />
+          Project Walkthrough
+        </CardTitle>
+        <CardDescription>
+          Take a guided tour of this project&apos;s features and navigation
+        </CardDescription>
+      </CardHeader>
+      <CardContent>
+        <Button variant="outline" onClick={handleReplayTour}>
+          <RotateCcw className="mr-2 h-4 w-4" />
+          Replay Tour
+        </Button>
+      </CardContent>
+    </Card>
+  );
+
   const dangerZoneContent = currentUserRole === 'owner' && (
     <Card className="border-destructive">
       <CardHeader>
@@ -487,6 +514,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
 
           <TabsContent value="general" className="space-y-6 mt-6">
             {generalContent}
+            {tourReplayContent}
             {dangerZoneContent}
           </TabsContent>
 
@@ -571,6 +599,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
           <TabsContent value="general" className="space-y-6 mt-6">
             {generalContent}
             <EmailSignaturesPanel slug={slug} />
+            {tourReplayContent}
             {dangerZoneContent}
           </TabsContent>
 
@@ -719,6 +748,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
 
           <TabsContent value="general" className="space-y-6 mt-6">
             {generalContent}
+            {tourReplayContent}
             {dangerZoneContent}
           </TabsContent>
 
