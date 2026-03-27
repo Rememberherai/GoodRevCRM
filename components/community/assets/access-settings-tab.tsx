@@ -7,6 +7,7 @@ import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { MemberCombobox } from '@/components/ui/member-combobox';
 import {
   Select,
   SelectContent,
@@ -241,17 +242,16 @@ export function AccessSettingsTab({ assetId }: { assetId: string }) {
           />
         </div>
 
-        {/* Booking Owner User ID */}
+        {/* Booking Owner */}
         <div className="space-y-2">
-          <Label htmlFor="booking_owner_user_id">Booking Owner User ID</Label>
+          <Label>Booking Owner</Label>
           <p className="text-sm text-muted-foreground">
-            UUID of the user responsible for managing bookings
+            Team member responsible for managing bookings for this asset
           </p>
-          <Input
-            id="booking_owner_user_id"
-            value={settings.booking_owner_user_id ?? ''}
-            onChange={(e) => update('booking_owner_user_id', e.target.value || null)}
-            placeholder="e.g. 550e8400-e29b-41d4-a716-446655440000"
+          <MemberCombobox
+            value={settings.booking_owner_user_id}
+            onValueChange={(val) => update('booking_owner_user_id', val)}
+            placeholder="Select a booking owner..."
           />
         </div>
 
