@@ -8,6 +8,7 @@ import { AdminModeBanner } from '@/components/admin/admin-mode-banner';
 import { CallClientWrapper } from '@/components/calls/call-client-wrapper';
 import { ChatPanel } from '@/components/chat/chat-panel';
 import { LastProjectTracker } from '@/components/projects/last-project-tracker';
+import { PermissionsProvider } from '@/lib/contexts/permissions';
 import type { Database } from '@/types/database';
 import type { ProjectRole } from '@/types/user';
 
@@ -63,11 +64,15 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
     redirect(`/contractor/${slug}`);
   }
 
-  const deniedResources: string[] = (overrides ?? [])
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .filter((o: any) => o.granted === false)
-    // eslint-disable-next-line @typescript-eslint/no-explicit-any
-    .map((o: any) => o.resource as string);
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const allOverrides: { resource: string; granted: boolean }[] = (overrides ?? []).map((o: any) => ({
+    resource: o.resource as string,
+    granted: o.granted as boolean,
+  }));
+
+  const deniedResources: string[] = allOverrides
+    .filter((o) => o.granted === false)
+    .map((o) => o.resource);
 
   // Check for active admin session (uses admin client to bypass RLS)
   let adminSession: { id: string } | null = null;
@@ -96,7 +101,9 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
         <div className="flex flex-col flex-1 overflow-hidden min-w-0">
           <ProjectHeader project={project as Project} />
           {adminSession && <AdminModeBanner projectId={project.id} projectName={project.name} />}
-          <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+          <PermissionsProvider overrides={allOverrides} role={(membership?.role as string) ?? null}>
+            <main className="flex-1 overflow-auto p-4 md:p-6">{children}</main>
+          </PermissionsProvider>
         </div>
       </div>
       <ChatPanel projectSlug={slug} projectType={project.project_type} />

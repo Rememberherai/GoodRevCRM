@@ -99,6 +99,32 @@ export const standardResources = [
 
 export const allResources = [...new Set([...communityResources, ...standardResources])] as const;
 
+// Sub-resource hierarchy for tabbed pages
+// Keys are parent resources; values are sub-tab resources with display labels
+export const RESOURCE_HIERARCHY: Record<string, { key: string; label: string }[]> = {
+  jobs: [
+    { key: 'jobs.contractors', label: 'Contractors' },
+    { key: 'jobs.employees', label: 'Employees' },
+    { key: 'jobs.jobs', label: 'Jobs' },
+    { key: 'jobs.timesheets', label: 'Timesheets' },
+  ],
+  contributions: [
+    { key: 'contributions.donations', label: 'Donations' },
+    { key: 'contributions.time_log', label: 'Time Log' },
+  ],
+  reports: [
+    { key: 'reports.programs', label: 'Programs' },
+    { key: 'reports.contributions', label: 'Contributions' },
+    { key: 'reports.households', label: 'Households' },
+    { key: 'reports.volunteers', label: 'Volunteers' },
+    { key: 'reports.contractors', label: 'Contractors' },
+    { key: 'reports.grants', label: 'Grants' },
+    { key: 'reports.trends', label: 'Trends' },
+    { key: 'reports.risk_referrals', label: 'Risk & Referrals' },
+    { key: 'reports.events', label: 'Events' },
+  ],
+};
+
 // Upsert a single permission override
 export const upsertOverrideSchema = z.object({
   resource: z.string().min(1).max(64),

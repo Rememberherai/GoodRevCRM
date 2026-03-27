@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { Loader2 } from 'lucide-react';
+import { ChevronRight, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import {
   Dialog,
@@ -10,7 +10,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from '@/components/ui/dialog';
-import { communityResources, standardResources } from '@/lib/validators/user';
+import { communityResources, standardResources, RESOURCE_HIERARCHY } from '@/lib/validators/user';
 import type { ProjectType } from '@/types/project';
 import type { ProjectRole } from '@/types/user';
 
@@ -113,12 +113,18 @@ export function MemberPermissionsDialog({
   const [saving, setSaving] = useState<Record<string, boolean>>({});
   const [loading, setLoading] = useState(false);
 
+  const [expanded, setExpanded] = useState<Record<string, boolean>>({});
   const resources = (projectType === 'community' ? communityResources : standardResources) as readonly string[];
+
+  function toggleExpanded(resource: string) {
+    setExpanded((s) => ({ ...s, [resource]: !s[resource] }));
+  }
 
   useEffect(() => {
     if (!open) {
       setOverrides({});
       setSaving({});
+      setExpanded({});
       return;
     }
 
@@ -188,23 +194,73 @@ export function MemberPermissionsDialog({
           </div>
         ) : (
           <div className="divide-y max-h-[60vh] overflow-y-auto -mx-6 px-6">
-            {resources.map((resource) => (
-              <div key={resource} className="flex items-center justify-between py-3">
-                <span className="text-sm font-medium">
-                  {resourceLabels[resource] ?? resource}
-                </span>
-                <div className="relative">
-                  {saving[resource] && (
-                    <Loader2 className="h-3 w-3 animate-spin text-muted-foreground absolute -left-5 top-1/2 -translate-y-1/2" />
+            {resources.map((resource) => {
+              const children = RESOURCE_HIERARCHY[resource];
+              const hasChildren = children && children.length > 0;
+              const isExpanded = expanded[resource] === true;
+              const parentDenied = (overrides[resource] ?? 'default') === 'denied';
+
+              return (
+                <div key={resource}>
+                  <div className="flex items-center justify-between py-3">
+                    <div className="flex items-center gap-1">
+                      {hasChildren ? (
+                        <button
+                          type="button"
+                          onClick={() => toggleExpanded(resource)}
+                          className="p-0.5 -ml-1 rounded hover:bg-muted transition-colors"
+                        >
+                          <ChevronRight className={`h-3.5 w-3.5 text-muted-foreground transition-transform ${isExpanded ? 'rotate-90' : ''}`} />
+                        </button>
+                      ) : (
+                        <span className="w-4.5" />
+                      )}
+                      <span className="text-sm font-medium">
+                        {resourceLabels[resource] ?? resource}
+                      </span>
+                    </div>
+                    <div className="relative">
+                      {saving[resource] && (
+                        <Loader2 className="h-3 w-3 animate-spin text-muted-foreground absolute -left-5 top-1/2 -translate-y-1/2" />
+                      )}
+                      <OverrideToggle
+                        value={overrides[resource] ?? 'default'}
+                        onChange={(v) => void handleChange(resource, v)}
+                        disabled={saving[resource]}
+                      />
+                    </div>
+                  </div>
+                  {hasChildren && isExpanded && !parentDenied && (
+                    <div className="pb-2">
+                      {children.map((child) => (
+                        <div key={child.key} className="flex items-center justify-between py-1.5 pl-7">
+                          <span className="text-sm text-muted-foreground">
+                            {child.label}
+                          </span>
+                          <div className="relative">
+                            {saving[child.key] && (
+                              <Loader2 className="h-3 w-3 animate-spin text-muted-foreground absolute -left-5 top-1/2 -translate-y-1/2" />
+                            )}
+                            <OverrideToggle
+                              value={overrides[child.key] ?? 'default'}
+                              onChange={(v) => void handleChange(child.key, v)}
+                              disabled={saving[child.key]}
+                            />
+                          </div>
+                        </div>
+                      ))}
+                    </div>
                   )}
-                  <OverrideToggle
-                    value={overrides[resource] ?? 'default'}
-                    onChange={(v) => handleChange(resource, v)}
-                    disabled={saving[resource]}
-                  />
+                  {hasChildren && isExpanded && parentDenied && (
+                    <div className="pb-2 pl-7">
+                      <p className="text-xs text-muted-foreground italic">
+                        All sub-tabs denied because {resourceLabels[resource] ?? resource} is denied.
+                      </p>
+                    </div>
+                  )}
                 </div>
-              </div>
-            ))}
+              );
+            })}
           </div>
         )}
 

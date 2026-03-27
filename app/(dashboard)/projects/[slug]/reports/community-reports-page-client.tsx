@@ -30,6 +30,7 @@ import { EventDetailReportView } from '@/components/community/reports/event-deta
 import { SeriesReportView } from '@/components/community/reports/series-report';
 import type { EventOverviewReport, IndividualEventReport, SeriesReport } from '@/lib/community/reports';
 import type { DateRange } from '@/types/analytics';
+import { usePermissions } from '@/lib/contexts/permissions';
 
 interface CommunityReportsResponse {
   program_performance?: {
@@ -121,12 +122,27 @@ function formatCurrency(value: number): string {
   }).format(value);
 }
 
+const REPORT_TABS = [
+  { value: 'programs', label: 'Programs', resource: 'reports.programs' },
+  { value: 'contributions', label: 'Contributions', resource: 'reports.contributions' },
+  { value: 'households', label: 'Households', resource: 'reports.households' },
+  { value: 'volunteers', label: 'Volunteers', resource: 'reports.volunteers' },
+  { value: 'contractors', label: 'Contractors', resource: 'reports.contractors' },
+  { value: 'grants', label: 'Grants', resource: 'reports.grants' },
+  { value: 'trends', label: 'Trends', resource: 'reports.trends' },
+  { value: 'risk', label: 'Risk & Referrals', resource: 'reports.risk_referrals' },
+  { value: 'events', label: 'Events', resource: 'reports.events' },
+] as const;
+
 export function CommunityReportsPageClient({ projectSlug }: { projectSlug: string }) {
+  const { isDenied } = usePermissions();
+  const visibleTabs = REPORT_TABS.filter((t) => !isDenied(t.resource));
+
   const [data, setData] = useState<CommunityReportsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [dateRange, setDateRange] = useState<DateRange | undefined>();
-  const [activeTab, setActiveTab] = useState('programs');
+  const [activeTab, setActiveTab] = useState(visibleTabs[0]?.value ?? 'programs');
   const [eventDrillDownId, setEventDrillDownId] = useState<string | null>(null);
   const [eventDetailData, setEventDetailData] = useState<IndividualEventReport | null>(null);
   const [eventDetailLoading, setEventDetailLoading] = useState(false);
@@ -376,17 +392,13 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
           </div>
 
           {/* Report Tabs */}
-          <Tabs value={activeTab} onValueChange={setActiveTab}>
+          <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as typeof activeTab)}>
             <TabsList className="flex-wrap">
-              <TabsTrigger value="programs">Programs</TabsTrigger>
-              <TabsTrigger value="contributions">Contributions</TabsTrigger>
-              <TabsTrigger value="households">Households</TabsTrigger>
-              <TabsTrigger value="volunteers">Volunteers</TabsTrigger>
-              <TabsTrigger value="contractors">Contractors</TabsTrigger>
-              <TabsTrigger value="grants">Grants</TabsTrigger>
-              <TabsTrigger value="trends">Trends</TabsTrigger>
-              <TabsTrigger value="risk">Risk & Referrals</TabsTrigger>
-              <TabsTrigger value="events">Events</TabsTrigger>
+              {visibleTabs.map((tab) => (
+                <TabsTrigger key={tab.value} value={tab.value}>
+                  {tab.label}
+                </TabsTrigger>
+              ))}
             </TabsList>
 
             <TabsContent value="programs" className="pt-4">

@@ -53,6 +53,62 @@ export async function getOverride(
   return (data as { granted: boolean }).granted;
 }
 
+/**
+ * Fetch an override with hierarchical fallback for dot-notation sub-resources.
+ * E.g. for "jobs.employees", checks that first, then falls back to "jobs".
+ * Returns true (granted), false (denied), or null (no override).
+ */
+export async function getOverrideWithFallback(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  projectId: string,
+  resource: string
+): Promise<boolean | null> {
+  const dotIdx = resource.indexOf('.');
+  if (dotIdx === -1) {
+    // No sub-resource — plain lookup
+    return getOverride(supabase, userId, projectId, resource);
+  }
+
+  const parent = resource.slice(0, dotIdx);
+
+  // Fetch both the sub-resource and parent override in one query
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  const { data, error } = await (supabase as any)
+    .from('project_membership_overrides')
+    .select('resource, granted')
+    .eq('project_id', projectId)
+    .eq('user_id', userId)
+    .in('resource', [resource, parent]);
+  if (error) throw error;
+
+  const rows = (data ?? []) as { resource: string; granted: boolean }[];
+  const subRow = rows.find((r) => r.resource === resource);
+  if (subRow != null) return subRow.granted;
+  const parentRow = rows.find((r) => r.resource === parent);
+  if (parentRow != null) return parentRow.granted;
+  return null;
+}
+
+/**
+ * Resolve an override from a pre-fetched overrides array (avoids extra DB queries).
+ * Used by client-side permission checks where overrides are already loaded.
+ */
+export function resolveOverrideFromList(
+  overrides: { resource: string; granted: boolean }[],
+  resource: string
+): boolean | null {
+  const exact = overrides.find((o) => o.resource === resource);
+  if (exact != null) return exact.granted;
+  const dotIdx = resource.indexOf('.');
+  if (dotIdx !== -1) {
+    const parent = resource.slice(0, dotIdx);
+    const parentRow = overrides.find((o) => o.resource === parent);
+    if (parentRow != null) return parentRow.granted;
+  }
+  return null;
+}
+
 export async function requireProjectRole(
   supabase: SupabaseClient<Database>,
   userId: string,

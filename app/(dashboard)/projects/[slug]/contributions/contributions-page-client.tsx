@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { HandCoins, Plus } from 'lucide-react';
+import { HandCoins, Plus, ShieldAlert } from 'lucide-react';
+import { usePermissions } from '@/lib/contexts/permissions';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -24,6 +25,9 @@ interface ContributionRecord {
 export function ContributionsPageClient() {
   const params = useParams();
   const slug = params.slug as string;
+  const { isDenied } = usePermissions();
+  const showDonations = !isDenied('contributions.donations');
+  const showTimeLog = !isDenied('contributions.time_log');
   const [donationsOpen, setDonationsOpen] = useState(false);
   const [timeLogOpen, setTimeLogOpen] = useState(false);
   const [contributions, setContributions] = useState<ContributionRecord[]>([]);
@@ -67,45 +71,63 @@ export function ContributionsPageClient() {
           </div>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline" onClick={() => setTimeLogOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Log Time
-          </Button>
-          <Button onClick={() => setDonationsOpen(true)}>
-            <Plus className="mr-2 h-4 w-4" />
-            Add Donation
-          </Button>
+          {showTimeLog && (
+            <Button variant="outline" onClick={() => setTimeLogOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Log Time
+            </Button>
+          )}
+          {showDonations && (
+            <Button onClick={() => setDonationsOpen(true)}>
+              <Plus className="mr-2 h-4 w-4" />
+              Add Donation
+            </Button>
+          )}
         </div>
       </div>
 
-      <Tabs defaultValue="donations">
-        <TabsList>
-          <TabsTrigger value="donations">Donations</TabsTrigger>
-          <TabsTrigger value="time-log">Time Log</TabsTrigger>
-        </TabsList>
+      {!showDonations && !showTimeLog ? (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <ShieldAlert className="mb-3 h-8 w-8 text-muted-foreground" />
+          <p className="text-sm font-medium">No contribution tabs available</p>
+          <p className="mt-1 text-sm text-muted-foreground">
+            Your current permissions do not grant access to any contribution features.
+          </p>
+        </div>
+      ) : (
+        <Tabs defaultValue={showDonations ? 'donations' : 'time-log'}>
+          <TabsList>
+            {showDonations && <TabsTrigger value="donations">Donations</TabsTrigger>}
+            {showTimeLog && <TabsTrigger value="time-log">Time Log</TabsTrigger>}
+          </TabsList>
 
-        <TabsContent value="donations" className="pt-4">
-          <ContributionListCard
-            title="Donations"
-            description="Monetary gifts, in-kind support, and grant revenue."
-            items={donations}
-            isLoading={isLoading}
-            error={error}
-          />
-        </TabsContent>
-        <TabsContent value="time-log" className="pt-4">
-          <ContributionListCard
-            title="Time Log"
-            description="Work hours and service delivery records."
-            items={timeLogs}
-            isLoading={isLoading}
-            error={error}
-          />
-        </TabsContent>
-      </Tabs>
+          {showDonations && (
+            <TabsContent value="donations" className="pt-4">
+              <ContributionListCard
+                title="Donations"
+                description="Monetary gifts, in-kind support, and grant revenue."
+                items={donations}
+                isLoading={isLoading}
+                error={error}
+              />
+            </TabsContent>
+          )}
+          {showTimeLog && (
+            <TabsContent value="time-log" className="pt-4">
+              <ContributionListCard
+                title="Time Log"
+                description="Work hours and service delivery records."
+                items={timeLogs}
+                isLoading={isLoading}
+                error={error}
+              />
+            </TabsContent>
+          )}
+        </Tabs>
+      )}
 
-      <DonationEntry open={donationsOpen} onOpenChange={setDonationsOpen} onCreated={() => void loadContributions()} />
-      <TimeLogEntry open={timeLogOpen} onOpenChange={setTimeLogOpen} onCreated={() => void loadContributions()} />
+      {showDonations && <DonationEntry open={donationsOpen} onOpenChange={setDonationsOpen} onCreated={() => void loadContributions()} />}
+      {showTimeLog && <TimeLogEntry open={timeLogOpen} onOpenChange={setTimeLogOpen} onCreated={() => void loadContributions()} />}
     </div>
   );
 }
