@@ -12,6 +12,7 @@ import { AssetCalendar } from '@/components/community/assets/asset-calendar';
 import { AccessSettingsTab } from '@/components/community/assets/access-settings-tab';
 import { ApprovedPeopleTab } from '@/components/community/assets/approved-people-tab';
 import { AssetRequestsTab } from '@/components/community/assets/asset-requests-tab';
+import { BookingPresetsTab } from '@/components/community/assets/booking-presets-tab';
 import { EditAssetDialog } from '@/components/community/assets/edit-asset-dialog';
 import { toast } from 'sonner';
 
@@ -217,6 +218,7 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
       <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="details">Details</TabsTrigger>
+          <TabsTrigger value="booking-options">Booking Options</TabsTrigger>
           <TabsTrigger value="calendar">Calendar</TabsTrigger>
           <TabsTrigger value="access">Access</TabsTrigger>
           <TabsTrigger value="requests">Requests</TabsTrigger>
@@ -238,6 +240,10 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
               )}
             </CardContent>
           </Card>
+        </TabsContent>
+
+        <TabsContent value="booking-options" className="pt-4">
+          <BookingPresetsTab assetId={asset.id} />
         </TabsContent>
 
         <TabsContent value="calendar" className="pt-4">
