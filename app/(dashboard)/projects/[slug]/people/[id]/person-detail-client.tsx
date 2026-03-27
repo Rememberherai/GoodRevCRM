@@ -110,6 +110,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
   const [scopes, setScopes] = useState<Array<{ id: string; title: string; status: string; start_date: string | null; end_date: string | null; service_categories: string[] }>>([]);
   const [scopesLoading, setScopesLoading] = useState(false);
   const [showNewScope, setShowNewScope] = useState(false);
+  const [isEmployeeToggling, setIsEmployeeToggling] = useState(false);
   const { checkWithDisposition, GuardDialog } = useOutreachGuard(slug);
 
   const { person, isLoading, error, refresh } = usePerson(personId);
@@ -295,6 +296,29 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
       void loadScopes();
     }
   }, [projectType, loadScopes]);
+
+  async function toggleIsEmployee() {
+    if (!person) return;
+    const newValue = !(person.is_employee ?? false);
+    setIsEmployeeToggling(true);
+    try {
+      const res = await fetch(`/api/projects/${slug}/employees/${personId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ is_employee: newValue }),
+      });
+      if (!res.ok) {
+        const data = await res.json() as { error?: string };
+        throw new Error(data.error ?? 'Failed to update');
+      }
+      toast.success(newValue ? 'Marked as employee' : 'Employee status removed');
+      refresh();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update employee status');
+    } finally {
+      setIsEmployeeToggling(false);
+    }
+  }
 
   // Check for completed but unreviewed enrichments on mount (no auto-popup)
   useEffect(() => {
@@ -865,6 +889,46 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
                       </Link>
                     ))}
                   </div>
+                )}
+              </CardContent>
+            </Card>
+          )}
+
+          {/* Employee status — community projects only */}
+          {projectType === 'community' && (
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <Users className="h-5 w-5" />
+                  Employee
+                </CardTitle>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center justify-between">
+                  <div>
+                    <p className="text-sm font-medium">Hourly employee</p>
+                    <p className="text-xs text-muted-foreground">
+                      Enables kiosk clock-in/out and the employee portal for this person.
+                    </p>
+                  </div>
+                  <Button
+                    size="sm"
+                    variant={person.is_employee ? 'default' : 'outline'}
+                    onClick={() => void toggleIsEmployee()}
+                    disabled={isEmployeeToggling}
+                    className="shrink-0"
+                  >
+                    {person.is_employee ? 'Employee ✓' : 'Mark as Employee'}
+                  </Button>
+                </div>
+                {person.is_employee && (
+                  <p className="mt-3 text-xs text-muted-foreground">
+                    Set a kiosk PIN from the{' '}
+                    <Link href={`/projects/${slug}/employees/${personId}`} className="underline hover:text-foreground">
+                      employee detail page
+                    </Link>
+                    .
+                  </p>
                 )}
               </CardContent>
             </Card>
