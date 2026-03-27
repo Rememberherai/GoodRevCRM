@@ -16,6 +16,9 @@ function parseWidgets(widgets: Json): Array<Record<string, unknown>> {
     : [];
 }
 
+// Deprecated: widget_order is no longer authored by the UI. The widgets array
+// order is authoritative. widget_order remains in the DB/validator for backward
+// compatibility but is ignored by this component.
 export function PublicDashboardView({
   config,
   data,

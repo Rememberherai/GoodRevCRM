@@ -68,15 +68,24 @@ export async function PATCH(request: Request, context: RouteContext) {
       ...(updateData.theme ? { theme: updateData.theme as Json } : {}),
       ...(updateData.widgets ? { widgets: updateData.widgets as Json } : {}),
     };
+    // Snapshot/live lifecycle: clear stale snapshot data when switching to live
     if (mergedConfig.data_freshness === 'snapshot') {
       mergedConfig.snapshot_data = serializePublicDashboardPreviewData(await getPublicDashboardAggregateData(mergedConfig));
+    } else {
+      mergedConfig.snapshot_data = null;
     }
+
+    // Publication lifecycle: published_at records first publication only
     if (mergedConfig.status === 'published' && !mergedConfig.published_at) {
       mergedConfig.published_at = new Date().toISOString();
       mergedConfig.published_by = user.id;
     }
+
+    // Archive lifecycle: set archived_at on archive, clear on unarchive
     if (mergedConfig.status === 'archived' && !mergedConfig.archived_at) {
       mergedConfig.archived_at = new Date().toISOString();
+    } else if (mergedConfig.status !== 'archived' && mergedConfig.archived_at) {
+      mergedConfig.archived_at = null;
     }
 
     const { data, error } = await supabase

@@ -29,6 +29,9 @@ export const widgetConfigSchema = z.object({
   title: z.string().max(200).optional(),
   dimension_filter: z.array(uuidSchema).max(25).optional(),
   date_range: jsonObjectSchema.optional(),
+  // Deprecated: per-widget min_count_threshold is no longer authored by the UI.
+  // The global dashboard-level min_count_threshold is authoritative. Kept in
+  // schema for backward compatibility with existing API clients.
   min_count_threshold: z.number().int().min(3).max(100).default(5),
   config: jsonObjectSchema.default({}),
 });
@@ -52,6 +55,8 @@ const dashboardConfigBaseSchema = z.object({
   status: publicDashboardStatusSchema.default('draft'),
   theme: dashboardThemeSchema.default({}),
   hero_image_url: optionalUrlSchema.optional(),
+  // Deprecated: widget_order is no longer authored by the UI. The widgets array
+  // order is authoritative. Kept for backward compatibility with existing API clients.
   widget_order: z.array(z.string().uuid()).default([]),
   widgets: z.array(widgetConfigSchema).default([]),
   min_count_threshold: z.number().int().min(3).max(100).default(5),

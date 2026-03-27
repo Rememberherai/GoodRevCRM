@@ -1,7 +1,8 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useParams } from 'next/navigation';
+import { toast } from 'sonner';
 import { Copy, Link2, Trash2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,38 +23,79 @@ export function ShareLinks({ configId }: { configId: string | undefined }) {
   const [links, setLinks] = useState<ShareLinkRecord[]>([]);
   const [label, setLabel] = useState('');
   const origin = typeof window === 'undefined' ? '' : window.location.origin;
+  const abortRef = useRef<AbortController | null>(null);
 
   useEffect(() => {
     if (!configId) return;
+    abortRef.current?.abort();
+    const controller = new AbortController();
+    abortRef.current = controller;
+
     const loadLinks = async () => {
-      const response = await fetch(`/api/projects/${slug}/public-dashboard/${configId}/share-links`);
-      const data = await response.json() as { share_links?: ShareLinkRecord[] };
-      setLinks(data.share_links ?? []);
+      try {
+        const response = await fetch(`/api/projects/${slug}/public-dashboard/${configId}/share-links`, { signal: controller.signal });
+        if (controller.signal.aborted) return;
+        if (!response.ok) {
+          toast.error('Failed to load share links');
+          return;
+        }
+        const data = await response.json() as { share_links?: ShareLinkRecord[] };
+        setLinks(data.share_links ?? []);
+      } catch (error) {
+        if ((error as Error).name === 'AbortError') return;
+        toast.error('Failed to load share links');
+      }
     };
     void loadLinks();
+
+    return () => controller.abort();
   }, [configId, slug]);
 
   if (!configId) return null;
 
   async function reload() {
-    const response = await fetch(`/api/projects/${slug}/public-dashboard/${configId}/share-links`);
-    const data = await response.json() as { share_links?: ShareLinkRecord[] };
-    setLinks(data.share_links ?? []);
+    try {
+      const response = await fetch(`/api/projects/${slug}/public-dashboard/${configId}/share-links`);
+      if (!response.ok) {
+        toast.error('Failed to load share links');
+        return;
+      }
+      const data = await response.json() as { share_links?: ShareLinkRecord[] };
+      setLinks(data.share_links ?? []);
+    } catch {
+      toast.error('Failed to load share links');
+    }
   }
 
   async function createLink() {
-    await fetch(`/api/projects/${slug}/public-dashboard/${configId}/share-links`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ label: label || null }),
-    });
-    setLabel('');
-    await reload();
+    try {
+      const response = await fetch(`/api/projects/${slug}/public-dashboard/${configId}/share-links`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ label: label || null }),
+      });
+      if (!response.ok) {
+        toast.error('Failed to create share link');
+        return;
+      }
+      setLabel('');
+      await reload();
+    } catch {
+      toast.error('Failed to create share link');
+    }
   }
 
   async function deleteLink(id: string) {
-    await fetch(`/api/projects/${slug}/public-dashboard/${configId}/share-links?share_link_id=${id}`, { method: 'DELETE' });
-    await reload();
+    try {
+      const response = await fetch(`/api/projects/${slug}/public-dashboard/${configId}/share-links?share_link_id=${id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        toast.error('Failed to delete share link');
+        return;
+      }
+      await reload();
+    } catch {
+      toast.error('Failed to delete share link');
+    }
   }
 
   return (
@@ -88,11 +130,11 @@ export function ShareLinks({ configId }: { configId: string | undefined }) {
                       </div>
                     </div>
                     <div className="flex gap-2">
-                      <Button variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(url)}>
+                      <Button variant="outline" size="sm" onClick={() => navigator.clipboard.writeText(url)} aria-label="Copy share link">
                         <Copy className="mr-2 h-4 w-4" />
                         Copy
                       </Button>
-                      <Button variant="ghost" size="sm" onClick={() => void deleteLink(link.id)}>
+                      <Button variant="ghost" size="sm" onClick={() => void deleteLink(link.id)} aria-label="Delete share link">
                         <Trash2 className="h-4 w-4" />
                       </Button>
                     </div>

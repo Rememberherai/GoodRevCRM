@@ -9,15 +9,19 @@ export function TextWidgetConfig({
   widget,
   onChange,
   onDelete,
+  onDuplicate,
+  dragHandleProps,
 }: {
   widget: Record<string, unknown>;
   onChange: (next: Record<string, unknown>) => void;
   onDelete: () => void;
+  onDuplicate?: () => void;
+  dragHandleProps?: { listeners?: Record<string, unknown>; attributes?: Record<string, unknown> };
 }) {
   const config = (widget.config ?? {}) as Record<string, unknown>;
 
   return (
-    <WidgetConfigWrapper title="Text Block Widget" onDelete={onDelete}>
+    <WidgetConfigWrapper title={String(widget.title || '')} widgetType="text_block" onDelete={onDelete} onDuplicate={onDuplicate} dragHandleProps={dragHandleProps}>
       <div className="space-y-3">
         <div className="space-y-2">
           <Label>Title</Label>

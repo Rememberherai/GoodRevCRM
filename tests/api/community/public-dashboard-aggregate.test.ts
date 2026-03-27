@@ -47,4 +47,20 @@ describe('Public Dashboard Aggregate Query Layer', () => {
 
     expect(queries).toContain('serializePublicDashboardPreviewData');
   });
+
+  it('scopes enrollment queries to target project program IDs only', () => {
+    const queries = readProjectFile('lib', 'community', 'public-dashboard-queries.ts');
+
+    // Enrollments and attendance must be filtered by program IDs, not fetched globally
+    expect(queries).toContain(".in('program_id', programIds)");
+    // Should NOT have unscoped queries for enrollments or attendance
+    expect(queries).not.toMatch(/from\('program_enrollments'\)\.select\([^)]+\)(?!.*\.in)/);
+    expect(queries).not.toMatch(/from\('program_attendance'\)\.select\([^)]+\)(?!.*\.in)/);
+  });
+
+  it('skips enrollment/attendance queries when project has no programs', () => {
+    const queries = readProjectFile('lib', 'community', 'public-dashboard-queries.ts');
+
+    expect(queries).toContain('if (programIds.length > 0)');
+  });
 });

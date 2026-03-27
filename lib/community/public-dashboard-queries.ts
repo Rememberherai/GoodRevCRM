@@ -31,22 +31,33 @@ export async function getPublicDashboardAggregateData(
     .maybeSingle();
   const impactFrameworkId = project?.impact_framework_id ?? null;
 
-  const [householdsResult, programsResult, contributionsResult, dimensionsResult, enrollmentsResult, attendanceResult] = await Promise.all([
+  // Phase 1: fetch project-scoped data in parallel
+  const [householdsResult, programsResult, contributionsResult, dimensionsResult] = await Promise.all([
     admin.from('households').select('id', { count: 'exact', head: true }).eq('project_id', config.project_id).is('deleted_at', null),
     admin.from('programs').select('id, name, status').eq('project_id', config.project_id),
     admin.from('contributions').select('type, value, dimension_id').eq('project_id', config.project_id),
     impactFrameworkId
       ? admin.from('impact_dimensions').select('id, label, color').eq('framework_id', impactFrameworkId)
       : Promise.resolve({ data: [], error: null }),
-    admin.from('program_enrollments').select('program_id'),
-    admin.from('program_attendance').select('program_id, person_id'),
   ]);
 
   const programs = programsResult.data ?? [];
   const contributions = contributionsResult.data ?? [];
-  const enrollments = enrollmentsResult.data ?? [];
-  const attendance = attendanceResult.data ?? [];
   const dimensions = dimensionsResult.data ?? [];
+
+  // Phase 2: fetch enrollments/attendance scoped to this project's program IDs only
+  const programIds = programs.map((p) => p.id);
+  let enrollments: Array<{ program_id: string | null }> = [];
+  let attendance: Array<{ program_id: string | null; person_id: string | null }> = [];
+
+  if (programIds.length > 0) {
+    const [enrollmentsResult, attendanceResult] = await Promise.all([
+      admin.from('program_enrollments').select('program_id').in('program_id', programIds),
+      admin.from('program_attendance').select('program_id, person_id').in('program_id', programIds),
+    ]);
+    enrollments = enrollmentsResult.data ?? [];
+    attendance = attendanceResult.data ?? [];
+  }
 
   const enrollmentCounts = new Map<string, number>();
   for (const row of enrollments) {

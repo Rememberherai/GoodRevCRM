@@ -6,31 +6,26 @@ import { WidgetConfigWrapper } from './widget-config-wrapper';
 
 export function ChartWidgetConfig({
   widget,
-  label,
+  widgetType,
+  label: _label,
   onChange,
   onDelete,
+  onDuplicate,
+  dragHandleProps,
 }: {
   widget: Record<string, unknown>;
+  widgetType?: string;
   label: string;
   onChange: (next: Record<string, unknown>) => void;
   onDelete: () => void;
+  onDuplicate?: () => void;
+  dragHandleProps?: { listeners?: Record<string, unknown>; attributes?: Record<string, unknown> };
 }) {
   return (
-    <WidgetConfigWrapper title={label} onDelete={onDelete}>
-      <div className="space-y-3">
-        <div className="space-y-2">
-          <Label>Title</Label>
-          <Input value={String(widget.title ?? '')} onChange={(event) => onChange({ ...widget, title: event.target.value })} />
-        </div>
-        <div className="space-y-2">
-          <Label>Min Count Threshold</Label>
-          <Input
-            type="number"
-            min={3}
-            value={String(widget.min_count_threshold ?? 5)}
-            onChange={(event) => onChange({ ...widget, min_count_threshold: Number(event.target.value || 5) })}
-          />
-        </div>
+    <WidgetConfigWrapper title={String(widget.title || '')} widgetType={widgetType} onDelete={onDelete} onDuplicate={onDuplicate} dragHandleProps={dragHandleProps}>
+      <div className="space-y-2">
+        <Label>Title</Label>
+        <Input value={String(widget.title ?? '')} onChange={(event) => onChange({ ...widget, title: event.target.value })} />
       </div>
     </WidgetConfigWrapper>
   );

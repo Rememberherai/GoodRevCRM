@@ -43,4 +43,34 @@ describe('Public Dashboard Config API', () => {
     expect(route).toContain('serializePublicDashboardPreviewData');
     expect(route).toContain('snapshot_data');
   });
+
+  it('does not compute aggregate data for live dashboards on POST', () => {
+    const route = readProjectFile('app', 'api', 'projects', '[slug]', 'public-dashboard', 'route.ts');
+
+    // The aggregate call should only happen inside a snapshot guard
+    expect(route).toContain("if (validation.data.data_freshness === 'snapshot')");
+    expect(route).toContain('getPublicDashboardAggregateData(configForQuery)');
+  });
+
+  it('clears snapshot_data when data_freshness switches to live on PATCH', () => {
+    const route = readProjectFile('app', 'api', 'projects', '[slug]', 'public-dashboard', '[id]', 'route.ts');
+
+    // When freshness is not snapshot, snapshot_data should be cleared
+    expect(route).toContain('snapshot_data = null');
+  });
+
+  it('clears archived_at when status transitions away from archived on PATCH', () => {
+    const route = readProjectFile('app', 'api', 'projects', '[slug]', 'public-dashboard', '[id]', 'route.ts');
+
+    // Unarchiving should clear the archived_at timestamp
+    expect(route).toContain("status !== 'archived' && mergedConfig.archived_at");
+    expect(route).toContain('archived_at = null');
+  });
+
+  it('preserves published_at on republish (only set if null)', () => {
+    const route = readProjectFile('app', 'api', 'projects', '[slug]', 'public-dashboard', '[id]', 'route.ts');
+
+    // published_at should only be set when it's currently null
+    expect(route).toContain("status === 'published' && !mergedConfig.published_at");
+  });
 });

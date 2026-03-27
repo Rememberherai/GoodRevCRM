@@ -51,37 +51,40 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     const password_hash = validation.data.password ? hashPublicDashboardPassword(validation.data.password) : null;
-    const aggregateData = await getPublicDashboardAggregateData({
-      access_type: validation.data.access_type,
-      archived_at: validation.data.archived_at ?? null,
-      created_at: new Date().toISOString(),
-      data_freshness: validation.data.data_freshness,
-      date_range_end: validation.data.date_range_end ?? null,
-      date_range_start: validation.data.date_range_start ?? null,
-      date_range_type: validation.data.date_range_type,
-      description: validation.data.description ?? null,
-      excluded_categories: validation.data.excluded_categories,
-      geo_granularity: validation.data.geo_granularity,
-      hero_image_url: validation.data.hero_image_url ?? null,
-      id: crypto.randomUUID(),
-      min_count_threshold: validation.data.min_count_threshold,
-      password_hash,
-      project_id: project.id,
-      published_at: validation.data.published_at ?? null,
-      published_by: user.id,
-      slug: validation.data.slug,
-      snapshot_data: null,
-      status: validation.data.status,
-      theme: validation.data.theme as unknown as Json,
-      title: validation.data.title,
-      updated_at: new Date().toISOString(),
-      widget_order: validation.data.widget_order,
-      widgets: validation.data.widgets as unknown as Json,
-    });
 
-    const snapshot_data = validation.data.data_freshness === 'snapshot'
-      ? serializePublicDashboardPreviewData(aggregateData)
-      : null;
+    // Only compute aggregate data for snapshot dashboards — live dashboards fetch on demand
+    let snapshot_data: Json | null = null;
+    if (validation.data.data_freshness === 'snapshot') {
+      const configForQuery: Parameters<typeof getPublicDashboardAggregateData>[0] = {
+        access_type: validation.data.access_type,
+        archived_at: validation.data.archived_at ?? null,
+        created_at: new Date().toISOString(),
+        data_freshness: validation.data.data_freshness,
+        date_range_end: validation.data.date_range_end ?? null,
+        date_range_start: validation.data.date_range_start ?? null,
+        date_range_type: validation.data.date_range_type,
+        description: validation.data.description ?? null,
+        excluded_categories: validation.data.excluded_categories,
+        geo_granularity: validation.data.geo_granularity,
+        hero_image_url: validation.data.hero_image_url ?? null,
+        id: crypto.randomUUID(),
+        min_count_threshold: validation.data.min_count_threshold,
+        password_hash,
+        project_id: project.id,
+        published_at: validation.data.published_at ?? null,
+        published_by: user.id,
+        slug: validation.data.slug,
+        snapshot_data: null,
+        status: validation.data.status,
+        theme: validation.data.theme as unknown as Json,
+        title: validation.data.title,
+        updated_at: new Date().toISOString(),
+        widget_order: validation.data.widget_order,
+        widgets: validation.data.widgets as unknown as Json,
+      };
+      const aggregateData = await getPublicDashboardAggregateData(configForQuery);
+      snapshot_data = serializePublicDashboardPreviewData(aggregateData);
+    }
 
     const insertData: PublicDashboardInsert = {
       ...validation.data,
