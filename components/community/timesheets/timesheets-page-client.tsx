@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Clock, Download, Plus } from 'lucide-react';
+import { Clock, Download, Plus, Monitor } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -278,14 +278,22 @@ export function TimesheetsPageClient() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <Clock className="h-5 w-5" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Clock className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Timesheets</h2>
+            <p className="text-sm text-muted-foreground">Time entries across jobs and standalone shifts.</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Timesheets</h2>
-          <p className="text-sm text-muted-foreground">Time entries across jobs and standalone shifts.</p>
-        </div>
+        <Button asChild variant="outline">
+          <Link href={`/kiosk/${slug}`} target="_blank" rel="noopener noreferrer">
+            <Monitor className="mr-2 h-4 w-4" />
+            Open Kiosk
+          </Link>
+        </Button>
       </div>
 
       {/* Tab bar */}

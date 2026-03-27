@@ -29,7 +29,6 @@ import {
   Megaphone,
   Globe,
   Search,
-  Monitor,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -185,17 +184,6 @@ export function ProjectSidebar({ project, role, deniedResources, className }: Pr
           <MessageSquare className="h-4 w-4" />
           Chat
         </button>
-        {project.project_type === 'community' && (role === 'admin' || role === 'owner') && (
-          <Link
-            href={`/kiosk/${project.slug}`}
-            target="_blank"
-            rel="noopener noreferrer"
-            className="flex items-center gap-3 px-3 py-2 rounded-md text-sm font-medium transition-colors text-muted-foreground hover:text-foreground hover:bg-accent"
-          >
-            <Monitor className="h-4 w-4" />
-            Kiosk
-          </Link>
-        )}
         {!(project.project_type === 'community' && (role === 'board_viewer' || role === 'contractor')) && bottomNavItems.map((item) => {
           const href = `${basePath}${item.href}`;
           const isActive = pathname.startsWith(href);
