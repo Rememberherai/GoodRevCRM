@@ -238,11 +238,11 @@ export async function sendEventRegistrationConfirmation(
         </table>
         ${event.confirmation_message ? `<p>${escapeHtml(event.confirmation_message)}</p>` : ''}
         <p style="margin: 24px 0;">
-          <a href="${googleCalendarUrl}" style="background-color: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block; margin-right: 12px;">
+          <a href="${googleCalendarUrl}" style="background-color: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">
             Add to Google Calendar
           </a>
-          ${icsUrl ? `<a href="${icsUrl}" style="color: #2563eb;">Download .ics</a>` : ''}
         </p>
+        ${icsUrl ? `<p style="margin-top: 8px;"><a href="${icsUrl}" style="color: #2563eb;">Download .ics</a></p>` : ''}
         ${registration.status === 'confirmed' ? `<p style="margin-top: 16px;">
           <a href="${process.env.NEXT_PUBLIC_APP_URL || ''}/events/confirmation/${registration.confirmation_token}" style="background-color: #16a34a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">
             View Your Tickets &amp; QR Codes
@@ -457,11 +457,11 @@ export async function sendWaitlistPromotionNotification(
           <tr><td style="padding: 4px 16px 4px 0; color: #666;">Where</td><td>${escapeHtml(location)}</td></tr>
         </table>
         <p style="margin: 24px 0;">
-          <a href="${googleCalendarUrl}" style="background-color: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block; margin-right: 12px;">
+          <a href="${googleCalendarUrl}" style="background-color: #2563eb; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">
             Add to Google Calendar
           </a>
-          ${icsUrl ? `<a href="${icsUrl}" style="color: #2563eb;">Download .ics</a>` : ''}
         </p>
+        ${icsUrl ? `<p style="margin-top: 8px;"><a href="${icsUrl}" style="color: #2563eb;">Download .ics</a></p>` : ''}
       </div>
     `;
 
