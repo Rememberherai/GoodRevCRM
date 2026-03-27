@@ -43,7 +43,7 @@ const resourceLabels: Record<string, string> = {
   referrals: 'Referrals',
   relationships: 'Relationships',
   broadcasts: 'Broadcasts',
-  jobs: 'Jobs',
+  jobs: 'Workforce',
   assistant_ap: 'AI Assistant',
   public_dashboard: 'Public Dashboard',
   events: 'Events',
