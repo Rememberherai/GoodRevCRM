@@ -1,8 +1,10 @@
 import { createServiceClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
-import { CheckCircle2, CalendarDays, Download } from 'lucide-react';
+import { CheckCircle2, CalendarDays, Download, QrCode } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Button } from '@/components/ui/button';
+import { Badge } from '@/components/ui/badge';
+import { TicketQrCode } from './ticket-qr-code';
 
 interface PageProps {
   params: Promise<{ token: string }>;
@@ -19,6 +21,13 @@ export default async function ConfirmationPage({ params }: PageProps) {
     .single();
 
   if (!registration || !registration.events) notFound();
+
+  // Fetch tickets for this registration
+  const { data: tickets } = await supabase
+    .from('event_registration_tickets')
+    .select('id, qr_code, checked_in_at, attendee_name, ticket_type_id, event_ticket_types(name)')
+    .eq('registration_id', registration.id)
+    .order('created_at', { ascending: true });
 
   const event = registration.events as unknown as {
     title: string;
@@ -113,6 +122,46 @@ export default async function ConfirmationPage({ params }: PageProps) {
                   </a>
                 </Button>
               </div>
+
+              {/* Tickets with QR Codes */}
+              {registration.status === 'confirmed' && tickets && tickets.length > 0 && (
+                <div className="border-t pt-4 space-y-3">
+                  <div className="flex items-center gap-2 text-sm font-medium">
+                    <QrCode className="h-4 w-4 text-muted-foreground" />
+                    Your Ticket{tickets.length !== 1 ? 's' : ''}
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    Present this QR code at the event for check-in.
+                  </p>
+                  <div className="grid gap-3">
+                    {tickets.map((ticket, i) => {
+                      const ticketType = ticket.event_ticket_types as { name: string } | null;
+                      return (
+                        <div key={ticket.id} className="rounded-lg border p-4 flex flex-col items-center gap-2">
+                          {tickets.length > 1 && (
+                            <div className="text-xs text-muted-foreground uppercase tracking-wide">
+                              Ticket {i + 1}
+                              {ticketType?.name && ` — ${ticketType.name}`}
+                            </div>
+                          )}
+                          {tickets.length === 1 && ticketType?.name && (
+                            <div className="text-xs text-muted-foreground">{ticketType.name}</div>
+                          )}
+                          {ticket.qr_code && (
+                            <TicketQrCode value={ticket.qr_code} size={160} />
+                          )}
+                          {ticket.attendee_name && (
+                            <p className="text-sm font-medium">{ticket.attendee_name}</p>
+                          )}
+                          {ticket.checked_in_at ? (
+                            <Badge variant="outline" className="text-green-700">Checked in</Badge>
+                          ) : null}
+                        </div>
+                      );
+                    })}
+                  </div>
+                </div>
+              )}
 
               <p className="text-xs text-muted-foreground text-center">
                 Need to cancel?{' '}

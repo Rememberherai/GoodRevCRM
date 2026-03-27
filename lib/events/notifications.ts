@@ -244,11 +244,16 @@ export async function sendEventRegistrationConfirmation(
           </a>
           ${icsUrl ? `<a href="${icsUrl}" style="color: #2563eb;">Download .ics</a>` : ''}
         </p>
+        ${registration.status === 'confirmed' ? `<p style="margin-top: 16px;">
+          <a href="${process.env.NEXT_PUBLIC_APP_URL || ''}/events/confirmation/${registration.confirmation_token}" style="color: #2563eb; font-size: 13px;">View your tickets &amp; QR codes for check-in →</a>
+        </p>` : ''}
         ${cancelUrl ? `<p style="margin-top: 24px;">
           <a href="${cancelUrl}" style="color: #666; font-size: 12px;">Cancel registration</a>
         </p>` : ''}
       </div>
     `;
+
+    const ticketUrl = `${process.env.NEXT_PUBLIC_APP_URL || ''}/events/confirmation/${registration.confirmation_token}`;
 
     // Send email
     const { sendEmail } = await import('@/lib/gmail/service');
@@ -258,7 +263,7 @@ export async function sendEventRegistrationConfirmation(
         to: registration.registrant_email,
         subject: `Registration: ${event.title}`,
         body_html: bodyHtml,
-        body_text: `${statusMessage}\n\nEvent: ${event.title}\nWhen: ${formatDateTime(event.starts_at, event.timezone)}\nWhere: ${location}\nGoogle Calendar: ${googleCalendarUrl}${icsUrl ? `\nICS Download: ${icsUrl}` : ''}${cancelUrl ? `\nCancel: ${cancelUrl}` : ''}`,
+        body_text: `${statusMessage}\n\nEvent: ${event.title}\nWhen: ${formatDateTime(event.starts_at, event.timezone)}\nWhere: ${location}\n${registration.status === 'confirmed' ? `View your tickets: ${ticketUrl}\n` : ''}Google Calendar: ${googleCalendarUrl}${icsUrl ? `\nICS Download: ${icsUrl}` : ''}${cancelUrl ? `\nCancel: ${cancelUrl}` : ''}`,
         attachments: [buildIcsAttachment(icsContent)],
       },
       gmailInfo.userId,
