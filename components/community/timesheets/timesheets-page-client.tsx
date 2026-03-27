@@ -245,6 +245,18 @@ export function TimesheetsPageClient() {
       const data = await response.json() as { entries?: TimeEntryRow[]; error?: string };
       if (!response.ok) throw new Error(data.error ?? 'Failed to load entries');
       let filtered = data.entries ?? [];
+      // Exclude employee-only entries from the contractor tab
+      if (employeesLoaded && employees.length > 0) {
+        const employeeIds = new Set(employees.map((e) => e.id));
+        filtered = filtered.filter((entry) => {
+          // Keep job-linked entries (they belong to contractors)
+          if (entry.jobs) return true;
+          // For standalone entries, exclude if the worker is an employee
+          const workerId = entry.contractor_id;
+          if (workerId && employeeIds.has(workerId)) return false;
+          return true;
+        });
+      }
       if (filterCategory.trim()) {
         const term = filterCategory.trim().toLowerCase();
         filtered = filtered.filter((e) => (e.category ?? '').toLowerCase().includes(term));
@@ -255,7 +267,7 @@ export function TimesheetsPageClient() {
     } finally {
       setLoading(false);
     }
-  }, [slug, filterContractorId, filterJobId, filterFrom, filterTo, filterCategory]);
+  }, [slug, filterContractorId, filterJobId, filterFrom, filterTo, filterCategory, employees, employeesLoaded]);
 
   useEffect(() => {
     void loadEntries();
