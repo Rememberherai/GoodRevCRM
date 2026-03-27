@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -17,6 +17,7 @@ import {
 } from '@/components/ui/select';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
+import { Check, Loader2 } from 'lucide-react';
 
 interface AccessSettings {
   access_mode: string;
@@ -32,7 +33,7 @@ interface AccessSettings {
   access_instructions: string | null;
 }
 
-  interface HubInfo {
+interface HubInfo {
   slug: string;
   is_enabled: boolean;
 }
@@ -57,7 +58,12 @@ export function AccessSettingsTab({ assetId }: { assetId: string }) {
   const [hub, setHub] = useState<HubInfo | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
+
+  const lastSavedRef = useRef<string>('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const fetchSettings = useCallback(async () => {
     setLoading(true);
@@ -71,6 +77,7 @@ export function AccessSettingsTab({ assetId }: { assetId: string }) {
         throw new Error(data.error || 'Failed to load access settings');
       }
       setSettings(data.settings);
+      lastSavedRef.current = JSON.stringify(data.settings);
       setHub(data.hub ?? null);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to load access settings';
@@ -85,15 +92,16 @@ export function AccessSettingsTab({ assetId }: { assetId: string }) {
     void fetchSettings();
   }, [fetchSettings]);
 
-  const handleSave = async () => {
+  const doSave = useCallback(async (settingsToSave: AccessSettings) => {
     setSaving(true);
+    setSaved(false);
     try {
       const res = await fetch(
         `/api/projects/${slug}/community-assets/${assetId}/access-settings`,
         {
           method: 'PATCH',
           headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify(settings),
+          body: JSON.stringify(settingsToSave),
         }
       );
       if (!res.ok) {
@@ -102,18 +110,45 @@ export function AccessSettingsTab({ assetId }: { assetId: string }) {
       }
       const data = await res.json().catch(() => ({}));
       if (data.asset) {
-        setSettings((prev) => ({
-          ...prev,
-          ...data.asset,
-        }));
+        const merged = { ...settingsToSave, ...data.asset };
+        lastSavedRef.current = JSON.stringify(merged);
+        setSettings(merged);
+      } else {
+        lastSavedRef.current = JSON.stringify(settingsToSave);
       }
-      toast.success('Access settings saved');
+      setSaved(true);
+      if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+      savedTimeoutRef.current = setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save access settings');
     } finally {
       setSaving(false);
     }
-  };
+  }, [slug, assetId]);
+
+  // Debounced autosave
+  useEffect(() => {
+    if (loading) return;
+    const currentSnapshot = JSON.stringify(settings);
+    if (currentSnapshot === lastSavedRef.current) return;
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      void doSave(settings);
+    }, 1500);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [settings, loading, doSave]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+    };
+  }, []);
 
   const update = <K extends keyof AccessSettings>(key: K, value: AccessSettings[K]) => {
     setSettings((prev) => ({ ...prev, [key]: value }));
@@ -150,7 +185,18 @@ export function AccessSettingsTab({ assetId }: { assetId: string }) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle>Access Settings</CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle>Access Settings</CardTitle>
+          {(saving || saved) && (
+            <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+              {saving ? (
+                <><Loader2 className="h-3 w-3 animate-spin" /> Saving...</>
+              ) : (
+                <><Check className="h-3 w-3 text-emerald-500" /> Saved</>
+              )}
+            </span>
+          )}
+        </div>
       </CardHeader>
       <CardContent className="space-y-6">
         {(!hub || !hub.is_enabled) && (
@@ -314,13 +360,6 @@ export function AccessSettingsTab({ assetId }: { assetId: string }) {
             rows={3}
             placeholder="Instructions shown to users after their access is approved"
           />
-        </div>
-
-        {/* Save */}
-        <div className="flex justify-end pt-2">
-          <Button onClick={handleSave} disabled={saving}>
-            {saving ? 'Saving...' : 'Save Settings'}
-          </Button>
         </div>
       </CardContent>
     </Card>

@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import { toast } from 'sonner';
 import {
@@ -16,7 +16,7 @@ import { Label } from '@/components/ui/label';
 import { Switch } from '@/components/ui/switch';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
-import { Globe } from 'lucide-react';
+import { Check, Globe, Loader2 } from 'lucide-react';
 
 interface HubSettings {
   slug: string;
@@ -39,8 +39,14 @@ export function HubSettingsCard() {
   const [settings, setSettings] = useState<HubSettings>(DEFAULT_SETTINGS);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
+  const [saved, setSaved] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
   const [isNew, setIsNew] = useState(true);
+
+  // Track the last-saved snapshot to detect changes
+  const lastSavedRef = useRef<string>('');
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const savedTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   const apiPath = `/api/projects/${projectSlug}/community-assets/access-settings`;
 
@@ -54,16 +60,19 @@ export function HubSettingsCard() {
         throw new Error(data.error || 'Failed to load hub settings');
       }
       if (data.settings) {
-        setSettings({
+        const loaded: HubSettings = {
           slug: data.settings.slug ?? '',
           title: data.settings.title ?? null,
           description: data.settings.description ?? null,
           accent_color: data.settings.accent_color ?? null,
           is_enabled: data.settings.is_enabled ?? false,
-        });
+        };
+        setSettings(loaded);
+        lastSavedRef.current = JSON.stringify(loaded);
         setIsNew(false);
       } else {
         setSettings(DEFAULT_SETTINGS);
+        lastSavedRef.current = JSON.stringify(DEFAULT_SETTINGS);
         setIsNew(true);
       }
     } catch (err) {
@@ -78,22 +87,20 @@ export function HubSettingsCard() {
     void fetchSettings();
   }, [fetchSettings]);
 
-  const handleSave = async () => {
-    if (!settings.slug.trim()) {
-      toast.error('Hub slug is required');
-      return;
-    }
+  const doSave = useCallback(async (settingsToSave: HubSettings) => {
+    if (!settingsToSave.slug.trim()) return;
     setSaving(true);
+    setSaved(false);
     try {
       const res = await fetch(apiPath, {
         method: 'PUT',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          slug: settings.slug.trim(),
-          title: settings.title?.trim() || undefined,
-          description: settings.description?.trim() || null,
-          accent_color: settings.accent_color?.trim() || null,
-          is_enabled: settings.is_enabled,
+          slug: settingsToSave.slug.trim(),
+          title: settingsToSave.title?.trim() || undefined,
+          description: settingsToSave.description?.trim() || null,
+          accent_color: settingsToSave.accent_color?.trim() || null,
+          is_enabled: settingsToSave.is_enabled,
         }),
       });
       const data = await res.json().catch(() => ({}));
@@ -101,21 +108,57 @@ export function HubSettingsCard() {
         throw new Error(data.error || 'Failed to save hub settings');
       }
       if (data.settings) {
-        setSettings({
+        const saved: HubSettings = {
           slug: data.settings.slug ?? '',
           title: data.settings.title ?? null,
           description: data.settings.description ?? null,
           accent_color: data.settings.accent_color ?? null,
           is_enabled: data.settings.is_enabled ?? false,
-        });
+        };
+        lastSavedRef.current = JSON.stringify(saved);
         setIsNew(false);
       }
-      toast.success('Hub settings saved');
+      setSaved(true);
+      if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+      savedTimeoutRef.current = setTimeout(() => setSaved(false), 2000);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to save hub settings');
     } finally {
       setSaving(false);
     }
+  }, [apiPath]);
+
+  // Debounced autosave — only after initial creation
+  useEffect(() => {
+    if (loading || isNew) return;
+    const currentSnapshot = JSON.stringify(settings);
+    if (currentSnapshot === lastSavedRef.current) return;
+
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(() => {
+      void doSave(settings);
+    }, 1500);
+
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+  }, [settings, loading, isNew, doSave]);
+
+  // Cleanup timeouts on unmount
+  useEffect(() => {
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+      if (savedTimeoutRef.current) clearTimeout(savedTimeoutRef.current);
+    };
+  }, []);
+
+  const handleCreate = async () => {
+    if (!settings.slug.trim()) {
+      toast.error('Hub slug is required');
+      return;
+    }
+    await doSave(settings);
+    toast.success('Hub created');
   };
 
   if (loading) {
@@ -159,9 +202,20 @@ export function HubSettingsCard() {
               Configure the public resource hub where community members can browse and request access to assets.
             </CardDescription>
           </div>
-          <Badge variant={settings.is_enabled ? 'default' : 'secondary'}>
-            {settings.is_enabled ? 'Enabled' : 'Disabled'}
-          </Badge>
+          <div className="flex items-center gap-2">
+            {!isNew && (saving || saved) && (
+              <span className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                {saving ? (
+                  <><Loader2 className="h-3 w-3 animate-spin" /> Saving...</>
+                ) : (
+                  <><Check className="h-3 w-3 text-emerald-500" /> Saved</>
+                )}
+              </span>
+            )}
+            <Badge variant={settings.is_enabled ? 'default' : 'secondary'}>
+              {settings.is_enabled ? 'Enabled' : 'Disabled'}
+            </Badge>
+          </div>
         </div>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -261,12 +315,14 @@ export function HubSettingsCard() {
           </div>
         </div>
 
-        {/* Save */}
-        <div className="flex justify-end pt-2">
-          <Button onClick={handleSave} disabled={saving || !settings.slug.trim()}>
-            {saving ? 'Saving...' : isNew ? 'Create Hub' : 'Save Settings'}
-          </Button>
-        </div>
+        {/* Create button — only shown for new hubs */}
+        {isNew && (
+          <div className="flex justify-end pt-2">
+            <Button onClick={handleCreate} disabled={saving || !settings.slug.trim()}>
+              {saving ? 'Creating...' : 'Create Hub'}
+            </Button>
+          </div>
+        )}
       </CardContent>
     </Card>
   );
