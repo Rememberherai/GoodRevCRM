@@ -79,6 +79,6 @@ describe('Project Route Guards', () => {
   it('shows project deletion only to owners in the settings UI', () => {
     const settingsPage = readProjectFile('app', '(dashboard)', 'projects', '[slug]', 'settings', 'page.tsx');
 
-    expect(settingsPage).toContain("{currentUserRole === 'owner' && (");
+    expect(settingsPage).toContain("const dangerZoneContent = currentUserRole === 'owner' && (");
   });
 });

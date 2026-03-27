@@ -23,6 +23,7 @@ const RESOURCES: CommunityResource[] = [
   'reports',
   'settings',
   'public_dashboard',
+  'events',
 ];
 
 const ACTIONS: CommunityAction[] = ['view', 'create', 'update', 'delete', 'export_pii', 'manage'];
@@ -45,6 +46,7 @@ const expectations: Record<ProjectRole, Partial<Record<CommunityResource, Commun
     reports: ['view', 'export_pii'],
     settings: ['view', 'update'],
     public_dashboard: ['manage'],
+    events: ['view', 'create', 'update', 'delete', 'export_pii', 'manage'],
   },
   admin: {
     households: ['view', 'create', 'update', 'delete'],
@@ -63,6 +65,7 @@ const expectations: Record<ProjectRole, Partial<Record<CommunityResource, Commun
     reports: ['view', 'export_pii'],
     settings: ['view', 'update'],
     public_dashboard: ['manage'],
+    events: ['view', 'create', 'update', 'delete', 'export_pii', 'manage'],
   },
   staff: {
     households: ['view', 'create', 'update', 'delete'],
@@ -80,6 +83,7 @@ const expectations: Record<ProjectRole, Partial<Record<CommunityResource, Commun
     reports: ['view'],
     settings: ['view'],
     public_dashboard: [],
+    events: ['view', 'create', 'update'],
   },
   case_manager: {
     households: ['view', 'create', 'update', 'delete'],
@@ -98,6 +102,7 @@ const expectations: Record<ProjectRole, Partial<Record<CommunityResource, Commun
     reports: ['view'],
     settings: ['view'],
     public_dashboard: [],
+    events: ['view', 'create', 'update'],
   },
   contractor: {
     public_dashboard: [],
@@ -110,8 +115,18 @@ const expectations: Record<ProjectRole, Partial<Record<CommunityResource, Commun
     reports: ['view'],
     public_dashboard: [],
   },
-  member: {},
-  viewer: {},
+  member: {
+    grants: ['view', 'create', 'update'],
+    dashboard: ['view'],
+    reports: ['view'],
+    settings: ['view'],
+  },
+  viewer: {
+    grants: ['view'],
+    dashboard: ['view'],
+    reports: ['view'],
+    settings: ['view'],
+  },
 };
 
 describe('Community Permission Matrix', () => {

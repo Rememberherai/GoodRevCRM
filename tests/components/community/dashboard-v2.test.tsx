@@ -54,7 +54,7 @@ describe('Dashboard V2 — PopulationImpact', () => {
     render(<PopulationImpact servedPeople={42} denominator={null} percentage={null} />);
 
     expect(screen.getByText('—')).toBeInTheDocument();
-    expect(screen.getByText(/community_population_denominator/)).toBeInTheDocument();
+    expect(screen.getByText(/Configure service area in project settings/)).toBeInTheDocument();
   });
 
   it('renders zero percentage correctly', () => {

@@ -53,7 +53,7 @@ describe('Community Project Phase 5', () => {
     const tracker = readProjectFile('components', 'community', 'jobs', 'time-tracker.tsx');
 
     expect(sidebar).toContain("{ title: 'Contractors', href: '/contractors', icon: HardHat }");
-    expect(sidebar).toContain("{ title: 'Jobs', href: '/jobs', icon: BriefcaseBusiness }");
+    expect(sidebar).toContain("{ title: 'Jobs', href: '/jobs', icon: BriefcaseBusiness, resource: 'jobs' }");
     expect(projectLayout).toContain("redirect(`/contractor/${slug}`)");
     expect(jobsPage).toContain('Create Job');
     expect(jobDetail).toContain('<TimeTracker');

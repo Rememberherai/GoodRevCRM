@@ -102,7 +102,7 @@ describe('Community Project Phase 3', () => {
       expect(programsPage).toContain('New Program');
       expect(programDetail).toContain('<BatchAttendance');
       expect(programDetail).toContain('waiver_status');
-      expect(newProgramDialog).toContain('requiresWaiver');
+      expect(newProgramDialog).toContain('waiver');
       expect(batchAttendance).toContain('Capture present, absent, and excused attendance by session date');
     });
   });
@@ -154,9 +154,9 @@ describe('Community Project Phase 3', () => {
     it('exposes the completed Phase 3 routes in the sidebar', () => {
       const sidebar = readProjectFile('components', 'layout', 'project-sidebar.tsx');
 
-      expect(sidebar).toContain("{ title: 'Programs', href: '/programs', icon: CalendarRange }");
-      expect(sidebar).toContain("{ title: 'Contributions', href: '/contributions', icon: HandCoins }");
-      expect(sidebar).toContain("{ title: 'Community Assets', href: '/community-assets', icon: Building2 }");
+      expect(sidebar).toContain("{ title: 'Programs', href: '/programs', icon: CalendarRange, resource: 'programs' }");
+      expect(sidebar).toContain("{ title: 'Contributions', href: '/contributions', icon: HandCoins, resource: 'contributions' }");
+      expect(sidebar).toContain("{ title: 'Community Assets', href: '/community-assets', icon: Building2, resource: 'community_assets' }");
     });
   });
 

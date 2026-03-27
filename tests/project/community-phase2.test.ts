@@ -107,7 +107,7 @@ describe('Community Project Phase 2', () => {
       const dialog = readProjectFile('components', 'projects', 'new-project-dialog.tsx');
       expect(dialog).toContain('Step 0: Project Type');
       expect(dialog).toContain('Step 1: Framework (community only)');
-      expect(dialog).toContain('Step 2: Accounting Target (community only)');
+      expect(dialog).toContain('Accounting Target (community step 2, grants step 1)');
       expect(dialog).toContain('Details Step');
     });
   });
@@ -117,11 +117,11 @@ describe('Community Project Phase 2', () => {
     it('includes the Phase 2 minimum community navigation surface', () => {
       const sidebar = readProjectFile('components', 'layout', 'project-sidebar.tsx');
 
-      expect(sidebar).toContain("{ title: 'Dashboard', href: '', icon: LayoutDashboard }");
-      expect(sidebar).toContain("{ title: 'Households', href: '/households', icon: Home }");
+      expect(sidebar).toContain("{ title: 'Dashboard', href: '', icon: LayoutDashboard, resource: 'dashboard' }");
+      expect(sidebar).toContain("{ title: 'Households', href: '/households', icon: Home, resource: 'households' }");
       expect(sidebar).toContain("{ title: 'People', href: '/people', icon: Users }");
       expect(sidebar).toContain("{ title: 'Organizations', href: '/organizations', icon: Building2 }");
-      expect(sidebar).toContain("{ title: 'Reporting', href: '/reports', icon: BarChart3 }");
+      expect(sidebar).toContain("{ title: 'Reporting', href: '/reports', icon: BarChart3, resource: 'reports' }");
     });
 
     it('filters nav items by role for community projects', () => {
