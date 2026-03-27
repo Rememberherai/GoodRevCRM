@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Users, Check, X, KeyRound } from 'lucide-react';
+import { Users, Check, X, KeyRound, Monitor } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -133,6 +133,12 @@ export function EmployeesPageClient() {
             Hourly workers with clock-in/out access. Manage PINs for kiosk punch-in.
           </p>
         </div>
+        <Button asChild variant="outline">
+          <Link href={`/kiosk/${slug}`} target="_blank" rel="noopener noreferrer">
+            <Monitor className="mr-2 h-4 w-4" />
+            Open Kiosk
+          </Link>
+        </Button>
       </div>
 
       <Card>
