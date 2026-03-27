@@ -9,6 +9,9 @@ import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { AssetCalendar } from '@/components/community/assets/asset-calendar';
+import { AccessSettingsTab } from '@/components/community/assets/access-settings-tab';
+import { ApprovedPeopleTab } from '@/components/community/assets/approved-people-tab';
+import { AssetRequestsTab } from '@/components/community/assets/asset-requests-tab';
 
 interface AssetDetail {
   id: string;
@@ -137,6 +140,9 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
         <TabsList>
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="calendar">Calendar</TabsTrigger>
+          <TabsTrigger value="access">Access</TabsTrigger>
+          <TabsTrigger value="requests">Requests</TabsTrigger>
+          <TabsTrigger value="approved">Approved People</TabsTrigger>
         </TabsList>
 
         <TabsContent value="details" className="pt-4">
@@ -158,6 +164,18 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
 
         <TabsContent value="calendar" className="pt-4">
           <AssetCalendar assetId={asset.id} />
+        </TabsContent>
+
+        <TabsContent value="access" className="pt-4">
+          <AccessSettingsTab assetId={asset.id} />
+        </TabsContent>
+
+        <TabsContent value="requests" className="pt-4">
+          <AssetRequestsTab assetId={asset.id} />
+        </TabsContent>
+
+        <TabsContent value="approved" className="pt-4">
+          <ApprovedPeopleTab assetId={asset.id} />
         </TabsContent>
       </Tabs>
     </div>

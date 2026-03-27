@@ -70,6 +70,7 @@ import { DISPOSITION_COLOR_MAP, type DispositionColor } from '@/types/dispositio
 import { useOutreachGuard } from '@/hooks/use-outreach-guard';
 import { NewScopeDialog } from '@/components/community/contractors/new-scope-dialog';
 import { PersonRelationshipsTab } from '@/components/community/people/person-relationships-tab';
+import { PersonApprovedForTab } from '@/components/community/people/person-approved-for-tab';
 
 interface PersonDetailClientProps {
   personId: string;
@@ -640,6 +641,12 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
               Relationships
             </TabsTrigger>
           )}
+          {projectType === 'community' && (
+            <TabsTrigger value="approved-for" className="gap-2">
+              <ShieldCheck className="h-4 w-4" />
+              Approved For
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Info Tab */}
@@ -1054,6 +1061,11 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
         {projectType === 'community' && (
           <TabsContent value="relationships" className="space-y-6">
             <PersonRelationshipsTab personId={personId} />
+          </TabsContent>
+        )}
+        {projectType === 'community' && (
+          <TabsContent value="approved-for" className="space-y-6">
+            <PersonApprovedForTab personId={personId} />
           </TabsContent>
         )}
       </Tabs>
