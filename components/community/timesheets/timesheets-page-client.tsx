@@ -211,8 +211,10 @@ export function TimesheetsPageClient() {
       const employeeIds = new Set(employees.map((employee) => employee.id));
       const filtered = (data.entries ?? []).filter((entry) => {
         if (entry.jobs || !entry.person_id) return false;
+        // Always verify the person is actually an employee, even when filtering by specific person
+        if (!employeeIds.has(entry.person_id)) return false;
         if (empFilterPersonId) return entry.person_id === empFilterPersonId;
-        return employeeIds.has(entry.person_id);
+        return true;
       });
       setEmpEntries(filtered);
     } catch (err) {

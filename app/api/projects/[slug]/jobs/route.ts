@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { createJobSchema } from '@/lib/validators/community/contractors';
@@ -145,7 +146,9 @@ export async function POST(request: Request, context: RouteContext) {
       notes: validation.data.notes ?? null,
     };
 
-    const { data: job, error } = await supabase
+    // Use admin client for insert — permissions already validated via requireCommunityPermission above
+    const adminClient = createAdminClient();
+    const { data: job, error } = await adminClient
       .from('jobs')
       .insert(insertData)
       .select('*, contractor:people!jobs_contractor_id_fkey(id, first_name, last_name, user_id)')

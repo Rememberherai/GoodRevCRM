@@ -145,13 +145,14 @@ export function NewScopeDialog({ open, onOpenChange, projectSlug, contractorId, 
           description: description.trim() || null,
           service_categories: categories,
           compensation_terms: compensationTerms.trim() || null,
+          status: 'active',
         }),
       });
 
       const data = await response.json() as { error?: string };
       if (!response.ok) throw new Error(data.error ?? 'Failed to create scope');
 
-      toast.success('Scope created');
+      toast.success('Scope created (active)');
       resetForm();
       onOpenChange(false);
       onCreated?.();

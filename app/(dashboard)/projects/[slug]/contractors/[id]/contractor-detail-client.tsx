@@ -72,6 +72,7 @@ export function ContractorDetailClient({ contractorId }: { contractorId: string 
   const [error, setError] = useState<string | null>(null);
   const [showNewScope, setShowNewScope] = useState(false);
   const [showLogTime, setShowLogTime] = useState(false);
+  const [togglingScope, setTogglingScope] = useState<string | null>(null);
 
   const [timeEntries, setTimeEntries] = useState<TimeEntryRow[]>([]);
   const [teLoading, setTeLoading] = useState(true);
@@ -142,6 +143,26 @@ export function ContractorDetailClient({ contractorId }: { contractorId: string 
     () => timeEntries.filter((e) => e.is_break).reduce((sum, entry) => sum + (entry.duration_minutes ?? 0), 0),
     [timeEntries]
   );
+
+  const toggleScopeStatus = async (scopeId: string, currentStatus: string) => {
+    const nextStatus = currentStatus === 'active' ? 'expired' : 'active';
+    setTogglingScope(scopeId);
+    try {
+      const response = await fetch(`/api/projects/${slug}/contractor-scopes/${scopeId}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: nextStatus }),
+      });
+      const data = await response.json() as { error?: string };
+      if (!response.ok) throw new Error(data.error ?? 'Failed to update scope');
+      setScopes((prev) => prev.map((s) => s.id === scopeId ? { ...s, status: nextStatus } : s));
+      toast.success(`Scope ${nextStatus === 'active' ? 'activated' : 'deactivated'}`);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to update scope');
+    } finally {
+      setTogglingScope(null);
+    }
+  };
 
   if (loading) {
     return <div className="h-96 animate-pulse rounded-xl bg-muted" />;
@@ -222,7 +243,16 @@ export function ContractorDetailClient({ contractorId }: { contractorId: string 
               <div key={scope.id} className="rounded-lg border p-4 text-sm">
                 <div className="flex items-center justify-between gap-3">
                   <div className="font-medium">{scope.title}</div>
-                  <Badge variant="secondary">{scope.status.replace(/_/g, ' ')}</Badge>
+                  <button
+                    type="button"
+                    disabled={togglingScope === scope.id}
+                    onClick={() => void toggleScopeStatus(scope.id, scope.status)}
+                    title={scope.status === 'active' ? 'Click to deactivate' : 'Click to activate'}
+                  >
+                    <Badge variant={scope.status === 'active' ? 'default' : 'secondary'} className="cursor-pointer">
+                      {togglingScope === scope.id ? '...' : scope.status.replace(/_/g, ' ')}
+                    </Badge>
+                  </button>
                 </div>
                 <div className="mt-2 text-muted-foreground">{scope.description || 'No description provided.'}</div>
                 <div className="mt-3 flex flex-wrap gap-2">

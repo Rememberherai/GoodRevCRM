@@ -12,6 +12,8 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Textarea } from '@/components/ui/textarea';
 import { ServiceTypeSelect } from '@/components/ui/service-type-select';
+import { AddressAutocomplete } from '@/components/ui/address-autocomplete';
+import type { AddressResult } from '@/components/ui/address-autocomplete';
 import { useServiceTypes } from '@/hooks/use-service-types';
 
 interface ContractorOption {
@@ -49,6 +51,8 @@ const EMPTY_FORM = {
   service_category: '',
   service_type_id: null as string | null,
   service_address: '',
+  service_latitude: null as number | null,
+  service_longitude: null as number | null,
   notes: '',
 };
 
@@ -113,6 +117,8 @@ export function JobsPageClient() {
         service_category: serviceTypes.find((st) => st.id === form.service_type_id)?.name ?? (form.service_category || null),
         service_type_id: form.service_type_id || null,
         service_address: form.service_address || null,
+        service_latitude: form.service_latitude,
+        service_longitude: form.service_longitude,
         notes: form.notes || null,
       };
 
@@ -217,7 +223,20 @@ export function JobsPageClient() {
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="job-address">Service Address</Label>
-            <Input id="job-address" value={form.service_address} onChange={(event) => setForm((current) => ({ ...current, service_address: event.target.value }))} />
+            <AddressAutocomplete
+              id="job-address"
+              value={form.service_address}
+              onChange={(value) => setForm((current) => ({ ...current, service_address: value }))}
+              onSelect={(result: AddressResult) => {
+                setForm((current) => ({
+                  ...current,
+                  service_address: result.formatted,
+                  service_latitude: result.lat,
+                  service_longitude: result.lng,
+                }));
+              }}
+              placeholder="Start typing an address..."
+            />
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label htmlFor="job-description">Description</Label>
