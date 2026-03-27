@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Building2, MapPin } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Pencil } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -12,6 +12,7 @@ import { AssetCalendar } from '@/components/community/assets/asset-calendar';
 import { AccessSettingsTab } from '@/components/community/assets/access-settings-tab';
 import { ApprovedPeopleTab } from '@/components/community/assets/approved-people-tab';
 import { AssetRequestsTab } from '@/components/community/assets/asset-requests-tab';
+import { EditAssetDialog } from '@/components/community/assets/edit-asset-dialog';
 
 interface AssetDetail {
   id: string;
@@ -24,6 +25,9 @@ interface AssetDetail {
   address_state: string | null;
   notes: string | null;
   value_estimate: number | null;
+  dimension_id: string | null;
+  steward_person_id: string | null;
+  steward_organization_id: string | null;
   steward_person?: { first_name: string | null; last_name: string | null; email: string | null } | null;
   steward_organization?: { name: string } | null;
   dimension?: { label: string; color: string | null } | null;
@@ -35,6 +39,7 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
   const [asset, setAsset] = useState<AssetDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [editOpen, setEditOpen] = useState(false);
 
   const loadAsset = useCallback(async () => {
     setIsLoading(true);
@@ -90,14 +95,20 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
       </Button>
 
       <div className="space-y-3">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Building2 className="h-5 w-5" />
+        <div className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+              <Building2 className="h-5 w-5" />
+            </div>
+            <div>
+              <h2 className="text-3xl font-bold tracking-tight">{asset.name}</h2>
+              <div className="text-sm text-muted-foreground">{address || 'No address recorded'}</div>
+            </div>
           </div>
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">{asset.name}</h2>
-            <div className="text-sm text-muted-foreground">{address || 'No address recorded'}</div>
-          </div>
+          <Button variant="outline" onClick={() => setEditOpen(true)}>
+            <Pencil className="mr-2 h-4 w-4" />
+            Edit
+          </Button>
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge variant="secondary">{asset.category}</Badge>
@@ -178,6 +189,13 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
           <ApprovedPeopleTab assetId={asset.id} />
         </TabsContent>
       </Tabs>
+
+      <EditAssetDialog
+        open={editOpen}
+        onOpenChange={setEditOpen}
+        asset={asset}
+        onUpdated={() => void loadAsset()}
+      />
     </div>
   );
 }
