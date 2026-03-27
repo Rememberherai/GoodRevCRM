@@ -82,6 +82,10 @@ When the user says **"do bug sweep"**, execute the following iterative protocol:
 5. **Repeat** until you complete **three consecutive rounds with zero bugs found**.
 6. Report a summary of all bugs fixed across all rounds, and confirm the three clean sweeps.
 
+## File size limits
+
+Any single `.ts` or `.tsx` file exceeding 2,000 lines should be refactored into smaller modules. The tool registry files (`lib/chat/tool-registry.ts`, `lib/chat/community-tool-registry.ts`) are exempt from this rule — they are large by nature (repetitive `defineTool()` calls) and don't benefit from splitting.
+
 ## Tracking incomplete work
 
 When something is left undone during a session (e.g., a feature partially implemented, a bug not fully fixed, or a task deferred), add a TODO item using the TodoWrite tool and also log it in `/docs/TODO.md` so it can be tracked across sessions.
