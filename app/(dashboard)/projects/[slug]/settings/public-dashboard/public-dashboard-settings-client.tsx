@@ -339,7 +339,7 @@ export function PublicDashboardSettingsClient() {
 
         {/* Right: Live preview (desktop only) */}
         {showPreview && (
-          <div className="hidden lg:block rounded-lg border bg-muted/10 overflow-hidden max-h-[calc(100vh-180px)]">
+          <div className="hidden lg:flex flex-col rounded-lg border bg-muted/10 overflow-hidden max-h-[calc(100vh-180px)]">
             {previewPanel}
           </div>
         )}
