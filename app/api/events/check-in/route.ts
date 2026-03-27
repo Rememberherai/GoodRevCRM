@@ -1,19 +1,26 @@
-import { createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { bridgeCheckInToAttendance } from '@/lib/events/service';
 import { z } from 'zod';
 
-const publicCheckInSchema = z.object({
+const checkInSchema = z.object({
   qr_code: z.string().min(1),
 });
 
 export async function POST(request: Request) {
   try {
+    // Require authenticated user
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
     const supabase = createServiceClient();
 
     const body = await request.json();
-    const validationResult = publicCheckInSchema.safeParse(body);
+    const validationResult = checkInSchema.safeParse(body);
     if (!validationResult.success) {
       return NextResponse.json({ error: 'Invalid request' }, { status: 400 });
     }
@@ -44,6 +51,23 @@ export async function POST(request: Request) {
 
     if (!reg) {
       return NextResponse.json({ error: 'Registration not found' }, { status: 404 });
+    }
+
+    // Verify user is a member of the event's project
+    const projectId = (reg.events as unknown as { project_id: string })?.project_id;
+    if (!projectId) {
+      return NextResponse.json({ error: 'Event project not found' }, { status: 404 });
+    }
+
+    const { data: membership } = await supabase
+      .from('project_memberships')
+      .select('role')
+      .eq('project_id', projectId)
+      .eq('user_id', user.id)
+      .maybeSingle();
+
+    if (!membership) {
+      return NextResponse.json({ error: 'You do not have permission to check in attendees for this event' }, { status: 403 });
     }
 
     if (['cancelled', 'waitlisted'].includes(reg.status)) {
@@ -80,7 +104,6 @@ export async function POST(request: Request) {
     }
 
     // Emit automation event (fire-and-forget)
-    const projectId = (reg.events as unknown as { project_id: string })?.project_id;
     if (projectId) {
       emitAutomationEvent({
         projectId,

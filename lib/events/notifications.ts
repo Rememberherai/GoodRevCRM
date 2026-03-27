@@ -255,6 +255,48 @@ export async function sendEventRegistrationConfirmation(
 
     const ticketUrl = `${process.env.NEXT_PUBLIC_APP_URL || ''}/events/confirmation/${registration.confirmation_token}`;
 
+    // Build attachments
+    const attachments = [buildIcsAttachment(icsContent)];
+
+    // For confirmed registrations, attach ticket PDF with QR codes
+    if (registration.status === 'confirmed') {
+      try {
+        const { data: tickets } = await supabase
+          .from('event_registration_tickets')
+          .select('qr_code, attendee_name, event_ticket_types(name)')
+          .eq('registration_id', registration.id)
+          .order('created_at', { ascending: true });
+
+        if (tickets && tickets.length > 0) {
+          const { generateTicketPdf } = await import('@/lib/events/ticket-pdf');
+          const appUrl = process.env.NEXT_PUBLIC_APP_URL || '';
+          const pdfBytes = await generateTicketPdf({
+            eventTitle: event.title,
+            eventDate: formatDateTime(event.starts_at, event.timezone),
+            eventLocation: location,
+            registrantName: registration.registrant_name,
+            registrantEmail: registration.registrant_email,
+            tickets: tickets
+              .filter(t => t.qr_code)
+              .map(t => ({
+                qrCode: t.qr_code!,
+                attendeeName: t.attendee_name,
+                ticketTypeName: (t.event_ticket_types as { name: string } | null)?.name,
+              })),
+            appUrl,
+          });
+          attachments.push({
+            filename: 'tickets.pdf',
+            mimeType: 'application/pdf',
+            content: Buffer.from(pdfBytes).toString('base64'),
+          });
+        }
+      } catch (pdfErr) {
+        console.error('Failed to generate ticket PDF:', pdfErr);
+        // Continue sending email without PDF attachment
+      }
+    }
+
     // Send email
     const { sendEmail } = await import('@/lib/gmail/service');
     await sendEmail(
@@ -264,7 +306,7 @@ export async function sendEventRegistrationConfirmation(
         subject: `Registration: ${event.title}`,
         body_html: bodyHtml,
         body_text: `${statusMessage}\n\nEvent: ${event.title}\nWhen: ${formatDateTime(event.starts_at, event.timezone)}\nWhere: ${location}\n${registration.status === 'confirmed' ? `View your tickets: ${ticketUrl}\n` : ''}Google Calendar: ${googleCalendarUrl}${icsUrl ? `\nICS Download: ${icsUrl}` : ''}${cancelUrl ? `\nCancel: ${cancelUrl}` : ''}`,
-        attachments: [buildIcsAttachment(icsContent)],
+        attachments,
       },
       gmailInfo.userId,
       event.project_id

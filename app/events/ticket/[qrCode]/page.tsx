@@ -1,4 +1,4 @@
-import { createServiceClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { notFound } from 'next/navigation';
 import { CheckCircle2, CalendarDays, MapPin, Monitor, Ticket } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
@@ -26,11 +26,32 @@ export default async function TicketScanPage({ params }: PageProps) {
 
   const { data: registration } = await supabase
     .from('event_registrations')
-    .select('id, registrant_name, registrant_email, status, events(title, starts_at, ends_at, timezone, venue_name, location_type, virtual_url)')
+    .select('id, registrant_name, registrant_email, status, event_id, events(title, starts_at, ends_at, timezone, venue_name, location_type, virtual_url, project_id)')
     .eq('id', registrationId)
     .single();
 
   if (!registration || !registration.events) notFound();
+
+  // Check if the current user is a staff member on this event's project
+  let isStaff = false;
+  try {
+    const authClient = await createClient();
+    const { data: { user } } = await authClient.auth.getUser();
+    if (user) {
+      const projectId = (registration.events as unknown as { project_id: string })?.project_id;
+      if (projectId) {
+        const { data: membership } = await supabase
+          .from('project_memberships')
+          .select('role')
+          .eq('project_id', projectId)
+          .eq('user_id', user.id)
+          .maybeSingle();
+        isStaff = !!membership;
+      }
+    }
+  } catch {
+    // Not logged in — isStaff stays false
+  }
 
   const event = registration.events as unknown as {
     title: string;
@@ -116,8 +137,17 @@ export default async function TicketScanPage({ params }: PageProps) {
                   Cancelled
                 </Badge>
               </div>
-            ) : (
+            ) : isStaff ? (
               <TicketCheckInButton qrCode={qrCode} registrantName={ticket.attendee_name || registration.registrant_name} />
+            ) : (
+              <div className="text-center">
+                <Badge variant="outline" className="text-blue-700 dark:text-blue-400 text-base px-4 py-1">
+                  Valid Ticket
+                </Badge>
+                <p className="text-xs text-muted-foreground mt-2">
+                  Present this ticket to event staff for check-in.
+                </p>
+              </div>
             )}
           </div>
         </CardContent>

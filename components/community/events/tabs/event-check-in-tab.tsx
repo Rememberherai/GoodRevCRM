@@ -88,13 +88,20 @@ export function EventCheckInTab({ projectSlug, eventId }: EventCheckInTabProps) 
     e.preventDefault();
     if (!qrCode.trim()) return;
 
+    // Extract hex from URL if a full ticket URL was scanned/pasted
+    let code = qrCode.trim();
+    const ticketUrlMatch = code.match(/\/events\/ticket\/([a-f0-9]+)$/i);
+    if (ticketUrlMatch?.[1]) {
+      code = ticketUrlMatch[1];
+    }
+
     setIsCheckingIn(true);
     setLastCheckIn(null);
     try {
       const res = await fetch(`${apiBase}/check-in`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ qr_code: qrCode.trim() }),
+        body: JSON.stringify({ qr_code: code }),
       });
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || 'Check-in failed');
