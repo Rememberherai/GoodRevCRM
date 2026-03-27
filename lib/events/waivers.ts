@@ -525,14 +525,24 @@ export async function syncRegistrationFromCompletedWaiver(params: {
     if (!registration) return false;
 
     if (totalCount && totalCount > 0 && unsignedCount === 0) {
+      const wasConfirmed = registration.status === 'pending_waiver';
       await params.supabase
         .from('event_registrations')
         .update({
           waiver_status: 'signed',
           waiver_signed_at: now,
-          status: registration.status === 'pending_waiver' ? 'confirmed' : registration.status,
+          status: wasConfirmed ? 'confirmed' : registration.status,
         })
         .eq('id', registrationId);
+
+      // Send confirmation email with ticket PDF now that waiver is complete
+      if (wasConfirmed) {
+        import('@/lib/events/notifications').then(({ sendEventRegistrationConfirmation }) =>
+          sendEventRegistrationConfirmation(registrationId).catch(err =>
+            console.error('Failed to send post-waiver confirmation:', err)
+          )
+        );
+      }
     }
 
     return true;
@@ -546,14 +556,24 @@ export async function syncRegistrationFromCompletedWaiver(params: {
 
   if (!registration) return false;
 
+  const wasConfirmed = registration.status === 'pending_waiver';
   await params.supabase
     .from('event_registrations')
     .update({
       waiver_status: 'signed',
       waiver_signed_at: now,
-      status: registration.status === 'pending_waiver' ? 'confirmed' : registration.status,
+      status: wasConfirmed ? 'confirmed' : registration.status,
     })
     .eq('id', registrationId);
+
+  // Send confirmation email with ticket PDF now that waiver is complete
+  if (wasConfirmed) {
+    import('@/lib/events/notifications').then(({ sendEventRegistrationConfirmation }) =>
+      sendEventRegistrationConfirmation(registrationId).catch(err =>
+        console.error('Failed to send post-waiver confirmation:', err)
+      )
+    );
+  }
 
   return true;
 }

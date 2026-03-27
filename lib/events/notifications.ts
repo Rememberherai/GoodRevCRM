@@ -245,8 +245,11 @@ export async function sendEventRegistrationConfirmation(
           ${icsUrl ? `<a href="${icsUrl}" style="color: #2563eb;">Download .ics</a>` : ''}
         </p>
         ${registration.status === 'confirmed' ? `<p style="margin-top: 16px;">
-          <a href="${process.env.NEXT_PUBLIC_APP_URL || ''}/events/confirmation/${registration.confirmation_token}" style="color: #2563eb; font-size: 13px;">View your tickets &amp; QR codes for check-in →</a>
-        </p>` : ''}
+          <a href="${process.env.NEXT_PUBLIC_APP_URL || ''}/events/confirmation/${registration.confirmation_token}" style="background-color: #16a34a; color: white; padding: 12px 20px; text-decoration: none; border-radius: 6px; display: inline-block;">
+            View Your Tickets &amp; QR Codes
+          </a>
+        </p>
+        <p style="margin-top: 8px; font-size: 12px; color: #666;">Your ticket PDF is also attached to this email.</p>` : ''}
         ${cancelUrl ? `<p style="margin-top: 24px;">
           <a href="${cancelUrl}" style="color: #666; font-size: 12px;">Cancel registration</a>
         </p>` : ''}

@@ -4,6 +4,7 @@ import { CheckCircle2, CalendarDays, MapPin, Monitor, Ticket } from 'lucide-reac
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { TicketCheckInButton } from './ticket-check-in-button';
+import { TicketQrCode } from '@/app/events/confirmation/[token]/ticket-qr-code';
 
 interface PageProps {
   params: Promise<{ qrCode: string }>;
@@ -121,7 +122,17 @@ export default async function TicketScanPage({ params }: PageProps) {
             )}
           </div>
 
-          <div className="border-t pt-4">
+          {/* QR code display for attendees (not shown if already checked in or cancelled) */}
+          {!isCheckedIn && !isCancelled && !isStaff && (
+            <div className="border-t pt-4 flex flex-col items-center gap-2">
+              <TicketQrCode value={`${process.env.NEXT_PUBLIC_APP_URL || ''}/events/ticket/${qrCode}`} size={180} />
+              <p className="text-xs text-muted-foreground">
+                Present this QR code to event staff for check-in.
+              </p>
+            </div>
+          )}
+
+          <div className={`${!isCheckedIn && !isCancelled && !isStaff ? 'pt-2' : 'border-t pt-4'}`}>
             {isCheckedIn ? (
               <div className="text-center space-y-2">
                 <Badge variant="outline" className="text-green-700 dark:text-green-400 text-base px-4 py-1">
@@ -139,16 +150,7 @@ export default async function TicketScanPage({ params }: PageProps) {
               </div>
             ) : isStaff ? (
               <TicketCheckInButton qrCode={qrCode} registrantName={ticket.attendee_name || registration.registrant_name} />
-            ) : (
-              <div className="text-center">
-                <Badge variant="outline" className="text-blue-700 dark:text-blue-400 text-base px-4 py-1">
-                  Valid Ticket
-                </Badge>
-                <p className="text-xs text-muted-foreground mt-2">
-                  Present this ticket to event staff for check-in.
-                </p>
-              </div>
-            )}
+            ) : null}
           </div>
         </CardContent>
       </Card>
