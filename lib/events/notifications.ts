@@ -90,42 +90,41 @@ export async function getProjectGmailConnection(
 ): Promise<ProjectGmailConnection | null> {
   const supabase = createServiceClient();
 
-  // Query gmail connections for project members, preferring owner then admin
-  const { data: connections, error: connError } = await supabase
-    .from('gmail_connections')
-    .select(`
-      *,
-      users!inner(
-        id,
-        project_memberships!inner(
-          project_id,
-          role
-        )
-      )
-    `)
-    .eq('users.project_memberships.project_id', projectId)
-    .in('users.project_memberships.role', ['owner', 'admin'])
-    .eq('status', 'connected')
-    .limit(5);
+  // Find owner/admin members, preferring owner
+  const { data: members, error: membersError } = await supabase
+    .from('project_memberships')
+    .select('user_id, role')
+    .eq('project_id', projectId)
+    .in('role', ['owner', 'admin']);
 
-  if (connError) {
-    console.error('Failed to fetch Gmail connections:', connError.message);
+  if (membersError || !members || members.length === 0) {
+    if (membersError) console.error('Failed to fetch project members:', membersError.message);
     return null;
   }
 
-  if (!connections || connections.length === 0) return null;
-
-  // Sort by role priority: owner > admin > others
+  // Sort by role priority: owner first
   const rolePriority: Record<string, number> = { owner: 0, admin: 1 };
-  const sorted = connections.sort((a, b) => {
-    const aRole = (a.users as unknown as { project_memberships: { role: string }[] })
-      ?.project_memberships?.[0]?.role || 'viewer';
-    const bRole = (b.users as unknown as { project_memberships: { role: string }[] })
-      ?.project_memberships?.[0]?.role || 'viewer';
-    return (rolePriority[aRole] ?? 99) - (rolePriority[bRole] ?? 99);
-  });
+  members.sort((a, b) => (rolePriority[a.role] ?? 99) - (rolePriority[b.role] ?? 99));
 
-  const best = sorted[0];
+  // Find a connected Gmail connection for any of these members
+  const userIds = members.map(m => m.user_id);
+  const { data: connections, error: connError } = await supabase
+    .from('gmail_connections')
+    .select('*')
+    .in('user_id', userIds)
+    .eq('status', 'connected')
+    .limit(5);
+
+  if (connError || !connections || connections.length === 0) {
+    if (connError) console.error('Failed to fetch Gmail connections:', connError.message);
+    return null;
+  }
+
+  // Pick the connection belonging to the highest-priority member
+  const userPriority = new Map(members.map((m, i) => [m.user_id, i]));
+  connections.sort((a, b) => (userPriority.get(a.user_id) ?? 99) - (userPriority.get(b.user_id) ?? 99));
+
+  const best = connections[0];
   if (!best) return null;
   return {
     gmailConnection: best as unknown as GmailConnection,

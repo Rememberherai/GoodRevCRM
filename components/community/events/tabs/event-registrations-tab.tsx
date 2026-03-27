@@ -107,6 +107,21 @@ export function EventRegistrationsTab({ projectSlug, eventId }: EventRegistratio
     }
   }
 
+  async function handleResendConfirmation(regId: string) {
+    try {
+      const res = await fetch(`${apiBase}/registrations/${regId}/resend-confirmation`, {
+        method: 'POST',
+      });
+      if (!res.ok) {
+        const data = await res.json();
+        throw new Error(data.error || 'Failed');
+      }
+      toast.success('Confirmation email sent');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send');
+    }
+  }
+
   return (
     <Card>
       <CardHeader>
@@ -183,6 +198,11 @@ export function EventRegistrationsTab({ projectSlug, eventId }: EventRegistratio
                           {(reg.status === 'confirmed' || reg.status === 'pending_approval') && !reg.checked_in_at && (
                             <DropdownMenuItem onClick={() => handleCheckIn(reg.id)}>
                               Check In
+                            </DropdownMenuItem>
+                          )}
+                          {reg.status === 'confirmed' && (
+                            <DropdownMenuItem onClick={() => handleResendConfirmation(reg.id)}>
+                              Resend Confirmation
                             </DropdownMenuItem>
                           )}
                           {reg.status !== 'cancelled' && !reg.checked_in_at && (
