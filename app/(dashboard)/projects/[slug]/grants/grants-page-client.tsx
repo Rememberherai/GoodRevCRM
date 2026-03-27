@@ -317,7 +317,7 @@ export default function GrantsPageClient() {
           </div>
 
           <Select value={filterTier || '__all__'} onValueChange={(v) => setFilterTier(v === '__all__' ? '' : v)}>
-            <SelectTrigger className="h-9 w-[110px]">
+            <SelectTrigger className="h-9 w-[130px]">
               <SelectValue placeholder="Tier" />
             </SelectTrigger>
             <SelectContent>
@@ -329,7 +329,7 @@ export default function GrantsPageClient() {
           </Select>
 
           <Select value={filterCategory || '__all__'} onValueChange={(v) => setFilterCategory(v === '__all__' ? '' : v)}>
-            <SelectTrigger className="h-9 w-[130px]">
+            <SelectTrigger className="h-9 w-[155px]">
               <SelectValue placeholder="Category" />
             </SelectTrigger>
             <SelectContent>
@@ -343,7 +343,7 @@ export default function GrantsPageClient() {
           </Select>
 
           <Select value={filterUrgency || '__all__'} onValueChange={(v) => setFilterUrgency(v === '__all__' ? '' : v)}>
-            <SelectTrigger className="h-9 w-[120px]">
+            <SelectTrigger className="h-9 w-[140px]">
               <SelectValue placeholder="Urgency" />
             </SelectTrigger>
             <SelectContent>
@@ -356,7 +356,7 @@ export default function GrantsPageClient() {
           </Select>
 
           <Select value={filterStatus || '__all__'} onValueChange={(v) => setFilterStatus(v === '__all__' ? '' : v)}>
-            <SelectTrigger className="h-9 w-[140px]">
+            <SelectTrigger className="h-9 w-[155px]">
               <SelectValue placeholder="Status" />
             </SelectTrigger>
             <SelectContent>
