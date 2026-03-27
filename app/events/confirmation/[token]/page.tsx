@@ -148,7 +148,7 @@ export default async function ConfirmationPage({ params }: PageProps) {
                             <div className="text-xs text-muted-foreground">{ticketType.name}</div>
                           )}
                           {ticket.qr_code && (
-                            <TicketQrCode value={ticket.qr_code} size={160} />
+                            <TicketQrCode value={`${process.env.NEXT_PUBLIC_APP_URL || ''}/events/ticket/${ticket.qr_code}`} size={160} />
                           )}
                           {ticket.attendee_name && (
                             <p className="text-sm font-medium">{ticket.attendee_name}</p>

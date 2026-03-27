@@ -285,7 +285,7 @@ function TicketQrDialog({ registration, onClose }: { registration: Registration 
                 {ticket.event_ticket_types?.name && ` — ${ticket.event_ticket_types.name}`}
               </div>
               {ticket.qr_code && (
-                <QRCodeSVG value={ticket.qr_code} size={140} />
+                <QRCodeSVG value={`${window.location.origin}/events/ticket/${ticket.qr_code}`} size={140} />
               )}
               <code className="text-[10px] text-muted-foreground select-all break-all text-center">
                 {ticket.qr_code ?? 'No QR code'}
