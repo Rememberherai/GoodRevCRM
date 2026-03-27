@@ -1,7 +1,10 @@
 'use client';
 
 import { useState } from 'react';
-import { useSearchParams, useRouter } from 'next/navigation';
+import Link from 'next/link';
+import { useSearchParams, useRouter, useParams } from 'next/navigation';
+import { ExternalLink } from 'lucide-react';
+import { Button } from '@/components/ui/button';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { ContractorsPageClient } from '../contractors/contractors-page-client';
 import { EmployeesPageClient } from '@/components/community/employees/employees-page-client';
@@ -11,6 +14,8 @@ import { TimesheetsPageClient } from '@/components/community/timesheets/timeshee
 export function WorkforcePageClient() {
   const searchParams = useSearchParams();
   const router = useRouter();
+  const params = useParams();
+  const slug = params.slug as string;
   const initialTab = searchParams.get('tab') || 'contractors';
   const [activeTab, setActiveTab] = useState(initialTab);
 
@@ -28,12 +33,22 @@ export function WorkforcePageClient() {
   return (
     <div className="space-y-6">
       <Tabs value={activeTab} onValueChange={handleTabChange}>
-        <TabsList>
-          <TabsTrigger value="contractors">Contractors</TabsTrigger>
-          <TabsTrigger value="employees">Employees</TabsTrigger>
-          <TabsTrigger value="jobs">Jobs</TabsTrigger>
-          <TabsTrigger value="timesheets">Timesheets</TabsTrigger>
-        </TabsList>
+        <div className="flex items-center justify-between">
+          <TabsList>
+            <TabsTrigger value="contractors">Contractors</TabsTrigger>
+            <TabsTrigger value="employees">Employees</TabsTrigger>
+            <TabsTrigger value="jobs">Jobs</TabsTrigger>
+            <TabsTrigger value="timesheets">Timesheets</TabsTrigger>
+          </TabsList>
+          {activeTab === 'contractors' && (
+            <Button variant="outline" size="sm" asChild>
+              <Link href={`/contractor/${slug}`} target="_blank">
+                <ExternalLink className="mr-2 h-4 w-4" />
+                Contractor Portal
+              </Link>
+            </Button>
+          )}
+        </div>
 
         <TabsContent value="contractors">
           <ContractorsPageClient />

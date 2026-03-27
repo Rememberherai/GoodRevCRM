@@ -79,12 +79,13 @@ const communityNavItems: NavItem[] = [
   { title: 'Households', href: '/households', icon: Home, resource: 'households' },
   { title: 'People', href: '/people', icon: Users },
   { title: 'Organizations', href: '/organizations', icon: Building2 },
-  { title: 'Programs & Services', href: '/programs-services', icon: CalendarRange, resource: 'programs', alsoMatchPaths: ['/programs', '/events', '/referrals'] },
+  { title: 'Programs & Services', href: '/programs-services', icon: CalendarRange, resource: 'programs', alsoMatchPaths: ['/programs', '/referrals'] },
+  { title: 'Events', href: '/events', icon: CalendarDays, resource: 'events' },
   { title: 'Workforce', href: '/workforce', icon: HardHat, resource: 'jobs', alsoMatchPaths: ['/contractors', '/employees', '/jobs', '/timesheets'] },
   { title: 'Contributions', href: '/contributions', icon: HandCoins, resource: 'contributions' },
   { title: 'Grants', href: '/grants', icon: Award, resource: 'grants' },
   { title: 'Broadcasts', href: '/broadcasts', icon: Megaphone, resource: 'broadcasts' },
-  { title: 'Assets', href: '/assets', icon: Building2, resource: 'community_assets', alsoMatchPaths: ['/community-assets', '/community-map'] },
+  { title: 'Assets & Map', href: '/assets', icon: Building2, resource: 'community_assets', alsoMatchPaths: ['/community-assets', '/community-map'] },
   { title: 'Reporting', href: '/reports', icon: BarChart3, resource: 'reports', alsoMatchPaths: ['/settings/public-dashboard'] },
 ];
 

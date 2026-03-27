@@ -127,11 +127,16 @@ export function EmployeesPageClient() {
   return (
     <div className="space-y-6">
       <div className="flex items-center justify-between">
-        <div>
-          <h1 className="text-2xl font-bold tracking-tight">Employees</h1>
-          <p className="mt-1 text-sm text-muted-foreground">
-            Hourly workers with clock-in/out access. Manage PINs for kiosk punch-in.
-          </p>
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <Users className="h-5 w-5" />
+          </div>
+          <div>
+            <h1 className="text-2xl font-bold tracking-tight">Employees</h1>
+            <p className="mt-1 text-sm text-muted-foreground">
+              Hourly workers with clock-in/out access. Manage PINs for kiosk punch-in.
+            </p>
+          </div>
         </div>
         <Button asChild variant="outline">
           <Link href={`/kiosk/${slug}`} target="_blank" rel="noopener noreferrer">
