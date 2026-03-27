@@ -22,7 +22,6 @@ interface HubSettings {
   slug: string;
   title: string | null;
   description: string | null;
-  logo_url: string | null;
   accent_color: string | null;
   is_enabled: boolean;
 }
@@ -31,7 +30,6 @@ const DEFAULT_SETTINGS: HubSettings = {
   slug: '',
   title: null,
   description: null,
-  logo_url: null,
   accent_color: null,
   is_enabled: false,
 };
@@ -60,7 +58,6 @@ export function HubSettingsCard() {
           slug: data.settings.slug ?? '',
           title: data.settings.title ?? null,
           description: data.settings.description ?? null,
-          logo_url: data.settings.logo_url ?? null,
           accent_color: data.settings.accent_color ?? null,
           is_enabled: data.settings.is_enabled ?? false,
         });
@@ -95,7 +92,6 @@ export function HubSettingsCard() {
           slug: settings.slug.trim(),
           title: settings.title?.trim() || undefined,
           description: settings.description?.trim() || null,
-          logo_url: settings.logo_url?.trim() || null,
           accent_color: settings.accent_color?.trim() || null,
           is_enabled: settings.is_enabled,
         }),
@@ -109,7 +105,6 @@ export function HubSettingsCard() {
           slug: data.settings.slug ?? '',
           title: data.settings.title ?? null,
           description: data.settings.description ?? null,
-          logo_url: data.settings.logo_url ?? null,
           accent_color: data.settings.accent_color ?? null,
           is_enabled: data.settings.is_enabled ?? false,
         });
@@ -233,26 +228,37 @@ export function HubSettingsCard() {
           />
         </div>
 
-        {/* Logo URL */}
-        <div className="space-y-2">
-          <Label htmlFor="hub_logo_url">Logo URL</Label>
-          <Input
-            id="hub_logo_url"
-            value={settings.logo_url ?? ''}
-            onChange={(e) => setSettings((prev) => ({ ...prev, logo_url: e.target.value || null }))}
-            placeholder="https://example.com/logo.png"
-          />
-        </div>
-
         {/* Accent Color */}
         <div className="space-y-2">
           <Label htmlFor="hub_accent_color">Accent Color</Label>
-          <Input
-            id="hub_accent_color"
-            value={settings.accent_color ?? ''}
-            onChange={(e) => setSettings((prev) => ({ ...prev, accent_color: e.target.value || null }))}
-            placeholder="#3b82f6"
-          />
+          <p className="text-sm text-muted-foreground">
+            Brand color used on the public hub page.
+          </p>
+          <div className="flex items-center gap-3">
+            <input
+              type="color"
+              id="hub_accent_color"
+              value={settings.accent_color ?? '#3b82f6'}
+              onChange={(e) => setSettings((prev) => ({ ...prev, accent_color: e.target.value }))}
+              className="h-10 w-14 cursor-pointer rounded-md border border-input p-1"
+            />
+            <Input
+              value={settings.accent_color ?? ''}
+              onChange={(e) => setSettings((prev) => ({ ...prev, accent_color: e.target.value || null }))}
+              placeholder="#3b82f6"
+              className="max-w-[140px] font-mono text-sm"
+            />
+            {settings.accent_color && (
+              <Button
+                variant="ghost"
+                size="sm"
+                onClick={() => setSettings((prev) => ({ ...prev, accent_color: null }))}
+                className="text-muted-foreground"
+              >
+                Clear
+              </Button>
+            )}
+          </div>
         </div>
 
         {/* Save */}

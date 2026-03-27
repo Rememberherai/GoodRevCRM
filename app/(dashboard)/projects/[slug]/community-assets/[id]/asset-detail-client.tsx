@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ArrowLeft, Building2, MapPin, Pencil } from 'lucide-react';
+import { ArrowLeft, Building2, MapPin, Pencil, Power } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -13,6 +13,7 @@ import { AccessSettingsTab } from '@/components/community/assets/access-settings
 import { ApprovedPeopleTab } from '@/components/community/assets/approved-people-tab';
 import { AssetRequestsTab } from '@/components/community/assets/asset-requests-tab';
 import { EditAssetDialog } from '@/components/community/assets/edit-asset-dialog';
+import { toast } from 'sonner';
 
 interface AssetDetail {
   id: string;
@@ -28,6 +29,11 @@ interface AssetDetail {
   dimension_id: string | null;
   steward_person_id: string | null;
   steward_organization_id: string | null;
+  access_enabled: boolean;
+  access_mode: string;
+  resource_slug: string | null;
+  public_name: string | null;
+  booking_owner_user_id: string | null;
   steward_person?: { first_name: string | null; last_name: string | null; email: string | null } | null;
   steward_organization?: { name: string } | null;
   dimension?: { label: string; color: string | null } | null;
@@ -40,6 +46,8 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
+  const [activeTab, setActiveTab] = useState('details');
+  const [togglingAccess, setTogglingAccess] = useState(false);
 
   const loadAsset = useCallback(async () => {
     setIsLoading(true);
@@ -61,6 +69,51 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
   useEffect(() => {
     void loadAsset();
   }, [loadAsset]);
+
+  const handleToggleAccess = async () => {
+    if (!asset) return;
+
+    // Enabling — check required fields first
+    if (!asset.access_enabled) {
+      if (asset.access_mode === 'tracked_only') {
+        toast.error('Change access mode from "Tracked Only" before enabling access');
+        setActiveTab('access');
+        return;
+      }
+      if (!asset.resource_slug || !asset.public_name || !asset.booking_owner_user_id) {
+        toast.error('Fill out required access settings first (slug, public name, booking owner)');
+        setActiveTab('access');
+        return;
+      }
+    }
+
+    setTogglingAccess(true);
+    try {
+      const res = await fetch(
+        `/api/projects/${slug}/community-assets/${assetId}/access-settings`,
+        {
+          method: 'PATCH',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ access_enabled: !asset.access_enabled }),
+        }
+      );
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) {
+        throw new Error(data.error || 'Failed to toggle access');
+      }
+      toast.success(asset.access_enabled ? 'Access disabled' : 'Access enabled');
+      void loadAsset();
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to toggle access';
+      toast.error(message);
+      // If server says fields are missing, send them to access tab
+      if (message.toLowerCase().includes('required') || message.toLowerCase().includes('hub')) {
+        setActiveTab('access');
+      }
+    } finally {
+      setTogglingAccess(false);
+    }
+  };
 
   if (isLoading) {
     return <div className="h-72 animate-pulse rounded-xl bg-muted" />;
@@ -105,10 +158,24 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
               <div className="text-sm text-muted-foreground">{address || 'No address recorded'}</div>
             </div>
           </div>
-          <Button variant="outline" onClick={() => setEditOpen(true)}>
-            <Pencil className="mr-2 h-4 w-4" />
-            Edit
-          </Button>
+          <div className="flex items-center gap-2">
+            <Button
+              variant={asset.access_enabled ? 'default' : 'outline'}
+              className={asset.access_enabled
+                ? 'bg-emerald-600 hover:bg-emerald-700 text-white'
+                : 'text-muted-foreground'
+              }
+              onClick={handleToggleAccess}
+              disabled={togglingAccess}
+            >
+              <Power className="mr-2 h-4 w-4" />
+              {togglingAccess ? 'Updating...' : asset.access_enabled ? 'Access Enabled' : 'Access Disabled'}
+            </Button>
+            <Button variant="outline" onClick={() => setEditOpen(true)}>
+              <Pencil className="mr-2 h-4 w-4" />
+              Edit
+            </Button>
+          </div>
         </div>
         <div className="flex flex-wrap gap-2">
           <Badge variant="secondary">{asset.category}</Badge>
@@ -147,7 +214,7 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
         </Card>
       </div>
 
-      <Tabs defaultValue="details">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="details">Details</TabsTrigger>
           <TabsTrigger value="calendar">Calendar</TabsTrigger>
