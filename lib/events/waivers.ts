@@ -87,7 +87,8 @@ async function sendWaiverEmail(params: {
               Review &amp; Sign Waiver
             </a>
           </p>
-          <p style="color: #6b7280; font-size: 14px;">This link is unique to you. Do not share it.</p>
+          <p style="color: #6b7280; font-size: 14px;">You must sign this waiver to receive your event ticket.</p>
+          <p style="color: #6b7280; font-size: 13px;">This link is unique to you. Do not share it.</p>
         </div>
       `,
     },
