@@ -3,13 +3,14 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Building2, Plus } from 'lucide-react';
+import { Building2, Plus, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { NewAssetDialog } from '@/components/community/assets/new-asset-dialog';
 import { AssetAccessQueue } from '@/components/community/assets/asset-access-queue';
+import { HubSettingsCard } from '@/components/community/assets/hub-settings-card';
 
 interface AssetRecord {
   id: string;
@@ -74,6 +75,10 @@ export function AssetsPageClient() {
           <TabsTrigger value="requests">Requests</TabsTrigger>
           <TabsTrigger value="active">Active Access</TabsTrigger>
           <TabsTrigger value="overdue">Overdue</TabsTrigger>
+          <TabsTrigger value="hub-settings" className="gap-1.5">
+            <Settings className="h-3.5 w-3.5" />
+            Hub Settings
+          </TabsTrigger>
         </TabsList>
 
         <TabsContent value="assets" className="pt-4">
@@ -127,6 +132,10 @@ export function AssetsPageClient() {
 
         <TabsContent value="overdue" className="pt-4">
           <AssetAccessQueue initialFilter="overdue" />
+        </TabsContent>
+
+        <TabsContent value="hub-settings" className="pt-4">
+          <HubSettingsCard />
         </TabsContent>
       </Tabs>
 

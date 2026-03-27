@@ -154,8 +154,9 @@ export function AccessSettingsTab({ assetId }: { assetId: string }) {
       <CardContent className="space-y-6">
         {(!hub || !hub.is_enabled) && (
           <div className="rounded-md border border-yellow-300 bg-yellow-50 p-4 text-sm text-yellow-800 dark:border-yellow-700 dark:bg-yellow-950 dark:text-yellow-200">
-            <strong>{hub ? 'Hub disabled.' : 'Hub not configured.'}</strong> A project admin needs to set up and enable the
-            community hub before public access features can be used.
+            <strong>{hub ? 'Hub disabled.' : 'Hub not configured.'}</strong> Go to{' '}
+            <strong>Community Assets &rarr; Hub Settings</strong> to set up and enable the
+            resource hub before public access features can be used.
           </div>
         )}
 
