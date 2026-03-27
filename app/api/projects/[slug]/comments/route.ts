@@ -45,8 +45,7 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     // Fetch comments with author info
-    const supabaseAny = supabase as any;
-    const { data: comments, error } = await supabaseAny
+    const { data: comments, error } = await supabase
       .from('entity_comments')
       .select(`
         *,
@@ -114,8 +113,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     // For grant comments, verify the grant belongs to this project
     if (entity_type === 'grant') {
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const { data: grantCheck } = await (supabase as any)
+      const { data: grantCheck } = await supabase
         .from('grants')
         .select('id')
         .eq('id', entity_id)
@@ -128,8 +126,7 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     // Insert comment
-    const supabaseAny = supabase as any;
-    const { data: comment, error: insertError } = await supabaseAny
+    const { data: comment, error: insertError } = await supabase
       .from('entity_comments')
       .insert({
         project_id: project.id,
@@ -153,7 +150,7 @@ export async function POST(request: Request, context: RouteContext) {
     // Send mention notifications
     if (mentions.length > 0) {
       // Validate mentioned users are actual project members
-      const { data: projectMembers } = await supabaseAny
+      const { data: projectMembers } = await supabase
         .from('project_memberships')
         .select('user_id')
         .eq('project_id', project.id);
@@ -178,7 +175,7 @@ export async function POST(request: Request, context: RouteContext) {
         if (!validMemberIds.has(mention.user_id)) continue;
 
         try {
-          await supabaseAny.rpc('create_notification' as never, {
+          await supabase.rpc('create_notification' as never, {
             p_user_id: mention.user_id,
             p_type: 'mention',
             p_title: `${commenterName} mentioned you in a comment`,
@@ -198,7 +195,7 @@ export async function POST(request: Request, context: RouteContext) {
     emitAutomationEvent({
       projectId: project.id,
       triggerType: 'entity.updated',
-      entityType: entity_type as any,
+      entityType: entity_type as never,
       entityId: entity_id,
       data: {
         comment_id: comment.id,

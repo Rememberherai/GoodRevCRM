@@ -53,7 +53,11 @@ export function GrantBudgetTab({ grantId, projectSlug, amountRequested }: GrantB
   useEffect(() => { fetchItems(); }, [fetchItems]);
 
   function startNew() {
-    setEditingRow({ id: null, category: 'other', description: '', quantity: '1', unit_cost: '0', notes: '' });
+    // Pick a category not yet used so the new row appears in the bottom "new category" section
+    // where the category selector is shown. Fall back to 'other' if all categories are used.
+    const usedCats = new Set(items.map((i) => i.category));
+    const unusedCat = BUDGET_CATEGORIES.find((c) => !usedCats.has(c)) ?? 'other';
+    setEditingRow({ id: null, category: unusedCat, description: '', quantity: '1', unit_cost: '0', notes: '' });
   }
 
   function startEdit(item: BudgetLineItem) {

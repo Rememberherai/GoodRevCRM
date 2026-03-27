@@ -40,6 +40,7 @@ export async function GET(request: Request, context: RouteContext) {
       organization_id: searchParams.get('organization_id') ?? undefined,
       opportunity_id: searchParams.get('opportunity_id') ?? undefined,
       rfp_id: searchParams.get('rfp_id') ?? undefined,
+      grant_id: searchParams.get('grant_id') ?? undefined,
       due_before: searchParams.get('due_before') ?? undefined,
       due_after: searchParams.get('due_after') ?? undefined,
       limit: searchParams.get('limit') ?? undefined,
