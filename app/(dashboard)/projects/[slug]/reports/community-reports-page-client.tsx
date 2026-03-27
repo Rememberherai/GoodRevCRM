@@ -1,7 +1,6 @@
 'use client';
 
 import { useCallback, useEffect, useState } from 'react';
-import Link from 'next/link';
 import { format } from 'date-fns';
 import {
   BarChart3,
@@ -11,7 +10,6 @@ import {
   Home,
   Loader2,
   Printer,
-  Settings,
   Users,
   Wallet,
 } from 'lucide-react';
@@ -283,12 +281,6 @@ export function CommunityReportsPageClient({ projectSlug }: { projectSlug: strin
           <Button variant="outline" size="sm" onClick={() => window.print()}>
             <Printer className="mr-2 h-4 w-4" />
             Print
-          </Button>
-          <Button variant="outline" size="sm" asChild>
-            <Link href={`/projects/${projectSlug}/settings/public-dashboard`}>
-              <Settings className="mr-2 h-4 w-4" />
-              Configure Public Dashboard
-            </Link>
           </Button>
         </div>
       </div>

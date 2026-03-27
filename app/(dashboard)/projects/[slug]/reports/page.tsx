@@ -1,6 +1,8 @@
+import { Suspense } from 'react';
 import { createClient } from '@/lib/supabase/server';
+import { Skeleton } from '@/components/ui/skeleton';
 import { ReportsPageClient } from './reports-page-client';
-import { CommunityReportsPageClient } from './community-reports-page-client';
+import { CommunityReportsWrapper } from './community-reports-wrapper';
 import { GrantsReportsPageClient } from './grants-reports-page-client';
 
 interface ReportsPageProps {
@@ -19,7 +21,11 @@ export default async function ReportsPage({ params }: ReportsPageProps) {
     .single();
 
   if (project?.project_type === 'community') {
-    return <CommunityReportsPageClient projectSlug={slug} />;
+    return (
+      <Suspense fallback={<div className="space-y-6"><Skeleton className="h-10 w-96" /><Skeleton className="h-96 rounded-xl" /></div>}>
+        <CommunityReportsWrapper projectSlug={slug} />
+      </Suspense>
+    );
   }
 
   if (project?.project_type === 'grants') {

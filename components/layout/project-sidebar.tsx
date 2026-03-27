@@ -21,13 +21,8 @@ import {
   Home,
   HandCoins,
   HardHat,
-  BriefcaseBusiness,
-  Clock,
-  Map,
-  SendToBack,
   CalendarDays,
   Megaphone,
-  Globe,
   Search,
   BookOpen,
 } from 'lucide-react';
@@ -49,6 +44,8 @@ interface NavItem {
   href: string;
   icon: React.ComponentType<{ className?: string }>;
   resource?: string;
+  /** Additional path prefixes that should highlight this nav item */
+  alsoMatchPaths?: string[];
 }
 
 const standardNavItems: NavItem[] = [
@@ -82,20 +79,13 @@ const communityNavItems: NavItem[] = [
   { title: 'Households', href: '/households', icon: Home, resource: 'households' },
   { title: 'People', href: '/people', icon: Users },
   { title: 'Organizations', href: '/organizations', icon: Building2 },
-  { title: 'Programs', href: '/programs', icon: CalendarRange, resource: 'programs' },
-  { title: 'Events', href: '/events', icon: CalendarDays, resource: 'events' },
-  { title: 'Referrals', href: '/referrals', icon: SendToBack, resource: 'referrals' },
-  { title: 'Contractors', href: '/contractors', icon: HardHat },
-  { title: 'Employees', href: '/employees', icon: Users },
-  { title: 'Jobs', href: '/jobs', icon: BriefcaseBusiness, resource: 'jobs' },
-  { title: 'Timesheets', href: '/timesheets', icon: Clock, resource: 'jobs' },
+  { title: 'Programs & Services', href: '/programs-services', icon: CalendarRange, resource: 'programs', alsoMatchPaths: ['/programs', '/events', '/referrals'] },
+  { title: 'Workforce', href: '/workforce', icon: HardHat, resource: 'jobs', alsoMatchPaths: ['/contractors', '/employees', '/jobs', '/timesheets'] },
   { title: 'Contributions', href: '/contributions', icon: HandCoins, resource: 'contributions' },
   { title: 'Grants', href: '/grants', icon: Award, resource: 'grants' },
   { title: 'Broadcasts', href: '/broadcasts', icon: Megaphone, resource: 'broadcasts' },
-  { title: 'Community Assets', href: '/community-assets', icon: Building2, resource: 'community_assets' },
-  { title: 'Community Map', href: '/community-map', icon: Map },
-  { title: 'Public Dashboard', href: '/settings/public-dashboard', icon: Globe, resource: 'public_dashboard' },
-  { title: 'Reporting', href: '/reports', icon: BarChart3, resource: 'reports' },
+  { title: 'Assets', href: '/assets', icon: Building2, resource: 'community_assets', alsoMatchPaths: ['/community-assets', '/community-map'] },
+  { title: 'Reporting', href: '/reports', icon: BarChart3, resource: 'reports', alsoMatchPaths: ['/settings/public-dashboard'] },
 ];
 
 const bottomNavItems: NavItem[] = [
@@ -119,8 +109,6 @@ export function ProjectSidebar({ project, role, deniedResources, className }: Pr
       navItems = communityNavItems.filter((item) => item.title === 'Dashboard' || item.title === 'Reporting');
     } else if (role === 'contractor') {
       navItems = [];
-    } else if (role !== 'owner' && role !== 'admin') {
-      navItems = communityNavItems.filter((item) => item.title !== 'Public Dashboard');
     }
   }
 
@@ -153,7 +141,7 @@ export function ProjectSidebar({ project, role, deniedResources, className }: Pr
           const href = `${basePath}${item.href}`;
           const isActive = item.href === ''
             ? pathname === basePath
-            : pathname.startsWith(href);
+            : pathname.startsWith(href) || (item.alsoMatchPaths?.some((p) => pathname.startsWith(`${basePath}${p}`)) ?? false);
 
           return (
             <Link
@@ -190,7 +178,8 @@ export function ProjectSidebar({ project, role, deniedResources, className }: Pr
         </button>
         {!(project.project_type === 'community' && (role === 'board_viewer' || role === 'contractor')) && bottomNavItems.map((item) => {
           const href = `${basePath}${item.href}`;
-          const isActive = pathname.startsWith(href);
+          // For community projects, don't highlight Settings when on /settings/public-dashboard (that's under Reporting)
+          const isActive = pathname.startsWith(href) && !(project.project_type === 'community' && item.href === '/settings' && pathname.startsWith(`${basePath}/settings/public-dashboard`));
 
           return (
             <Link
