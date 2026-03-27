@@ -78,6 +78,7 @@ import { CallLogTable } from '@/components/calls/call-log-table';
 import { SmsConversation } from '@/components/sms/sms-conversation';
 import { PhoneCall, MessageSquareText, ListTodo } from 'lucide-react';
 import { OrgFinancialSummary } from '@/components/accounting/org-financial-summary';
+import { OrganizationGivingHistoryTab } from '@/components/organizations/organization-giving-history-tab';
 import { LogoUpload } from '@/components/ui/logo-upload';
 import {
   Select,
@@ -669,6 +670,10 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
           <TabsTrigger value="comments" className="gap-2">
             <MessageSquare className="h-4 w-4" />
             Comments
+          </TabsTrigger>
+          <TabsTrigger value="grants_given" className="gap-2">
+            <DollarSign className="h-4 w-4" />
+            Grants Given
           </TabsTrigger>
         </TabsList>
 
@@ -1335,6 +1340,10 @@ export function OrganizationDetailClient({ organizationId, companyContext, curre
             entityId={organizationId}
             currentUserId={currentUserId ?? ''}
           />
+        </TabsContent>
+
+        <TabsContent value="grants_given">
+          <OrganizationGivingHistoryTab organizationId={organizationId} projectSlug={slug} />
         </TabsContent>
       </Tabs>
 

@@ -107,6 +107,21 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
+    // If grant_id is being changed to a non-null value, verify it belongs to this project
+    if (validationResult.data.grant_id !== undefined && validationResult.data.grant_id !== null) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: grantData } = await (supabase as any)
+        .from('grants')
+        .select('id')
+        .eq('id', validationResult.data.grant_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!grantData) {
+        return NextResponse.json({ error: 'grant_id not found in this project' }, { status: 404 });
+      }
+    }
+
     const updateData: Record<string, unknown> = {
       ...validationResult.data,
       updated_at: new Date().toISOString(),

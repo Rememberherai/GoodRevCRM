@@ -1,4 +1,4 @@
-export type CommentEntityType = 'person' | 'organization' | 'opportunity';
+export type CommentEntityType = 'person' | 'organization' | 'opportunity' | 'grant';
 
 export interface CommentMention {
   user_id: string;

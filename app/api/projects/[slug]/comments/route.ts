@@ -112,6 +112,21 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { entity_type, entity_id, content, mentions } = validationResult.data;
 
+    // For grant comments, verify the grant belongs to this project
+    if (entity_type === 'grant') {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: grantCheck } = await (supabase as any)
+        .from('grants')
+        .select('id')
+        .eq('id', entity_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!grantCheck) {
+        return NextResponse.json({ error: 'Grant not found' }, { status: 404 });
+      }
+    }
+
     // Insert comment
     const supabaseAny = supabase as any;
     const { data: comment, error: insertError } = await supabaseAny
@@ -156,6 +171,7 @@ export async function POST(request: Request, context: RouteContext) {
       const commenterName = commenter?.full_name ?? 'Someone';
       const contentPreview = content.slice(0, 100);
       const entityTypePlural = entity_type === 'person' ? 'people' : `${entity_type}s`;
+      // 'grant' → 'grants', 'organization' → 'organizations', etc.
 
       for (const mention of mentions) {
         if (mention.user_id === user.id) continue;

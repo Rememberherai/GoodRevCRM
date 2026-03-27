@@ -26,6 +26,7 @@ export interface Task {
   organization_id: string | null;
   opportunity_id: string | null;
   rfp_id: string | null;
+  grant_id: string | null;
   assigned_to: string | null;
   created_by: string;
   created_at: string;

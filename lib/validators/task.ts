@@ -11,6 +11,7 @@ export const createTaskSchema = z.object({
   organization_id: z.string().uuid().nullable().optional(),
   opportunity_id: z.string().uuid().nullable().optional(),
   rfp_id: z.string().uuid().nullable().optional(),
+  grant_id: z.string().uuid().nullable().optional(),
   assigned_to: z.string().uuid().nullable().optional(),
   source_activity_id: z.string().uuid().nullable().optional(),
 });
@@ -28,6 +29,7 @@ export const updateTaskSchema = z.object({
   organization_id: z.string().uuid().nullable().optional(),
   opportunity_id: z.string().uuid().nullable().optional(),
   rfp_id: z.string().uuid().nullable().optional(),
+  grant_id: z.string().uuid().nullable().optional(),
   assigned_to: z.string().uuid().nullable().optional(),
   source_activity_id: z.string().uuid().nullable().optional(),
 });
@@ -43,6 +45,7 @@ export const taskQuerySchema = z.object({
   organization_id: z.string().uuid().optional(),
   opportunity_id: z.string().uuid().optional(),
   rfp_id: z.string().uuid().optional(),
+  grant_id: z.string().uuid().optional(),
   due_before: z.string().datetime().optional(),
   due_after: z.string().datetime().optional(),
   limit: z.coerce.number().min(1).max(100).optional().default(50),

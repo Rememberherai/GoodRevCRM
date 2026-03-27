@@ -1,5 +1,6 @@
 import { Suspense } from 'react';
 import { Skeleton } from '@/components/ui/skeleton';
+import { createClient } from '@/lib/supabase/server';
 import GrantDetailClient from './grant-detail-client';
 
 function DetailSkeleton() {
@@ -19,10 +20,12 @@ function DetailSkeleton() {
   );
 }
 
-export default function GrantDetailPage() {
+export default async function GrantDetailPage() {
+  const supabase = await createClient();
+  const { data: { user } } = await supabase.auth.getUser();
   return (
     <Suspense fallback={<DetailSkeleton />}>
-      <GrantDetailClient />
+      <GrantDetailClient currentUserId={user?.id} />
     </Suspense>
   );
 }

@@ -53,7 +53,7 @@ export async function GET(request: Request, context: RouteContext) {
       );
     }
 
-    const { status, priority, assigned_to, person_id, organization_id, opportunity_id, rfp_id, due_before, due_after, limit, offset } = queryResult.data;
+    const { status, priority, assigned_to, person_id, organization_id, opportunity_id, rfp_id, grant_id, due_before, due_after, limit, offset } = queryResult.data;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
@@ -70,6 +70,7 @@ export async function GET(request: Request, context: RouteContext) {
     if (organization_id) query = query.eq('organization_id', organization_id);
     if (opportunity_id) query = query.eq('opportunity_id', opportunity_id);
     if (rfp_id) query = query.eq('rfp_id', rfp_id);
+    if (grant_id) query = query.eq('grant_id', grant_id);
     if (due_before) query = query.lte('due_date', due_before);
     if (due_after) query = query.gte('due_date', due_after);
 
@@ -128,7 +129,7 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    const { assigned_to, person_id, organization_id, opportunity_id, rfp_id } = validationResult.data;
+    const { assigned_to, person_id, organization_id, opportunity_id, rfp_id, grant_id } = validationResult.data;
 
     // Validate assigned_to is a project member
     if (assigned_to) {
@@ -193,6 +194,19 @@ export async function POST(request: Request, context: RouteContext) {
         .single();
       if (!rfpData) {
         return NextResponse.json({ error: 'rfp_id not found in this project' }, { status: 400 });
+      }
+    }
+    if (grant_id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data: grantData } = await (supabase as any)
+        .from('grants')
+        .select('id')
+        .eq('id', grant_id)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!grantData) {
+        return NextResponse.json({ error: 'grant_id not found in this project' }, { status: 404 });
       }
     }
 

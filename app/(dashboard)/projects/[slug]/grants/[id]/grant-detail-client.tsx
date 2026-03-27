@@ -1,9 +1,9 @@
 'use client';
 
 import { useCallback, useEffect, useRef, useState } from 'react';
-import { useParams, useRouter } from 'next/navigation';
+import { useParams, useRouter, useSearchParams } from 'next/navigation';
 import Link from 'next/link';
-import { ArrowLeft, Award, BookOpen, CalendarClock, ChevronDown, ChevronRight, ClipboardList, DollarSign, Download, ExternalLink, FileText, Mail, Paperclip, Plus, Save, Search, Star, Trash2, Upload, UserPlus, X } from 'lucide-react';
+import { ArrowLeft, Award, BookOpen, Calculator, CalendarClock, CheckSquare, ChevronDown, ChevronRight, ClipboardList, DollarSign, Download, ExternalLink, FileText, Mail, MessageSquare, Paperclip, Plus, Save, Search, Star, Trash2, Upload, UserPlus, X } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -21,11 +21,15 @@ import { toast } from 'sonner';
 import { Sheet, SheetContent, SheetHeader, SheetTitle } from '@/components/ui/sheet';
 import { Dialog, DialogContent, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { ANSWER_BANK_CATEGORIES, type AnswerBankEntry } from '@/components/grants/answer-bank/answer-bank-page-client';
+import { GrantCommentsTab } from '@/components/grants/grant-comments-tab';
+import { GrantTasksTab } from '@/components/grants/grant-tasks-tab';
+import { GrantBudgetTab } from '@/components/grants/grant-budget-tab';
 
 interface GrantDetail {
   id: string;
   name: string;
   status: string;
+  internal_review_status: string;
   amount_requested: number | null;
   amount_awarded: number | null;
   loi_due_at: string | null;
@@ -236,9 +240,21 @@ function formatFileSize(bytes: number | null) {
   return `${(bytes / (1024 * 1024)).toFixed(1)} MB`;
 }
 
-export default function GrantDetailClient() {
+const INTERNAL_REVIEW_STATUSES = [
+  { value: 'draft', label: 'Draft' },
+  { value: 'in_review', label: 'In Review' },
+  { value: 'approved', label: 'Approved' },
+  { value: 'needs_revision', label: 'Needs Revision' },
+];
+
+interface GrantDetailClientProps {
+  currentUserId?: string;
+}
+
+export default function GrantDetailClient({ currentUserId }: GrantDetailClientProps) {
   const { slug, id } = useParams<{ slug: string; id: string }>();
   const router = useRouter();
+  const searchParams = useSearchParams();
   const [grant, setGrant] = useState<GrantDetail | null>(null);
   const [outreach, setOutreach] = useState<OutreachRecord[]>([]);
   const [documents, setDocuments] = useState<GrantDocument[]>([]);
@@ -297,6 +313,17 @@ export default function GrantDetailClient() {
   const [editAgreementStatus, setEditAgreementStatus] = useState('');
   const [editCloseoutDate, setEditCloseoutDate] = useState('');
 
+  // Controlled tabs — synced with ?tab= search param for notification deep-links
+  const [activeTab, setActiveTab] = useState(() => searchParams.get('tab') ?? 'info');
+  useEffect(() => {
+    const tab = searchParams.get('tab') ?? 'info';
+    setActiveTab(tab);
+  }, [searchParams]);
+
+  // Internal review status — instant-save, separate from main Save button
+  const [editInternalReviewStatus, setEditInternalReviewStatus] = useState('draft');
+  const [isSavingReviewStatus, setIsSavingReviewStatus] = useState(false);
+
   // Answer Bank state
   const [answerBankOpen, setAnswerBankOpen] = useState(false);
   const [answerBankTarget, setAnswerBankTarget] = useState<'notes' | 'key_intel'>('notes');
@@ -338,6 +365,7 @@ export default function GrantDetailClient() {
     setEditIndirectCostRate(g.indirect_cost_rate != null ? (g.indirect_cost_rate * 100).toString() : '');
     setEditAgreementStatus(g.agreement_status ?? '');
     setEditCloseoutDate(g.closeout_date?.split('T')[0] ?? '');
+    setEditInternalReviewStatus(g.internal_review_status ?? 'draft');
     // Auto-expand post-award section if any post-award fields are filled
     if (g.award_number || g.award_period_start || g.total_award_amount || g.agreement_status) {
       setShowPostAward(true);
@@ -443,6 +471,30 @@ export default function GrantDetailClient() {
       setError(err instanceof Error ? err.message : 'Failed to save');
     } finally {
       setIsSaving(false);
+    }
+  };
+
+  const handleReviewStatusChange = async (newStatus: string) => {
+    const previousStatus = editInternalReviewStatus;
+    setEditInternalReviewStatus(newStatus); // optimistic
+    setIsSavingReviewStatus(true);
+    try {
+      const res = await fetch(`/api/projects/${slug}/grants/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ internal_review_status: newStatus }),
+      });
+      if (!res.ok) {
+        const json = await res.json() as { error?: string };
+        throw new Error(json.error ?? 'Failed to save review status');
+      }
+      const json = await res.json() as { grant?: GrantDetail };
+      if (json.grant) setGrant(json.grant);
+    } catch (err) {
+      setEditInternalReviewStatus(previousStatus); // rollback
+      toast.error(err instanceof Error ? err.message : 'Failed to save review status');
+    } finally {
+      setIsSavingReviewStatus(false);
     }
   };
 
@@ -811,13 +863,16 @@ export default function GrantDetailClient() {
       </div>
 
       {/* Tabs */}
-      <Tabs defaultValue="info">
+      <Tabs value={activeTab} onValueChange={(t) => { setActiveTab(t); router.replace(`?tab=${t}`, { scroll: false }); }}>
         <TabsList>
           <TabsTrigger value="info"><FileText className="mr-1 h-4 w-4" />Info</TabsTrigger>
           <TabsTrigger value="documents"><Paperclip className="mr-1 h-4 w-4" />Documents</TabsTrigger>
           <TabsTrigger value="outreach"><Mail className="mr-1 h-4 w-4" />Outreach</TabsTrigger>
           <TabsTrigger value="compliance"><Award className="mr-1 h-4 w-4" />Compliance</TabsTrigger>
           <TabsTrigger value="deadlines"><CalendarClock className="mr-1 h-4 w-4" />Deadlines</TabsTrigger>
+          <TabsTrigger value="tasks"><CheckSquare className="mr-1 h-4 w-4" />Tasks</TabsTrigger>
+          <TabsTrigger value="budget"><Calculator className="mr-1 h-4 w-4" />Budget</TabsTrigger>
+          <TabsTrigger value="comments"><MessageSquare className="mr-1 h-4 w-4" />Comments</TabsTrigger>
         </TabsList>
 
         <TabsContent value="info">
@@ -854,6 +909,21 @@ export default function GrantDetailClient() {
                 <div className="space-y-2">
                   <Label>Amount Awarded</Label>
                   <Input type="number" min="0" step="0.01" value={editAmountAwarded} onChange={(e) => setEditAmountAwarded(e.target.value)} />
+                </div>
+                <div className="space-y-2">
+                  <Label>Internal Review Status</Label>
+                  <Select
+                    value={editInternalReviewStatus}
+                    onValueChange={handleReviewStatusChange}
+                    disabled={isSavingReviewStatus}
+                  >
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {INTERNAL_REVIEW_STATUSES.map((s) => (
+                        <SelectItem key={s.value} value={s.value}>{s.label}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
                 </div>
               </div>
 
@@ -1461,6 +1531,18 @@ export default function GrantDetailClient() {
               </CardContent>
             </Card>
           </div>
+        </TabsContent>
+
+        <TabsContent value="tasks">
+          <GrantTasksTab grantId={id} projectSlug={slug} />
+        </TabsContent>
+
+        <TabsContent value="budget">
+          <GrantBudgetTab grantId={id} projectSlug={slug} amountRequested={grant.amount_requested} />
+        </TabsContent>
+
+        <TabsContent value="comments">
+          <GrantCommentsTab grantId={id} currentUserId={currentUserId ?? ''} />
         </TabsContent>
       </Tabs>
 

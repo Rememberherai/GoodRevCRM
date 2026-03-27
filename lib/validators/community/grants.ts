@@ -21,6 +21,8 @@ export const grantCategorySchema = z.enum(['federal', 'state', 'corporate', 'fou
 
 export const grantUrgencySchema = z.enum(['low', 'medium', 'high', 'critical']);
 
+export const grantInternalReviewStatusSchema = z.enum(['draft', 'in_review', 'approved', 'needs_revision']);
+
 export const grantSchema = z.object({
   project_id: optionalUuidSchema,
   funder_organization_id: optionalUuidSchema,
@@ -60,6 +62,8 @@ export const grantSchema = z.object({
   // Discovery fields
   is_discovered: z.boolean().optional(),
   source_url: z.string().max(2000, 'Source URL must be 2000 characters or less').refine((val) => !val || /^https?:\/\//i.test(val), 'Source URL must start with http:// or https://').nullable().optional(),
+  // Internal review
+  internal_review_status: grantInternalReviewStatusSchema.optional(),
 });
 
 export const createGrantSchema = grantSchema;

@@ -5009,6 +5009,56 @@ export type Database = {
           },
         ]
       }
+      funder_giving_history: {
+        Row: {
+          amount: number | null
+          created_at: string
+          grant_name: string
+          id: string
+          notes: string | null
+          organization_id: string
+          program_area: string | null
+          recipient: string | null
+          sort_order: number
+          updated_at: string
+          year: number | null
+        }
+        Insert: {
+          amount?: number | null
+          created_at?: string
+          grant_name?: string
+          id?: string
+          notes?: string | null
+          organization_id: string
+          program_area?: string | null
+          recipient?: string | null
+          sort_order?: number
+          updated_at?: string
+          year?: number | null
+        }
+        Update: {
+          amount?: number | null
+          created_at?: string
+          grant_name?: string
+          id?: string
+          notes?: string | null
+          organization_id?: string
+          program_area?: string | null
+          recipient?: string | null
+          sort_order?: number
+          updated_at?: string
+          year?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "funder_giving_history_organization_id_fkey"
+            columns: ["organization_id"]
+            isOneToOne: false
+            referencedRelation: "organizations"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       gmail_connections: {
         Row: {
           access_token: string
@@ -5157,6 +5207,56 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      grant_budget_line_items: {
+        Row: {
+          category: string
+          created_at: string
+          description: string
+          grant_id: string
+          id: string
+          line_total: number | null
+          notes: string | null
+          quantity: number
+          sort_order: number
+          unit_cost: number
+          updated_at: string
+        }
+        Insert: {
+          category?: string
+          created_at?: string
+          description?: string
+          grant_id: string
+          id?: string
+          line_total?: number | null
+          notes?: string | null
+          quantity?: number
+          sort_order?: number
+          unit_cost?: number
+          updated_at?: string
+        }
+        Update: {
+          category?: string
+          created_at?: string
+          description?: string
+          grant_id?: string
+          id?: string
+          line_total?: number | null
+          notes?: string | null
+          quantity?: number
+          sort_order?: number
+          unit_cost?: number
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "grant_budget_line_items_grant_id_fkey"
+            columns: ["grant_id"]
+            isOneToOne: false
+            referencedRelation: "grants"
             referencedColumns: ["id"]
           },
         ]
@@ -5385,6 +5485,7 @@ export type Database = {
           funding_range_min: number | null
           id: string
           indirect_cost_rate: number | null
+          internal_review_status: string
           is_discovered: boolean
           key_intel: string | null
           loi_due_at: string | null
@@ -5425,6 +5526,7 @@ export type Database = {
           funding_range_min?: number | null
           id?: string
           indirect_cost_rate?: number | null
+          internal_review_status?: string
           is_discovered?: boolean
           key_intel?: string | null
           loi_due_at?: string | null
@@ -5465,6 +5567,7 @@ export type Database = {
           funding_range_min?: number | null
           id?: string
           indirect_cost_rate?: number | null
+          internal_review_status?: string
           is_discovered?: boolean
           key_intel?: string | null
           loi_due_at?: string | null
@@ -11476,6 +11579,7 @@ export type Database = {
           created_by: string
           description: string | null
           due_date: string | null
+          grant_id: string | null
           id: string
           opportunity_id: string | null
           organization_id: string | null
@@ -11495,6 +11599,7 @@ export type Database = {
           created_by: string
           description?: string | null
           due_date?: string | null
+          grant_id?: string | null
           id?: string
           opportunity_id?: string | null
           organization_id?: string | null
@@ -11514,6 +11619,7 @@ export type Database = {
           created_by?: string
           description?: string | null
           due_date?: string | null
+          grant_id?: string | null
           id?: string
           opportunity_id?: string | null
           organization_id?: string | null
@@ -11539,6 +11645,13 @@ export type Database = {
             columns: ["created_by"]
             isOneToOne: false
             referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_grant_id_fkey"
+            columns: ["grant_id"]
+            isOneToOne: false
+            referencedRelation: "grants"
             referencedColumns: ["id"]
           },
           {

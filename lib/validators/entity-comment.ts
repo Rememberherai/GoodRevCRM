@@ -6,7 +6,7 @@ export const commentMentionSchema = z.object({
 });
 
 export const createEntityCommentSchema = z.object({
-  entity_type: z.enum(['person', 'organization', 'opportunity']),
+  entity_type: z.enum(['person', 'organization', 'opportunity', 'grant']),
   entity_id: z.string().uuid(),
   content: z.string().min(1, 'Comment cannot be empty').max(5000, 'Comment must be 5000 characters or less'),
   mentions: z.array(commentMentionSchema).default([]),
