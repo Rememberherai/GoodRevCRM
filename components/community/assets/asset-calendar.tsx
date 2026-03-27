@@ -8,6 +8,7 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Tabs, TabsList, TabsTrigger } from '@/components/ui/tabs';
 
 interface BookingRecord {
@@ -20,15 +21,21 @@ interface BookingRecord {
   event_type_id: string;
 }
 
+interface EventTypeRecord {
+  id: string;
+  title: string;
+  duration_minutes: number;
+}
+
 export function AssetCalendar({ assetId }: { assetId: string }) {
   const params = useParams();
   const slug = params.slug as string;
   const [bookings, setBookings] = useState<BookingRecord[]>([]);
+  const [eventTypes, setEventTypes] = useState<EventTypeRecord[]>([]);
   const [view, setView] = useState<'day' | 'week' | 'month'>('week');
   const [open, setOpen] = useState(false);
-  const [title, setTitle] = useState('');
+  const [eventTypeId, setEventTypeId] = useState('');
   const [startAt, setStartAt] = useState('');
-  const [endAt, setEndAt] = useState('');
   const [inviteeName, setInviteeName] = useState('');
   const [inviteeEmail, setInviteeEmail] = useState('');
   const [error, setError] = useState<string | null>(null);
@@ -36,11 +43,14 @@ export function AssetCalendar({ assetId }: { assetId: string }) {
 
   const loadBookings = useCallback(async () => {
     const response = await fetch(`/api/projects/${slug}/community-assets/${assetId}/bookings`);
-    const data = await response.json() as { bookings?: BookingRecord[]; error?: string };
+    const data = await response.json() as { bookings?: BookingRecord[]; event_types?: EventTypeRecord[]; error?: string };
     if (!response.ok) {
       throw new Error(data.error ?? 'Failed to load bookings');
     }
     setBookings(data.bookings ?? []);
+    const nextEventTypes = data.event_types ?? [];
+    setEventTypes(nextEventTypes);
+    setEventTypeId((current) => current || nextEventTypes[0]?.id || '');
   }, [assetId, slug]);
 
   useEffect(() => {
@@ -73,9 +83,8 @@ export function AssetCalendar({ assetId }: { assetId: string }) {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          title,
-          start_at: startAt,
-          end_at: endAt,
+          event_type_id: eventTypeId || undefined,
+          start_at: new Date(startAt).toISOString(),
           invitee_name: inviteeName,
           invitee_email: inviteeEmail,
         }),
@@ -85,9 +94,7 @@ export function AssetCalendar({ assetId }: { assetId: string }) {
         throw new Error(data.error ?? 'Failed to create booking');
       }
       setOpen(false);
-      setTitle('');
       setStartAt('');
-      setEndAt('');
       setInviteeName('');
       setInviteeEmail('');
       await loadBookings();
@@ -156,18 +163,23 @@ export function AssetCalendar({ assetId }: { assetId: string }) {
           </DialogHeader>
           <div className="space-y-4">
             <div className="space-y-2">
-              <Label>Title</Label>
-              <Input value={title} onChange={(event) => setTitle(event.target.value)} />
+              <Label>Access Preset</Label>
+              <Select value={eventTypeId} onValueChange={setEventTypeId}>
+                <SelectTrigger className="w-full">
+                  <SelectValue placeholder="Select a preset" />
+                </SelectTrigger>
+                <SelectContent>
+                  {eventTypes.map((eventType) => (
+                    <SelectItem key={eventType.id} value={eventType.id}>
+                      {eventType.title}
+                    </SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
             </div>
-            <div className="grid gap-4 md:grid-cols-2">
-              <div className="space-y-2">
-                <Label>Start</Label>
-                <Input type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} />
-              </div>
-              <div className="space-y-2">
-                <Label>End</Label>
-                <Input type="datetime-local" value={endAt} onChange={(event) => setEndAt(event.target.value)} />
-              </div>
+            <div className="space-y-2">
+              <Label>Start</Label>
+              <Input type="datetime-local" value={startAt} onChange={(event) => setStartAt(event.target.value)} />
             </div>
             <div className="grid gap-4 md:grid-cols-2">
               <div className="space-y-2">
@@ -182,7 +194,7 @@ export function AssetCalendar({ assetId }: { assetId: string }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={isSaving}>Cancel</Button>
-            <Button onClick={() => void handleCreate()} disabled={isSaving || !startAt || !endAt || !inviteeName || !inviteeEmail}>
+            <Button onClick={() => void handleCreate()} disabled={isSaving || !eventTypeId || !startAt || !inviteeName || !inviteeEmail}>
               Save Booking
             </Button>
           </DialogFooter>

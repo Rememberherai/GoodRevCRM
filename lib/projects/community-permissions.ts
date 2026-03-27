@@ -236,3 +236,30 @@ export async function requireCommunityPermission(
 
   return role;
 }
+
+export async function requireAssetAccessManage(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+  projectId: string,
+  assetId: string
+): Promise<ProjectRole> {
+  const role = await requireCommunityPermission(supabase, userId, projectId, 'asset_access', 'manage');
+
+  if (role === 'owner' || role === 'admin') {
+    return role;
+  }
+
+  const { data: approver, error } = await supabase
+    .from('community_asset_approvers')
+    .select('id')
+    .eq('project_id', projectId)
+    .eq('asset_id', assetId)
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  if (error || !approver) {
+    throw new ProjectAccessError(`Missing community permission 'asset_access:manage' for this asset`);
+  }
+
+  return role;
+}

@@ -48,6 +48,7 @@ CREATE TABLE IF NOT EXISTS public.asset_access_settings (
   updated_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+DROP TRIGGER IF EXISTS set_asset_access_settings_updated_at ON public.asset_access_settings;
 CREATE TRIGGER set_asset_access_settings_updated_at
   BEFORE UPDATE ON public.asset_access_settings
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
@@ -66,6 +67,7 @@ CREATE TABLE IF NOT EXISTS public.community_asset_approvers (
   UNIQUE (asset_id, user_id)
 );
 
+DROP TRIGGER IF EXISTS set_community_asset_approvers_updated_at ON public.community_asset_approvers;
 CREATE TRIGGER set_community_asset_approvers_updated_at
   BEFORE UPDATE ON public.community_asset_approvers
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
@@ -90,6 +92,7 @@ CREATE TABLE IF NOT EXISTS public.community_asset_person_approvals (
   UNIQUE (asset_id, person_id)
 );
 
+DROP TRIGGER IF EXISTS set_community_asset_person_approvals_updated_at ON public.community_asset_person_approvals;
 CREATE TRIGGER set_community_asset_person_approvals_updated_at
   BEFORE UPDATE ON public.community_asset_person_approvals
   FOR EACH ROW EXECUTE FUNCTION public.handle_updated_at();
@@ -254,61 +257,75 @@ ALTER TABLE public.asset_access_verifications ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.asset_access_events ENABLE ROW LEVEL SECURITY;
 
 -- asset_access_settings: owner/admin manage
+DROP POLICY IF EXISTS asset_access_settings_select ON public.asset_access_settings;
 CREATE POLICY asset_access_settings_select ON public.asset_access_settings
   FOR SELECT USING (public.community_has_permission(project_id, 'asset_access', 'view'));
 
+DROP POLICY IF EXISTS asset_access_settings_insert ON public.asset_access_settings;
 CREATE POLICY asset_access_settings_insert ON public.asset_access_settings
   FOR INSERT WITH CHECK (public.community_has_permission(project_id, 'asset_access', 'manage'));
 
+DROP POLICY IF EXISTS asset_access_settings_update ON public.asset_access_settings;
 CREATE POLICY asset_access_settings_update ON public.asset_access_settings
   FOR UPDATE USING (public.community_has_permission(project_id, 'asset_access', 'manage'))
   WITH CHECK (public.community_has_permission(project_id, 'asset_access', 'manage'));
 
+DROP POLICY IF EXISTS asset_access_settings_delete ON public.asset_access_settings;
 CREATE POLICY asset_access_settings_delete ON public.asset_access_settings
   FOR DELETE USING (public.community_has_permission(project_id, 'asset_access', 'manage'));
 
 -- community_asset_approvers: owner/admin manage
+DROP POLICY IF EXISTS community_asset_approvers_select ON public.community_asset_approvers;
 CREATE POLICY community_asset_approvers_select ON public.community_asset_approvers
   FOR SELECT USING (public.community_has_permission(project_id, 'asset_access', 'view'));
 
+DROP POLICY IF EXISTS community_asset_approvers_insert ON public.community_asset_approvers;
 CREATE POLICY community_asset_approvers_insert ON public.community_asset_approvers
   FOR INSERT WITH CHECK (public.community_has_permission(project_id, 'asset_access', 'manage'));
 
+DROP POLICY IF EXISTS community_asset_approvers_update ON public.community_asset_approvers;
 CREATE POLICY community_asset_approvers_update ON public.community_asset_approvers
   FOR UPDATE USING (public.community_has_permission(project_id, 'asset_access', 'manage'))
   WITH CHECK (public.community_has_permission(project_id, 'asset_access', 'manage'));
 
+DROP POLICY IF EXISTS community_asset_approvers_delete ON public.community_asset_approvers;
 CREATE POLICY community_asset_approvers_delete ON public.community_asset_approvers
   FOR DELETE USING (public.community_has_permission(project_id, 'asset_access', 'manage'));
 
 -- community_asset_person_approvals: view for asset_access:view, write guarded in API layer
+DROP POLICY IF EXISTS community_asset_person_approvals_select ON public.community_asset_person_approvals;
 CREATE POLICY community_asset_person_approvals_select ON public.community_asset_person_approvals
   FOR SELECT USING (public.community_has_permission(project_id, 'asset_access', 'view'));
 
+DROP POLICY IF EXISTS community_asset_person_approvals_insert ON public.community_asset_person_approvals;
 CREATE POLICY community_asset_person_approvals_insert ON public.community_asset_person_approvals
   FOR INSERT WITH CHECK (public.community_has_permission(project_id, 'asset_access', 'manage'));
 
+DROP POLICY IF EXISTS community_asset_person_approvals_update ON public.community_asset_person_approvals;
 CREATE POLICY community_asset_person_approvals_update ON public.community_asset_person_approvals
   FOR UPDATE USING (public.community_has_permission(project_id, 'asset_access', 'manage'))
   WITH CHECK (public.community_has_permission(project_id, 'asset_access', 'manage'));
 
+DROP POLICY IF EXISTS community_asset_person_approvals_delete ON public.community_asset_person_approvals;
 CREATE POLICY community_asset_person_approvals_delete ON public.community_asset_person_approvals
   FOR DELETE USING (public.community_has_permission(project_id, 'asset_access', 'manage'));
 
 -- asset_access_verifications: no authenticated RLS — accessed via service client only
--- Grant service_role full access
+DROP POLICY IF EXISTS asset_access_verifications_service ON public.asset_access_verifications;
 CREATE POLICY asset_access_verifications_service ON public.asset_access_verifications
-  FOR ALL USING (true) WITH CHECK (true);
+  FOR ALL TO service_role USING (true) WITH CHECK (true);
 
 -- But restrict to service_role only (authenticated users cannot access)
 ALTER TABLE public.asset_access_verifications FORCE ROW LEVEL SECURITY;
 
 -- asset_access_events: read-only for authenticated with view permission; inserts via service client
+DROP POLICY IF EXISTS asset_access_events_select ON public.asset_access_events;
 CREATE POLICY asset_access_events_select ON public.asset_access_events
   FOR SELECT USING (public.community_has_permission(project_id, 'asset_access', 'view'));
 
+DROP POLICY IF EXISTS asset_access_events_service_insert ON public.asset_access_events;
 CREATE POLICY asset_access_events_service_insert ON public.asset_access_events
-  FOR INSERT WITH CHECK (true);
+  FOR INSERT TO service_role WITH CHECK (true);
 
 -- ============================================================================
 -- 9. create_asset_booking_if_available() RPC
@@ -340,18 +357,55 @@ DECLARE
   v_booking_id UUID;
   v_overlap_count INTEGER;
   v_capacity INTEGER;
+  v_asset_project_id UUID;
+  v_asset_booking_owner_user_id UUID;
+  v_asset_access_enabled BOOLEAN;
+  v_event_type_asset_id UUID;
+  v_event_type_project_id UUID;
+  v_event_type_user_id UUID;
   v_status TEXT;
 BEGIN
   -- Lock on asset to prevent concurrent overbooking
   PERFORM pg_advisory_xact_lock(hashtext(p_asset_id::text));
 
   -- Load concurrent capacity from the asset
-  SELECT concurrent_capacity INTO v_capacity
+  SELECT concurrent_capacity, project_id, booking_owner_user_id, access_enabled
+    INTO v_capacity, v_asset_project_id, v_asset_booking_owner_user_id, v_asset_access_enabled
   FROM public.community_assets
   WHERE id = p_asset_id;
 
   IF v_capacity IS NULL THEN
     RAISE EXCEPTION 'ASSET_NOT_FOUND: Asset does not exist';
+  END IF;
+
+  IF v_asset_project_id != p_project_id THEN
+    RAISE EXCEPTION 'ASSET_NOT_FOUND: Asset project mismatch';
+  END IF;
+
+  IF NOT COALESCE(v_asset_access_enabled, false) THEN
+    RAISE EXCEPTION 'ACCESS_DISABLED: Asset access is disabled';
+  END IF;
+
+  IF v_asset_booking_owner_user_id IS NULL OR v_asset_booking_owner_user_id != p_booking_owner_user_id THEN
+    RAISE EXCEPTION 'NO_BOOKING_OWNER: Asset booking owner is invalid';
+  END IF;
+
+  SELECT asset_id, project_id, user_id
+    INTO v_event_type_asset_id, v_event_type_project_id, v_event_type_user_id
+  FROM public.event_types
+  WHERE id = p_event_type_id
+    AND is_active = true;
+
+  IF v_event_type_asset_id IS NULL THEN
+    RAISE EXCEPTION 'EVENT_TYPE_NOT_FOUND: Event type does not exist';
+  END IF;
+
+  IF v_event_type_asset_id != p_asset_id OR v_event_type_project_id != p_project_id THEN
+    RAISE EXCEPTION 'EVENT_TYPE_NOT_FOUND: Event type is not linked to this asset';
+  END IF;
+
+  IF v_event_type_user_id != p_booking_owner_user_id THEN
+    RAISE EXCEPTION 'NO_BOOKING_OWNER: Event type owner must match asset booking owner';
   END IF;
 
   -- Count overlapping active bookings across ALL event types for this asset
@@ -431,4 +485,4 @@ GRANT EXECUTE ON FUNCTION public.create_asset_booking_if_available(
   INTERVAL, INTERVAL,
   TEXT, TEXT, TEXT, TEXT, TEXT, TEXT, TEXT,
   JSONB, BOOLEAN
-) TO authenticated, service_role;
+) TO service_role;

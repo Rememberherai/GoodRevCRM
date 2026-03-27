@@ -9,6 +9,7 @@
 
 import { formatInTimeZone, fromZonedTime } from 'date-fns-tz';
 import { createServiceClient } from '@/lib/supabase/server';
+import type { Database } from '@/types/database';
 import type { AvailableDay, TimeSlot } from '@/types/calendar';
 
 interface SlotConfig {
@@ -50,6 +51,11 @@ export async function getAvailableSlots(config: SlotConfig): Promise<AvailableDa
     .single();
 
   if (etError || !eventType) return [];
+
+  // ── Asset-linked event types: use asset-scoped slot logic ──
+  if (eventType.asset_id) {
+    return getAssetAvailableSlots(supabase, eventType, config);
+  }
 
   const schedulingType = eventType.scheduling_type || 'one_on_one';
 
@@ -345,6 +351,205 @@ export async function getAvailableSlots(config: SlotConfig): Promise<AvailableDa
     slots.sort((a, b) => a.start.localeCompare(b.start));
     return [{ date: dateKey, slots }];
   });
+}
+
+// ============================================================
+// Asset-linked slot engine
+// ============================================================
+
+/**
+ * Compute available slots for an asset-linked event type.
+ *
+ * Key differences from person-booking slots:
+ * - Uses the event type's schedule (not per-user availability)
+ * - Ignores synced calendar events (assets don't have personal calendars)
+ * - Capacity is asset-scoped: counts overlapping bookings across ALL
+ *   event types linked to this asset, compares against concurrent_capacity
+ * - No daily/weekly limits (those are host-scoped concepts)
+ */
+async function getAssetAvailableSlots(
+  supabase: ReturnType<typeof createServiceClient>,
+  eventType: Database['public']['Tables']['event_types']['Row'],
+  config: SlotConfig
+): Promise<AvailableDay[]> {
+  const assetId = eventType.asset_id!;
+
+  // Load asset for capacity
+  const { data: asset } = await supabase
+    .from('community_assets')
+    .select('concurrent_capacity, access_enabled')
+    .eq('id', assetId)
+    .single();
+
+  if (!asset || !asset.access_enabled) return [];
+
+  const capacity = asset.concurrent_capacity;
+
+  // Load schedule (event type's schedule or owner's default)
+  let scheduleRules: { day_of_week: number; start_time: string; end_time: string }[] = [];
+  let scheduleTz = 'America/New_York';
+
+  if (eventType.schedule_id) {
+    const { data: schedule } = await supabase
+      .from('availability_schedules')
+      .select('timezone')
+      .eq('id', eventType.schedule_id)
+      .maybeSingle();
+
+    if (schedule) scheduleTz = schedule.timezone;
+
+    const { data: rules } = await supabase
+      .from('availability_rules')
+      .select('day_of_week, start_time, end_time')
+      .eq('schedule_id', eventType.schedule_id);
+
+    if (rules) scheduleRules = rules;
+  } else {
+    const { data: defaultSchedule } = await supabase
+      .from('availability_schedules')
+      .select('id, timezone')
+      .eq('user_id', eventType.user_id)
+      .eq('is_default', true)
+      .single();
+
+    if (defaultSchedule) {
+      scheduleTz = defaultSchedule.timezone;
+      const { data: defaultRules } = await supabase
+        .from('availability_rules')
+        .select('day_of_week, start_time, end_time')
+        .eq('schedule_id', defaultSchedule.id);
+
+      if (defaultRules) scheduleRules = defaultRules;
+    }
+  }
+
+  const inviteeTimezone = config.inviteeTimezone || scheduleTz;
+
+  const requestedDateKeys = enumerateDateKeys(config.startDate, config.endDate);
+  const requestedDateSet = new Set(requestedDateKeys);
+
+  const inviteeRangeStartUtc = fromZonedTime(`${config.startDate}T00:00:00`, inviteeTimezone);
+  const inviteeRangeEndUtc = fromZonedTime(`${config.endDate}T23:59:59`, inviteeTimezone);
+
+  const hostRangeStart = shiftDateKey(zonedDateKey(inviteeRangeStartUtc, scheduleTz), -1);
+  const hostRangeEnd = shiftDateKey(zonedDateKey(inviteeRangeEndUtc, scheduleTz), 1);
+
+  const rangeStart = fromZonedTime(`${hostRangeStart}T00:00:00`, scheduleTz);
+  const rangeEnd = fromZonedTime(`${hostRangeEnd}T23:59:59`, scheduleTz);
+
+  // Load overrides for the booking owner (used for schedule overrides like holidays)
+  const { data: overrides } = await supabase
+    .from('availability_overrides')
+    .select('date, start_time, end_time, is_available')
+    .eq('user_id', eventType.user_id)
+    .gte('date', hostRangeStart)
+    .lte('date', hostRangeEnd);
+
+  const overrideMap = new Map<string, OverrideRow[]>();
+  for (const o of overrides || []) {
+    if (!overrideMap.has(o.date)) overrideMap.set(o.date, []);
+    overrideMap.get(o.date)!.push(o);
+  }
+
+  // Load ALL active bookings for this asset (across all event types)
+  const { data: assetBookings } = await supabase
+    .from('bookings')
+    .select('effective_block_start, effective_block_end, start_at, event_types!inner(asset_id)')
+    .eq('event_types.asset_id', assetId)
+    .in('status', ['confirmed', 'pending'])
+    .lte('effective_block_start', rangeEnd.toISOString())
+    .gte('effective_block_end', rangeStart.toISOString());
+
+  const bookingRows: BookingRow[] = (assetBookings || []).map((b) => ({
+    effective_block_start: b.effective_block_start,
+    effective_block_end: b.effective_block_end,
+    start_at: b.start_at,
+  }));
+
+  // Generate slots
+  const duration = eventType.duration_minutes;
+  const interval = eventType.slot_interval_minutes || duration;
+  const bufferBefore = eventType.buffer_before_minutes || 0;
+  const bufferAfter = eventType.buffer_after_minutes || 0;
+  const minNoticeMs = (eventType.min_notice_hours || 0) * 60 * 60 * 1000;
+  const maxDaysAdvance = eventType.max_days_in_advance || 60;
+  const now = Date.now();
+  const maxBookableAtMs = now + maxDaysAdvance * 24 * 60 * 60 * 1000;
+
+  const slotsByInviteeDate = new Map<string, TimeSlot[]>();
+
+  for (const hostDateKey of enumerateDateKeys(hostRangeStart, hostRangeEnd)) {
+    // No daily/weekly limits for asset bookings
+
+    const windows = resolveAvailabilityWindows(
+      hostDateKey,
+      new Date(`${hostDateKey}T12:00:00Z`).getUTCDay(),
+      scheduleRules,
+      overrideMap.get(hostDateKey) || []
+    );
+
+    if (windows.length === 0) continue;
+
+    for (const window of windows) {
+      let slotStartMin = window.start;
+
+      while (slotStartMin + duration <= window.end) {
+        const slotStart = zonedMinutesToUtc(hostDateKey, slotStartMin, scheduleTz);
+        const slotEnd = new Date(slotStart.getTime() + duration * 60 * 1000);
+        const blockStart = new Date(slotStart.getTime() - bufferBefore * 60 * 1000);
+        const blockEnd = new Date(slotEnd.getTime() + bufferAfter * 60 * 1000);
+
+        // Check min notice and max advance
+        if (slotStart.getTime() - now < minNoticeMs || slotStart.getTime() > maxBookableAtMs) {
+          slotStartMin += interval;
+          continue;
+        }
+
+        // Count overlapping bookings for capacity check (no synced events for assets)
+        const overlapCount = countOverlaps(blockStart, blockEnd, bookingRows);
+
+        if (overlapCount < capacity) {
+          const inviteeDateKey = zonedDateKey(slotStart, inviteeTimezone);
+          if (requestedDateSet.has(inviteeDateKey)) {
+            const existingSlots = slotsByInviteeDate.get(inviteeDateKey) || [];
+            existingSlots.push({
+              start: slotStart.toISOString(),
+              end: slotEnd.toISOString(),
+            });
+            slotsByInviteeDate.set(inviteeDateKey, existingSlots);
+          }
+        }
+
+        slotStartMin += interval;
+      }
+    }
+  }
+
+  return requestedDateKeys.flatMap((dateKey) => {
+    const slots = slotsByInviteeDate.get(dateKey);
+    if (!slots || slots.length === 0) return [];
+    slots.sort((a, b) => a.start.localeCompare(b.start));
+    return [{ date: dateKey, slots }];
+  });
+}
+
+/** Count how many bookings overlap with a given block (for capacity checks) */
+function countOverlaps(
+  blockStart: Date,
+  blockEnd: Date,
+  bookings: BookingRow[]
+): number {
+  const bsMs = blockStart.getTime();
+  const beMs = blockEnd.getTime();
+  let count = 0;
+
+  for (const b of bookings) {
+    const bStart = new Date(b.effective_block_start).getTime();
+    const bEnd = new Date(b.effective_block_end).getTime();
+    if (bsMs < bEnd && beMs > bStart) count++;
+  }
+
+  return count;
 }
 
 // ============================================================

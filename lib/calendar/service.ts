@@ -97,6 +97,30 @@ export async function createBooking(input: CreateBookingInput): Promise<CreateBo
     return { success: false, error: 'Event type not found', errorCode: 'EVENT_TYPE_NOT_FOUND' };
   }
 
+  // ── Asset-linked event types: route to asset booking service ──
+  if (eventType.asset_id) {
+    const { createAssetBooking } = await import('@/lib/asset-access/service');
+    const result = await createAssetBooking({
+      assetId: eventType.asset_id,
+      eventTypeId: eventType.id,
+      startAt: input.startAt,
+      inviteeName: input.inviteeName,
+      inviteeEmail: input.inviteeEmail,
+      inviteePhone: input.inviteePhone,
+      inviteeTimezone: input.inviteeTimezone,
+      inviteeNotes: input.inviteeNotes,
+      responses: input.responses,
+    });
+    return {
+      success: result.success,
+      bookingId: result.bookingId,
+      error: result.error,
+      errorCode: result.errorCode === 'CAPACITY_EXHAUSTED' ? 'SLOT_TAKEN'
+        : result.errorCode === 'EVENT_TYPE_NOT_FOUND' ? 'EVENT_TYPE_NOT_FOUND'
+        : undefined,
+    };
+  }
+
   // Get host timezone from schedule or profile
   let hostTimezone = 'America/New_York';
   if (eventType.schedule_id) {
