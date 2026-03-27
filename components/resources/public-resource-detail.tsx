@@ -256,6 +256,11 @@ export function PublicResourceDetail({
       {step === 'preset' && (
         <div className="space-y-3">
           <h2 className="text-lg font-semibold">Select an option</h2>
+          {presets.length === 0 && (
+            <div className="rounded-lg border border-dashed p-8 text-center text-sm text-muted-foreground">
+              This resource doesn&apos;t have any booking options configured yet. Please check back later.
+            </div>
+          )}
           {presets.map((preset) => (
             <button
               key={preset.id}

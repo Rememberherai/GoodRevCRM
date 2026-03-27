@@ -4,6 +4,22 @@ import { useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { PublicResourceHub } from '@/components/resources/public-resource-hub';
 
+interface CurrentLoan {
+  id: string;
+  borrower_name: string;
+  start_at: string;
+  end_at: string;
+  asset_name: string;
+  resource_slug: string | null;
+}
+
+interface PopularResource {
+  id: string;
+  name: string;
+  resource_slug: string | null;
+  booking_count: number;
+}
+
 interface HubData {
   hub: {
     title: string;
@@ -20,7 +36,10 @@ interface HubData {
     approval_policy: string;
     concurrent_capacity: number;
     return_required: boolean;
+    booking_count: number;
   }[];
+  current_loans: CurrentLoan[];
+  popular_resources: PopularResource[];
 }
 
 export default function ResourceHubPage() {
@@ -66,5 +85,13 @@ export default function ResourceHubPage() {
     );
   }
 
-  return <PublicResourceHub hub={data.hub} assets={data.assets} hubSlug={hubSlug} />;
+  return (
+    <PublicResourceHub
+      hub={data.hub}
+      assets={data.assets}
+      hubSlug={hubSlug}
+      currentLoans={data.current_loans ?? []}
+      popularResources={data.popular_resources ?? []}
+    />
+  );
 }

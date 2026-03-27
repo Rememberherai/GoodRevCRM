@@ -102,7 +102,7 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
         throw new Error(data.error || 'Failed to toggle access');
       }
       toast.success(asset.access_enabled ? 'Access disabled' : 'Access enabled');
-      void loadAsset();
+      setAsset((prev) => prev ? { ...prev, access_enabled: !prev.access_enabled } : prev);
     } catch (err) {
       const message = err instanceof Error ? err.message : 'Failed to toggle access';
       toast.error(message);
