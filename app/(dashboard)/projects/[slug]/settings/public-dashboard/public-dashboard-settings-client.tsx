@@ -18,6 +18,15 @@ import type { Database, Json } from '@/types/database';
 
 type PublicDashboardConfig = Database['public']['Tables']['public_dashboard_configs']['Row'];
 
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'dashboard';
+}
+
 interface ConfigRecord extends EditablePublicDashboardConfig {
   id: string;
 }
@@ -27,7 +36,7 @@ function toEditableConfig(config: Partial<ConfigRecord> = {}): EditablePublicDas
     id: config.id,
     title: config.title ?? 'Community Impact Dashboard',
     description: config.description ?? '',
-    slug: config.slug ?? `impact-${Date.now()}`,
+    slug: config.slug ?? slugify(config.title ?? 'community-impact-dashboard'),
     status: config.status ?? 'draft',
     access_type: config.access_type ?? 'public',
     data_freshness: config.data_freshness ?? 'live',
@@ -87,6 +96,20 @@ export function PublicDashboardSettingsClient() {
   const abortRef = useRef<AbortController | null>(null);
 
   const isDirty = draft !== null && normalizeDraft(draft) !== lastSavedRef.current;
+  const autosaveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+  // Autosave: debounce 1.5s after last change, only for existing (already-saved) dashboards
+  useEffect(() => {
+    if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    if (!isDirty || !draft?.id || saving) return;
+    autosaveTimerRef.current = setTimeout(() => {
+      void performAutosave();
+    }, 1500);
+    return () => {
+      if (autosaveTimerRef.current) clearTimeout(autosaveTimerRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isDirty, draft, saving]);
 
   // Warn on tab close / reload when dirty
   useEffect(() => {
@@ -170,7 +193,7 @@ export function PublicDashboardSettingsClient() {
     };
   }
 
-  async function saveConfig() {
+  async function performSave(silent = false) {
     if (!draft || saving) return;
     setSaving(true);
     try {
@@ -187,7 +210,7 @@ export function PublicDashboardSettingsClient() {
       if (response.ok && data.config) {
         setSelectedId(data.config.id);
         await loadConfigs(data.config.id);
-        toast.success('Dashboard saved');
+        if (!silent) toast.success('Dashboard saved');
       } else {
         const fieldErrors = data.details?.fieldErrors;
         const detail = fieldErrors ? Object.entries(fieldErrors).map(([k, v]) => `${k}: ${v.join(', ')}`).join('; ') : '';
@@ -198,6 +221,29 @@ export function PublicDashboardSettingsClient() {
     } finally {
       setSaving(false);
     }
+  }
+
+  async function performAutosave() {
+    if (!draft || saving || !draft.id) return;
+    setSaving(true);
+    try {
+      const response = await fetch(`/api/projects/${slug}/public-dashboard/${draft.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(buildPayload(draft)),
+      });
+      if (response.ok) {
+        lastSavedRef.current = normalizeDraft(draft);
+      }
+    } catch {
+      // Silent — autosave failures are non-critical
+    } finally {
+      setSaving(false);
+    }
+  }
+
+  function saveConfig() {
+    void performSave(false);
   }
 
   async function handleStatusChange(status: ConfigRecord['status']) {
@@ -242,15 +288,15 @@ export function PublicDashboardSettingsClient() {
   }
 
   const previewPanel = draft ? (
-    <div className="flex flex-col h-full">
-      <div className="border-b bg-muted/30 px-4 py-2">
+    <div className="flex flex-col h-full min-h-0">
+      <div className="border-b bg-muted/30 px-4 py-2 shrink-0">
         <p className="text-xs text-muted-foreground">Preview — shows layout with sample data</p>
       </div>
-      <ScrollArea className="flex-1">
+      <div className="min-h-0 flex-1 overflow-y-auto">
         <div className="max-w-2xl mx-auto">
           <PublicDashboardView config={draftToPreviewConfig(draft)} data={SAMPLE_DASHBOARD_DATA} />
         </div>
-      </ScrollArea>
+      </div>
     </div>
   ) : null;
 
@@ -291,7 +337,7 @@ export function PublicDashboardSettingsClient() {
         <PublishControls status={draft?.status ?? 'draft'} disabled={saving} onStatusChange={(status) => void handleStatusChange(status)} />
 
         <div className="relative">
-          <Button size="sm" onClick={() => void saveConfig()} disabled={saving || !draft}>
+          <Button size="sm" onClick={saveConfig} disabled={saving || !draft}>
             {saving ? 'Saving...' : 'Save'}
           </Button>
           {isDirty && (
@@ -332,7 +378,7 @@ export function PublicDashboardSettingsClient() {
         {/* Left: Config editor */}
         <ScrollArea className="max-h-[calc(100vh-180px)]">
           <div className="space-y-6 pr-2">
-            <ConfigEditor config={draft} onChange={setDraft} onSave={() => void saveConfig()} saving={saving} isDirty={isDirty} />
+            <ConfigEditor config={draft} onChange={setDraft} onSave={saveConfig} saving={saving} isDirty={isDirty} projectSlug={slug} />
             {draft?.id && <ShareLinks configId={draft.id} />}
           </div>
         </ScrollArea>

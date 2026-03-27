@@ -30,7 +30,18 @@ import { ChartWidgetConfig } from '@/components/community/public-dashboard/widge
 import { MapWidgetConfig } from '@/components/community/public-dashboard/widgets/widget-config-map';
 import { TextWidgetConfig } from '@/components/community/public-dashboard/widgets/widget-config-text';
 import { WidgetGallery } from '@/components/community/public-dashboard/widget-gallery';
+import { ExternalLink } from 'lucide-react';
+import { HeroImageUpload } from '@/components/community/public-dashboard/hero-image-upload';
 import { getWidgetMeta } from '@/lib/community/public-dashboard-widget-meta';
+
+function slugify(text: string): string {
+  return text
+    .toLowerCase()
+    .trim()
+    .replace(/[^a-z0-9]+/g, '-')
+    .replace(/^-+|-+$/g, '')
+    || 'dashboard';
+}
 
 type WidgetRecord = {
   id: string;
@@ -90,12 +101,14 @@ export function ConfigEditor({
   onSave,
   saving,
   isDirty,
+  projectSlug,
 }: {
   config: EditablePublicDashboardConfig | null;
   onChange: (config: EditablePublicDashboardConfig) => void;
   onSave: () => void;
   saving?: boolean;
   isDirty?: boolean;
+  projectSlug?: string;
 }) {
   const [activeId, setActiveId] = useState<string | null>(null);
   const sensors = useSensors(
@@ -157,13 +170,23 @@ export function ConfigEditor({
           <CardDescription>Branding, access control, and widget configuration.</CardDescription>
         </CardHeader>
         <CardContent className="grid gap-4 md:grid-cols-2">
-          <div className="space-y-2">
+          <div className="space-y-2 md:col-span-2">
             <Label>Title</Label>
-            <Input value={config.title} onChange={(event) => onChange({ ...config, title: event.target.value })} />
-          </div>
-          <div className="space-y-2">
-            <Label>Slug</Label>
-            <Input value={config.slug} onChange={(event) => onChange({ ...config, slug: event.target.value })} />
+            <Input
+              value={config.title}
+              onChange={(event) => {
+                const title = event.target.value;
+                onChange({ ...config, title, slug: slugify(title) });
+              }}
+            />
+            {config.slug && (
+              <div className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                <ExternalLink className="h-3 w-3 shrink-0" />
+                <span className="truncate">
+                  /public/{projectSlug}/{config.slug}
+                </span>
+              </div>
+            )}
           </div>
           <div className="space-y-2 md:col-span-2">
             <Label>Description</Label>
@@ -216,8 +239,16 @@ export function ConfigEditor({
             </Select>
           </div>
           <div className="space-y-2 md:col-span-2">
-            <Label>Hero Image URL</Label>
-            <Input value={config.hero_image_url ?? ''} onChange={(event) => onChange({ ...config, hero_image_url: event.target.value || null })} />
+            <Label>Hero Image</Label>
+            {projectSlug ? (
+              <HeroImageUpload
+                projectSlug={projectSlug}
+                currentUrl={config.hero_image_url}
+                onUploaded={(url) => onChange({ ...config, hero_image_url: url })}
+              />
+            ) : (
+              <Input value={config.hero_image_url ?? ''} onChange={(event) => onChange({ ...config, hero_image_url: event.target.value || null })} />
+            )}
           </div>
         </CardContent>
       </Card>
