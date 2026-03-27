@@ -62,7 +62,9 @@ export async function GET(_request: Request, context: RouteContext) {
     const futureStr = thirtyDaysOut.toISOString().slice(0, 10);
 
     const deadlines: { grant_id: string; grant_name: string; type: string; date: string }[] = [];
+    const terminalStatuses = ['declined', 'not_a_fit', 'closed'];
     for (const g of pipelineGrants) {
+      if (terminalStatuses.includes(g.status ?? '')) continue;
       if (g.loi_due_at && g.loi_due_at >= nowStr && g.loi_due_at <= futureStr) {
         deadlines.push({ grant_id: g.id, grant_name: g.name, type: 'LOI Due', date: g.loi_due_at });
       }

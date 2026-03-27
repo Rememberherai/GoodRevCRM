@@ -25,6 +25,7 @@ const STATUSES = [
   { value: 'active', label: 'Active' },
   { value: 'closed', label: 'Closed' },
   { value: 'declined', label: 'Declined' },
+  { value: 'not_a_fit', label: 'Not a Fit' },
 ];
 
 const CATEGORIES = [

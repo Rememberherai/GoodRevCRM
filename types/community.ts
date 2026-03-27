@@ -49,7 +49,8 @@ export type GrantStatus =
   | 'awarded'
   | 'active'
   | 'closed'
-  | 'declined';
+  | 'declined'
+  | 'not_a_fit';
 
 export type GrantCategory = 'federal' | 'state' | 'corporate' | 'foundation' | 'individual';
 export type GrantUrgency = 'low' | 'medium' | 'high' | 'critical';

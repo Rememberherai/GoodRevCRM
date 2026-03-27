@@ -601,7 +601,7 @@ export async function getGrantPipelineReport(
     });
   }
 
-  const statusOrder = ['researching', 'preparing', 'submitted', 'under_review', 'awarded', 'active', 'closed', 'declined'];
+  const statusOrder = ['researching', 'preparing', 'submitted', 'under_review', 'awarded', 'active', 'closed', 'declined', 'not_a_fit'];
 
   return {
     by_status: [...statusMap.entries()]

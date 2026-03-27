@@ -10,6 +10,7 @@ export const grantStatusSchema = z.enum([
   'active',
   'closed',
   'declined',
+  'not_a_fit',
 ]);
 
 export const grantMatchTypeSchema = z.enum(['cash', 'in_kind', 'either']);

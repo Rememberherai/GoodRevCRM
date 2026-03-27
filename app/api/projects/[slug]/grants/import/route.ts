@@ -11,7 +11,7 @@ interface RouteContext {
   params: Promise<{ slug: string }>;
 }
 
-const VALID_STATUSES = ['researching', 'preparing', 'submitted', 'under_review', 'awarded', 'active', 'closed', 'declined'];
+const VALID_STATUSES = ['researching', 'preparing', 'submitted', 'under_review', 'awarded', 'active', 'closed', 'declined', 'not_a_fit'];
 const VALID_CATEGORIES = ['federal', 'state', 'corporate', 'foundation', 'individual'];
 const VALID_URGENCIES = ['low', 'medium', 'high', 'critical'];
 

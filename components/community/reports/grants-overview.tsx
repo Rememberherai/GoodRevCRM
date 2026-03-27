@@ -49,6 +49,7 @@ const STATUS_COLORS: Record<string, string> = {
   active: 'var(--color-green-600)',
   closed: 'var(--color-gray-500)',
   declined: 'var(--color-red-400)',
+  not_a_fit: 'var(--color-orange-400)',
 };
 
 const pipelineConfig = {

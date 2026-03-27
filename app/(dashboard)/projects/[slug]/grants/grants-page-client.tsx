@@ -60,6 +60,7 @@ const GRANT_STATUSES = [
   { value: 'active', label: 'Active', color: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300' },
   { value: 'closed', label: 'Closed', color: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300' },
   { value: 'declined', label: 'Declined', color: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300' },
+  { value: 'not_a_fit', label: 'Not a Fit', color: 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300' },
 ] as const;
 
 function formatCurrency(amount: number | null) {
@@ -534,8 +535,8 @@ function KanbanView({
   onStatusChange: (id: string, status: string) => void;
   onClickGrant: (id: string) => void;
 }) {
-  const pipelineStatuses = GRANT_STATUSES.filter((s) => s.value !== 'declined');
-  const declinedGrants = grants.filter((g) => g.status === 'declined');
+  const pipelineStatuses = GRANT_STATUSES.filter((s) => s.value !== 'declined' && s.value !== 'not_a_fit');
+  const declinedGrants = grants.filter((g) => g.status === 'declined' || g.status === 'not_a_fit');
   const [activeId, setActiveId] = useState<string | null>(null);
 
   const sensors = useSensors(
@@ -580,7 +581,7 @@ function KanbanView({
           <Card>
             <CardHeader className="py-3">
               <CardTitle className="text-sm font-medium">
-                Declined ({declinedGrants.length})
+                Declined / Not a Fit ({declinedGrants.length})
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-2">
@@ -591,9 +592,12 @@ function KanbanView({
                   className="flex w-full items-center justify-between rounded-lg border p-3 text-left hover:bg-accent"
                 >
                   <span className="font-medium">{grant.name}</span>
-                  <span className="text-sm text-muted-foreground">
-                    {formatCurrency(grant.amount_requested)}
-                  </span>
+                  <div className="flex items-center gap-2">
+                    <Badge className={getStatusConfig(grant.status).color}>{getStatusConfig(grant.status).label}</Badge>
+                    <span className="text-sm text-muted-foreground">
+                      {formatCurrency(grant.amount_requested)}
+                    </span>
+                  </div>
                 </button>
               ))}
             </CardContent>

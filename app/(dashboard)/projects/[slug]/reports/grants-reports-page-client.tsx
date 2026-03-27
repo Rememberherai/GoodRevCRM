@@ -51,6 +51,7 @@ const STATUS_LABELS: Record<string, string> = {
   active: 'Active',
   closed: 'Closed',
   declined: 'Declined',
+  not_a_fit: 'Not a Fit',
 };
 
 function formatCurrency(amount: number): string {
@@ -210,7 +211,7 @@ export function GrantsReportsPageClient({ projectSlug }: GrantsReportsPageClient
                   <tbody>
                     {pipeline
                       .sort((a, b) => {
-                        const order = ['researching', 'preparing', 'submitted', 'under_review', 'awarded', 'active', 'closed', 'declined'];
+                        const order = ['researching', 'preparing', 'submitted', 'under_review', 'awarded', 'active', 'closed', 'declined', 'not_a_fit'];
                         return order.indexOf(a.status) - order.indexOf(b.status);
                       })
                       .map((row) => (

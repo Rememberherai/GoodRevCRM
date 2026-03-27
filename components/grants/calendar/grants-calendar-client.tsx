@@ -35,6 +35,7 @@ const STATUS_COLORS: Record<string, string> = {
   active: 'bg-emerald-100 text-emerald-700',
   closed: 'bg-gray-100 text-gray-700',
   declined: 'bg-red-100 text-red-700',
+  not_a_fit: 'bg-orange-100 text-orange-700',
 };
 
 function toDateKey(d: Date) {

@@ -19,7 +19,7 @@ interface DashboardData {
   recentGrants: { id: string; name: string; status: string; updated_at: string }[];
 }
 
-const STATUS_ORDER = ['researching', 'preparing', 'submitted', 'under_review', 'awarded', 'active', 'closed', 'declined'];
+const STATUS_ORDER = ['researching', 'preparing', 'submitted', 'under_review', 'awarded', 'active', 'closed', 'declined', 'not_a_fit'];
 const STATUS_COLORS: Record<string, string> = {
   researching: 'bg-slate-500',
   preparing: 'bg-blue-500',
@@ -29,6 +29,7 @@ const STATUS_COLORS: Record<string, string> = {
   active: 'bg-emerald-600',
   closed: 'bg-gray-500',
   declined: 'bg-red-500',
+  not_a_fit: 'bg-orange-500',
 };
 const STATUS_LABELS: Record<string, string> = {
   researching: 'Researching',
@@ -39,6 +40,7 @@ const STATUS_LABELS: Record<string, string> = {
   active: 'Active',
   closed: 'Closed',
   declined: 'Declined',
+  not_a_fit: 'Not a Fit',
 };
 
 function formatCurrency(amount: number): string {
@@ -84,7 +86,7 @@ export function GrantsDashboardClient({ projectSlug }: GrantsDashboardClientProp
   const { summary, statusCounts, deadlines, recentGrants } = data;
 
   // Calculate max for pipeline bar chart
-  const pipelineStatuses = STATUS_ORDER.filter(s => s !== 'declined' && s !== 'closed');
+  const pipelineStatuses = STATUS_ORDER.filter(s => s !== 'declined' && s !== 'closed' && s !== 'not_a_fit');
   const maxCount = Math.max(...pipelineStatuses.map(s => statusCounts[s]?.count ?? 0), 1);
 
   return (
@@ -193,11 +195,21 @@ export function GrantsDashboardClient({ projectSlug }: GrantsDashboardClientProp
                 </div>
               );
             })}
-            {/* Declined summary */}
-            {statusCounts['declined'] && (
-              <div className="flex items-center gap-3 pt-2 border-t">
-                <span className="text-xs text-muted-foreground w-24 shrink-0">Declined</span>
-                <span className="text-xs text-red-500">{statusCounts['declined'].count} grant{statusCounts['declined'].count !== 1 ? 's' : ''}</span>
+            {/* Declined / Not a Fit summary */}
+            {(statusCounts['declined'] || statusCounts['not_a_fit']) && (
+              <div className="flex items-center gap-3 pt-2 border-t flex-wrap">
+                {statusCounts['declined'] && (
+                  <>
+                    <span className="text-xs text-muted-foreground w-24 shrink-0">Declined</span>
+                    <span className="text-xs text-red-500">{statusCounts['declined'].count} grant{statusCounts['declined'].count !== 1 ? 's' : ''}</span>
+                  </>
+                )}
+                {statusCounts['not_a_fit'] && (
+                  <>
+                    <span className="text-xs text-muted-foreground w-24 shrink-0">Not a Fit</span>
+                    <span className="text-xs text-orange-500">{statusCounts['not_a_fit'].count} grant{statusCounts['not_a_fit'].count !== 1 ? 's' : ''}</span>
+                  </>
+                )}
               </div>
             )}
           </CardContent>

@@ -130,6 +130,7 @@ const STATUSES = [
   { value: 'active', label: 'Active' },
   { value: 'closed', label: 'Closed' },
   { value: 'declined', label: 'Declined' },
+  { value: 'not_a_fit', label: 'Not a Fit' },
 ];
 
 const CATEGORIES = [
@@ -162,6 +163,7 @@ const STATUS_COLORS: Record<string, string> = {
   active: 'bg-emerald-100 text-emerald-700 dark:bg-emerald-900 dark:text-emerald-300',
   closed: 'bg-gray-100 text-gray-700 dark:bg-gray-800 dark:text-gray-300',
   declined: 'bg-red-100 text-red-700 dark:bg-red-900 dark:text-red-300',
+  not_a_fit: 'bg-orange-100 text-orange-700 dark:bg-orange-900 dark:text-orange-300',
 };
 
 const DOCUMENT_TYPES = [
