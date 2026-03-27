@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Users, Check, X, KeyRound, Monitor } from 'lucide-react';
+import { Users, Check, KeyRound, Monitor, Mail, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -37,12 +37,30 @@ interface SetPinDialogState {
   saving: boolean;
 }
 
+interface InviteDialogState {
+  open: boolean;
+  personId: string;
+  personName: string;
+  email: string;
+  sending: boolean;
+  inviteUrl: string | null;
+}
+
 const emptyPinDialog: SetPinDialogState = {
   open: false,
   personId: '',
   personName: '',
   pin: '',
   saving: false,
+};
+
+const emptyInviteDialog: InviteDialogState = {
+  open: false,
+  personId: '',
+  personName: '',
+  email: '',
+  sending: false,
+  inviteUrl: null,
 };
 
 export function EmployeesPageClient() {
@@ -52,6 +70,7 @@ export function EmployeesPageClient() {
   const [employees, setEmployees] = useState<EmployeePerson[]>([]);
   const [loading, setLoading] = useState(true);
   const [pinDialog, setPinDialog] = useState<SetPinDialogState>(emptyPinDialog);
+  const [inviteDialog, setInviteDialog] = useState<InviteDialogState>(emptyInviteDialog);
 
   const loadEmployees = useCallback(async () => {
     setLoading(true);
@@ -121,6 +140,39 @@ export function EmployeesPageClient() {
       await loadEmployees();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to clear PIN');
+    }
+  }
+
+  function openInviteDialog(person: EmployeePerson) {
+    setInviteDialog({
+      open: true,
+      personId: person.id,
+      personName: displayName(person),
+      email: person.email ?? '',
+      sending: false,
+      inviteUrl: null,
+    });
+  }
+
+  async function sendPortalInvite() {
+    if (!inviteDialog.email) {
+      toast.error('Email is required to send an invite');
+      return;
+    }
+    setInviteDialog((d) => ({ ...d, sending: true }));
+    try {
+      const res = await fetch(`/api/projects/${slug}/members`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: inviteDialog.email, role: 'staff' }),
+      });
+      const data = await res.json() as { invite_url?: string; error?: string };
+      if (!res.ok) throw new Error(data.error ?? 'Failed to send invite');
+      setInviteDialog((d) => ({ ...d, sending: false, inviteUrl: data.invite_url ?? null }));
+      toast.success('Portal invite created');
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to send invite');
+      setInviteDialog((d) => ({ ...d, sending: false }));
     }
   }
 
@@ -199,7 +251,15 @@ export function EmployeesPageClient() {
                           {hasPortal ? (
                             <Check className="mx-auto h-4 w-4 text-green-600" />
                           ) : (
-                            <X className="mx-auto h-4 w-4 text-muted-foreground" />
+                            <Button
+                              size="sm"
+                              variant="ghost"
+                              className="h-6 text-xs text-muted-foreground hover:text-foreground"
+                              onClick={() => openInviteDialog(emp)}
+                            >
+                              <Mail className="mr-1 h-3 w-3" />
+                              Invite
+                            </Button>
                           )}
                         </td>
                         <td className="py-2 pr-4 text-center">
@@ -276,6 +336,80 @@ export function EmployeesPageClient() {
             <Button onClick={() => void savePin()} disabled={pinDialog.saving || pinDialog.pin.length !== 4}>
               Save PIN
             </Button>
+          </DialogFooter>
+        </DialogContent>
+      </Dialog>
+
+      {/* Invite to Portal dialog */}
+      <Dialog open={inviteDialog.open} onOpenChange={(open) => !open && setInviteDialog(emptyInviteDialog)}>
+        <DialogContent className="sm:max-w-md">
+          <DialogHeader>
+            <DialogTitle>Invite to Portal</DialogTitle>
+            <DialogDescription>
+              Send <strong>{inviteDialog.personName}</strong> a portal invite so they can log in, view schedules, and access their employee dashboard.
+            </DialogDescription>
+          </DialogHeader>
+          {inviteDialog.inviteUrl ? (
+            <div className="space-y-3 py-2">
+              <p className="text-sm text-muted-foreground">
+                Invite created! Share this link with {inviteDialog.personName}:
+              </p>
+              <div className="flex items-center gap-2">
+                <Input readOnly value={inviteDialog.inviteUrl} className="text-xs" />
+                <Button
+                  size="sm"
+                  variant="outline"
+                  onClick={() => {
+                    void navigator.clipboard.writeText(inviteDialog.inviteUrl!);
+                    toast.success('Link copied');
+                  }}
+                >
+                  <Copy className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+              <p className="text-xs text-muted-foreground">
+                This link expires in 7 days. Once accepted, their portal access will activate automatically.
+              </p>
+            </div>
+          ) : (
+            <div className="space-y-4 py-2">
+              <div className="space-y-2">
+                <Label htmlFor="invite-email">Email</Label>
+                <Input
+                  id="invite-email"
+                  type="email"
+                  placeholder="employee@example.com"
+                  value={inviteDialog.email}
+                  onChange={(e) => setInviteDialog((d) => ({ ...d, email: e.target.value }))}
+                  autoFocus
+                />
+              </div>
+              {!inviteDialog.email && (
+                <p className="text-xs text-amber-600">
+                  This person has no email on file. Enter their email to send the invite.
+                </p>
+              )}
+            </div>
+          )}
+          <DialogFooter>
+            {inviteDialog.inviteUrl ? (
+              <Button onClick={() => { setInviteDialog(emptyInviteDialog); void loadEmployees(); }}>
+                Done
+              </Button>
+            ) : (
+              <>
+                <Button variant="outline" onClick={() => setInviteDialog(emptyInviteDialog)} disabled={inviteDialog.sending}>
+                  Cancel
+                </Button>
+                <Button
+                  onClick={() => void sendPortalInvite()}
+                  disabled={inviteDialog.sending || !inviteDialog.email}
+                >
+                  <Mail className="mr-1.5 h-3.5 w-3.5" />
+                  {inviteDialog.sending ? 'Sending…' : 'Send Invite'}
+                </Button>
+              </>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>
