@@ -6,6 +6,7 @@ import { ModuleSwitcher } from '@/components/layout/module-switcher';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { ProcessQueueButton } from '@/components/layout/process-queue-button';
 import { BugReportButton } from '@/components/bug-report/bug-report-button';
+import { PublicLinksButton } from '@/components/layout/public-links-button';
 import { SearchTrigger } from '@/components/search';
 import { MobileMenuButton } from '@/components/layout/mobile-menu-button';
 import { useNotifications } from '@/hooks/use-notifications';
@@ -35,6 +36,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
         <SearchTrigger projectSlug={project.slug} />
       </div>
       <div className="flex items-center gap-2 md:gap-4">
+        <span className="hidden md:inline-flex"><PublicLinksButton projectSlug={project.slug} projectType={project.project_type} /></span>
         <span className="hidden md:inline-flex"><BugReportButton /></span>
         <span className="hidden md:inline-flex"><ProcessQueueButton /></span>
         <span className="hidden md:inline-flex"><ThemeToggle /></span>
