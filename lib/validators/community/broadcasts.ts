@@ -1,5 +1,5 @@
 import { z } from 'zod';
-import { jsonObjectSchema, nullableString, optionalUuidSchema } from './shared';
+import { jsonObjectSchema, nullableString, optionalUuidSchema, uuidSchema } from './shared';
 
 export const broadcastChannelSchema = z.enum(['email', 'sms', 'both']);
 export const broadcastStatusSchema = z.enum(['draft', 'scheduled', 'sending', 'sent', 'failed']);
@@ -16,9 +16,11 @@ const broadcastBaseShape = {
   channel: broadcastChannelSchema,
   filter_criteria: jsonObjectSchema.default({}),
   status: broadcastStatusSchema.default('draft'),
-  scheduled_at: z.string().nullable().optional(),
-  sent_at: z.string().nullable().optional(),
+  scheduled_at: z.string().datetime().nullable().optional(),
+  sent_at: z.string().datetime().nullable().optional(),
   failure_reason: nullableString(2000, 'Failure reason must be 2000 characters or less'),
+  /** Optional reference to an email_send_configs row for provider selection. */
+  send_config_id: uuidSchema.nullable().optional(),
 } as const;
 
 export const broadcastSchema = z.object(broadcastBaseShape).refine(

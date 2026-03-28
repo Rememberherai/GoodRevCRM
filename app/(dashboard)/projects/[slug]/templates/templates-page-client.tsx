@@ -195,6 +195,7 @@ export function TemplatesPageClient() {
           <TemplateEditor
             template={editingTemplate}
             projectType={projectType}
+            slug={slug}
             onSave={handleSave}
             onCancel={() => {
               setEditorOpen(false);

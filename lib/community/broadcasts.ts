@@ -1,6 +1,7 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { sendOutboundSms } from '@/lib/telnyx/sms-service';
 import { sendEmail } from '@/lib/gmail/service';
+import { resolveEmailSendConfig, sendViaProvider } from '@/lib/email/send-provider';
 import type { Database, Json } from '@/types/database';
 import type { GmailConnection } from '@/types/gmail';
 
@@ -132,7 +133,16 @@ export async function sendBroadcast(
   actorUserId: string
 ) {
   const recipients = await resolveBroadcastRecipients(broadcast.project_id, broadcast.filter_criteria);
-  const gmailConnection = broadcast.channel === 'sms' ? null : await getProjectGmailConnection(broadcast.project_id, actorUserId);
+
+  // Resolve email send config: broadcast-specific → project default → legacy Gmail fallback
+  const sendConfig = broadcast.channel !== 'sms'
+    ? await resolveEmailSendConfig(broadcast.project_id, broadcast.send_config_id)
+    : null;
+
+  // Legacy Gmail fallback when no send config is configured
+  const gmailConnection = (!sendConfig && broadcast.channel !== 'sms')
+    ? await getProjectGmailConnection(broadcast.project_id, actorUserId)
+    : null;
 
   let sentCount = 0;
   const failures: string[] = [];
@@ -141,9 +151,29 @@ export async function sendBroadcast(
     const displayName = [recipient.first_name, recipient.last_name].filter(Boolean).join(' ').trim() || 'Community member';
 
     if (broadcast.channel === 'email' || broadcast.channel === 'both') {
-      if (!gmailConnection || !recipient.email) {
-        failures.push(`${displayName}: missing Gmail connection or email`);
-      } else {
+      if (!recipient.email) {
+        failures.push(`${displayName}: missing email address`);
+      } else if (sendConfig) {
+        // Use configured provider (Resend or Gmail via send config)
+        const result = await sendViaProvider(
+          sendConfig,
+          {
+            to: recipient.email,
+            subject: broadcast.subject,
+            body_html: broadcast.body_html || `<p>${escapeHtml(broadcast.body).replace(/\n/g, '<br />')}</p>`,
+            body_text: broadcast.body,
+            person_id: recipient.person_id,
+          },
+          actorUserId,
+          broadcast.project_id
+        );
+        if (result.success) {
+          sentCount += 1;
+        } else {
+          failures.push(`${displayName}: ${result.error || 'Email failed'}`);
+        }
+      } else if (gmailConnection) {
+        // Legacy Gmail path (no send config configured)
         try {
           await sendEmail(
             gmailConnection as unknown as GmailConnection,
@@ -161,6 +191,8 @@ export async function sendBroadcast(
         } catch (error) {
           failures.push(`${displayName}: ${error instanceof Error ? error.message : 'Email failed'}`);
         }
+      } else {
+        failures.push(`${displayName}: no email provider configured`);
       }
     }
 

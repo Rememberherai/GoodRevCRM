@@ -1516,6 +1516,7 @@ export type Database = {
           id: string
           project_id: string
           scheduled_at: string | null
+          send_config_id: string | null
           sent_at: string | null
           status: string
           subject: string
@@ -1533,6 +1534,7 @@ export type Database = {
           id?: string
           project_id: string
           scheduled_at?: string | null
+          send_config_id?: string | null
           sent_at?: string | null
           status?: string
           subject: string
@@ -1550,6 +1552,7 @@ export type Database = {
           id?: string
           project_id?: string
           scheduled_at?: string | null
+          send_config_id?: string | null
           sent_at?: string | null
           status?: string
           subject?: string
@@ -1575,6 +1578,13 @@ export type Database = {
             columns: ["project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "broadcasts_send_config_id_fkey"
+            columns: ["send_config_id"]
+            isOneToOne: false
+            referencedRelation: "email_send_configs"
             referencedColumns: ["id"]
           },
         ]
@@ -3723,6 +3733,76 @@ export type Database = {
             columns: ["sent_email_id"]
             isOneToOne: false
             referencedRelation: "sent_emails"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      email_send_configs: {
+        Row: {
+          created_at: string | null
+          domain: string | null
+          domain_verified: boolean | null
+          from_email: string | null
+          from_name: string | null
+          gmail_connection_id: string | null
+          id: string
+          is_default: boolean | null
+          project_id: string
+          provider: string
+          resend_domain_id: string | null
+          resend_api_key_encrypted: string | null
+          updated_at: string | null
+        }
+        Insert: {
+          created_at?: string | null
+          domain?: string | null
+          domain_verified?: boolean | null
+          from_email?: string | null
+          from_name?: string | null
+          gmail_connection_id?: string | null
+          id?: string
+          is_default?: boolean | null
+          project_id: string
+          provider: string
+          resend_domain_id?: string | null
+          resend_api_key_encrypted?: string | null
+          updated_at?: string | null
+        }
+        Update: {
+          created_at?: string | null
+          domain?: string | null
+          domain_verified?: boolean | null
+          from_email?: string | null
+          from_name?: string | null
+          gmail_connection_id?: string | null
+          id?: string
+          is_default?: boolean | null
+          project_id?: string
+          provider?: string
+          resend_domain_id?: string | null
+          resend_api_key_encrypted?: string | null
+          updated_at?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "email_send_configs_gmail_connection_id_fkey"
+            columns: ["gmail_connection_id"]
+            isOneToOne: false
+            referencedRelation: "gmail_connections"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "email_send_configs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "email_send_configs_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
             referencedColumns: ["id"]
           },
         ]
@@ -14092,4 +14172,3 @@ export const Constants = {
     },
   },
 } as const
-

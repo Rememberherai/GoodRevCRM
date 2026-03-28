@@ -37,9 +37,11 @@ interface EmailBuilderProps {
   initialDesign?: EmailDesign;
   variables?: BuilderVariable[];
   showPreview?: boolean;
+  /** Project slug — needed for image uploads */
+  slug?: string;
 }
 
-export function EmailBuilder({ initialDesign, variables, showPreview = true }: EmailBuilderProps) {
+export function EmailBuilder({ initialDesign, variables, showPreview = true, slug }: EmailBuilderProps) {
   const loadDesign = useEmailBuilderStore((s) => s.loadDesign);
   const addBlock = useEmailBuilderStore((s) => s.addBlock);
   const moveBlock = useEmailBuilderStore((s) => s.moveBlock);
@@ -197,14 +199,14 @@ export function EmailBuilder({ initialDesign, variables, showPreview = true }: E
                 </TabsTrigger>
               </TabsList>
               <TabsContent value="properties" className="mt-0">
-                <PropertyPanel />
+                <PropertyPanel slug={slug} />
               </TabsContent>
               <TabsContent value="preview" className="mt-0 h-[calc(100%-36px)]">
                 <PreviewPanel />
               </TabsContent>
             </Tabs>
           ) : (
-            <PropertyPanel />
+            <PropertyPanel slug={slug} />
           )}
         </div>
       </div>

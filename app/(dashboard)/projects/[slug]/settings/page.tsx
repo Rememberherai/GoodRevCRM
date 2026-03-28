@@ -44,6 +44,7 @@ import { useAuth } from '@/hooks/use-auth';
 import { AutomationPanel } from '@/components/automations/automation-panel';
 import { ContactProvidersSettings } from '@/components/settings/contact-providers-settings';
 import { EmailSignaturesPanel } from '@/components/settings/email-signatures-panel';
+import { EmailProviderSettings } from '@/components/settings/email-provider-settings';
 import { DuplicatesPanel } from '@/components/deduplication/duplicates-panel';
 import { DuplicatesBadge } from '@/components/deduplication/duplicates-badge';
 import { McpSettingsPanel } from '@/components/settings/mcp-settings-panel';
@@ -89,6 +90,15 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
   const [currentUserRole, setCurrentUserRole] = useState<ProjectRole>('member');
   const [inviteDialogOpen, setInviteDialogOpen] = useState(false);
   const [permissionsUserId, setPermissionsUserId] = useState<string | null>(null);
+  const permissionsMember = members.find((m) => m.user_id === permissionsUserId) ?? null;
+
+  // Clear stale permissionsUserId if the member was removed from the list
+  useEffect(() => {
+    if (permissionsUserId && !permissionsMember) {
+      setPermissionsUserId(null);
+    }
+  }, [permissionsUserId, permissionsMember]);
+
   const router = useRouter();
   const { currentProject, setCurrentProject, updateProject, removeProject } = useProjectStore();
   const { user } = useAuth();
@@ -460,24 +470,17 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
         onInvite={handleInvite}
       />
 
-      {permissionsUserId && (() => {
-        const member = members.find((m) => m.user_id === permissionsUserId);
-        if (!member) {
-          setPermissionsUserId(null);
-          return null;
-        }
-        return (
-          <MemberPermissionsDialog
-            open={true}
-            onOpenChange={(open) => { if (!open) setPermissionsUserId(null); }}
-            projectSlug={slug}
-            projectType={projectType}
-            userId={permissionsUserId}
-            memberName={member.user.full_name ?? member.user.email}
-            memberRole={member.role}
-          />
-        );
-      })()}
+      {permissionsUserId && permissionsMember && (
+        <MemberPermissionsDialog
+          open={true}
+          onOpenChange={(open) => { if (!open) setPermissionsUserId(null); }}
+          projectSlug={slug}
+          projectType={projectType}
+          userId={permissionsUserId}
+          memberName={permissionsMember.user.full_name ?? permissionsMember.user.email}
+          memberRole={permissionsMember.role}
+        />
+      )}
     </>
   );
 
@@ -599,6 +602,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
           <TabsContent value="general" className="space-y-6 mt-6">
             {generalContent}
             <EmailSignaturesPanel slug={slug} />
+            <EmailProviderSettings slug={slug} />
             {tourReplayContent}
             {dangerZoneContent}
           </TabsContent>
@@ -726,6 +730,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
           <TabsContent value="general" className="space-y-6 mt-6">
             {generalContent}
             <EmailSignaturesPanel slug={slug} />
+            <EmailProviderSettings slug={slug} />
             {tourReplayContent}
             {dangerZoneContent}
           </TabsContent>

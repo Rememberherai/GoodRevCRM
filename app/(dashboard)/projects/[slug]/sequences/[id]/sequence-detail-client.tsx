@@ -7,13 +7,27 @@ import type { Sequence, SequenceStep, SequenceStatus } from '@/types/sequence';
 interface SequenceDetailClientProps {
   sequence: Sequence & { steps: SequenceStep[] };
   projectSlug: string;
+  projectType?: string;
 }
 
 export function SequenceDetailClient({
   sequence,
   projectSlug,
+  projectType,
 }: SequenceDetailClientProps) {
   const router = useRouter();
+
+  const getErrorMessage = async (response: Response, fallback: string) => {
+    try {
+      const data = await response.json();
+      if (typeof data?.error === 'string' && data.error.trim()) {
+        return data.error;
+      }
+    } catch {
+      // Ignore non-JSON error bodies and fall back to the generic message.
+    }
+    return fallback;
+  };
 
   const handleSave = async (updates: Partial<Sequence>) => {
     const response = await fetch(
@@ -26,7 +40,7 @@ export function SequenceDetailClient({
     );
 
     if (!response.ok) {
-      throw new Error('Failed to save sequence');
+      throw new Error(await getErrorMessage(response, 'Failed to save sequence'));
     }
   };
 
@@ -45,7 +59,7 @@ export function SequenceDetailClient({
       );
 
       if (!response.ok) {
-        throw new Error('Failed to update step');
+        throw new Error(await getErrorMessage(response, 'Failed to update step'));
       }
 
       return response.json();
@@ -61,7 +75,7 @@ export function SequenceDetailClient({
       );
 
       if (!response.ok) {
-        throw new Error('Failed to create step');
+        throw new Error(await getErrorMessage(response, 'Failed to create step'));
       }
 
       return response.json();
@@ -75,7 +89,7 @@ export function SequenceDetailClient({
     );
 
     if (!response.ok) {
-      throw new Error('Failed to delete step');
+      throw new Error(await getErrorMessage(response, 'Failed to delete step'));
     }
   };
 
@@ -90,7 +104,7 @@ export function SequenceDetailClient({
     );
 
     if (!response.ok) {
-      throw new Error('Failed to update status');
+      throw new Error(await getErrorMessage(response, 'Failed to update status'));
     }
 
     router.refresh();
@@ -101,6 +115,7 @@ export function SequenceDetailClient({
       <SequenceBuilder
         sequence={sequence}
         projectSlug={projectSlug}
+        projectType={projectType}
         onSave={handleSave}
         onSaveStep={handleSaveStep}
         onDeleteStep={handleDeleteStep}

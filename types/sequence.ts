@@ -83,6 +83,8 @@ export interface SequenceStep {
   subject: string | null;
   body_html: string | null;
   body_text: string | null;
+  /** Block-based email builder design data (JSON). When present, body_html and body_text are derived server-side. */
+  design_json: Record<string, unknown> | null;
   // Delay step fields
   delay_amount: number | null;
   delay_unit: DelayUnit | null;

@@ -2,7 +2,8 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Megaphone, Send, Plus, Blocks, Code } from 'lucide-react';
+import { Megaphone, Send, Plus, Blocks, Code, CalendarIcon, Clock, X, RotateCcw } from 'lucide-react';
+import { format, isBefore, startOfDay } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,15 +11,19 @@ import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Badge } from '@/components/ui/badge';
+import { Calendar } from '@/components/ui/calendar';
+import { Popover, PopoverContent, PopoverTrigger } from '@/components/ui/popover';
 import { RecipientFilter } from '@/components/community/broadcasts/recipient-filter';
 import { EmailBodyEditor } from '@/components/sequences/sequence-builder/email-body-editor';
 import { EmailBuilder } from '@/components/email-builder/email-builder';
+import { TemplatePicker } from '@/components/email-builder/template-picker';
 import { useEmailBuilderStore } from '@/stores/email-builder';
 import { validateDesign, hasBlockingErrors } from '@/lib/email-builder/validation';
 import { getVariablesForProjectType } from '@/lib/email-builder/variables';
 import { createDefaultDesign } from '@/lib/email-builder/default-blocks';
 import { renderDesignToInnerHtml } from '@/lib/email-builder/render-html';
 import { renderDesignToText } from '@/lib/email-builder/render-text';
+import { cn } from '@/lib/utils';
 
 type EditorMode = 'builder' | 'html';
 
@@ -29,7 +34,20 @@ interface BroadcastRecord {
   channel: 'email' | 'sms' | 'both';
   status: string;
   updated_at: string;
+  scheduled_at: string | null;
+  sent_at: string | null;
   failure_reason: string | null;
+  send_config_id: string | null;
+}
+
+interface EmailSendConfigOption {
+  id: string;
+  provider: 'gmail' | 'resend';
+  from_email: string | null;
+  from_name: string | null;
+  gmail_email: string | null;
+  is_default: boolean | null;
+  domain_verified: boolean | null;
 }
 
 interface RecipientFilterValue {
@@ -37,6 +55,26 @@ interface RecipientFilterValue {
   household_ids?: string[];
   program_ids?: string[];
 }
+
+const STATUS_BADGE_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
+  sent: 'default',
+  failed: 'destructive',
+  sending: 'outline',
+  scheduled: 'outline',
+  draft: 'secondary',
+};
+
+function generateTimeOptions(): string[] {
+  const options: string[] = [];
+  for (let h = 0; h < 24; h++) {
+    for (let m = 0; m < 60; m += 15) {
+      options.push(`${String(h).padStart(2, '0')}:${String(m).padStart(2, '0')}`);
+    }
+  }
+  return options;
+}
+
+const TIME_OPTIONS = generateTimeOptions();
 
 export function BroadcastsPageClient() {
   const params = useParams();
@@ -56,12 +94,24 @@ export function BroadcastsPageClient() {
   const [signatureHtml, setSignatureHtml] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
 
+  // Scheduling state
+  const [scheduleDate, setScheduleDate] = useState<Date | undefined>(undefined);
+  const [scheduleTime, setScheduleTime] = useState('09:00');
+
+  // Send config state (email provider)
+  const [sendConfigs, setSendConfigs] = useState<EmailSendConfigOption[]>([]);
+  const [sendConfigId, setSendConfigId] = useState<string | null>(null);
+
   // Builder store
   const design = useEmailBuilderStore((s) => s.design);
   const resetDesign = useEmailBuilderStore((s) => s.resetDesign);
 
   // Community projects always get community variables
   const builderVariables = useMemo(() => getVariablesForProjectType('community'), []);
+  const defaultSendConfig = useMemo(
+    () => sendConfigs.find((config) => config.is_default && (config.provider !== 'resend' || config.domain_verified)) ?? null,
+    [sendConfigs]
+  );
 
   const loadBroadcasts = useCallback(async () => {
     setIsLoading(true);
@@ -83,6 +133,26 @@ export function BroadcastsPageClient() {
   useEffect(() => {
     void loadBroadcasts();
   }, [loadBroadcasts]);
+
+  // Fetch email send configs for "Send from" picker
+  useEffect(() => {
+    const fetchConfigs = async () => {
+      try {
+        const res = await fetch(`/api/projects/${slug}/settings/email-providers`);
+        if (res.ok) {
+          const data = await res.json();
+          const configs: EmailSendConfigOption[] = data.configs ?? [];
+          setSendConfigs(configs);
+          // Pre-select the default
+          const defaultConfig = configs.find((c) => c.is_default && (c.provider !== 'resend' || c.domain_verified));
+          if (defaultConfig) setSendConfigId(defaultConfig.id);
+        }
+      } catch {
+        // non-critical
+      }
+    };
+    void fetchConfigs();
+  }, [slug]);
 
   // Fetch default signature once
   useEffect(() => {
@@ -106,9 +176,10 @@ export function BroadcastsPageClient() {
   // Check if we have content to submit
   const hasContent = editorMode === 'builder'
     ? design.blocks.length > 0
-    : bodyText.trim().length > 0;
+    : bodyHtml.trim().length > 0;
 
   function switchToBuilder() {
+    if (editorMode === 'builder') return;
     const html = bodyHtml.trim();
     if (html) {
       useEmailBuilderStore.getState().loadDesign({
@@ -128,7 +199,21 @@ export function BroadcastsPageClient() {
     setEditorMode('builder');
   }
 
+  function validateBuilderDesign() {
+    const vErrors = validateDesign(useEmailBuilderStore.getState().design);
+    if (hasBlockingErrors(vErrors)) {
+      setValidationErrors(vErrors.filter((e) => e.severity === 'error').map((e) => e.message));
+      return false;
+    }
+    setValidationErrors([]);
+    return true;
+  }
+
   function switchToHtml() {
+    if (editorMode === 'html') return;
+    if (!validateBuilderDesign()) {
+      return;
+    }
     const currentDesign = useEmailBuilderStore.getState().design;
     if (currentDesign.blocks.length > 0) {
       setBodyHtml(renderDesignToInnerHtml(currentDesign));
@@ -144,36 +229,54 @@ export function BroadcastsPageClient() {
     setEditorMode('html');
   }
 
+  function buildPayload(): Record<string, unknown> {
+    const payload: Record<string, unknown> = {
+      subject,
+      channel,
+      filter_criteria: filterCriteria,
+    };
+
+    if (sendConfigId) {
+      payload.send_config_id = sendConfigId;
+    }
+
+    if (editorMode === 'builder') {
+      payload.design_json = design;
+    } else {
+      payload.body = bodyText;
+      payload.body_html = bodyHtml;
+    }
+
+    return payload;
+  }
+
+  function resetDialog() {
+    setOpen(false);
+    setSubject('');
+    setBodyHtml('');
+    setBodyText('');
+    setChannel('email');
+    setEditorMode('builder');
+    setFilterCriteria({});
+    setValidationErrors([]);
+    setError(null);
+    setScheduleDate(undefined);
+    setScheduleTime('09:00');
+    setSendConfigId(defaultSendConfig?.id ?? null);
+    resetDesign();
+  }
+
   async function handleCreate() {
     setValidationErrors([]);
 
-    // Run builder validation before save
-    if (editorMode === 'builder') {
-      const vErrors = validateDesign(design);
-      if (hasBlockingErrors(vErrors)) {
-        setValidationErrors(vErrors.filter((e) => e.severity === 'error').map((e) => e.message));
-        return;
-      }
+    if (editorMode === 'builder' && !validateBuilderDesign()) {
+      return;
     }
 
     setIsSaving(true);
     setError(null);
     try {
-      // Build payload based on editor mode
-      const payload: Record<string, unknown> = {
-        subject,
-        channel,
-        filter_criteria: filterCriteria,
-      };
-
-      if (editorMode === 'builder') {
-        // Send design_json — API will derive body_html and body server-side
-        payload.design_json = design;
-      } else {
-        // Legacy HTML mode — send body and body_html directly
-        payload.body = bodyText;
-        payload.body_html = bodyHtml;
-      }
+      const payload = buildPayload();
 
       const response = await fetch(`/api/projects/${slug}/broadcasts`, {
         method: 'POST',
@@ -184,18 +287,57 @@ export function BroadcastsPageClient() {
       if (!response.ok) {
         throw new Error(data.error ?? 'Failed to create broadcast');
       }
-      setOpen(false);
-      setSubject('');
-      setBodyHtml('');
-      setBodyText('');
-      setChannel('email');
-      setEditorMode('builder');
-      setFilterCriteria({});
-      setValidationErrors([]);
-      resetDesign();
+      resetDialog();
       await loadBroadcasts();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Failed to create broadcast');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleCreateAndSchedule() {
+    if (!scheduleDate) return;
+
+    setValidationErrors([]);
+
+    if (editorMode === 'builder' && !validateBuilderDesign()) {
+      return;
+    }
+
+    // Build the scheduled_at ISO string
+    const parts = scheduleTime.split(':').map(Number);
+    const hours = parts[0] ?? 0;
+    const minutes = parts[1] ?? 0;
+    const scheduledAt = new Date(scheduleDate);
+    scheduledAt.setHours(hours, minutes, 0, 0);
+
+    if (isBefore(scheduledAt, new Date())) {
+      setValidationErrors(['Scheduled time must be in the future.']);
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${slug}/broadcasts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...buildPayload(),
+          status: 'scheduled',
+          scheduled_at: scheduledAt.toISOString(),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Failed to schedule broadcast');
+      }
+
+      resetDialog();
+      await loadBroadcasts();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Failed to schedule broadcast');
     } finally {
       setIsSaving(false);
     }
@@ -217,17 +359,105 @@ export function BroadcastsPageClient() {
     }
   }
 
+  async function handleCancelSchedule(id: string) {
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${slug}/broadcasts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'draft', scheduled_at: null }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error ?? 'Failed to cancel schedule');
+      }
+      await loadBroadcasts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to cancel schedule');
+    }
+  }
+
+  async function handleRetry(id: string) {
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${slug}/broadcasts/${id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ status: 'draft', failure_reason: null }),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error ?? 'Failed to reset broadcast');
+      }
+      await loadBroadcasts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to reset broadcast');
+    }
+  }
+
   function handleOpenDialog() {
     setSubject('');
     setBodyText('');
+    setBodyHtml('');
     setChannel('email');
+    setEditorMode('builder');
     setFilterCriteria({});
     resetDesign();
     setValidationErrors([]);
-    setBodyHtml(editorMode === 'html' && signatureHtml
-      ? `<p></p><br/><div data-signature="true">${signatureHtml}</div>`
-      : '');
+    setError(null);
+    setScheduleDate(undefined);
+    setScheduleTime('09:00');
+    setSendConfigId(defaultSendConfig?.id ?? null);
     setOpen(true);
+  }
+
+  function renderBroadcastActions(broadcast: BroadcastRecord) {
+    const isSending = sendingId === broadcast.id;
+
+    switch (broadcast.status) {
+      case 'draft':
+        return (
+          <Button size="sm" onClick={() => void handleSend(broadcast.id)} disabled={isSending}>
+            <Send className="mr-2 h-4 w-4" />
+            {isSending ? 'Sending...' : 'Send Now'}
+          </Button>
+        );
+      case 'scheduled':
+        return (
+          <Button size="sm" variant="outline" onClick={() => void handleCancelSchedule(broadcast.id)}>
+            <X className="mr-2 h-4 w-4" />
+            Cancel Schedule
+          </Button>
+        );
+      case 'failed':
+        return (
+          <Button size="sm" variant="outline" onClick={() => void handleRetry(broadcast.id)}>
+            <RotateCcw className="mr-2 h-4 w-4" />
+            Retry
+          </Button>
+        );
+      default:
+        return null;
+    }
+  }
+
+  function renderBroadcastMeta(broadcast: BroadcastRecord) {
+    if (broadcast.status === 'scheduled' && broadcast.scheduled_at) {
+      return (
+        <div className="flex items-center gap-1 text-xs text-muted-foreground">
+          <Clock className="h-3 w-3" />
+          Scheduled for {format(new Date(broadcast.scheduled_at), 'MMM d, yyyy h:mm a')}
+        </div>
+      );
+    }
+    if (broadcast.status === 'sent' && broadcast.sent_at) {
+      return (
+        <div className="text-xs text-muted-foreground">
+          Sent {format(new Date(broadcast.sent_at), 'MMM d, yyyy h:mm a')}
+        </div>
+      );
+    }
+    return null;
   }
 
   return (
@@ -253,7 +483,7 @@ export function BroadcastsPageClient() {
       <Card>
         <CardHeader>
           <CardTitle>Broadcast History</CardTitle>
-          <CardDescription>Draft, send, and monitor delivery failures for community announcements.</CardDescription>
+          <CardDescription>Draft, schedule, send, and monitor delivery for community announcements.</CardDescription>
         </CardHeader>
         <CardContent className="space-y-3">
           {error && <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">{error}</div>}
@@ -265,24 +495,22 @@ export function BroadcastsPageClient() {
             broadcasts.map((broadcast) => (
               <div key={broadcast.id} className="rounded-lg border p-4">
                 <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-                  <div className="space-y-1">
+                  <div className="space-y-1 flex-1 min-w-0">
                     <div className="font-medium">{broadcast.subject}</div>
                     <div className="line-clamp-2 text-sm text-muted-foreground">{broadcast.body}</div>
                     {broadcast.failure_reason && (
                       <div className="text-xs text-destructive">{broadcast.failure_reason}</div>
                     )}
+                    {renderBroadcastMeta(broadcast)}
                   </div>
-                  <div className="flex flex-col items-start gap-2 md:items-end">
+                  <div className="flex flex-col items-start gap-2 md:items-end shrink-0">
                     <div className="flex gap-2">
                       <Badge variant="outline">{broadcast.channel}</Badge>
-                      <Badge variant={broadcast.status === 'sent' ? 'default' : broadcast.status === 'failed' ? 'destructive' : 'secondary'}>
+                      <Badge variant={STATUS_BADGE_VARIANT[broadcast.status] ?? 'secondary'}>
                         {broadcast.status}
                       </Badge>
                     </div>
-                    <Button size="sm" onClick={() => void handleSend(broadcast.id)} disabled={sendingId === broadcast.id || broadcast.status === 'sent'}>
-                      <Send className="mr-2 h-4 w-4" />
-                      {sendingId === broadcast.id ? 'Sending...' : 'Send'}
-                    </Button>
+                    {renderBroadcastActions(broadcast)}
                   </div>
                 </div>
               </div>
@@ -291,11 +519,20 @@ export function BroadcastsPageClient() {
         </CardContent>
       </Card>
 
-      <Dialog open={open} onOpenChange={setOpen}>
+      <Dialog
+        open={open}
+        onOpenChange={(nextOpen) => {
+          if (nextOpen) {
+            setOpen(true);
+          } else {
+            resetDialog();
+          }
+        }}
+      >
         <DialogContent className="sm:max-w-6xl max-h-[90vh] flex flex-col">
           <DialogHeader>
             <DialogTitle>Create Broadcast</DialogTitle>
-            <DialogDescription>Choose recipients, channel, and message content before sending.</DialogDescription>
+            <DialogDescription>Choose recipients, channel, and message content. Save as draft or schedule for later.</DialogDescription>
           </DialogHeader>
 
           <div className="space-y-4 overflow-y-auto flex-1 pr-1">
@@ -319,6 +556,44 @@ export function BroadcastsPageClient() {
               </div>
             </div>
 
+            {/* Send From picker — only shown when email channel and configs exist */}
+            {channel === 'email' && sendConfigs.length > 0 && (
+              <div className="space-y-2">
+                <Label>Send From</Label>
+                <Select
+                  value={sendConfigId ?? 'sender_gmail'}
+                  onValueChange={(value) => setSendConfigId(value === 'sender_gmail' ? null : value)}
+                >
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sender Gmail fallback" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {!defaultSendConfig && (
+                      <SelectItem value="sender_gmail">Sender Gmail fallback</SelectItem>
+                    )}
+                    {sendConfigs.map((config) => {
+                      const label = config.provider === 'gmail'
+                        ? config.gmail_email ?? 'Gmail'
+                        : config.from_name
+                          ? `${config.from_name} <${config.from_email}>`
+                          : config.from_email ?? 'Resend';
+                      return (
+                        <SelectItem
+                          key={config.id}
+                          value={config.id}
+                          disabled={config.provider === 'resend' && !config.domain_verified}
+                        >
+                          {label}
+                          {config.provider === 'resend' && !config.domain_verified && ' (unverified)'}
+                          {config.is_default && ' (default)'}
+                        </SelectItem>
+                      );
+                    })}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+
             {/* Message editor with builder/HTML toggle (email channel only) */}
             <div className="space-y-2">
               <div className="flex items-center justify-between">
@@ -331,6 +606,7 @@ export function BroadcastsPageClient() {
                       size="sm"
                       className="h-7 gap-1.5 text-xs"
                       onClick={switchToBuilder}
+                      disabled={editorMode === 'builder'}
                     >
                       <Blocks className="h-3.5 w-3.5" />
                       Builder
@@ -341,6 +617,7 @@ export function BroadcastsPageClient() {
                       size="sm"
                       className="h-7 gap-1.5 text-xs"
                       onClick={switchToHtml}
+                      disabled={editorMode === 'html'}
                     >
                       <Code className="h-3.5 w-3.5" />
                       HTML
@@ -350,9 +627,18 @@ export function BroadcastsPageClient() {
               </div>
 
               {editorMode === 'builder' && channel === 'email' ? (
-                <div className="border rounded-lg overflow-hidden" style={{ height: 480 }}>
-                  <EmailBuilder showPreview variables={builderVariables} />
-                </div>
+                <>
+                  {design.blocks.length === 0 && (
+                    <TemplatePicker
+                      onSelect={(templateDesign) => {
+                        useEmailBuilderStore.getState().loadDesign(templateDesign);
+                      }}
+                    />
+                  )}
+                  <div className="border rounded-lg overflow-hidden" style={{ height: 480 }}>
+                    <EmailBuilder showPreview variables={builderVariables} slug={slug} />
+                  </div>
+                </>
               ) : (
                 <EmailBodyEditor
                   value={bodyHtml}
@@ -380,13 +666,78 @@ export function BroadcastsPageClient() {
               </div>
               <RecipientFilter value={filterCriteria} onChange={setFilterCriteria} />
             </div>
+
+            {/* Scheduling */}
+            <div className="space-y-2">
+              <Label>Schedule (optional)</Label>
+              <div className="flex items-center gap-3">
+                <Popover>
+                  <PopoverTrigger asChild>
+                    <Button
+                      variant="outline"
+                      className={cn(
+                        'w-[200px] justify-start text-left font-normal',
+                        !scheduleDate && 'text-muted-foreground'
+                      )}
+                    >
+                      <CalendarIcon className="mr-2 h-4 w-4" />
+                      {scheduleDate ? format(scheduleDate, 'MMM d, yyyy') : 'Pick a date'}
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="w-auto p-0" align="start">
+                    <Calendar
+                      mode="single"
+                      selected={scheduleDate}
+                      onSelect={setScheduleDate}
+                      disabled={(date) => isBefore(date, startOfDay(new Date()))}
+                    />
+                  </PopoverContent>
+                </Popover>
+
+                <Select value={scheduleTime} onValueChange={setScheduleTime}>
+                  <SelectTrigger className="w-[120px]">
+                    <Clock className="mr-2 h-4 w-4" />
+                    <SelectValue />
+                  </SelectTrigger>
+                  <SelectContent className="max-h-60">
+                    {TIME_OPTIONS.map((t) => (
+                      <SelectItem key={t} value={t}>{t}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+
+                {scheduleDate && (
+                  <Button
+                    type="button"
+                    variant="ghost"
+                    size="sm"
+                    onClick={() => setScheduleDate(undefined)}
+                  >
+                    <X className="h-4 w-4" />
+                  </Button>
+                )}
+              </div>
+              <p className="text-xs text-muted-foreground">
+                Times are in your local timezone ({Intl.DateTimeFormat().resolvedOptions().timeZone}).
+              </p>
+            </div>
           </div>
 
           <DialogFooter className="shrink-0 pt-4 border-t">
-            <Button variant="outline" onClick={() => setOpen(false)} disabled={isSaving}>Cancel</Button>
-            <Button onClick={() => void handleCreate()} disabled={isSaving || !subject.trim() || !hasContent}>
-              Create Draft
-            </Button>
+            <Button variant="outline" onClick={resetDialog} disabled={isSaving}>Cancel</Button>
+            {scheduleDate ? (
+              <Button
+                onClick={() => void handleCreateAndSchedule()}
+                disabled={isSaving || !subject.trim() || !hasContent}
+              >
+                <CalendarIcon className="mr-2 h-4 w-4" />
+                {isSaving ? 'Scheduling...' : 'Schedule Broadcast'}
+              </Button>
+            ) : (
+              <Button onClick={() => void handleCreate()} disabled={isSaving || !subject.trim() || !hasContent}>
+                Create Draft
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

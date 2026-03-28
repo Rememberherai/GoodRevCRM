@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { createStepSchema } from '@/lib/validators/sequence';
+import { deriveFieldsFromDesign } from '@/lib/email-builder/derive-fields';
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
@@ -154,11 +155,19 @@ export async function POST(request: Request, context: RouteContext) {
       }
     }
 
+    // When design_json is present, derive body_html and body_text server-side
+    const deriveResult = deriveFieldsFromDesign(validationResult.data.design_json, 'body_text', { validate: true });
+    if (deriveResult.status === 'invalid') {
+      return NextResponse.json({ error: deriveResult.error }, { status: 400 });
+    }
+    const derived = deriveResult.status === 'ok' ? deriveResult.fields : {};
+
     const { data: step, error } = await supabaseAny
       .from('sequence_steps')
       .insert({
         sequence_id: id,
         ...validationResult.data,
+        ...derived,
         step_number: stepNumber,
       })
       .select()

@@ -89,6 +89,8 @@ export const createStepSchema = z.object({
   subject: z.string().max(998).nullable().optional(),
   body_html: z.string().max(500000).nullable().optional(),
   body_text: z.string().max(500000).nullable().optional(),
+  /** Block-based email builder design data (JSON). When present, body_html and body_text are derived server-side. */
+  design_json: z.record(z.string(), z.unknown()).nullable().optional(),
   sms_body: z.string().max(1600).nullable().optional(),
   delay_amount: z.number().int().min(1).nullable().optional(),
   delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional(),
@@ -111,6 +113,8 @@ export const updateStepSchema = z.object({
   subject: z.string().max(998).nullable().optional(),
   body_html: z.string().max(500000).nullable().optional(),
   body_text: z.string().max(500000).nullable().optional(),
+  /** Block-based email builder design data (JSON). When present, body_html and body_text are derived server-side. */
+  design_json: z.record(z.string(), z.unknown()).nullable().optional(),
   sms_body: z.string().max(1600).nullable().optional(),
   delay_amount: z.number().int().min(1).nullable().optional(),
   delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional(),

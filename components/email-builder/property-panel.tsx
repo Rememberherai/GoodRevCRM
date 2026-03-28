@@ -1,6 +1,9 @@
 'use client';
 
+import { useRef, useState } from 'react';
+import { Upload, Loader2 } from 'lucide-react';
 import { useEmailBuilderStore } from '@/stores/email-builder';
+import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Slider } from '@/components/ui/slider';
@@ -20,7 +23,11 @@ function fontLabel(font: string): string {
   return (font.split(',')[0] ?? font).replace(/"/g, '').trim();
 }
 
-export function PropertyPanel() {
+interface PropertyPanelProps {
+  slug?: string;
+}
+
+export function PropertyPanel({ slug }: PropertyPanelProps) {
   const selectedBlockId = useEmailBuilderStore((s) => s.selectedBlockId);
   const block = useEmailBuilderStore((s) =>
     s.selectedBlockId ? s.design.blocks.find((b) => b.id === s.selectedBlockId) : undefined
@@ -59,7 +66,7 @@ export function PropertyPanel() {
 
       {/* Type-specific fields */}
       {block.type === 'text' && <TextFields block={block} onUpdate={update} />}
-      {block.type === 'image' && <ImageFields block={block} onUpdate={update} onUpdateDebounced={updateDebounced} />}
+      {block.type === 'image' && <ImageFields block={block} onUpdate={update} onUpdateDebounced={updateDebounced} slug={slug} />}
       {block.type === 'button' && <ButtonFields block={block} onUpdate={update} onUpdateDebounced={updateDebounced} />}
       {block.type === 'divider' && <DividerFields block={block} onUpdate={update} />}
       {block.type === 'spacer' && <SpacerFields block={block} onUpdate={update} />}
@@ -158,13 +165,78 @@ function ImageFields({
   block,
   onUpdate,
   onUpdateDebounced,
+  slug,
 }: {
   block: Extract<EmailBlock, { type: 'image' }>;
   onUpdate: (p: Partial<EmailBlock>) => void;
   onUpdateDebounced: (p: Partial<EmailBlock>) => void;
+  slug?: string;
 }) {
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFileUpload(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file || !slug) return;
+
+    setUploading(true);
+    try {
+      const formData = new FormData();
+      formData.append('file', file);
+
+      const response = await fetch(`/api/projects/${slug}/email-images`, {
+        method: 'POST',
+        body: formData,
+      });
+
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error || 'Upload failed');
+      }
+
+      const { url } = await response.json();
+      onUpdate({ src: url });
+    } catch (err) {
+      console.error('Image upload failed:', err);
+    } finally {
+      setUploading(false);
+      // Reset file input so the same file can be re-selected
+      if (fileInputRef.current) fileInputRef.current.value = '';
+    }
+  }
+
   return (
     <>
+      {/* Upload button */}
+      {slug && (
+        <div>
+          <Label className="text-xs">Upload Image</Label>
+          <input
+            ref={fileInputRef}
+            type="file"
+            accept="image/jpeg,image/png,image/webp,image/gif"
+            onChange={handleFileUpload}
+            className="hidden"
+          />
+          <Button
+            type="button"
+            variant="outline"
+            size="sm"
+            className="w-full mt-1 h-8 text-xs"
+            onClick={() => fileInputRef.current?.click()}
+            disabled={uploading}
+          >
+            {uploading ? (
+              <Loader2 className="h-3.5 w-3.5 mr-1.5 animate-spin" />
+            ) : (
+              <Upload className="h-3.5 w-3.5 mr-1.5" />
+            )}
+            {uploading ? 'Uploading...' : 'Choose File'}
+          </Button>
+          <p className="text-[10px] text-muted-foreground mt-1">Max 5 MB. JPEG, PNG, WebP, or GIF.</p>
+        </div>
+      )}
+
       <div>
         <Label className="text-xs">Image URL</Label>
         <Input

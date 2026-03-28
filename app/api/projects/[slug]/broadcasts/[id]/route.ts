@@ -55,9 +55,65 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Validation failed', details: validation.error.flatten() }, { status: 400 });
     }
 
-    // Fetch existing row to prevent leaving the broadcast contentless
-    const { data: existing } = await supabase.from('broadcasts').select('body, design_json').eq('id', id).eq('project_id', project.id).single();
+    // Fetch existing row to check status and prevent leaving the broadcast contentless
+    const { data: existing } = await supabase.from('broadcasts').select('body, design_json, status, scheduled_at').eq('id', id).eq('project_id', project.id).single();
     if (!existing) return NextResponse.json({ error: 'Broadcast not found' }, { status: 404 });
+
+    // Only draft, scheduled, and failed broadcasts can be edited
+    const editableStatuses = ['draft', 'scheduled', 'failed'];
+    if (!editableStatuses.includes(existing.status)) {
+      return NextResponse.json(
+        { error: `Cannot edit a broadcast with status "${existing.status}".` },
+        { status: 409 }
+      );
+    }
+
+    // Handle status transitions via the update payload
+    if (validation.data.status !== undefined) {
+      const newStatus = validation.data.status;
+      const validTransitions: Record<string, string[]> = {
+        draft: ['scheduled'],
+        scheduled: ['draft'],
+        failed: ['draft'],
+      };
+      const allowed = validTransitions[existing.status] ?? [];
+      if (newStatus !== existing.status && !allowed.includes(newStatus)) {
+        return NextResponse.json(
+          { error: `Cannot transition from "${existing.status}" to "${newStatus}".` },
+          { status: 409 }
+        );
+      }
+    }
+
+    const finalStatus = validation.data.status ?? existing.status;
+    const finalScheduledAt = validation.data.scheduled_at !== undefined
+      ? validation.data.scheduled_at
+      : existing.scheduled_at;
+
+    if (finalStatus === 'scheduled') {
+      if (!finalScheduledAt) {
+        return NextResponse.json({ error: 'scheduled_at is required when a broadcast is scheduled.' }, { status: 400 });
+      }
+      if (new Date(finalScheduledAt).getTime() <= Date.now()) {
+        return NextResponse.json({ error: 'scheduled_at must be in the future.' }, { status: 400 });
+      }
+    }
+
+    if (validation.data.send_config_id) {
+      const { data: sendConfig } = await supabase
+        .from('email_send_configs')
+        .select('id, provider, domain_verified')
+        .eq('id', validation.data.send_config_id)
+        .eq('project_id', project.id)
+        .single();
+
+      if (!sendConfig) {
+        return NextResponse.json({ error: 'Selected email provider was not found for this project.' }, { status: 400 });
+      }
+      if (sendConfig.provider === 'resend' && sendConfig.domain_verified !== true) {
+        return NextResponse.json({ error: 'Selected Resend provider must have a verified domain before it can be used.' }, { status: 400 });
+      }
+    }
 
     // After applying update, will the broadcast still have content?
     const finalBody = validation.data.body !== undefined ? validation.data.body : existing.body;
@@ -83,6 +139,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     const filteredData = Object.fromEntries(
       Object.entries(validation.data).filter(([key]) => {
         if (key === 'project_id') return false;
+        if (key === 'sent_at') return false;
         if (designForDerive != null && (key === 'body' || key === 'body_html')) return false;
         return true;
       })
@@ -94,6 +151,10 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
     if (validation.data.design_json !== undefined) {
       updateData.design_json = validation.data.design_json as unknown as Json;
+    }
+    updateData.scheduled_at = finalStatus === 'scheduled' ? finalScheduledAt : null;
+    if (finalStatus !== 'failed') {
+      updateData.failure_reason = validation.data.failure_reason ?? null;
     }
 
     const { data, error } = await supabase
@@ -123,6 +184,13 @@ export async function DELETE(_request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     if (!project || project.project_type !== 'community') return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     await requireCommunityPermission(supabase, user.id, project.id, 'broadcasts', 'delete');
+
+    // Only draft and failed broadcasts can be deleted
+    const { data: existing } = await supabase.from('broadcasts').select('status').eq('id', id).eq('project_id', project.id).single();
+    if (!existing) return NextResponse.json({ error: 'Broadcast not found' }, { status: 404 });
+    if (!['draft', 'failed'].includes(existing.status)) {
+      return NextResponse.json({ error: `Cannot delete a broadcast with status "${existing.status}".` }, { status: 409 });
+    }
 
     const { error } = await supabase.from('broadcasts').delete().eq('id', id).eq('project_id', project.id);
     if (error) throw error;

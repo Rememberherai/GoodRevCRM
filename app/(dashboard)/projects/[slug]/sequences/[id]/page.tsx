@@ -13,7 +13,7 @@ export default async function SequenceDetailPage({ params }: PageProps) {
   // Get project
   const { data: project } = await supabase
     .from('projects')
-    .select('id')
+    .select('id, project_type')
     .eq('slug', slug)
     .is('deleted_at', null)
     .single();
@@ -51,6 +51,7 @@ export default async function SequenceDetailPage({ params }: PageProps) {
     <SequenceDetailClient
       sequence={sequence}
       projectSlug={slug}
+      projectType={project.project_type}
     />
   );
 }

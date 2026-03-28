@@ -22,34 +22,82 @@ export async function POST(_request: Request, context: RouteContext) {
     const { data: broadcast } = await supabase.from('broadcasts').select('*').eq('id', id).eq('project_id', project.id).single();
     if (!broadcast) return NextResponse.json({ error: 'Broadcast not found' }, { status: 404 });
 
-    const result = await sendBroadcast(broadcast, user.id);
-    const status = result.failures.length > 0 ? 'failed' : 'sent';
+    // Only draft broadcasts can be sent manually. Scheduled broadcasts are sent by the cron.
+    if (broadcast.status !== 'draft') {
+      return NextResponse.json(
+        { error: `Cannot send a broadcast with status "${broadcast.status}". Only draft broadcasts can be sent manually.` },
+        { status: 409 }
+      );
+    }
 
-    await supabase
+    const { data: sendingRow, error: sendingError } = await supabase
       .from('broadcasts')
-      .update({
-        status,
-        sent_at: new Date().toISOString(),
-        failure_reason: result.failures.length > 0 ? result.failures.join('\n').slice(0, 2000) : null,
-      })
+      .update({ status: 'sending' as never })
       .eq('id', id)
-      .eq('project_id', project.id);
+      .eq('project_id', project.id)
+      .eq('status', 'draft')
+      .select('*')
+      .maybeSingle();
 
-    emitAutomationEvent({
-      projectId: project.id,
-      triggerType: 'broadcast.sent' as never,
-      entityType: 'broadcast',
-      entityId: id,
-      data: { broadcast_id: id, status, sent_count: result.sentCount },
-    });
+    if (sendingError) {
+      throw sendingError;
+    }
+    if (!sendingRow) {
+      return NextResponse.json({ error: 'Broadcast is no longer eligible to send.' }, { status: 409 });
+    }
 
-    return NextResponse.json({
-      broadcast_id: id,
-      status,
-      sent_count: result.sentCount,
-      failure_count: result.failures.length,
-      failures: result.failures,
-    });
+    try {
+      const result = await sendBroadcast(sendingRow, user.id);
+      const status = result.failures.length > 0 ? 'failed' : 'sent';
+
+      const { error: finalUpdateError } = await supabase
+        .from('broadcasts')
+        .update({
+          status,
+          sent_at: status === 'sent' ? new Date().toISOString() : null,
+          scheduled_at: null,
+          failure_reason: result.failures.length > 0 ? result.failures.join('\n').slice(0, 2000) : null,
+        })
+        .eq('id', id)
+        .eq('project_id', project.id);
+      if (finalUpdateError) {
+        throw finalUpdateError;
+      }
+
+      emitAutomationEvent({
+        projectId: project.id,
+        triggerType: 'broadcast.sent' as never,
+        entityType: 'broadcast',
+        entityId: id,
+        data: { broadcast_id: id, status, sent_count: result.sentCount },
+      });
+
+      return NextResponse.json({
+        broadcast_id: id,
+        status,
+        sent_count: result.sentCount,
+        failure_count: result.failures.length,
+        failures: result.failures,
+      });
+    } catch (error) {
+      const message = error instanceof Error ? error.message : 'Internal server error';
+
+      const { error: failUpdateError } = await supabase
+        .from('broadcasts')
+        .update({
+          status: 'failed' as never,
+          sent_at: null,
+          scheduled_at: null,
+          failure_reason: message.slice(0, 2000),
+        })
+        .eq('id', id)
+        .eq('project_id', project.id);
+      if (failUpdateError) {
+        console.error('Error updating failed broadcast status:', failUpdateError);
+      }
+
+      throw error;
+    }
   } catch (error) {
     if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error('Error in POST /api/projects/[slug]/broadcasts/[id]/send:', error);

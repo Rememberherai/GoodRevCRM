@@ -29,6 +29,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { createTemplateSchema, type CreateTemplateInput } from '@/lib/validators/email-template';
 import { EmailBuilder } from '@/components/email-builder/email-builder';
+import { TemplatePicker } from '@/components/email-builder/template-picker';
 import { useEmailBuilderStore } from '@/stores/email-builder';
 import { emailDesignSchema } from '@/lib/email-builder/schema';
 import { createDefaultDesign } from '@/lib/email-builder/default-blocks';
@@ -46,6 +47,7 @@ type EditorMode = 'builder' | 'html';
 interface TemplateEditorProps {
   template?: EmailTemplate;
   projectType?: string;
+  slug?: string;
   onSave: (data: CreateTemplateInput) => Promise<void>;
   onCancel: () => void;
 }
@@ -60,7 +62,7 @@ function parseDesignJson(raw: Record<string, unknown> | null | undefined): Email
   return result.success ? result.data : null;
 }
 
-export function TemplateEditor({ template, projectType = 'standard', onSave, onCancel }: TemplateEditorProps) {
+export function TemplateEditor({ template, projectType = 'standard', slug, onSave, onCancel }: TemplateEditorProps) {
   const existingDesign = parseDesignJson(template?.design_json);
 
   const [saving, setSaving] = useState(false);
@@ -445,9 +447,18 @@ export function TemplateEditor({ template, projectType = 'standard', onSave, onC
 
         {/* Body — Builder or HTML mode */}
         {editorMode === 'builder' ? (
-          <div className="border rounded-lg overflow-hidden" style={{ height: 560 }}>
-            <EmailBuilder showPreview variables={builderVariables} />
-          </div>
+          <>
+            {design.blocks.length === 0 && !template && (
+              <TemplatePicker
+                onSelect={(templateDesign) => {
+                  useEmailBuilderStore.getState().loadDesign(templateDesign);
+                }}
+              />
+            )}
+            <div className="border rounded-lg overflow-hidden" style={{ height: 560 }}>
+              <EmailBuilder showPreview variables={builderVariables} slug={slug} />
+            </div>
+          </>
         ) : (
           <>
             <Tabs value={activeTab} onValueChange={(v) => setActiveTab(v as 'edit' | 'preview')}>

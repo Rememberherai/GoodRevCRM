@@ -36,6 +36,7 @@ type AddableStepType = 'email' | 'delay' | 'sms' | 'call' | 'task' | 'linkedin';
 interface SequenceBuilderProps {
   sequence: Sequence & { steps: SequenceStep[] };
   projectSlug: string;
+  projectType?: string;
   onSave: (updates: Partial<Sequence>) => Promise<void>;
   onSaveStep: (step: Partial<SequenceStep> & { id?: string }) => Promise<SequenceStep>;
   onDeleteStep: (stepId: string) => Promise<void>;
@@ -45,6 +46,7 @@ interface SequenceBuilderProps {
 export function SequenceBuilder({
   sequence,
   projectSlug,
+  projectType,
   onSave,
   onSaveStep,
   onDeleteStep,
@@ -60,7 +62,7 @@ export function SequenceBuilder({
   const [isSaving, setIsSaving] = useState(false);
   const [hasChanges, setHasChanges] = useState(false);
   const [isEnrollDialogOpen, setIsEnrollDialogOpen] = useState(false);
-  const [_enrollmentCount, setEnrollmentCount] = useState(0);
+  const [, setEnrollmentCount] = useState(0);
 
   const selectedStep = steps.find((s) => s.id === selectedStepId) || null;
 
@@ -79,6 +81,25 @@ export function SequenceBuilder({
     setHasChanges(true);
   };
 
+  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const pendingUpdatesRef = useRef<Record<string, Partial<SequenceStep>>>({});
+
+  const flushStepSave = useCallback(async (stepId: string) => {
+    const updates = pendingUpdatesRef.current[stepId];
+    if (!updates) return true;
+    try {
+      await onSaveStep({ id: stepId, ...updates });
+      if (pendingUpdatesRef.current[stepId] === updates) {
+        delete pendingUpdatesRef.current[stepId];
+      }
+      return true;
+    } catch (err) {
+      console.error('Failed to save step:', err);
+      toast.error(err instanceof Error ? err.message : 'Failed to save step changes.');
+      return false;
+    }
+  }, [onSaveStep]);
+
   const handleSave = async () => {
     // Flush any pending step saves first
     if (saveTimerRef.current) {
@@ -86,7 +107,10 @@ export function SequenceBuilder({
       saveTimerRef.current = null;
     }
     for (const stepId of Object.keys(pendingUpdatesRef.current)) {
-      await flushStepSave(stepId);
+      const didSave = await flushStepSave(stepId);
+      if (!didSave) {
+        return;
+      }
     }
 
     setIsSaving(true);
@@ -105,24 +129,10 @@ export function SequenceBuilder({
         clearTimeout(saveTimerRef.current);
         saveTimerRef.current = null;
       }
-      flushStepSave(selectedStepId);
+      void flushStepSave(selectedStepId);
     }
     setSelectedStepId(stepId);
   };
-
-  const saveTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const pendingUpdatesRef = useRef<Record<string, Partial<SequenceStep>>>({});
-
-  const flushStepSave = useCallback(async (stepId: string) => {
-    const updates = pendingUpdatesRef.current[stepId];
-    if (!updates) return;
-    delete pendingUpdatesRef.current[stepId];
-    try {
-      await onSaveStep({ id: stepId, ...updates });
-    } catch (err) {
-      console.error('Failed to save step:', err);
-    }
-  }, [onSaveStep]);
 
   const handleStepUpdate = (updates: Partial<SequenceStep>) => {
     if (!selectedStepId) return;
@@ -185,22 +195,26 @@ export function SequenceBuilder({
         break;
     }
 
-    const newStep = await onSaveStep(stepDefaults);
+    try {
+      const newStep = await onSaveStep(stepDefaults);
 
-    // The server shifts step_numbers for us when inserting in the middle.
-    // Update local state to match: increment step_number for steps >= insertion point
-    const insertionPoint = afterStepNumber + 1;
-    const updatedSteps = steps.map((s) => {
-      if (s.step_number >= insertionPoint) {
-        return { ...s, step_number: s.step_number + 1 };
-      }
-      return s;
-    });
-    updatedSteps.push(newStep);
-    updatedSteps.sort((a, b) => a.step_number - b.step_number);
+      // The server shifts step_numbers for us when inserting in the middle.
+      // Update local state to match: increment step_number for steps >= insertion point
+      const insertionPoint = afterStepNumber + 1;
+      const updatedSteps = steps.map((s) => {
+        if (s.step_number >= insertionPoint) {
+          return { ...s, step_number: s.step_number + 1 };
+        }
+        return s;
+      });
+      updatedSteps.push(newStep);
+      updatedSteps.sort((a, b) => a.step_number - b.step_number);
 
-    setSteps(updatedSteps);
-    setSelectedStepId(newStep.id);
+      setSteps(updatedSteps);
+      setSelectedStepId(newStep.id);
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to add step.');
+    }
   };
 
   const handleDeleteStep = async (stepId: string) => {
@@ -208,10 +222,32 @@ export function SequenceBuilder({
       toast.error('Pause the sequence before adding or modifying steps.');
       return;
     }
-    await onDeleteStep(stepId);
-    setSteps((prev) => prev.filter((s) => s.id !== stepId));
-    if (selectedStepId === stepId) {
-      setSelectedStepId(steps[0]?.id || null);
+
+    if (saveTimerRef.current) {
+      clearTimeout(saveTimerRef.current);
+      saveTimerRef.current = null;
+    }
+
+    for (const pendingStepId of Object.keys(pendingUpdatesRef.current)) {
+      if (pendingStepId !== stepId) {
+        const didSave = await flushStepSave(pendingStepId);
+        if (!didSave) {
+          return;
+        }
+      }
+    }
+
+    delete pendingUpdatesRef.current[stepId];
+
+    try {
+      await onDeleteStep(stepId);
+      const remainingSteps = steps.filter((s) => s.id !== stepId);
+      setSteps(remainingSteps);
+      if (selectedStepId === stepId) {
+        setSelectedStepId(remainingSteps[0]?.id || null);
+      }
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete step.');
     }
   };
 
@@ -403,10 +439,18 @@ export function SequenceBuilder({
             {/* Step editor */}
             <div className="flex-1 overflow-auto">
               {selectedStep ? (
-                <StepEditor
-                  step={selectedStep}
-                  onUpdate={handleStepUpdate}
-                />
+                sequence.status === 'active' ? (
+                  <div className="flex h-full items-center justify-center p-8 text-center text-muted-foreground">
+                    Pause the sequence before editing step content or settings.
+                  </div>
+                ) : (
+                  <StepEditor
+                    step={selectedStep}
+                    onUpdate={handleStepUpdate}
+                    projectSlug={projectSlug}
+                    projectType={projectType as 'standard' | 'community' | 'grants' | undefined}
+                  />
+                )
               ) : (
                 <div className="flex items-center justify-center h-full text-muted-foreground">
                   Select a step to edit

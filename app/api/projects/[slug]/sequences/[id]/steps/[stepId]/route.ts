@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { updateStepSchema } from '@/lib/validators/sequence';
+import { deriveFieldsFromDesign } from '@/lib/email-builder/derive-fields';
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string; stepId: string }>;
@@ -104,10 +105,17 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
     }
 
-    // Verify step exists
+    if (sequence.status === 'active') {
+      return NextResponse.json(
+        { error: 'Cannot modify steps while sequence is active. Pause the sequence first.' },
+        { status: 409 }
+      );
+    }
+
+    // Verify step exists and fetch existing design_json for derive fallback
     const { data: existingStep } = await supabaseAny
       .from('sequence_steps')
-      .select('id')
+      .select('id, design_json')
       .eq('id', stepId)
       .eq('sequence_id', id)
       .single();
@@ -126,9 +134,26 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
+    // When the row is builder-backed, always re-derive body_html and body_text from design_json.
+    const designForDerive = validationResult.data.design_json !== undefined
+      ? validationResult.data.design_json
+      : existingStep.design_json;
+    const deriveResult = deriveFieldsFromDesign(designForDerive, 'body_text', { validate: true });
+    if (deriveResult.status === 'invalid') {
+      return NextResponse.json({ error: deriveResult.error }, { status: 400 });
+    }
+    const derived = deriveResult.status === 'ok' ? deriveResult.fields : {};
+
+    // When design_json is the canonical source, strip client-sent body_html/body_text to prevent drift
+    const updatePayload = { ...validationResult.data };
+    if (designForDerive != null) {
+      delete updatePayload.body_html;
+      delete updatePayload.body_text;
+    }
+
     const { data: step, error } = await supabaseAny
       .from('sequence_steps')
-      .update(validationResult.data)
+      .update({ ...updatePayload, ...derived })
       .eq('id', stepId)
       .eq('sequence_id', id)
       .select()
@@ -184,6 +209,13 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     if (!sequence) {
       return NextResponse.json({ error: 'Sequence not found' }, { status: 404 });
+    }
+
+    if (sequence.status === 'active') {
+      return NextResponse.json(
+        { error: 'Cannot modify steps while sequence is active. Pause the sequence first.' },
+        { status: 409 }
+      );
     }
 
     // Get the step to know its step_number

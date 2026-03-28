@@ -7,6 +7,7 @@ import { createDefaultDesign, createDefaultBlock } from '@/lib/email-builder/def
 import { emailDesignSchema } from '@/lib/email-builder/schema';
 import { createBroadcastSchema, updateBroadcastSchema } from '@/lib/validators/community/broadcasts';
 import { createTemplateSchema } from '@/lib/validators/email-template';
+import { STARTER_TEMPLATES, cloneTemplateDesign } from '@/lib/email-builder/starter-templates';
 import type { EmailDesign } from '@/types/email-builder';
 
 // ── Test helpers ────────────────────────────────────────────────────────────
@@ -251,6 +252,14 @@ describe('validateDesign', () => {
     const errors = validateDesign(design);
     expect(hasBlockingErrors(errors)).toBe(false);
     expect(hasWarningsOnly(errors)).toBe(false);
+  });
+
+  it('prebuilt starter templates do not have blocking validation errors', () => {
+    for (const template of STARTER_TEMPLATES.filter((template) => template.design.blocks.length > 0)) {
+      const design = cloneTemplateDesign(template);
+      const errors = validateDesign(design);
+      expect(hasBlockingErrors(errors)).toBe(false);
+    }
   });
 });
 

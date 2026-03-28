@@ -50,6 +50,39 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Validation failed', details: validation.error.flatten() }, { status: 400 });
     }
 
+    const requestedStatus = validation.data.status ?? 'draft';
+    if (!['draft', 'scheduled'].includes(requestedStatus)) {
+      return NextResponse.json(
+        { error: `Cannot create a broadcast with status "${requestedStatus}".` },
+        { status: 400 }
+      );
+    }
+
+    if (requestedStatus === 'scheduled') {
+      if (!validation.data.scheduled_at) {
+        return NextResponse.json({ error: 'scheduled_at is required when creating a scheduled broadcast.' }, { status: 400 });
+      }
+      if (new Date(validation.data.scheduled_at).getTime() <= Date.now()) {
+        return NextResponse.json({ error: 'scheduled_at must be in the future.' }, { status: 400 });
+      }
+    }
+
+    if (validation.data.send_config_id) {
+      const { data: sendConfig } = await supabase
+        .from('email_send_configs')
+        .select('id, provider, domain_verified')
+        .eq('id', validation.data.send_config_id)
+        .eq('project_id', project.id)
+        .single();
+
+      if (!sendConfig) {
+        return NextResponse.json({ error: 'Selected email provider was not found for this project.' }, { status: 400 });
+      }
+      if (sendConfig.provider === 'resend' && sendConfig.domain_verified !== true) {
+        return NextResponse.json({ error: 'Selected Resend provider must have a verified domain before it can be used.' }, { status: 400 });
+      }
+    }
+
     const recipientPreview = await resolveBroadcastRecipients(project.id, validation.data.filter_criteria as unknown as Json);
 
     // When design_json is present, derive body_html and body server-side
@@ -65,10 +98,14 @@ export async function POST(request: Request, context: RouteContext) {
     const insertData = {
       ...validation.data,
       ...derived,
+      status: requestedStatus,
       project_id: project.id,
       created_by: user.id,
       filter_criteria: validation.data.filter_criteria as unknown as Json,
       design_json: validation.data.design_json as unknown as Json | undefined,
+      scheduled_at: requestedStatus === 'scheduled' ? validation.data.scheduled_at : null,
+      sent_at: null,
+      failure_reason: null,
     } as BroadcastInsert;
 
     const { data, error } = await supabase

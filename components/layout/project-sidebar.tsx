@@ -25,6 +25,7 @@ import {
   Megaphone,
   Search,
   BookOpen,
+  Map,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -86,8 +87,10 @@ const communityNavItems: NavItem[] = [
   { title: 'Contributions', href: '/contributions', icon: HandCoins, resource: 'contributions' },
   { title: 'Grants', href: '/grants', icon: Award, resource: 'grants' },
   { title: 'Broadcasts', href: '/broadcasts', icon: Megaphone, resource: 'broadcasts' },
+  { title: 'Sequences', href: '/sequences', icon: Mail },
   { title: 'Email Templates', href: '/templates', icon: FileText },
-  { title: 'Assets & Map', href: '/assets', icon: Building2, resource: 'community_assets', alsoMatchPaths: ['/community-assets', '/community-map'] },
+  { title: 'Community Map', href: '/community-map', icon: Map },
+  { title: 'Assets & Map', href: '/assets', icon: Building2, resource: 'community_assets', alsoMatchPaths: ['/community-assets'] },
   { title: 'Reporting', href: '/reports', icon: BarChart3, resource: 'reports', alsoMatchPaths: ['/settings/public-dashboard'] },
 ];
 

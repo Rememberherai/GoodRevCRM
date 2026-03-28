@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useRef } from 'react';
-import { Mail, Clock, MessageSquare, Phone, CheckSquare, Linkedin, Paperclip, X, Upload, FileText } from 'lucide-react';
+import { useState, useRef, useMemo, useEffect } from 'react';
+import { Mail, Clock, MessageSquare, Phone, CheckSquare, Linkedin, Paperclip, X, Upload, FileText, Blocks, Code } from 'lucide-react';
 // Note: Textarea is still used for SMS/task/call editors
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -15,6 +15,14 @@ import {
 } from '@/components/ui/select';
 import { VariablePicker } from './variable-picker';
 import { EmailBodyEditor } from './email-body-editor';
+import { EmailBuilder } from '@/components/email-builder/email-builder';
+import { useEmailBuilderStore } from '@/stores/email-builder';
+import { validateDesign, hasBlockingErrors } from '@/lib/email-builder/validation';
+import { getVariablesForProjectType } from '@/lib/email-builder/variables';
+import { createDefaultDesign } from '@/lib/email-builder/default-blocks';
+import { renderDesignToInnerHtml } from '@/lib/email-builder/render-html';
+import { renderDesignToText } from '@/lib/email-builder/render-text';
+import { emailDesignSchema } from '@/lib/email-builder/schema';
 import { Button } from '@/components/ui/button';
 import { createClient } from '@/lib/supabase/client';
 import { toast } from 'sonner';
@@ -36,50 +44,179 @@ import {
   DEFAULT_TASK_CONFIG,
   DEFAULT_LINKEDIN_CONFIG,
 } from '@/types/sequence';
+import type { ProjectType } from '@/types/project';
+
+type EditorMode = 'builder' | 'html';
 
 interface StepEditorProps {
   step: SequenceStep;
   onUpdate: (updates: Partial<SequenceStep>) => void;
+  projectSlug?: string;
+  /** Project type determines which variables are available in the builder. */
+  projectType?: ProjectType;
 }
 
-export function StepEditor({ step, onUpdate }: StepEditorProps) {
+export function StepEditor({ step, onUpdate, projectSlug, projectType }: StepEditorProps) {
   if (step.step_type === 'delay') {
     return <DelayEditor step={step} onUpdate={onUpdate} />;
   }
 
   if (step.step_type === 'sms') {
-    return <SmsEditor step={step} onUpdate={onUpdate} />;
+    return <SmsEditor step={step} onUpdate={onUpdate} projectType={projectType} />;
   }
 
   if (step.step_type === 'call') {
-    return <CallEditor step={step} onUpdate={onUpdate} />;
+    return <CallEditor step={step} onUpdate={onUpdate} projectType={projectType} />;
   }
 
   if (step.step_type === 'task') {
-    return <TaskEditor step={step} onUpdate={onUpdate} />;
+    return <TaskEditor step={step} onUpdate={onUpdate} projectType={projectType} />;
   }
 
   if (step.step_type === 'linkedin') {
-    return <LinkedInEditor step={step} onUpdate={onUpdate} />;
+    return <LinkedInEditor step={step} onUpdate={onUpdate} projectType={projectType} />;
   }
 
   // Default: email editor
-  return <EmailEditor step={step} onUpdate={onUpdate} />;
+  return <EmailEditor step={step} onUpdate={onUpdate} projectSlug={projectSlug} projectType={projectType} />;
 }
 
-// Email Editor Component
+// Email Editor Component with Builder/HTML toggle
 function EmailEditor({
   step,
   onUpdate,
+  projectSlug,
+  projectType,
 }: {
   step: SequenceStep;
   onUpdate: (updates: Partial<SequenceStep>) => void;
+  projectSlug?: string;
+  projectType?: ProjectType;
 }) {
+  // Determine initial mode: if step has design_json, start in builder mode
+  const hasDesign = step.design_json != null && emailDesignSchema.safeParse(step.design_json).success;
+  const [editorMode, setEditorMode] = useState<EditorMode>(hasDesign ? 'builder' : 'html');
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  const design = useEmailBuilderStore((s) => s.design);
+  const loadDesign = useEmailBuilderStore((s) => s.loadDesign);
+  const resetDesign = useEmailBuilderStore((s) => s.resetDesign);
+
+  const builderVariables = useMemo(
+    () => getVariablesForProjectType(projectType ?? 'standard'),
+    [projectType]
+  );
+
+  // Load design from step on mount or step change.
+  // Also resets the skip-flag so the auto-save effect doesn't fire for the loaded design.
+  const lastStepIdRef = useRef<string | null>(null);
+  const skipNextDesignSaveRef = useRef(true);
+  useEffect(() => {
+    if (step.id === lastStepIdRef.current) return;
+    lastStepIdRef.current = step.id;
+    // Set the skip flag BEFORE loading so the design-change effect (below) skips.
+    skipNextDesignSaveRef.current = true;
+    if (step.design_json != null) {
+      const parsed = emailDesignSchema.safeParse(step.design_json);
+      if (parsed.success) {
+        loadDesign(parsed.data);
+        setEditorMode('builder');
+      } else {
+        resetDesign();
+        setEditorMode('html');
+      }
+    } else {
+      resetDesign();
+      setEditorMode('html');
+    }
+    setValidationErrors([]);
+  }, [step.id, step.design_json, loadDesign, resetDesign]);
+
+  // Auto-save design changes back to step when in builder mode.
+  // Skips the first change after a step load to avoid echoing the loaded design back.
+  useEffect(() => {
+    if (editorMode !== 'builder') return;
+    if (skipNextDesignSaveRef.current) {
+      skipNextDesignSaveRef.current = false;
+      return;
+    }
+    // design changed — send design_json to the parent (which debounces the API save)
+    onUpdate({ design_json: design as unknown as Record<string, unknown> });
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [design, editorMode]);
+
+  function saveBuilderDesign() {
+    const currentDesign = useEmailBuilderStore.getState().design;
+    const vErrors = validateDesign(currentDesign);
+    if (hasBlockingErrors(vErrors)) {
+      setValidationErrors(vErrors.filter((e) => e.severity === 'error').map((e) => e.message));
+      return false;
+    }
+    setValidationErrors([]);
+    onUpdate({ design_json: currentDesign as unknown as Record<string, unknown> });
+    return true;
+  }
+
+  function switchToBuilder() {
+    if (editorMode === 'builder') return;
+    const html = (step.body_html || '').trim();
+    if (html) {
+      loadDesign({
+        ...createDefaultDesign(),
+        blocks: [{ id: crypto.randomUUID(), type: 'text', html }],
+      });
+    } else {
+      resetDesign();
+    }
+    setValidationErrors([]);
+    setEditorMode('builder');
+  }
+
+  function switchToHtml() {
+    if (editorMode === 'html') return;
+    // Persist builder content before switching
+    if (editorMode === 'builder' && !saveBuilderDesign()) {
+      return;
+    }
+    const currentDesign = useEmailBuilderStore.getState().design;
+    const innerHtml = currentDesign.blocks.length > 0 ? renderDesignToInnerHtml(currentDesign) : '';
+    const text = currentDesign.blocks.length > 0 ? renderDesignToText(currentDesign) : '';
+    onUpdate({ body_html: innerHtml, body_text: text, design_json: null });
+    setValidationErrors([]);
+    setEditorMode('html');
+  }
+
   return (
     <div className="p-6 space-y-6">
-      <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Mail className="h-4 w-4" />
-        <span>Email Step</span>
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-2 text-sm text-muted-foreground">
+          <Mail className="h-4 w-4" />
+          <span>Email Step</span>
+        </div>
+        <div className="flex items-center rounded-lg border bg-muted p-0.5">
+          <Button
+            type="button"
+            variant={editorMode === 'builder' ? 'default' : 'ghost'}
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            onClick={switchToBuilder}
+            disabled={editorMode === 'builder'}
+          >
+            <Blocks className="h-3.5 w-3.5" />
+            Builder
+          </Button>
+          <Button
+            type="button"
+            variant={editorMode === 'html' ? 'default' : 'ghost'}
+            size="sm"
+            className="h-7 gap-1.5 text-xs"
+            onClick={switchToHtml}
+            disabled={editorMode === 'html'}
+          >
+            <Code className="h-3.5 w-3.5" />
+            HTML
+          </Button>
+        </div>
       </div>
 
       <div className="space-y-4">
@@ -106,6 +243,7 @@ function EmailEditor({
                   onUpdate({ subject: newValue });
                 }
               }}
+              variables={builderVariables}
             />
           </div>
           <p className="text-xs text-muted-foreground">
@@ -120,11 +258,30 @@ function EmailEditor({
 
         <div className="space-y-2">
           <Label>Email Body</Label>
-          <EmailBodyEditor
-            value={step.body_html || ''}
-            onChange={(html, text) => onUpdate({ body_html: html, body_text: text })}
-          />
+          {editorMode === 'builder' ? (
+            <div className="border rounded-lg overflow-hidden" style={{ height: 480 }}>
+              <EmailBuilder
+                showPreview
+                variables={builderVariables}
+                slug={projectSlug}
+              />
+            </div>
+          ) : (
+            <EmailBodyEditor
+              value={step.body_html || ''}
+              onChange={(html, text) => onUpdate({ body_html: html, body_text: text })}
+            />
+          )}
         </div>
+
+        {/* Validation errors */}
+        {validationErrors.length > 0 && (
+          <div className="space-y-1">
+            {validationErrors.map((msg, i) => (
+              <p key={i} className="text-sm text-red-500">{msg}</p>
+            ))}
+          </div>
+        )}
 
         <AttachmentEditor
           attachments={step.attachments ?? []}
@@ -201,10 +358,13 @@ function DelayEditor({
 function SmsEditor({
   step,
   onUpdate,
+  projectType,
 }: {
   step: SequenceStep;
   onUpdate: (updates: Partial<SequenceStep>) => void;
+  projectType?: ProjectType;
 }) {
+  const vars = useMemo(() => getVariablesForProjectType(projectType ?? 'standard'), [projectType]);
   const charCount = step.sms_body?.length || 0;
   const maxChars = 1600;
 
@@ -220,6 +380,7 @@ function SmsEditor({
           <div className="flex items-center justify-between">
             <Label htmlFor="sms_body">Message</Label>
             <VariablePicker
+              variables={vars}
               onInsert={(variable) => {
                 const textarea = document.getElementById('sms_body') as HTMLTextAreaElement;
                 if (textarea) {
@@ -261,10 +422,13 @@ function SmsEditor({
 function CallEditor({
   step,
   onUpdate,
+  projectType,
 }: {
   step: SequenceStep;
   onUpdate: (updates: Partial<SequenceStep>) => void;
+  projectType?: ProjectType;
 }) {
+  const vars = useMemo(() => getVariablesForProjectType(projectType ?? 'standard'), [projectType]);
   const config = (step.config || DEFAULT_CALL_CONFIG) as CallStepConfig;
 
   const updateConfig = (updates: Partial<CallStepConfig>) => {
@@ -283,6 +447,7 @@ function CallEditor({
           <div className="flex items-center justify-between">
             <Label htmlFor="call_title">Task Title</Label>
             <VariablePicker
+              variables={vars}
               onInsert={(variable) => {
                 const input = document.getElementById('call_title') as HTMLInputElement;
                 if (input) {
@@ -310,6 +475,7 @@ function CallEditor({
           <div className="flex items-center justify-between">
             <Label htmlFor="call_description">Description</Label>
             <VariablePicker
+              variables={vars}
               onInsert={(variable) => {
                 const textarea = document.getElementById('call_description') as HTMLTextAreaElement;
                 if (textarea) {
@@ -379,10 +545,13 @@ function CallEditor({
 function TaskEditor({
   step,
   onUpdate,
+  projectType,
 }: {
   step: SequenceStep;
   onUpdate: (updates: Partial<SequenceStep>) => void;
+  projectType?: ProjectType;
 }) {
+  const vars = useMemo(() => getVariablesForProjectType(projectType ?? 'standard'), [projectType]);
   const config = (step.config || DEFAULT_TASK_CONFIG) as TaskStepConfig;
 
   const updateConfig = (updates: Partial<TaskStepConfig>) => {
@@ -401,6 +570,7 @@ function TaskEditor({
           <div className="flex items-center justify-between">
             <Label htmlFor="task_title">Task Title</Label>
             <VariablePicker
+              variables={vars}
               onInsert={(variable) => {
                 const input = document.getElementById('task_title') as HTMLInputElement;
                 if (input) {
@@ -428,6 +598,7 @@ function TaskEditor({
           <div className="flex items-center justify-between">
             <Label htmlFor="task_description">Description</Label>
             <VariablePicker
+              variables={vars}
               onInsert={(variable) => {
                 const textarea = document.getElementById('task_description') as HTMLTextAreaElement;
                 if (textarea) {
@@ -497,10 +668,13 @@ function TaskEditor({
 function LinkedInEditor({
   step,
   onUpdate,
+  projectType,
 }: {
   step: SequenceStep;
   onUpdate: (updates: Partial<SequenceStep>) => void;
+  projectType?: ProjectType;
 }) {
+  const vars = useMemo(() => getVariablesForProjectType(projectType ?? 'standard'), [projectType]);
   const config = (step.config || DEFAULT_LINKEDIN_CONFIG) as LinkedInStepConfig;
 
   const updateConfig = (updates: Partial<LinkedInStepConfig>) => {
@@ -538,6 +712,7 @@ function LinkedInEditor({
           <div className="flex items-center justify-between">
             <Label htmlFor="linkedin_title">Task Title</Label>
             <VariablePicker
+              variables={vars}
               onInsert={(variable) => {
                 const input = document.getElementById('linkedin_title') as HTMLInputElement;
                 if (input) {
@@ -565,6 +740,7 @@ function LinkedInEditor({
           <div className="flex items-center justify-between">
             <Label htmlFor="linkedin_description">Description</Label>
             <VariablePicker
+              variables={vars}
               onInsert={(variable) => {
                 const textarea = document.getElementById('linkedin_description') as HTMLTextAreaElement;
                 if (textarea) {
@@ -594,6 +770,7 @@ function LinkedInEditor({
             <div className="flex items-center justify-between">
               <Label htmlFor="linkedin_message">Message Template</Label>
               <VariablePicker
+                variables={vars}
                 onInsert={(variable) => {
                   const textarea = document.getElementById('linkedin_message') as HTMLTextAreaElement;
                   if (textarea) {
