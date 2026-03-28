@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
+import { createAdminClient } from '@/lib/supabase/admin';
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { createProjectNotification } from '@/lib/community/notifications';
@@ -47,9 +48,11 @@ export async function POST(request: Request, context: RouteContext) {
     let contractorId = existingJob.contractor_id;
 
     // If the job is unassigned or this is a contractor, resolve the person record
-    // so the user can self-assign by "taking" the job
+    // so the user can self-assign by "taking" the job.
+    // Use admin client to bypass RLS (person records may not be visible to all roles).
     if (role === 'contractor' || !contractorId) {
-      const { data: person } = await supabase
+      const admin = createAdminClient();
+      const { data: person } = await admin
         .from('people')
         .select('id')
         .eq('project_id', project.id)
@@ -76,17 +79,21 @@ export async function POST(request: Request, context: RouteContext) {
       }
     }
 
-    if (!contractorId) {
+    if (!contractorId && role !== 'owner' && role !== 'admin') {
       return NextResponse.json({ error: 'Cannot accept a job with no contractor assigned' }, { status: 409 });
+    }
+
+    const updatePayload: Record<string, unknown> = {
+      status: 'accepted',
+      desired_start: body.desired_start ?? undefined,
+    };
+    if (contractorId) {
+      updatePayload.contractor_id = contractorId;
     }
 
     const { data: job, error } = await supabase
       .from('jobs')
-      .update({
-        status: 'accepted',
-        desired_start: body.desired_start ?? undefined,
-        contractor_id: contractorId,
-      })
+      .update(updatePayload)
       .eq('project_id', project.id)
       .eq('id', id)
       .select('*, assigned_by_user:users!jobs_assigned_by_fkey(id)')
