@@ -135,16 +135,25 @@ export interface IcsFeedEvent {
  * Generate a full iCalendar feed (VCALENDAR with multiple VEVENTs)
  * for calendar subscription via webcal:// or https://.
  */
-export function generateIcsFeed(calendarName: string, events: IcsFeedEvent[]): string {
+export function generateIcsFeed(
+  calendarName: string,
+  events: IcsFeedEvent[],
+  options?: { description?: string; timezone?: string },
+): string {
   const now = formatIcsDate(new Date().toISOString());
+  const tz = options?.timezone || 'America/Denver';
 
   const lines: string[] = [
     'BEGIN:VCALENDAR',
     'VERSION:2.0',
-    'PRODID:-//GoodRev//Calendar//EN',
+    'PRODID:-//GoodRev//Calendar//1.0//EN',
     'CALSCALE:GREGORIAN',
     'METHOD:PUBLISH',
     `X-WR-CALNAME:${escapeIcsText(calendarName)}`,
+    `X-WR-CALDESC:${escapeIcsText(options?.description || `Events for ${calendarName}`)}`,
+    `X-WR-TIMEZONE:${tz}`,
+    'REFRESH-INTERVAL;VALUE=DURATION:PT1H',
+    'X-PUBLISHED-TTL:PT1H',
   ];
 
   for (const event of events) {

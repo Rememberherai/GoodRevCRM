@@ -32,7 +32,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     const { data: settings } = await supabase
       .from('event_calendar_settings')
-      .select('project_id, title, slug')
+      .select('project_id, title, slug, description, timezone')
       .eq('slug', calendarSlug)
       .eq('is_enabled', true)
       .single();
@@ -67,7 +67,10 @@ export async function GET(request: Request, context: RouteContext) {
       url: e.slug && settings.slug ? `${appUrl}/events/${settings.slug}/${e.slug}` : undefined,
     }));
 
-    const icsContent = generateIcsFeed(settings.title || 'Events', feedEvents);
+    const icsContent = generateIcsFeed(settings.title || 'Events', feedEvents, {
+      description: settings.description || undefined,
+      timezone: settings.timezone || undefined,
+    });
 
     return new NextResponse(icsContent, {
       headers: {
