@@ -33,7 +33,6 @@ import { Separator } from '@/components/ui/separator';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import {
   AlertDialog,
-  AlertDialogAction,
   AlertDialogCancel,
   AlertDialogContent,
   AlertDialogDescription,
@@ -348,8 +347,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
     }
   }, [slug, personId]);
 
-  const handleDelete = async (e: React.MouseEvent) => {
-    e.preventDefault();
+  const handleDelete = async () => {
     setIsDeleting(true);
     try {
       await deletePerson(slug, personId);
@@ -1086,13 +1084,13 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
           </AlertDialogHeader>
           <AlertDialogFooter>
             <AlertDialogCancel disabled={isDeleting}>Cancel</AlertDialogCancel>
-            <AlertDialogAction
+            <Button
+              variant="destructive"
               onClick={handleDelete}
               disabled={isDeleting}
-              className="bg-destructive text-destructive-foreground hover:bg-destructive/90"
             >
               {isDeleting ? 'Deleting...' : 'Delete'}
-            </AlertDialogAction>
+            </Button>
           </AlertDialogFooter>
         </AlertDialogContent>
       </AlertDialog>
