@@ -236,12 +236,14 @@ export async function getCommunityDashboardData(
   }
 
   if (!recentEnrollmentsResult.error && Array.isArray(recentEnrollmentsResult.data)) {
+    const programNameMap = new Map(programRows.map((p) => [p.id, p.name]));
     for (const enrollment of recentEnrollmentsResult.data as Array<{ id: string; program_id: string | null; created_at: string }>) {
+      const programName = enrollment.program_id ? programNameMap.get(enrollment.program_id) : null;
       recentActivity.push({
         id: `enrollment-${enrollment.id}`,
         type: 'enrollment',
         title: 'New enrollment',
-        description: enrollment.program_id ? `Program ${enrollment.program_id}` : 'Program enrollment recorded',
+        description: programName ? programName : 'Program enrollment recorded',
         createdAt: enrollment.created_at,
       });
     }
