@@ -18,6 +18,7 @@ interface SecretEntry {
   masked_value: string;
   updated_at: string | null;
   has_server_default: boolean;
+  fallback_blocked?: boolean;
 }
 
 interface ProjectSecretsPanelProps {
@@ -123,7 +124,7 @@ export function ProjectSecretsPanel({ slug }: ProjectSecretsPanelProps) {
         </CardTitle>
         <CardDescription>
           Configure API keys for third-party services. Keys are encrypted at rest.
-          If no project key is set, the system falls back to the server environment variable.
+          If no project key is set, the system may fall back to a server default if allowed by the administrator.
         </CardDescription>
       </CardHeader>
       <CardContent className="space-y-6">
@@ -146,13 +147,19 @@ export function ProjectSecretsPanel({ slug }: ProjectSecretsPanelProps) {
                       Configured
                     </Badge>
                   )}
+                  {!secret.is_set && secret.fallback_blocked && (
+                    <Badge variant="destructive" className="gap-1 text-xs">
+                      <AlertCircle className="h-3 w-3" />
+                      Server fallback disabled
+                    </Badge>
+                  )}
                   {!secret.is_set && secret.has_server_default && (
                     <Badge variant="secondary" className="gap-1 text-xs">
                       <AlertCircle className="h-3 w-3" />
                       Using server default
                     </Badge>
                   )}
-                  {!secret.is_set && !secret.has_server_default && (
+                  {!secret.is_set && !secret.has_server_default && !secret.fallback_blocked && (
                     <Badge variant="destructive" className="gap-1 text-xs">
                       Not configured
                     </Badge>
@@ -212,7 +219,7 @@ export function ProjectSecretsPanel({ slug }: ProjectSecretsPanelProps) {
                     className="text-destructive hover:text-destructive"
                     onClick={() => handleDelete(secret.key_name)}
                     disabled={deleting}
-                    title="Remove project key (will fall back to env var)"
+                    title="Remove project key"
                   >
                     {deleting ? (
                       <Loader2 className="h-4 w-4 animate-spin" />

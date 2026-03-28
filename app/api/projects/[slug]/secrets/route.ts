@@ -8,6 +8,7 @@ import {
   setProjectSecret,
   deleteProjectSecret,
 } from '@/lib/secrets';
+import { getSystemSetting } from '@/lib/admin/queries';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -72,6 +73,14 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const secrets = await listProjectSecrets(result.project.id);
 
+    // Load admin fallback policy to determine if env-var fallback is actually allowed
+    const setting = await getSystemSetting('require_project_api_keys');
+    const policy =
+      setting && typeof setting === 'object' && !Array.isArray(setting)
+        ? (setting as Record<string, boolean>)
+        : null;
+    const allBlocked = policy?.all === true;
+
     // Include metadata about all available keys
     // The `hidden` query param controls whether to include hidden keys (used by Scheduler panel)
     const url = new URL(_request.url);
@@ -81,6 +90,10 @@ export async function GET(_request: Request, context: RouteContext) {
       .filter(([, meta]) => includeHidden || !('hidden' in meta && meta.hidden))
       .map(([key, meta]) => {
         const stored = secrets.find((s) => s.key_name === key);
+        const envVarExists = !!process.env[meta.envVar];
+        // Check if admin has blocked fallback for this specific key
+        const policyKey = key.replace(/_api_key$/, '');
+        const fallbackBlocked = allBlocked || (policy?.[policyKey] === true);
         return {
           key_name: key,
           label: meta.label,
@@ -89,7 +102,8 @@ export async function GET(_request: Request, context: RouteContext) {
           is_set: !!stored,
           masked_value: stored?.masked_value || '',
           updated_at: stored?.updated_at || null,
-          has_server_default: !!process.env[meta.envVar],
+          has_server_default: envVarExists && !fallbackBlocked,
+          fallback_blocked: envVarExists && fallbackBlocked,
         };
       });
 
