@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { updateTemplateSchema, renderTemplateSchema } from '@/lib/validators/email-template';
+import { deriveFieldsFromDesign } from '@/lib/email-builder/derive-fields';
 
 // GET /api/projects/[slug]/templates/[id] - Get template details
 export async function GET(
@@ -102,10 +103,40 @@ export async function PATCH(
       );
     }
 
+    // When the row is builder-backed, always re-derive body_html and body_text from design_json.
+    // Use the request's design_json if provided, otherwise fall back to the existing row's design.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: existingTemplate } = await (supabase as any)
+      .from('email_templates')
+      .select('design_json')
+      .eq('id', id)
+      .eq('project_id', project.id)
+      .single();
+    if (!existingTemplate) {
+      return NextResponse.json({ error: 'Template not found' }, { status: 404 });
+    }
+
+    const designForDerive = validationResult.data.design_json !== undefined
+      ? validationResult.data.design_json
+      : existingTemplate.design_json;
+    const deriveResult = deriveFieldsFromDesign(designForDerive, 'body_text', { validate: true });
+    if (deriveResult.status === 'invalid') {
+      return NextResponse.json({ error: deriveResult.error }, { status: 400 });
+    }
+    const derived = deriveResult.status === 'ok' ? deriveResult.fields : {};
+
+    // When design_json is the canonical source, strip any client-sent body_html/body_text
+    // to prevent drift between design and rendered output
+    const updatePayload = { ...validationResult.data };
+    if (designForDerive != null) {
+      delete updatePayload.body_html;
+      delete updatePayload.body_text;
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: template, error: updateError } = await (supabase as any)
       .from('email_templates')
-      .update(validationResult.data)
+      .update({ ...updatePayload, ...derived })
       .eq('id', id)
       .eq('project_id', project.id)
       .select()

@@ -33,6 +33,8 @@ export interface EmailTemplate {
   subject: string;
   body_html: string;
   body_text: string | null;
+  /** Block-based email builder design. When present, body_html/body_text are derived server-side. */
+  design_json: Record<string, unknown> | null;
   category: EmailTemplateCategory;
   variables: TemplateVariable[];
   is_active: boolean;
@@ -52,6 +54,7 @@ export interface EmailTemplateVersion {
   subject: string;
   body_html: string;
   body_text: string | null;
+  design_json: Record<string, unknown> | null;
   changed_by: string | null;
   change_note: string | null;
   created_at: string;

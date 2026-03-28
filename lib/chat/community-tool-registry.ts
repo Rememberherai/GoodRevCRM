@@ -11,6 +11,7 @@ import { checkContractorScopeMatch, formatWorkPlanLines, computeTimeEntryDuratio
 import { createProjectNotification } from '@/lib/community/notifications';
 import { sendContractorDocuments, type ContractorDocumentKind } from '@/lib/community/contractor-documents';
 import { emitAutomationEvent } from '@/lib/automations/engine';
+import { deriveFieldsFromDesign } from '@/lib/email-builder/derive-fields';
 import { createHouseholdSchema, updateHouseholdSchema } from '@/lib/validators/community/households';
 import {
   batchAttendanceSchema,
@@ -1628,15 +1629,20 @@ defineCommunityTool({
   parameters: broadcastsCreateToolSchema,
   handler: async (params, ctx) => {
     const parsed = broadcastsCreateToolSchema.parse(params);
+    const deriveResult = deriveFieldsFromDesign(parsed.design_json, 'body', { validate: true });
+    if (deriveResult.status === 'invalid') throw communityError(deriveResult.error);
+    const derived = deriveResult.status === 'ok' ? deriveResult.fields : {};
     const admin = createAdminClient();
     const { data, error } = await admin
       .from('broadcasts')
       .insert({
         ...parsed,
+        ...derived,
         project_id: ctx.projectId,
         created_by: ctx.userId,
         filter_criteria: parsed.filter_criteria as Json,
-      })
+        design_json: parsed.design_json as Json | undefined,
+      } as Database['public']['Tables']['broadcasts']['Insert'])
       .select('*')
       .single();
     if (error || !data) throw communityError(`Failed to create broadcast: ${error?.message ?? 'unknown error'}`);

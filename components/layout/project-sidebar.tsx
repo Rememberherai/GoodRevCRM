@@ -55,6 +55,7 @@ const standardNavItems: NavItem[] = [
   { title: 'Opportunities', href: '/opportunities', icon: Target },
   { title: 'RFPs', href: '/rfps', icon: FileText },
   { title: 'Sequences', href: '/sequences', icon: Mail },
+  { title: 'Email Templates', href: '/templates', icon: FileText },
   { title: 'Content Library', href: '/content-library', icon: Library },
   { title: 'Reporting', href: '/reports', icon: BarChart3 },
   { title: 'News', href: '/news', icon: Newspaper },
@@ -85,6 +86,7 @@ const communityNavItems: NavItem[] = [
   { title: 'Contributions', href: '/contributions', icon: HandCoins, resource: 'contributions' },
   { title: 'Grants', href: '/grants', icon: Award, resource: 'grants' },
   { title: 'Broadcasts', href: '/broadcasts', icon: Megaphone, resource: 'broadcasts' },
+  { title: 'Email Templates', href: '/templates', icon: FileText },
   { title: 'Assets & Map', href: '/assets', icon: Building2, resource: 'community_assets', alsoMatchPaths: ['/community-assets', '/community-map'] },
   { title: 'Reporting', href: '/reports', icon: BarChart3, resource: 'reports', alsoMatchPaths: ['/settings/public-dashboard'] },
 ];

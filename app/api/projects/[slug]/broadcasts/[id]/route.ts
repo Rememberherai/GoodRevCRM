@@ -5,6 +5,7 @@ import { requireCommunityPermission } from '@/lib/projects/community-permissions
 import { updateBroadcastSchema } from '@/lib/validators/community/broadcasts';
 import { resolveBroadcastRecipients } from '@/lib/community/broadcasts';
 import { emitAutomationEvent } from '@/lib/automations/engine';
+import { deriveFieldsFromDesign } from '@/lib/email-builder/derive-fields';
 import type { Database, Json } from '@/types/database';
 
 interface RouteContext {
@@ -54,11 +55,45 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Validation failed', details: validation.error.flatten() }, { status: 400 });
     }
 
-    const updateData = Object.fromEntries(
-      Object.entries(validation.data).filter(([key]) => key !== 'project_id')
-    ) as BroadcastUpdate;
+    // Fetch existing row to prevent leaving the broadcast contentless
+    const { data: existing } = await supabase.from('broadcasts').select('body, design_json').eq('id', id).eq('project_id', project.id).single();
+    if (!existing) return NextResponse.json({ error: 'Broadcast not found' }, { status: 404 });
+
+    // After applying update, will the broadcast still have content?
+    const finalBody = validation.data.body !== undefined ? validation.data.body : existing.body;
+    const finalDesign = validation.data.design_json !== undefined ? validation.data.design_json : existing.design_json;
+    const hasBody = finalBody && finalBody.length > 0;
+    const hasDesign = finalDesign != null;
+    if (!hasBody && !hasDesign) {
+      return NextResponse.json({ error: 'Cannot clear both body and design_json — broadcast would have no content' }, { status: 400 });
+    }
+
+    // When the row is builder-backed, always re-derive body_html and body from design_json.
+    // Use the request's design_json if provided, otherwise fall back to the existing row's design.
+    const designForDerive = validation.data.design_json !== undefined
+      ? validation.data.design_json
+      : existing.design_json;
+    const deriveResult = deriveFieldsFromDesign(designForDerive, 'body', { validate: true });
+    if (deriveResult.status === 'invalid') {
+      return NextResponse.json({ error: deriveResult.error }, { status: 400 });
+    }
+    const derived = deriveResult.status === 'ok' ? deriveResult.fields : {};
+
+    // When design_json is the canonical source, strip client-sent body/body_html to prevent drift
+    const filteredData = Object.fromEntries(
+      Object.entries(validation.data).filter(([key]) => {
+        if (key === 'project_id') return false;
+        if (designForDerive != null && (key === 'body' || key === 'body_html')) return false;
+        return true;
+      })
+    );
+    const updateData = filteredData as BroadcastUpdate;
+    Object.assign(updateData, derived);
     if (validation.data.filter_criteria !== undefined) {
       updateData.filter_criteria = validation.data.filter_criteria as unknown as Json;
+    }
+    if (validation.data.design_json !== undefined) {
+      updateData.design_json = validation.data.design_json as unknown as Json;
     }
 
     const { data, error } = await supabase

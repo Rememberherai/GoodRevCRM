@@ -1510,6 +1510,7 @@ export type Database = {
           channel: string
           created_at: string
           created_by: string | null
+          design_json: Json | null
           failure_reason: string | null
           filter_criteria: Json
           id: string
@@ -1526,6 +1527,7 @@ export type Database = {
           channel: string
           created_at?: string
           created_by?: string | null
+          design_json?: Json | null
           failure_reason?: string | null
           filter_criteria?: Json
           id?: string
@@ -1542,6 +1544,7 @@ export type Database = {
           channel?: string
           created_at?: string
           created_by?: string | null
+          design_json?: Json | null
           failure_reason?: string | null
           filter_criteria?: Json
           id?: string
@@ -3874,6 +3877,7 @@ export type Database = {
           change_note: string | null
           changed_by: string | null
           created_at: string
+          design_json: Json | null
           id: string
           subject: string
           template_id: string
@@ -3885,6 +3889,7 @@ export type Database = {
           change_note?: string | null
           changed_by?: string | null
           created_at?: string
+          design_json?: Json | null
           id?: string
           subject: string
           template_id: string
@@ -3896,6 +3901,7 @@ export type Database = {
           change_note?: string | null
           changed_by?: string | null
           created_at?: string
+          design_json?: Json | null
           id?: string
           subject?: string
           template_id?: string
@@ -3919,6 +3925,7 @@ export type Database = {
           created_at: string
           created_by: string | null
           description: string | null
+          design_json: Json | null
           id: string
           is_active: boolean
           is_shared: boolean
@@ -3937,6 +3944,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          design_json?: Json | null
           id?: string
           is_active?: boolean
           is_shared?: boolean
@@ -3955,6 +3963,7 @@ export type Database = {
           created_at?: string
           created_by?: string | null
           description?: string | null
+          design_json?: Json | null
           id?: string
           is_active?: boolean
           is_shared?: boolean
@@ -11372,6 +11381,7 @@ export type Database = {
           created_at: string | null
           delay_amount: number | null
           delay_unit: string | null
+          design_json: Json | null
           id: string
           sequence_id: string
           sms_body: string | null
@@ -11389,6 +11399,7 @@ export type Database = {
           created_at?: string | null
           delay_amount?: number | null
           delay_unit?: string | null
+          design_json?: Json | null
           id?: string
           sequence_id: string
           sms_body?: string | null
@@ -11406,6 +11417,7 @@ export type Database = {
           created_at?: string | null
           delay_amount?: number | null
           delay_unit?: string | null
+          design_json?: Json | null
           id?: string
           sequence_id?: string
           sms_body?: string | null

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Megaphone, Send, Plus } from 'lucide-react';
+import { Megaphone, Send, Plus, Blocks, Code } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -12,6 +12,15 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Badge } from '@/components/ui/badge';
 import { RecipientFilter } from '@/components/community/broadcasts/recipient-filter';
 import { EmailBodyEditor } from '@/components/sequences/sequence-builder/email-body-editor';
+import { EmailBuilder } from '@/components/email-builder/email-builder';
+import { useEmailBuilderStore } from '@/stores/email-builder';
+import { validateDesign, hasBlockingErrors } from '@/lib/email-builder/validation';
+import { getVariablesForProjectType } from '@/lib/email-builder/variables';
+import { createDefaultDesign } from '@/lib/email-builder/default-blocks';
+import { renderDesignToInnerHtml } from '@/lib/email-builder/render-html';
+import { renderDesignToText } from '@/lib/email-builder/render-text';
+
+type EditorMode = 'builder' | 'html';
 
 interface BroadcastRecord {
   id: string;
@@ -40,10 +49,19 @@ export function BroadcastsPageClient() {
   const [bodyHtml, setBodyHtml] = useState('');
   const [bodyText, setBodyText] = useState('');
   const [channel, setChannel] = useState<'email' | 'sms' | 'both'>('email');
+  const [editorMode, setEditorMode] = useState<EditorMode>('builder');
   const [filterCriteria, setFilterCriteria] = useState<RecipientFilterValue>({});
   const [isSaving, setIsSaving] = useState(false);
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [signatureHtml, setSignatureHtml] = useState<string | null>(null);
+  const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  // Builder store
+  const design = useEmailBuilderStore((s) => s.design);
+  const resetDesign = useEmailBuilderStore((s) => s.resetDesign);
+
+  // Community projects always get community variables
+  const builderVariables = useMemo(() => getVariablesForProjectType('community'), []);
 
   const loadBroadcasts = useCallback(async () => {
     setIsLoading(true);
@@ -85,20 +103,82 @@ export function BroadcastsPageClient() {
 
   const previewCount = useMemo(() => Object.values(filterCriteria).reduce((sum, value) => sum + (value?.length ?? 0), 0), [filterCriteria]);
 
+  // Check if we have content to submit
+  const hasContent = editorMode === 'builder'
+    ? design.blocks.length > 0
+    : bodyText.trim().length > 0;
+
+  function switchToBuilder() {
+    const html = bodyHtml.trim();
+    if (html) {
+      useEmailBuilderStore.getState().loadDesign({
+        ...createDefaultDesign(),
+        blocks: [
+          {
+            id: crypto.randomUUID(),
+            type: 'text',
+            html,
+          },
+        ],
+      });
+    } else {
+      resetDesign();
+    }
+    setValidationErrors([]);
+    setEditorMode('builder');
+  }
+
+  function switchToHtml() {
+    const currentDesign = useEmailBuilderStore.getState().design;
+    if (currentDesign.blocks.length > 0) {
+      setBodyHtml(renderDesignToInnerHtml(currentDesign));
+      setBodyText(renderDesignToText(currentDesign));
+    } else if (signatureHtml) {
+      setBodyHtml(`<p></p><br/><div data-signature="true">${signatureHtml}</div>`);
+      setBodyText('');
+    } else {
+      setBodyHtml('');
+      setBodyText('');
+    }
+    setValidationErrors([]);
+    setEditorMode('html');
+  }
+
   async function handleCreate() {
+    setValidationErrors([]);
+
+    // Run builder validation before save
+    if (editorMode === 'builder') {
+      const vErrors = validateDesign(design);
+      if (hasBlockingErrors(vErrors)) {
+        setValidationErrors(vErrors.filter((e) => e.severity === 'error').map((e) => e.message));
+        return;
+      }
+    }
+
     setIsSaving(true);
     setError(null);
     try {
+      // Build payload based on editor mode
+      const payload: Record<string, unknown> = {
+        subject,
+        channel,
+        filter_criteria: filterCriteria,
+      };
+
+      if (editorMode === 'builder') {
+        // Send design_json — API will derive body_html and body server-side
+        payload.design_json = design;
+      } else {
+        // Legacy HTML mode — send body and body_html directly
+        payload.body = bodyText;
+        payload.body_html = bodyHtml;
+      }
+
       const response = await fetch(`/api/projects/${slug}/broadcasts`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          subject,
-          body: bodyText,
-          body_html: bodyHtml,
-          channel,
-          filter_criteria: filterCriteria,
-        }),
+        body: JSON.stringify(payload),
       });
       const data = await response.json();
       if (!response.ok) {
@@ -109,7 +189,10 @@ export function BroadcastsPageClient() {
       setBodyHtml('');
       setBodyText('');
       setChannel('email');
+      setEditorMode('builder');
       setFilterCriteria({});
+      setValidationErrors([]);
+      resetDesign();
       await loadBroadcasts();
     } catch (submitError) {
       setError(submitError instanceof Error ? submitError.message : 'Failed to create broadcast');
@@ -134,6 +217,19 @@ export function BroadcastsPageClient() {
     }
   }
 
+  function handleOpenDialog() {
+    setSubject('');
+    setBodyText('');
+    setChannel('email');
+    setFilterCriteria({});
+    resetDesign();
+    setValidationErrors([]);
+    setBodyHtml(editorMode === 'html' && signatureHtml
+      ? `<p></p><br/><div data-signature="true">${signatureHtml}</div>`
+      : '');
+    setOpen(true);
+  }
+
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
@@ -148,12 +244,7 @@ export function BroadcastsPageClient() {
             </p>
           </div>
         </div>
-        <Button onClick={() => {
-          if (signatureHtml) {
-            setBodyHtml(`<p></p><br/><div data-signature="true">${signatureHtml}</div>`);
-          }
-          setOpen(true);
-        }}>
+        <Button onClick={handleOpenDialog}>
           <Plus className="mr-2 h-4 w-4" />
           New Broadcast
         </Button>
@@ -190,7 +281,7 @@ export function BroadcastsPageClient() {
                     </div>
                     <Button size="sm" onClick={() => void handleSend(broadcast.id)} disabled={sendingId === broadcast.id || broadcast.status === 'sent'}>
                       <Send className="mr-2 h-4 w-4" />
-                      {sendingId === broadcast.id ? 'Sending…' : 'Send'}
+                      {sendingId === broadcast.id ? 'Sending...' : 'Send'}
                     </Button>
                   </div>
                 </div>
@@ -228,14 +319,57 @@ export function BroadcastsPageClient() {
               </div>
             </div>
 
+            {/* Message editor with builder/HTML toggle (email channel only) */}
             <div className="space-y-2">
-              <Label>Message</Label>
-              <EmailBodyEditor
-                value={bodyHtml}
-                onChange={(html, text) => { setBodyHtml(html); setBodyText(text); }}
-                showVariablePicker={false}
-              />
+              <div className="flex items-center justify-between">
+                <Label>Message</Label>
+                {channel === 'email' && (
+                  <div className="flex items-center rounded-lg border bg-muted p-0.5">
+                    <Button
+                      type="button"
+                      variant={editorMode === 'builder' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={switchToBuilder}
+                    >
+                      <Blocks className="h-3.5 w-3.5" />
+                      Builder
+                    </Button>
+                    <Button
+                      type="button"
+                      variant={editorMode === 'html' ? 'default' : 'ghost'}
+                      size="sm"
+                      className="h-7 gap-1.5 text-xs"
+                      onClick={switchToHtml}
+                    >
+                      <Code className="h-3.5 w-3.5" />
+                      HTML
+                    </Button>
+                  </div>
+                )}
+              </div>
+
+              {editorMode === 'builder' && channel === 'email' ? (
+                <div className="border rounded-lg overflow-hidden" style={{ height: 480 }}>
+                  <EmailBuilder showPreview variables={builderVariables} />
+                </div>
+              ) : (
+                <EmailBodyEditor
+                  value={bodyHtml}
+                  onChange={(html, text) => { setBodyHtml(html); setBodyText(text); }}
+                  showVariablePicker={false}
+                />
+              )}
             </div>
+
+            {/* Validation errors */}
+            {validationErrors.length > 0 && (
+              <div className="space-y-1">
+                {validationErrors.map((msg, i) => (
+                  <p key={i} className="text-sm text-red-500">{msg}</p>
+                ))}
+              </div>
+            )}
 
             <div className="space-y-3">
               <div>
@@ -250,7 +384,7 @@ export function BroadcastsPageClient() {
 
           <DialogFooter className="shrink-0 pt-4 border-t">
             <Button variant="outline" onClick={() => setOpen(false)} disabled={isSaving}>Cancel</Button>
-            <Button onClick={() => void handleCreate()} disabled={isSaving || !subject.trim() || !bodyText.trim()}>
+            <Button onClick={() => void handleCreate()} disabled={isSaving || !subject.trim() || !hasContent}>
               Create Draft
             </Button>
           </DialogFooter>

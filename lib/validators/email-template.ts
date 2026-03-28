@@ -37,13 +37,19 @@ export const createTemplateSchema = z.object({
   name: z.string().min(1).max(255),
   description: z.string().max(1000).nullable().optional(),
   subject: z.string().min(1).max(500),
-  body_html: z.string().min(1).max(100000),
+  /** Required unless design_json is provided (server derives body_html from design). */
+  body_html: z.string().max(100000).optional(),
   body_text: z.string().max(50000).nullable().optional(),
+  /** Block-based email builder design data (JSON). When present, body_html and body_text are derived server-side. */
+  design_json: z.record(z.string(), z.unknown()).nullable().optional(),
   category: z.enum(templateCategories).optional(),
   variables: z.array(templateVariableSchema).optional(),
   is_active: z.boolean().optional(),
   is_shared: z.boolean().optional(),
-});
+}).refine(
+  (data) => (data.design_json != null) || (data.body_html && data.body_html.length > 0),
+  { message: 'Either body_html or design_json is required', path: ['body_html'] }
+);
 
 export type CreateTemplateInput = z.infer<typeof createTemplateSchema>;
 
@@ -54,6 +60,8 @@ export const updateTemplateSchema = z.object({
   subject: z.string().min(1).max(500).optional(),
   body_html: z.string().min(1).max(100000).optional(),
   body_text: z.string().max(50000).nullable().optional(),
+  /** Block-based email builder design data (JSON). When present, body_html and body_text are derived server-side. */
+  design_json: z.record(z.string(), z.unknown()).nullable().optional(),
   category: z.enum(templateCategories).optional(),
   variables: z.array(templateVariableSchema).optional(),
   is_active: z.boolean().optional(),

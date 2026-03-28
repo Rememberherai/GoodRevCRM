@@ -1,6 +1,7 @@
 import { NextRequest, NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createTemplateSchema, templateQuerySchema } from '@/lib/validators/email-template';
+import { deriveFieldsFromDesign } from '@/lib/email-builder/derive-fields';
 
 // GET /api/projects/[slug]/templates - List templates
 export async function GET(
@@ -23,7 +24,7 @@ export async function GET(
     // Get project
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id')
+      .select('id, project_type')
       .eq('slug', slug)
       .single();
 
@@ -78,6 +79,7 @@ export async function GET(
 
     return NextResponse.json({
       data: templates,
+      project_type: project.project_type,
       pagination: {
         total: count || 0,
         limit,
@@ -130,6 +132,13 @@ export async function POST(
       );
     }
 
+    // When design_json is present, derive body_html and body_text server-side
+    const deriveResult = deriveFieldsFromDesign(validationResult.data.design_json, 'body_text', { validate: true });
+    if (deriveResult.status === 'invalid') {
+      return NextResponse.json({ error: deriveResult.error }, { status: 400 });
+    }
+    const derived = deriveResult.status === 'ok' ? deriveResult.fields : {};
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: template, error: createError } = await (supabase as any)
       .from('email_templates')
@@ -137,6 +146,7 @@ export async function POST(
         project_id: project.id,
         created_by: user.id,
         ...validationResult.data,
+        ...derived,
       })
       .select()
       .single();

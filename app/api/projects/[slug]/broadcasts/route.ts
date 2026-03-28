@@ -5,6 +5,7 @@ import { requireCommunityPermission } from '@/lib/projects/community-permissions
 import { createBroadcastSchema } from '@/lib/validators/community/broadcasts';
 import { resolveBroadcastRecipients } from '@/lib/community/broadcasts';
 import { emitAutomationEvent } from '@/lib/automations/engine';
+import { deriveFieldsFromDesign } from '@/lib/email-builder/derive-fields';
 import type { Database, Json } from '@/types/database';
 
 interface RouteContext {
@@ -51,12 +52,24 @@ export async function POST(request: Request, context: RouteContext) {
 
     const recipientPreview = await resolveBroadcastRecipients(project.id, validation.data.filter_criteria as unknown as Json);
 
-    const insertData: BroadcastInsert = {
+    // When design_json is present, derive body_html and body server-side
+    const deriveResult = deriveFieldsFromDesign(validation.data.design_json, 'body', { validate: true });
+    if (deriveResult.status === 'invalid') {
+      return NextResponse.json({ error: deriveResult.error }, { status: 400 });
+    }
+    const derived = deriveResult.status === 'ok' ? deriveResult.fields : {};
+
+    // The refinement guarantees either body or design_json is present.
+    // When design_json is present, derived includes body from renderDesignToText.
+    // When design_json is absent, validation.data.body is guaranteed non-empty.
+    const insertData = {
       ...validation.data,
+      ...derived,
       project_id: project.id,
       created_by: user.id,
       filter_criteria: validation.data.filter_criteria as unknown as Json,
-    };
+      design_json: validation.data.design_json as unknown as Json | undefined,
+    } as BroadcastInsert;
 
     const { data, error } = await supabase
       .from('broadcasts')
