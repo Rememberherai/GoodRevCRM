@@ -258,29 +258,32 @@ export async function POST(request: Request, context: RouteContext) {
   // === PHASE B: Post-commit side effects ===
 
   if (completionWon) {
-    await syncEnrollmentFromCompletedWaiver({
-      supabase,
-      documentId: document.id,
-      projectId: recipient.project_id,
-    }).catch((error) => {
-      console.error('[SIGN_SUBMIT] Failed to sync program enrollment from completed waiver:', error);
-    });
+    // CRM syncs are project-scoped; skip for standalone documents
+    if (recipient.project_id) {
+      await syncEnrollmentFromCompletedWaiver({
+        supabase,
+        documentId: document.id,
+        projectId: recipient.project_id,
+      }).catch((error) => {
+        console.error('[SIGN_SUBMIT] Failed to sync program enrollment from completed waiver:', error);
+      });
 
-    await syncRegistrationFromCompletedWaiver({
-      supabase,
-      documentId: document.id,
-      projectId: recipient.project_id,
-    }).catch((error) => {
-      console.error('[SIGN_SUBMIT] Failed to sync event registration from completed waiver:', error);
-    });
+      await syncRegistrationFromCompletedWaiver({
+        supabase,
+        documentId: document.id,
+        projectId: recipient.project_id,
+      }).catch((error) => {
+        console.error('[SIGN_SUBMIT] Failed to sync event registration from completed waiver:', error);
+      });
 
-    await syncContractorScopeFromCompletedDocument({
-      supabase,
-      documentId: document.id,
-      projectId: recipient.project_id,
-    }).catch((error) => {
-      console.error('[SIGN_SUBMIT] Failed to sync contractor scope from completed document:', error);
-    });
+      await syncContractorScopeFromCompletedDocument({
+        supabase,
+        documentId: document.id,
+        projectId: recipient.project_id,
+      }).catch((error) => {
+        console.error('[SIGN_SUBMIT] Failed to sync contractor scope from completed document:', error);
+      });
+    }
 
     // Insert completion audit
     insertAuditTrail({
@@ -290,10 +293,10 @@ export async function POST(request: Request, context: RouteContext) {
       actor_type: 'system',
     });
 
-    // Activity log
+    // Activity log (project-scoped)
     try {
       const activityUserId = document.owner_id ?? document.created_by;
-      if (activityUserId) {
+      if (activityUserId && recipient.project_id) {
         await supabase.from('activity_log').insert({
           project_id: recipient.project_id,
           user_id: activityUserId,
@@ -314,13 +317,16 @@ export async function POST(request: Request, context: RouteContext) {
       });
     });
 
-    emitAutomationEvent({
-      projectId: recipient.project_id,
-      triggerType: 'document.completed' as never,
-      entityType: 'document' as never,
-      entityId: document.id,
-      data: { title: document.title },
-    });
+    // Automations are project-scoped; skip for standalone documents
+    if (recipient.project_id) {
+      emitAutomationEvent({
+        projectId: recipient.project_id,
+        triggerType: 'document.completed' as never,
+        entityType: 'document' as never,
+        entityId: document.id,
+        data: { title: document.title },
+      });
+    }
   }
 
   if (groupAdvanced) {
@@ -330,14 +336,16 @@ export async function POST(request: Request, context: RouteContext) {
     });
   }
 
-  // Always emit signed event
-  emitAutomationEvent({
-    projectId: recipient.project_id,
-    triggerType: 'document.signed' as never,
-    entityType: 'document' as never,
-    entityId: document.id,
-    data: { title: document.title, signer_name: recipient.name, signer_email: recipient.email },
-  });
+  // Always emit signed event (automations are project-scoped)
+  if (recipient.project_id) {
+    emitAutomationEvent({
+      projectId: recipient.project_id,
+      triggerType: 'document.signed' as never,
+      entityType: 'document' as never,
+      entityId: document.id,
+      data: { title: document.title, signer_name: recipient.name, signer_email: recipient.email },
+    });
+  }
 
   return NextResponse.json({
     success: true,

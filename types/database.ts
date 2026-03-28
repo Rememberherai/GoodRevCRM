@@ -2422,7 +2422,7 @@ export type Database = {
           document_id: string
           id: string
           ip_address: string | null
-          project_id: string
+          project_id: string | null
           recipient_id: string | null
           user_agent: string | null
         }
@@ -2436,7 +2436,7 @@ export type Database = {
           document_id: string
           id?: string
           ip_address?: string | null
-          project_id: string
+          project_id?: string | null
           recipient_id?: string | null
           user_agent?: string | null
         }
@@ -2450,7 +2450,7 @@ export type Database = {
           document_id?: string
           id?: string
           ip_address?: string | null
-          project_id?: string
+          project_id?: string | null
           recipient_id?: string | null
           user_agent?: string | null
         }
@@ -2511,7 +2511,7 @@ export type Database = {
           owner_id: string | null
           page_count: number
           person_id: string | null
-          project_id: string
+          project_id: string | null
           receipt_sent_at: string | null
           reminder_enabled: boolean
           reminder_interval_days: number | null
@@ -2553,7 +2553,7 @@ export type Database = {
           owner_id?: string | null
           page_count?: number
           person_id?: string | null
-          project_id: string
+          project_id?: string | null
           receipt_sent_at?: string | null
           reminder_enabled?: boolean
           reminder_interval_days?: number | null
@@ -2595,7 +2595,7 @@ export type Database = {
           owner_id?: string | null
           page_count?: number
           person_id?: string | null
-          project_id?: string
+          project_id?: string | null
           receipt_sent_at?: string | null
           reminder_enabled?: boolean
           reminder_interval_days?: number | null
@@ -2685,7 +2685,7 @@ export type Database = {
           options: Json | null
           page_number: number
           placeholder: string | null
-          project_id: string
+          project_id: string | null
           recipient_id: string
           updated_at: string
           validation_rule: string | null
@@ -2707,7 +2707,7 @@ export type Database = {
           options?: Json | null
           page_number?: number
           placeholder?: string | null
-          project_id: string
+          project_id?: string | null
           recipient_id: string
           updated_at?: string
           validation_rule?: string | null
@@ -2729,7 +2729,7 @@ export type Database = {
           options?: Json | null
           page_number?: number
           placeholder?: string | null
-          project_id?: string
+          project_id?: string | null
           recipient_id?: string
           updated_at?: string
           validation_rule?: string | null
@@ -2785,7 +2785,7 @@ export type Database = {
           initials_data: Json | null
           name: string
           person_id: string | null
-          project_id: string
+          project_id: string | null
           role: string
           sent_at: string | null
           signature_data: Json | null
@@ -2814,7 +2814,7 @@ export type Database = {
           initials_data?: Json | null
           name: string
           person_id?: string | null
-          project_id: string
+          project_id?: string | null
           role?: string
           sent_at?: string | null
           signature_data?: Json | null
@@ -2843,7 +2843,7 @@ export type Database = {
           initials_data?: Json | null
           name?: string
           person_id?: string | null
-          project_id?: string
+          project_id?: string | null
           role?: string
           sent_at?: string | null
           signature_data?: Json | null
@@ -2911,7 +2911,7 @@ export type Database = {
           merge_fields: Json
           name: string
           page_count: number
-          project_id: string
+          project_id: string | null
           roles: Json
           updated_at: string
           use_count: number
@@ -2931,7 +2931,7 @@ export type Database = {
           merge_fields?: Json
           name: string
           page_count?: number
-          project_id: string
+          project_id?: string | null
           roles?: Json
           updated_at?: string
           use_count?: number
@@ -2951,7 +2951,7 @@ export type Database = {
           merge_fields?: Json
           name?: string
           page_count?: number
-          project_id?: string
+          project_id?: string | null
           roles?: Json
           updated_at?: string
           use_count?: number

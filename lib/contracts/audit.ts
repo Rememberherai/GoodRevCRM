@@ -2,7 +2,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import type { ContractAuditAction, ContractAuditActorType } from '@/types/contract';
 
 interface AuditEntry {
-  project_id: string;
+  project_id: string | null;
   document_id: string;
   recipient_id?: string | null;
   action: ContractAuditAction;

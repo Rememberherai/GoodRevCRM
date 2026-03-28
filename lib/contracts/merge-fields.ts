@@ -2,7 +2,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 export { MERGE_FIELD_OPTIONS, VALID_MERGE_FIELD_KEYS } from '@/lib/contracts/merge-field-keys';
 
 interface ResolveContext {
-  projectId: string;
+  projectId: string | null;
   personId?: string | null;
   organizationId?: string | null;
   opportunityId?: string | null;
@@ -19,9 +19,10 @@ export async function resolveMergeFields(
   const supabase = createServiceClient();
   const result: Record<string, string> = {};
 
-  const needsPerson = keys.some((k) => k.startsWith('person.'));
-  const needsOrg = keys.some((k) => k.startsWith('organization.'));
-  const needsOpp = keys.some((k) => k.startsWith('opportunity.'));
+  // Skip CRM lookups when projectId is null (standalone docs have no CRM links)
+  const needsPerson = context.projectId && keys.some((k) => k.startsWith('person.'));
+  const needsOrg = context.projectId && keys.some((k) => k.startsWith('organization.'));
+  const needsOpp = context.projectId && keys.some((k) => k.startsWith('opportunity.'));
 
   // Fetch entities in parallel
   const [person, org, opp] = await Promise.all([
@@ -30,7 +31,7 @@ export async function resolveMergeFields(
           .from('people')
           .select('first_name, last_name, email, phone, job_title')
           .eq('id', context.personId)
-          .eq('project_id', context.projectId)
+          .eq('project_id', context.projectId!)
           .is('deleted_at', null)
           .single()
           .then((r) => r.data)
@@ -40,7 +41,7 @@ export async function resolveMergeFields(
           .from('organizations')
           .select('name, domain')
           .eq('id', context.organizationId)
-          .eq('project_id', context.projectId)
+          .eq('project_id', context.projectId!)
           .is('deleted_at', null)
           .single()
           .then((r) => r.data)
@@ -50,7 +51,7 @@ export async function resolveMergeFields(
           .from('opportunities')
           .select('name, amount')
           .eq('id', context.opportunityId)
-          .eq('project_id', context.projectId)
+          .eq('project_id', context.projectId!)
           .is('deleted_at', null)
           .single()
           .then((r) => r.data)

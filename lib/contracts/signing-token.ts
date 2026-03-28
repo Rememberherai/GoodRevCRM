@@ -8,7 +8,7 @@ export interface TokenValidationResult {
   recipient?: {
     id: string;
     document_id: string;
-    project_id: string;
+    project_id: string | null;
     name: string;
     email: string;
     role: string;
@@ -20,7 +20,7 @@ export interface TokenValidationResult {
   };
   document?: {
     id: string;
-    project_id: string;
+    project_id: string | null;
     title: string;
     status: string;
     page_count: number;

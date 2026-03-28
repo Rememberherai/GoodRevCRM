@@ -164,13 +164,16 @@ async function processContracts() {
           actor_type: 'system',
         });
 
-        emitAutomationEvent({
-          projectId: doc.project_id,
-          triggerType: 'document.expired',
-          entityType: 'document',
-          entityId: doc.id,
-          data: { title: doc.title },
-        });
+        // Automations are project-scoped; skip for standalone documents
+        if (doc.project_id) {
+          emitAutomationEvent({
+            projectId: doc.project_id,
+            triggerType: 'document.expired',
+            entityType: 'document',
+            entityId: doc.id,
+            data: { title: doc.title },
+          });
+        }
 
         results.expired++;
       } catch (err) {

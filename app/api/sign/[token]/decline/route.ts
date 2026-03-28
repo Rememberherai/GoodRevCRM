@@ -86,7 +86,7 @@ export async function POST(request: Request, context: RouteContext) {
   // Activity log
   try {
     const activityUserId = document.owner_id ?? document.created_by;
-    if (activityUserId) {
+    if (activityUserId && recipient.project_id) {
       await supabase.from('activity_log').insert({
         project_id: recipient.project_id,
         user_id: activityUserId,
@@ -106,13 +106,16 @@ export async function POST(request: Request, context: RouteContext) {
     reason: validation.success ? validation.data.reason : undefined,
   }).catch(() => {});
 
-  emitAutomationEvent({
-    projectId: recipient.project_id,
-    triggerType: 'document.declined' as never,
-    entityType: 'document' as never,
-    entityId: document.id,
-    data: { title: document.title, declined_by: recipient.name, reason: validation.success ? validation.data.reason : undefined },
-  });
+  // Automations are project-scoped; skip for standalone documents
+  if (recipient.project_id) {
+    emitAutomationEvent({
+      projectId: recipient.project_id,
+      triggerType: 'document.declined' as never,
+      entityType: 'document' as never,
+      entityId: document.id,
+      data: { title: document.title, declined_by: recipient.name, reason: validation.success ? validation.data.reason : undefined },
+    });
+  }
 
   return NextResponse.json({ success: true });
 }

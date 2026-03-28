@@ -10,7 +10,7 @@ import type { GmailConnection } from '@/types/gmail';
  * Idempotent: skips artifacts that already exist.
  * Also used by the completion repair cron.
  */
-export async function handleCompletion(documentId: string, projectId: string): Promise<void> {
+export async function handleCompletion(documentId: string, projectId: string | null): Promise<void> {
   const supabase = createServiceClient();
 
   const { data: document } = await supabase
@@ -25,7 +25,8 @@ export async function handleCompletion(documentId: string, projectId: string): P
   if (!document.signed_file_path) {
     try {
       const { pdfBytes, hash } = await flattenPdf({ documentId, projectId });
-      const signedPath = `${projectId}/documents/${documentId}/signed_${document.original_file_name}`;
+      const pathPrefix = projectId ?? `standalone/${document.created_by}`;
+      const signedPath = `${pathPrefix}/documents/${documentId}/signed_${document.original_file_name}`;
 
       const { error: uploadError } = await supabase.storage.from('contracts').upload(signedPath, pdfBytes, {
         contentType: 'application/pdf',
@@ -50,7 +51,8 @@ export async function handleCompletion(documentId: string, projectId: string): P
   if (!document.certificate_file_path) {
     try {
       const certBytes = await generateCertificate({ documentId, projectId });
-      const certPath = `${projectId}/documents/${documentId}/certificate.pdf`;
+      const certPathPrefix = projectId ?? `standalone/${document.created_by}`;
+      const certPath = `${certPathPrefix}/documents/${documentId}/certificate.pdf`;
 
       const { error: uploadError } = await supabase.storage.from('contracts').upload(certPath, certBytes, {
         contentType: 'application/pdf',
@@ -126,7 +128,7 @@ function escHtml(str: string): string {
 
 async function sendReceiptEmails(
   documentId: string,
-  projectId: string,
+  projectId: string | null,
   supabase: ReturnType<typeof createServiceClient>,
   options: { toSender: boolean; toRecipients: boolean } = { toSender: true, toRecipients: true }
 ) {

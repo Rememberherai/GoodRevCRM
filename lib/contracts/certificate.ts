@@ -3,7 +3,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 
 interface CertificateOptions {
   documentId: string;
-  projectId: string;
+  projectId: string | null;
 }
 
 export async function generateCertificate(options: CertificateOptions): Promise<Uint8Array> {

@@ -17,7 +17,7 @@ const FONTS_DIR = join(process.cwd(), 'lib', 'contracts', 'fonts');
 
 interface FlattenOptions {
   documentId: string;
-  projectId: string;
+  projectId: string | null;
 }
 
 interface RecipientData {
