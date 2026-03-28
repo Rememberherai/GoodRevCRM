@@ -23,7 +23,10 @@ const broadcastBaseShape = {
   send_config_id: uuidSchema.nullable().optional(),
 } as const;
 
-export const broadcastSchema = z.object(broadcastBaseShape).refine(
+/** Unrefined object schema — safe for .omit()/.pick()/.partial() in tool registries */
+export const broadcastBaseObjectSchema = z.object(broadcastBaseShape);
+
+export const broadcastSchema = broadcastBaseObjectSchema.refine(
   (data) => (data.design_json != null) || (data.body && data.body.length > 0),
   { message: 'Either body or design_json is required', path: ['body'] }
 );

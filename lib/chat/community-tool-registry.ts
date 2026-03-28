@@ -39,7 +39,7 @@ import {
   relationshipBaseSchema,
 } from '@/lib/validators/community/relationships';
 import {
-  createBroadcastSchema,
+  broadcastBaseObjectSchema,
 } from '@/lib/validators/community/broadcasts';
 import {
   grantSchema,
@@ -220,7 +220,7 @@ const relationshipsListSchema = z.object({
 });
 const relationshipsCreateToolSchema = relationshipBaseSchema.omit({ project_id: true });
 
-const broadcastsCreateToolSchema = createBroadcastSchema.omit({ project_id: true });
+const broadcastsCreateToolSchema = broadcastBaseObjectSchema.omit({ project_id: true });
 const broadcastsSendToolSchema = z.object({
   id: z.string().uuid(),
 });
