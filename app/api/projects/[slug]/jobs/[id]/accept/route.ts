@@ -46,7 +46,9 @@ export async function POST(request: Request, context: RouteContext) {
 
     let contractorId = existingJob.contractor_id;
 
-    if (role === 'contractor') {
+    // If the job is unassigned or this is a contractor, resolve the person record
+    // so the user can self-assign by "taking" the job
+    if (role === 'contractor' || !contractorId) {
       const { data: person } = await supabase
         .from('people')
         .select('id')
@@ -55,21 +57,23 @@ export async function POST(request: Request, context: RouteContext) {
         .is('deleted_at', null)
         .maybeSingle();
 
-      if (!person?.id) {
+      if (role === 'contractor' && !person?.id) {
         return NextResponse.json(
           { error: 'Your contractor account is not linked to a person record yet.' },
           { status: 409 }
         );
       }
 
-      if (contractorId && contractorId !== person.id) {
+      if (contractorId && person?.id && contractorId !== person.id) {
         return NextResponse.json(
           { error: 'This job is assigned to a different contractor.' },
           { status: 403 }
         );
       }
 
-      contractorId = person.id;
+      if (person?.id) {
+        contractorId = person.id;
+      }
     }
 
     if (!contractorId) {
