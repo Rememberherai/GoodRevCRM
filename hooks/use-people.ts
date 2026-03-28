@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect } from 'react';
+import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   usePersonStore,
@@ -212,6 +212,9 @@ export function usePerson(personId: string) {
     setError,
   } = usePersonStore();
 
+  // Track whether initial fetch has completed to avoid flashing "not found"
+  const [hasLoaded, setHasLoaded] = useState(false);
+
   const loadPerson = useCallback(async () => {
     if (!projectSlug || !personId) return;
 
@@ -221,6 +224,8 @@ export function usePerson(personId: string) {
       setCurrentPerson(person);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch person');
+    } finally {
+      setHasLoaded(true);
     }
   }, [projectSlug, personId, setCurrentPerson, setLoading, setError]);
 
@@ -248,7 +253,7 @@ export function usePerson(personId: string) {
 
   return {
     person: currentPerson,
-    isLoading,
+    isLoading: isLoading || !hasLoaded,
     error,
     refresh: loadPerson,
     update,
