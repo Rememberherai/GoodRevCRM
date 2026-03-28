@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { BriefcaseBusiness, Plus } from 'lucide-react';
+import { BriefcaseBusiness, ChevronUp, Plus } from 'lucide-react';
 import { toast } from 'sonner';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -65,6 +65,7 @@ export function JobsPageClient() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [form, setForm] = useState(EMPTY_FORM);
+  const [formOpen, setFormOpen] = useState(false);
   const { serviceTypes } = useServiceTypes();
 
   const loadData = useCallback(async () => {
@@ -147,6 +148,7 @@ export function JobsPageClient() {
 
       toast.success('Job created');
       setForm(EMPTY_FORM);
+      setFormOpen(false);
       await loadData();
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create job');
@@ -157,16 +159,23 @@ export function JobsPageClient() {
 
   return (
     <div className="space-y-6">
-      <div className="flex items-center gap-3">
-        <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-          <BriefcaseBusiness className="h-5 w-5" />
+      <div className="flex items-center justify-between">
+        <div className="flex items-center gap-3">
+          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
+            <BriefcaseBusiness className="h-5 w-5" />
+          </div>
+          <div>
+            <h2 className="text-3xl font-bold tracking-tight">Jobs</h2>
+            <p className="text-sm text-muted-foreground">Assign work, monitor acceptance, and track completion.</p>
+          </div>
         </div>
-        <div>
-          <h2 className="text-3xl font-bold tracking-tight">Jobs</h2>
-          <p className="text-sm text-muted-foreground">Assign work, monitor acceptance, and track completion.</p>
-        </div>
+        <Button onClick={() => setFormOpen((prev) => !prev)} variant={formOpen ? 'outline' : 'default'}>
+          {formOpen ? <ChevronUp className="mr-2 h-4 w-4" /> : <Plus className="mr-2 h-4 w-4" />}
+          {formOpen ? 'Close Form' : 'Create Job'}
+        </Button>
       </div>
 
+      {formOpen && (
       <Card>
         <CardHeader>
           <CardTitle>Create Job</CardTitle>
@@ -254,6 +263,7 @@ export function JobsPageClient() {
           </div>
         </CardContent>
       </Card>
+      )}
 
       <Card>
         <CardHeader className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
