@@ -175,7 +175,7 @@ export function ProjectSidebar({ project, role, deniedResources, className }: Pr
           )}
         >
           <MessageSquare className="h-4 w-4" />
-          Chat
+          AI Agent
         </button>
         {!(project.project_type === 'community' && (role === 'board_viewer' || role === 'contractor')) && bottomNavItems.map((item) => {
           const href = `${basePath}${item.href}`;

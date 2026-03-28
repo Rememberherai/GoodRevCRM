@@ -129,7 +129,7 @@ export function CalendarSidebar({ profileSlug, className }: CalendarSidebarProps
           )}
         >
           <MessageSquare className="h-4 w-4" />
-          Chat
+          AI Agent
         </button>
         {bottomNavItems.map((item) => {
           const href = `${basePath}${item.href}`;

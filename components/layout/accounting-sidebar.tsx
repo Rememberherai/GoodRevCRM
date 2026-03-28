@@ -149,7 +149,7 @@ export function AccountingSidebar({ companyName, className }: AccountingSidebarP
           )}
         >
           <MessageSquare className="h-4 w-4" />
-          Chat
+          AI Agent
         </button>
         {bottomNavItems.map((item) => {
           const href = `${basePath}${item.href}`;

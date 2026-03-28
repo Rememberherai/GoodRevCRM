@@ -44,7 +44,7 @@ export function ContractorPortalHeader({ projectName, projectSlug }: ContractorP
           </Button>
           <Button variant="outline" onClick={toggleChat}>
             <MessageSquare className="mr-2 h-4 w-4" />
-            Chat
+            AI Agent
           </Button>
         </div>
       </div>
