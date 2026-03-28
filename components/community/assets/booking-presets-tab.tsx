@@ -44,7 +44,12 @@ import {
   Phone,
   Loader2,
   CalendarClock,
+  GripVertical,
+  MessageSquare,
+  X,
 } from 'lucide-react';
+import { Checkbox } from '@/components/ui/checkbox';
+import type { CustomQuestion, QuestionType } from '@/types/calendar';
 
 interface EventTypePreset {
   id: string;
@@ -61,6 +66,7 @@ interface EventTypePreset {
   min_notice_hours: number;
   max_days_in_advance: number;
   requires_confirmation: boolean;
+  custom_questions: CustomQuestion[];
   schedule_id: string | null;
   created_at: string;
 }
@@ -77,6 +83,7 @@ interface PresetFormData {
   min_notice_hours: number;
   max_days_in_advance: number;
   requires_confirmation: boolean;
+  custom_questions: CustomQuestion[];
 }
 
 const DEFAULT_FORM: PresetFormData = {
@@ -91,6 +98,17 @@ const DEFAULT_FORM: PresetFormData = {
   min_notice_hours: 24,
   max_days_in_advance: 60,
   requires_confirmation: false,
+  custom_questions: [],
+};
+
+const QUESTION_TYPE_LABELS: Record<QuestionType, string> = {
+  text: 'Short Text',
+  textarea: 'Long Text',
+  select: 'Dropdown',
+  radio: 'Radio Buttons',
+  checkbox: 'Checkbox',
+  phone: 'Phone',
+  email: 'Email',
 };
 
 const LOCATION_LABELS: Record<string, string> = {
@@ -166,6 +184,9 @@ export function BookingPresetsTab({ assetId }: { assetId: string }) {
 
   const openEditDialog = (preset: EventTypePreset) => {
     setEditingPreset(preset);
+    const questions = Array.isArray(preset.custom_questions)
+      ? preset.custom_questions
+      : [];
     setForm({
       title: preset.title,
       description: preset.description ?? '',
@@ -178,6 +199,7 @@ export function BookingPresetsTab({ assetId }: { assetId: string }) {
       min_notice_hours: preset.min_notice_hours,
       max_days_in_advance: preset.max_days_in_advance,
       requires_confirmation: preset.requires_confirmation,
+      custom_questions: questions,
     });
     setDialogOpen(true);
   };
@@ -188,12 +210,36 @@ export function BookingPresetsTab({ assetId }: { assetId: string }) {
       return;
     }
 
+    // Validate custom questions have labels and select/radio have non-empty options
+    const invalidQ = form.custom_questions.find((q) => !q.label.trim());
+    if (invalidQ) {
+      toast.error('All intake questions must have a label');
+      return;
+    }
+    const invalidOpts = form.custom_questions.find(
+      (q) => (q.type === 'select' || q.type === 'radio') && (!q.options?.length || q.options.some((o) => !o.trim()))
+    );
+    if (invalidOpts) {
+      toast.error('All dropdown/radio options must be filled in');
+      return;
+    }
+
     setSaving(true);
     try {
+      // Strip empty options arrays for non-select/radio types
+      const cleanedQuestions = form.custom_questions.map((q) => {
+        if (q.type !== 'select' && q.type !== 'radio') {
+          const { options: _, ...rest } = q;
+          return rest;
+        }
+        return q;
+      });
+
       const payload = {
         ...form,
         description: form.description || null,
         location_value: form.location_value || null,
+        custom_questions: cleanedQuestions,
       };
 
       if (editingPreset) {
@@ -348,6 +394,12 @@ export function BookingPresetsTab({ assetId }: { assetId: string }) {
                             Requires confirmation
                           </Badge>
                         )}
+                        {Array.isArray(preset.custom_questions) && preset.custom_questions.length > 0 && (
+                          <Badge variant="outline" className="text-xs">
+                            <MessageSquare className="mr-1 h-3 w-3" />
+                            {preset.custom_questions.length} question{preset.custom_questions.length !== 1 ? 's' : ''}
+                          </Badge>
+                        )}
                       </div>
                       <div className="mt-1 flex flex-wrap gap-3 text-xs text-muted-foreground">
                         <span className="flex items-center gap-1">
@@ -412,7 +464,7 @@ export function BookingPresetsTab({ assetId }: { assetId: string }) {
 
       {/* Create / Edit Dialog */}
       <Dialog open={dialogOpen} onOpenChange={setDialogOpen}>
-        <DialogContent className="max-w-lg">
+        <DialogContent className="max-h-[90vh] max-w-lg overflow-y-auto">
           <DialogHeader>
             <DialogTitle>
               {editingPreset ? 'Edit Booking Option' : 'New Booking Option'}
@@ -603,6 +655,189 @@ export function BookingPresetsTab({ assetId }: { assetId: string }) {
                 checked={form.requires_confirmation}
                 onCheckedChange={(val) => updateForm('requires_confirmation', val)}
               />
+            </div>
+
+            {/* Custom Intake Questions */}
+            <div className="space-y-3">
+              <div className="flex items-center justify-between">
+                <div>
+                  <Label>Intake Questions</Label>
+                  <p className="text-xs text-muted-foreground">
+                    Ask guests for additional info when booking
+                  </p>
+                </div>
+                <Button
+                  type="button"
+                  variant="outline"
+                  size="sm"
+                  onClick={() => {
+                    const newQ: CustomQuestion = {
+                      id: crypto.randomUUID(),
+                      label: '',
+                      type: 'text',
+                      required: false,
+                    };
+                    updateForm('custom_questions', [...form.custom_questions, newQ]);
+                  }}
+                >
+                  <Plus className="mr-1 h-3.5 w-3.5" />
+                  Add Question
+                </Button>
+              </div>
+
+              {form.custom_questions.length > 0 && (
+                <div className="space-y-2">
+                  {form.custom_questions.map((q, idx) => (
+                    <div
+                      key={q.id}
+                      className="rounded-lg border bg-gray-50 p-3 dark:bg-gray-900"
+                    >
+                      <div className="flex items-start gap-2">
+                        <div className="flex-1 space-y-2">
+                          <Input
+                            placeholder="Question label"
+                            value={q.label}
+                            onChange={(e) => {
+                              const updated = [...form.custom_questions];
+                              updated[idx] = { ...q, label: e.target.value };
+                              updateForm('custom_questions', updated);
+                            }}
+                          />
+                          <div className="flex items-center gap-3">
+                            <Select
+                              value={q.type}
+                              onValueChange={(val: QuestionType) => {
+                                const updated = [...form.custom_questions];
+                                updated[idx] = {
+                                  ...q,
+                                  type: val,
+                                  options: (val === 'select' || val === 'radio') ? (q.options?.length ? q.options : ['']) : undefined,
+                                };
+                                updateForm('custom_questions', updated);
+                              }}
+                            >
+                              <SelectTrigger className="w-[140px]">
+                                <SelectValue />
+                              </SelectTrigger>
+                              <SelectContent>
+                                {(Object.entries(QUESTION_TYPE_LABELS) as [QuestionType, string][]).map(
+                                  ([value, label]) => (
+                                    <SelectItem key={value} value={value}>
+                                      {label}
+                                    </SelectItem>
+                                  )
+                                )}
+                              </SelectContent>
+                            </Select>
+                            <label className="flex items-center gap-1.5 text-xs">
+                              <Checkbox
+                                checked={q.required}
+                                onCheckedChange={(checked) => {
+                                  const updated = [...form.custom_questions];
+                                  updated[idx] = { ...q, required: !!checked };
+                                  updateForm('custom_questions', updated);
+                                }}
+                              />
+                              Required
+                            </label>
+                          </div>
+
+                          {/* Options editor for select/radio */}
+                          {(q.type === 'select' || q.type === 'radio') && (
+                            <div className="space-y-1.5 pl-1">
+                              <span className="text-xs text-muted-foreground">Options:</span>
+                              {(q.options ?? ['']).map((opt, optIdx) => (
+                                <div key={optIdx} className="flex items-center gap-1">
+                                  <Input
+                                    className="h-7 text-xs"
+                                    placeholder={`Option ${optIdx + 1}`}
+                                    value={opt}
+                                    onChange={(e) => {
+                                      const updated = [...form.custom_questions];
+                                      const newOpts = [...(q.options ?? [''])];
+                                      newOpts[optIdx] = e.target.value;
+                                      updated[idx] = { ...q, options: newOpts };
+                                      updateForm('custom_questions', updated);
+                                    }}
+                                  />
+                                  {(q.options ?? []).length > 1 && (
+                                    <Button
+                                      type="button"
+                                      variant="ghost"
+                                      size="icon"
+                                      className="h-7 w-7 shrink-0"
+                                      onClick={() => {
+                                        const updated = [...form.custom_questions];
+                                        const newOpts = (q.options ?? []).filter((_, i) => i !== optIdx);
+                                        updated[idx] = { ...q, options: newOpts };
+                                        updateForm('custom_questions', updated);
+                                      }}
+                                    >
+                                      <X className="h-3 w-3" />
+                                    </Button>
+                                  )}
+                                </div>
+                              ))}
+                              <Button
+                                type="button"
+                                variant="ghost"
+                                size="sm"
+                                className="h-6 text-xs"
+                                onClick={() => {
+                                  const updated = [...form.custom_questions];
+                                  updated[idx] = { ...q, options: [...(q.options ?? []), ''] };
+                                  updateForm('custom_questions', updated);
+                                }}
+                              >
+                                <Plus className="mr-1 h-3 w-3" />
+                                Add Option
+                              </Button>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Move up/down + delete */}
+                        <div className="flex flex-col gap-0.5">
+                          {idx > 0 && (
+                            <Button
+                              type="button"
+                              variant="ghost"
+                              size="icon"
+                              className="h-6 w-6"
+                              title="Move up"
+                              onClick={() => {
+                                const updated = [...form.custom_questions];
+                                const prev = updated[idx - 1]!;
+                                const curr = updated[idx]!;
+                                updated[idx - 1] = curr;
+                                updated[idx] = prev;
+                                updateForm('custom_questions', updated);
+                              }}
+                            >
+                              <GripVertical className="h-3 w-3 rotate-180" />
+                            </Button>
+                          )}
+                          <Button
+                            type="button"
+                            variant="ghost"
+                            size="icon"
+                            className="h-6 w-6 text-destructive hover:text-destructive"
+                            title="Remove question"
+                            onClick={() => {
+                              updateForm(
+                                'custom_questions',
+                                form.custom_questions.filter((_, i) => i !== idx)
+                              );
+                            }}
+                          >
+                            <Trash2 className="h-3 w-3" />
+                          </Button>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              )}
             </div>
           </div>
 

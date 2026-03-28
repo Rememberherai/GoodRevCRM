@@ -12,6 +12,7 @@ import { createServiceClient } from '@/lib/supabase/server';
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { z } from 'zod';
+import { customQuestionSchema } from '@/lib/validators/calendar';
 import type { SupabaseClient } from '@supabase/supabase-js';
 
 interface RouteContext {
@@ -30,6 +31,7 @@ const createPresetSchema = z.object({
   min_notice_hours: z.number().int().min(0).max(720).default(24),
   max_days_in_advance: z.number().int().min(1).max(365).default(60),
   requires_confirmation: z.boolean().optional().default(false),
+  custom_questions: z.array(customQuestionSchema).optional().default([]),
 });
 
 const updatePresetSchema = z.object({
@@ -45,6 +47,7 @@ const updatePresetSchema = z.object({
   max_days_in_advance: z.number().int().min(1).max(365).optional(),
   requires_confirmation: z.boolean().optional(),
   is_active: z.boolean().optional(),
+  custom_questions: z.array(customQuestionSchema).optional(),
 });
 
 // ── Default booking presets seeded automatically ──────────────────────
@@ -142,7 +145,7 @@ async function seedDefaultPresets(
 }
 
 const EVENT_TYPE_SELECT =
-  'id, title, slug, description, duration_minutes, color, is_active, location_type, location_value, buffer_before_minutes, buffer_after_minutes, min_notice_hours, max_days_in_advance, requires_confirmation, schedule_id, created_at';
+  'id, title, slug, description, duration_minutes, color, is_active, location_type, location_value, buffer_before_minutes, buffer_after_minutes, min_notice_hours, max_days_in_advance, requires_confirmation, custom_questions, schedule_id, created_at';
 
 // ── GET — List event types for this asset (auto-seeds defaults) ──────
 export async function GET(_request: Request, context: RouteContext) {
