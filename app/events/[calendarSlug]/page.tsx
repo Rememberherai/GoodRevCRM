@@ -100,7 +100,7 @@ export default async function PublicCalendarPage({ params }: PageProps) {
         <h1 className="text-3xl sm:text-4xl font-bold text-center">{settings.title}</h1>
         {settings.description && <p className="mt-3 text-center text-muted-foreground max-w-2xl mx-auto">{settings.description}</p>}
       </div>
-      <PublicEventList events={events} pastEvents={pastEvents} calendarSlug={calendarSlug} />
+      <PublicEventList events={events} pastEvents={pastEvents} calendarSlug={calendarSlug} calendarTitle={settings.title} />
     </div>
   );
 }

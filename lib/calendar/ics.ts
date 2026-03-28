@@ -118,3 +118,56 @@ function escapeIcsText(text: string): string {
     .replace(/,/g, '\\,')
     .replace(/\n/g, '\\n');
 }
+
+// ── iCal subscription feed ─────────────────────────────────
+
+export interface IcsFeedEvent {
+  uid: string;
+  summary: string;
+  description?: string;
+  location?: string;
+  startAt: string;
+  endAt: string;
+  url?: string;
+}
+
+/**
+ * Generate a full iCalendar feed (VCALENDAR with multiple VEVENTs)
+ * for calendar subscription via webcal:// or https://.
+ */
+export function generateIcsFeed(calendarName: string, events: IcsFeedEvent[]): string {
+  const now = formatIcsDate(new Date().toISOString());
+
+  const lines: string[] = [
+    'BEGIN:VCALENDAR',
+    'VERSION:2.0',
+    'PRODID:-//GoodRev//Calendar//EN',
+    'CALSCALE:GREGORIAN',
+    'METHOD:PUBLISH',
+    `X-WR-CALNAME:${escapeIcsText(calendarName)}`,
+  ];
+
+  for (const event of events) {
+    lines.push('BEGIN:VEVENT');
+    lines.push(`UID:${event.uid}@goodrev.com`);
+    lines.push(`DTSTAMP:${now}`);
+    lines.push(`DTSTART:${formatIcsDate(event.startAt)}`);
+    lines.push(`DTEND:${formatIcsDate(event.endAt)}`);
+    lines.push(`SUMMARY:${escapeIcsText(event.summary)}`);
+    if (event.description) {
+      lines.push(`DESCRIPTION:${escapeIcsText(event.description)}`);
+    }
+    if (event.location) {
+      lines.push(`LOCATION:${escapeIcsText(event.location)}`);
+    }
+    if (event.url) {
+      lines.push(`URL:${event.url}`);
+    }
+    lines.push('STATUS:CONFIRMED');
+    lines.push('END:VEVENT');
+  }
+
+  lines.push('END:VCALENDAR');
+
+  return lines.map(foldLine).join('\r\n');
+}
