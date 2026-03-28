@@ -95,18 +95,19 @@ export function FieldEditorClient() {
       const res = await fetch(`/api/documents/${id}`);
       if (!res.ok) throw new Error('Failed to load document');
       const data = await res.json();
+      const doc = data.document ?? data.contract;
 
-      setDocumentTitle(data.contract.title);
-      setPageCount(data.contract.page_count);
-      setRecipients(data.contract.recipients);
+      setDocumentTitle(doc.title);
+      setPageCount(doc.page_count);
+      setRecipients(doc.recipients);
 
-      if (!data.contract.recipients || data.contract.recipients.length === 0) {
+      if (!doc.recipients || doc.recipients.length === 0) {
         router.replace(`/documents/${id}?setup=recipients`);
         return;
       }
 
       // Map existing fields
-      const existingFields: Field[] = (data.contract.fields ?? []).map((f: Record<string, unknown>) => ({
+      const existingFields: Field[] = (doc.fields ?? []).map((f: Record<string, unknown>) => ({
         id: f.id,
         tempId: f.id ?? crypto.randomUUID(),
         recipient_id: f.recipient_id as string,
