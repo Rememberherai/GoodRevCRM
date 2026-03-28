@@ -1,5 +1,6 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { decrypt, encrypt, maskApiKey } from '@/lib/encryption';
+import { getSystemSetting } from '@/lib/admin/queries';
 
 /**
  * Known secret key names that can be stored per project.
@@ -91,8 +92,60 @@ export const SECRET_KEYS = {
 export type SecretKeyName = keyof typeof SECRET_KEYS;
 
 /**
+ * Fetch the fallback policy once and return a checker function.
+ * Avoids repeated DB queries when resolving multiple keys.
+ */
+async function loadFallbackPolicy(): Promise<Record<string, boolean> | null> {
+  try {
+    const setting = await getSystemSetting('require_project_api_keys');
+    if (setting && typeof setting === 'object' && !Array.isArray(setting)) {
+      return setting as Record<string, boolean>;
+    }
+  } catch {
+    // Setting fetch failed — default to allowing fallback
+  }
+  return null;
+}
+
+/**
+ * Check whether env-var fallback is allowed for a given secret key.
+ *
+ * The admin setting `require_project_api_keys` is a JSONB object.
+ * - If `"all"` is `true`, fallback is blocked for every key.
+ * - Per-key overrides (e.g. `"openrouter": true`) block fallback for that
+ *   specific key even when `"all"` is not set.
+ *
+ * Accepts an optional pre-fetched policy to avoid redundant DB calls
+ * when checking multiple keys in a loop.
+ *
+ * Fallback is allowed by default (setting absent or `false`).
+ */
+function checkFallbackAllowed(
+  keyName: SecretKeyName,
+  policy: Record<string, boolean> | null
+): boolean {
+  if (!policy) return true;
+
+  // Global kill-switch — applies to every key
+  if (policy.all === true) {
+    return false;
+  }
+
+  // Per-key override (e.g. openrouter_api_key → "openrouter")
+  const policyKey = keyName.replace(/_api_key$/, '');
+  if (policy[policyKey] === true) {
+    return false;
+  }
+
+  return true;
+}
+
+/**
  * Get a project secret by name. Checks the database first, then falls back
  * to the corresponding environment variable for backward compatibility.
+ *
+ * If the admin setting `require_project_api_keys` blocks fallback for the
+ * given key, returns null instead of the env var.
  *
  * No caching — each call hits the DB to ensure fresh values.
  * DB round-trips are fast (~1-5ms) and correctness matters more.
@@ -116,6 +169,10 @@ export async function getProjectSecret(
   } catch {
     // DB read failed — fall through to env var
   }
+
+  // Check if env-var fallback is allowed by admin policy
+  const policy = await loadFallbackPolicy();
+  if (!checkFallbackAllowed(keyName, policy)) return null;
 
   // Fallback to environment variable
   const envVar = SECRET_KEYS[keyName].envVar;
@@ -143,6 +200,9 @@ export async function getProjectSecrets(
       (data || []).map((row) => [row.key_name, row.encrypted_value])
     );
 
+    // Fetch fallback policy once for all keys
+    const policy = await loadFallbackPolicy();
+
     for (const key of keyNames) {
       const encrypted = dbResults.get(key);
       let value: string | null = null;
@@ -156,17 +216,24 @@ export async function getProjectSecrets(
       }
 
       if (!value) {
-        const envVar = SECRET_KEYS[key].envVar;
-        value = process.env[envVar] || null;
+        if (checkFallbackAllowed(key, policy)) {
+          const envVar = SECRET_KEYS[key].envVar;
+          value = process.env[envVar] || null;
+        }
       }
 
       result[key] = value;
     }
   } catch {
-    // DB failed — fall back to env vars for all
+    // DB failed — load policy separately and fall back to env vars if allowed
+    const policy = await loadFallbackPolicy();
     for (const key of keyNames) {
-      const envVar = SECRET_KEYS[key].envVar;
-      result[key] = process.env[envVar] || null;
+      if (checkFallbackAllowed(key, policy)) {
+        const envVar = SECRET_KEYS[key].envVar;
+        result[key] = process.env[envVar] || null;
+      } else {
+        result[key] = null;
+      }
     }
   }
 

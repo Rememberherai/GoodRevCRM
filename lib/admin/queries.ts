@@ -634,6 +634,22 @@ export async function getSystemSettings() {
   return data ?? [];
 }
 
+/**
+ * Fetch a single system setting by key.
+ * Returns the parsed JSONB value or null if not found.
+ */
+export async function getSystemSetting(key: string): Promise<unknown> {
+  const supabase = createAdminClient();
+  const { data, error } = await supabase
+    .from('system_settings')
+    .select('value')
+    .eq('key', key)
+    .single();
+
+  if (error || !data) return null;
+  return data.value;
+}
+
 export async function listBugReports(params: {
   search?: string;
   filter_status?: string;
