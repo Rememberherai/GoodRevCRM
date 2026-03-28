@@ -337,6 +337,62 @@ export async function deleteProjectSecret(
 }
 
 /**
+ * Copy secrets from one project to another.
+ * Only copies non-hidden, user-facing keys that exist in the source project.
+ * Decrypts from source, re-encrypts for target.
+ * Returns the list of key names that were copied.
+ */
+export async function copyProjectSecrets(
+  sourceProjectId: string,
+  targetProjectId: string,
+  userId: string,
+  keyNames?: SecretKeyName[]
+): Promise<SecretKeyName[]> {
+  const supabase = createAdminClient();
+
+  // Fetch all secrets from source project
+  const { data: sourceSecrets, error } = await supabase
+    .from('project_secrets')
+    .select('key_name, encrypted_value')
+    .eq('project_id', sourceProjectId);
+
+  if (error) {
+    throw new Error(`Failed to read source project secrets: ${error.message}`);
+  }
+
+  if (!sourceSecrets || sourceSecrets.length === 0) {
+    return [];
+  }
+
+  // Filter to only non-hidden keys (unless specific keys requested)
+  const hiddenKeys = new Set(
+    (Object.entries(SECRET_KEYS) as [SecretKeyName, (typeof SECRET_KEYS)[SecretKeyName]][])
+      .filter(([, meta]) => 'hidden' in meta && meta.hidden)
+      .map(([key]) => key)
+  );
+
+  const toCopy = sourceSecrets.filter((s) => {
+    if (!(s.key_name in SECRET_KEYS)) return false;
+    if (keyNames) return keyNames.includes(s.key_name as SecretKeyName);
+    return !hiddenKeys.has(s.key_name as SecretKeyName);
+  });
+
+  const copied: SecretKeyName[] = [];
+  for (const secret of toCopy) {
+    try {
+      const decrypted = decrypt(secret.encrypted_value);
+      await setProjectSecret(targetProjectId, secret.key_name as SecretKeyName, decrypted, userId);
+      copied.push(secret.key_name as SecretKeyName);
+    } catch {
+      // Skip secrets that can't be decrypted
+      console.error(`Failed to copy secret ${secret.key_name}`);
+    }
+  }
+
+  return copied;
+}
+
+/**
  * List all secrets for a project with masked values.
  * Never returns the actual secret values.
  */

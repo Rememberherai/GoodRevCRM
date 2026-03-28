@@ -1,12 +1,28 @@
 'use client';
 
 import { useState, useEffect, useCallback } from 'react';
-import { Eye, EyeOff, Key, Loader2, Save, Trash2, CheckCircle2, AlertCircle } from 'lucide-react';
+import { Eye, EyeOff, Key, Loader2, Save, Trash2, CheckCircle2, AlertCircle, Copy } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
 import { Badge } from '@/components/ui/badge';
+import {
+  Dialog,
+  DialogContent,
+  DialogDescription,
+  DialogFooter,
+  DialogHeader,
+  DialogTitle,
+  DialogTrigger,
+} from '@/components/ui/dialog';
+import {
+  Select,
+  SelectContent,
+  SelectItem,
+  SelectTrigger,
+  SelectValue,
+} from '@/components/ui/select';
 import { toast } from 'sonner';
 
 interface SecretEntry {
@@ -21,6 +37,12 @@ interface SecretEntry {
   fallback_blocked?: boolean;
 }
 
+interface ProjectInfo {
+  id: string;
+  name: string;
+  slug: string;
+}
+
 interface ProjectSecretsPanelProps {
   slug: string;
 }
@@ -32,6 +54,11 @@ export function ProjectSecretsPanel({ slug }: ProjectSecretsPanelProps) {
   const [showValues, setShowValues] = useState<Record<string, boolean>>({});
   const [savingKeys, setSavingKeys] = useState<Record<string, boolean>>({});
   const [deletingKeys, setDeletingKeys] = useState<Record<string, boolean>>({});
+  const [copyDialogOpen, setCopyDialogOpen] = useState(false);
+  const [otherProjects, setOtherProjects] = useState<ProjectInfo[]>([]);
+  const [selectedSourceId, setSelectedSourceId] = useState<string>('');
+  const [copying, setCopying] = useState(false);
+  const [loadingProjects, setLoadingProjects] = useState(false);
 
   const fetchSecrets = useCallback(async () => {
     try {
@@ -82,6 +109,58 @@ export function ProjectSecretsPanel({ slug }: ProjectSecretsPanelProps) {
     }
   }
 
+  async function fetchOtherProjects() {
+    setLoadingProjects(true);
+    try {
+      const res = await fetch('/api/projects');
+      if (res.ok) {
+        const data = await res.json();
+        const projects = (data.projects || []) as ProjectInfo[];
+        // Exclude the current project
+        setOtherProjects(projects.filter((p) => p.slug !== slug));
+      }
+    } catch {
+      toast.error('Failed to load projects');
+    } finally {
+      setLoadingProjects(false);
+    }
+  }
+
+  async function handleCopyFromProject() {
+    if (!selectedSourceId) {
+      toast.error('Please select a project');
+      return;
+    }
+
+    setCopying(true);
+    try {
+      const res = await fetch(`/api/projects/${slug}/secrets/copy`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ source_project_id: selectedSourceId }),
+      });
+
+      if (res.ok) {
+        const data = await res.json();
+        if (data.copied === 0) {
+          toast.info('No keys to copy — the source project has no API keys configured');
+        } else {
+          toast.success(`Copied ${data.copied} API key${data.copied > 1 ? 's' : ''}`);
+        }
+        setCopyDialogOpen(false);
+        setSelectedSourceId('');
+        fetchSecrets();
+      } else {
+        const data = await res.json();
+        toast.error(data.error || 'Failed to copy keys');
+      }
+    } catch {
+      toast.error('Failed to copy keys');
+    } finally {
+      setCopying(false);
+    }
+  }
+
   async function handleDelete(keyName: string) {
     setDeletingKeys((prev) => ({ ...prev, [keyName]: true }));
     try {
@@ -118,10 +197,80 @@ export function ProjectSecretsPanel({ slug }: ProjectSecretsPanelProps) {
   return (
     <Card>
       <CardHeader>
-        <CardTitle className="flex items-center gap-2">
-          <Key className="h-5 w-5" />
-          API Keys
-        </CardTitle>
+        <div className="flex items-center justify-between">
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            API Keys
+          </CardTitle>
+          <Dialog
+            open={copyDialogOpen}
+            onOpenChange={(open) => {
+              setCopyDialogOpen(open);
+              if (open) fetchOtherProjects();
+              else setSelectedSourceId('');
+            }}
+          >
+            <DialogTrigger asChild>
+              <Button variant="outline" size="sm" className="gap-1.5">
+                <Copy className="h-3.5 w-3.5" />
+                Copy from project
+              </Button>
+            </DialogTrigger>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Copy API Keys from Another Project</DialogTitle>
+                <DialogDescription>
+                  Copy all configured API keys from another project you manage.
+                  Existing keys on this project will be overwritten.
+                </DialogDescription>
+              </DialogHeader>
+              {loadingProjects ? (
+                <div className="flex justify-center py-6">
+                  <Loader2 className="h-5 w-5 animate-spin text-muted-foreground" />
+                </div>
+              ) : otherProjects.length === 0 ? (
+                <p className="text-sm text-muted-foreground py-4">
+                  No other projects found.
+                </p>
+              ) : (
+                <Select value={selectedSourceId} onValueChange={setSelectedSourceId}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Select a project" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    {otherProjects.map((p) => (
+                      <SelectItem key={p.id} value={p.id}>
+                        {p.name}
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              )}
+              <DialogFooter>
+                <Button
+                  variant="outline"
+                  onClick={() => setCopyDialogOpen(false)}
+                  disabled={copying}
+                >
+                  Cancel
+                </Button>
+                <Button
+                  onClick={handleCopyFromProject}
+                  disabled={copying || !selectedSourceId}
+                >
+                  {copying ? (
+                    <>
+                      <Loader2 className="h-4 w-4 animate-spin mr-1.5" />
+                      Copying...
+                    </>
+                  ) : (
+                    'Copy Keys'
+                  )}
+                </Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </div>
         <CardDescription>
           Configure API keys for third-party services. Keys are encrypted at rest.
           If no project key is set, the system may fall back to a server default if allowed by the administrator.
