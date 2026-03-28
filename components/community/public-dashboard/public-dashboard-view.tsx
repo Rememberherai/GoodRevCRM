@@ -34,35 +34,61 @@ export function PublicDashboardView({
     { id: 'contributions', type: 'contribution_summary', title: 'Contributions' },
   ];
 
+  const hasHeroImage = !!config.hero_image_url;
+
   return (
     <div className="min-h-screen bg-background">
-      <div className="mx-auto max-w-6xl space-y-6 px-4 py-10">
-        <div className="rounded-3xl border bg-card shadow-sm overflow-hidden">
-          {config.hero_image_url && (
-            <img
-              src={config.hero_image_url}
-              alt=""
-              className="h-48 w-full object-cover"
-            />
+      <div className="mx-auto max-w-6xl space-y-12 md:space-y-16 px-4 py-10">
+        {/* Hero */}
+        <div
+          className="animate-in fade-in duration-700 rounded-3xl overflow-hidden relative"
+          style={{ animationDuration: '700ms' }}
+        >
+          {hasHeroImage ? (
+            <>
+              <img
+                src={config.hero_image_url!}
+                alt=""
+                className="h-[320px] md:h-[400px] w-full object-cover"
+              />
+              <div className="absolute inset-0 bg-gradient-to-t from-black/70 via-black/30 to-transparent" />
+              <div className="absolute bottom-0 left-0 right-0 p-8 md:p-12">
+                <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-white drop-shadow-lg">
+                  {config.title}
+                </h1>
+                {config.description && (
+                  <p className="mt-3 max-w-2xl text-base md:text-lg text-white/85">
+                    {config.description}
+                  </p>
+                )}
+              </div>
+            </>
+          ) : (
+            <div className="bg-gradient-to-br from-primary/5 via-background to-teal-500/5 p-8 md:p-12 lg:p-16">
+              <h1 className="text-4xl md:text-5xl lg:text-6xl font-bold tracking-tight text-foreground">
+                {config.title}
+              </h1>
+              {config.description && (
+                <p className="mt-3 max-w-2xl text-base md:text-lg text-muted-foreground">
+                  {config.description}
+                </p>
+              )}
+            </div>
           )}
-          <div className="space-y-2 p-8">
-            <h1 className="text-4xl font-bold tracking-tight text-foreground">{config.title}</h1>
-            {config.description && <p className="max-w-3xl text-sm text-muted-foreground">{config.description}</p>}
-          </div>
         </div>
 
+        {/* Widgets */}
         {activeWidgets.map((widget, index) => {
           const type = String(widget.type ?? 'metric_card');
           const title = String(widget.title ?? `Widget ${index + 1}`);
 
-          if (type === 'metric_card') {
-            return <PublicMetricCard key={index} title={title} metrics={data.metrics} />;
-          }
+          let content: React.ReactNode = null;
 
-          if (type === 'bar_chart') {
-            return (
+          if (type === 'metric_card') {
+            content = <PublicMetricCard title={title} metrics={data.metrics} />;
+          } else if (type === 'bar_chart') {
+            content = (
               <PublicBarChart
-                key={index}
                 title={title}
                 items={data.dimensionBreakdown.map((item) => ({
                   label: item.label,
@@ -71,25 +97,27 @@ export function PublicDashboardView({
                 }))}
               />
             );
+          } else if (type === 'radar_chart') {
+            content = <PublicRadarChart title={title} items={data.dimensionBreakdown} />;
+          } else if (type === 'program_summary') {
+            content = <PublicProgramSummary title={title} items={data.programSummary} />;
+          } else if (type === 'contribution_summary') {
+            content = <PublicContributionSummary title={title} items={data.contributionSummary} />;
+          } else if (type === 'map_heatmap') {
+            content = <PublicMapHeatmap title={title} granularity={config.geo_granularity} />;
+          } else {
+            content = <PublicTextBlock title={title} text={String((widget.config as Record<string, unknown> | undefined)?.text ?? config.description ?? '')} />;
           }
 
-          if (type === 'radar_chart') {
-            return <PublicRadarChart key={index} title={title} items={data.dimensionBreakdown} />;
-          }
-
-          if (type === 'program_summary') {
-            return <PublicProgramSummary key={index} title={title} items={data.programSummary} />;
-          }
-
-          if (type === 'contribution_summary') {
-            return <PublicContributionSummary key={index} title={title} items={data.contributionSummary} />;
-          }
-
-          if (type === 'map_heatmap') {
-            return <PublicMapHeatmap key={index} title={title} granularity={config.geo_granularity} />;
-          }
-
-          return <PublicTextBlock key={index} title={title} text={String((widget.config as Record<string, unknown> | undefined)?.text ?? config.description ?? '')} />;
+          return (
+            <div
+              key={index}
+              className="animate-in fade-in slide-in-from-bottom-4 fill-mode-both"
+              style={{ animationDelay: `${(index + 1) * 150}ms`, animationDuration: '700ms' }}
+            >
+              {content}
+            </div>
+          );
         })}
       </div>
     </div>
