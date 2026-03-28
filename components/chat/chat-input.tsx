@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useRef, useCallback, type KeyboardEvent, type ChangeEvent } from 'react';
+import { useState, useRef, useCallback, useEffect, type KeyboardEvent, type ChangeEvent } from 'react';
 import { ArrowUp, Camera, Loader2, Square } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { toast } from 'sonner';
@@ -47,6 +47,11 @@ export function ChatInput({ onSend, onStop, isStreaming, projectSlug, projectTyp
     if (!el) return;
     el.style.height = 'auto';
     el.style.height = `${Math.min(el.scrollHeight, 120)}px`;
+  }, []);
+
+  // Auto-focus textarea when mounted (panel opened)
+  useEffect(() => {
+    textareaRef.current?.focus();
   }, []);
 
   const appendUploadMessage = useCallback((message: string) => {
@@ -131,8 +136,8 @@ export function ChatInput({ onSend, onStop, isStreaming, projectSlug, projectTyp
           placeholder={projectType === 'community'
             ? 'Ask the assistant to process receipts, sync program calendars, or handle nonprofit operations...'
             : 'Ask anything about your CRM data...'}
-          rows={1}
-          className="flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground min-h-[36px] max-h-[120px] py-2 px-1"
+          rows={projectType === 'community' ? 3 : 1}
+          className={`flex-1 resize-none bg-transparent text-sm outline-none placeholder:text-muted-foreground ${projectType === 'community' ? 'min-h-[72px]' : 'min-h-[36px]'} max-h-[120px] py-2 px-1`}
           disabled={isStreaming || isUploading}
         />
         {isStreaming ? (
