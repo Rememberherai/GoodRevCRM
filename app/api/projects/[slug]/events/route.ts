@@ -66,6 +66,12 @@ export async function GET(request: Request, context: RouteContext) {
       query = query.eq('series_id', seriesIdFilter);
     }
 
+    // Exclude events that belong to a series (show only standalone events)
+    const excludeSeries = searchParams.get('excludeSeries');
+    if (excludeSeries === 'true') {
+      query = query.is('series_id', null);
+    }
+
     const ALLOWED_SORT = ['title', 'status', 'created_at', 'updated_at', 'starts_at', 'ends_at'];
     const ascending = sortOrder === 'asc';
     query = query.order(ALLOWED_SORT.includes(sortBy) ? sortBy : 'starts_at', { ascending });

@@ -49,8 +49,31 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to fetch series' }, { status: 500 });
     }
 
+    // Enrich with upcoming instance count per series
+    const seriesIds = (series ?? []).map(s => s.id);
+    const instanceCountMap = new Map<string, number>();
+    if (seriesIds.length > 0) {
+      const { data: instanceCounts } = await supabase
+        .from('events')
+        .select('series_id')
+        .in('series_id', seriesIds)
+        .gte('starts_at', new Date().toISOString());
+      if (instanceCounts) {
+        for (const row of instanceCounts) {
+          if (row.series_id) {
+            instanceCountMap.set(row.series_id, (instanceCountMap.get(row.series_id) ?? 0) + 1);
+          }
+        }
+      }
+    }
+
+    const enrichedSeries = (series ?? []).map(s => ({
+      ...s,
+      upcoming_event_count: instanceCountMap.get(s.id) ?? 0,
+    }));
+
     return NextResponse.json({
-      series,
+      series: enrichedSeries,
       pagination: { page, limit, total: count ?? 0, totalPages: Math.ceil((count ?? 0) / limit) },
     });
   } catch (error) {

@@ -47,6 +47,50 @@ const statusColors: Record<string, string> = {
   completed: 'bg-blue-100 text-blue-800 dark:bg-blue-800 dark:text-blue-200',
 };
 
+const DAY_NAMES: Record<string, string> = {
+  MO: 'Monday', TU: 'Tuesday', WE: 'Wednesday', TH: 'Thursday',
+  FR: 'Friday', SA: 'Saturday', SU: 'Sunday',
+};
+
+const POSITION_LABELS: Record<number, string> = {
+  1: '1st', 2: '2nd', 3: '3rd', 4: '4th', 5: 'Last',
+};
+
+function formatRecurrenceDescription(series: {
+  recurrence_frequency: string;
+  recurrence_days_of_week: string[] | null;
+  recurrence_day_positions: number[] | null;
+  recurrence_interval: number | null;
+}): string {
+  const days = series.recurrence_days_of_week ?? [];
+  const positions = series.recurrence_day_positions ?? [];
+  const dayNames = days.map(d => DAY_NAMES[d]).filter(Boolean);
+
+  if (series.recurrence_frequency === 'monthly' && positions.length > 0 && dayNames.length > 0) {
+    const posLabels = positions.map(p => POSITION_LABELS[p] ?? `${p}th`);
+    return `${posLabels.join(' & ')} ${dayNames.join(', ')} of Each Month`;
+  }
+
+  if (series.recurrence_frequency === 'daily') {
+    const interval = series.recurrence_interval ?? 1;
+    return interval > 1 ? `Every ${interval} Days` : 'Daily';
+  }
+
+  if (series.recurrence_frequency === 'biweekly') {
+    return dayNames.length > 0 ? `Every Other ${dayNames.join(', ')}` : 'Biweekly';
+  }
+
+  // weekly
+  if (dayNames.length > 0) {
+    const interval = series.recurrence_interval ?? 1;
+    const prefix = interval > 1 ? `Every ${interval} Weeks on` : 'Every';
+    return `${prefix} ${dayNames.join(', ')}`;
+  }
+
+  // fallback
+  return series.recurrence_frequency.charAt(0).toUpperCase() + series.recurrence_frequency.slice(1);
+}
+
 const ITEMS_PER_PAGE = 24;
 
 export function EventsPageClient() {
@@ -61,7 +105,7 @@ export function EventsPageClient() {
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [isSeriesDialogOpen, setIsSeriesDialogOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const [seriesList, setSeriesList] = useState<{ id: string; title: string; status: string; recurrence_frequency: string; program_id: string | null }[]>([]);
+  const [seriesList, setSeriesList] = useState<{ id: string; title: string; status: string; recurrence_frequency: string; recurrence_days_of_week: string[] | null; recurrence_day_positions: number[] | null; recurrence_interval: number | null; program_id: string | null; upcoming_event_count?: number }[]>([]);
   const [seriesLoading, setSeriesLoading] = useState(false);
   const [calendarSlug, setCalendarSlug] = useState<string | null>(null);
 
@@ -79,6 +123,8 @@ export function EventsPageClient() {
       const searchParams = new URLSearchParams({ limit: String(ITEMS_PER_PAGE), page: String(page), sortBy: 'starts_at', sortOrder: 'asc' });
       if (nextSearch.trim()) searchParams.set('search', nextSearch.trim());
       if (status !== 'all') searchParams.set('status', status);
+      // On the "all" tab, exclude events that belong to a series — series are shown as their own cards
+      if (status === 'all') searchParams.set('excludeSeries', 'true');
 
       const response = await fetch(`/api/projects/${slug}/events?${searchParams.toString()}`);
       const data = await response.json() as { events?: EventListItem[]; pagination?: Pagination; error?: string };
@@ -377,8 +423,13 @@ export function EventsPageClient() {
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Repeat className="h-3 w-3" />
-                          <span className="capitalize">{s.recurrence_frequency}</span>
+                          <span>{formatRecurrenceDescription(s)}</span>
                         </div>
+                        {(s.upcoming_event_count ?? 0) > 0 && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {s.upcoming_event_count} upcoming event{s.upcoming_event_count === 1 ? '' : 's'}
+                          </p>
+                        )}
                       </CardContent>
                     </Card>
                   </Link>
@@ -391,7 +442,7 @@ export function EventsPageClient() {
                 <div key={i} className="h-48 animate-pulse rounded-xl bg-muted" />
               ))}
             </div>
-          ) : events.length === 0 ? (
+          ) : events.length === 0 && !(statusFilter === 'all' && seriesList.length > 0) ? (
             <div className="flex flex-col items-center justify-center py-12 text-center">
               <CalendarDays className="mb-4 h-12 w-12 text-muted-foreground" />
               <h3 className="text-lg font-semibold">No events found</h3>
@@ -417,8 +468,13 @@ export function EventsPageClient() {
                         </div>
                         <div className="flex items-center gap-2 text-sm text-muted-foreground">
                           <Repeat className="h-3 w-3" />
-                          <span className="capitalize">{s.recurrence_frequency}</span>
+                          <span>{formatRecurrenceDescription(s)}</span>
                         </div>
+                        {(s.upcoming_event_count ?? 0) > 0 && (
+                          <p className="mt-2 text-xs text-muted-foreground">
+                            {s.upcoming_event_count} upcoming event{s.upcoming_event_count === 1 ? '' : 's'}
+                          </p>
+                        )}
                       </CardContent>
                     </Card>
                   </Link>
