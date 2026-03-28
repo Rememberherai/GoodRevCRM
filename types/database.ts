@@ -4644,6 +4644,7 @@ export type Database = {
           organizer_name: string | null
           program_id: string | null
           project_id: string
+          recording_url: string | null
           recurrence_count: number | null
           recurrence_day_positions: number[] | null
           recurrence_days_of_week: string[] | null
@@ -4691,6 +4692,7 @@ export type Database = {
           organizer_name?: string | null
           program_id?: string | null
           project_id: string
+          recording_url?: string | null
           recurrence_count?: number | null
           recurrence_day_positions?: number[] | null
           recurrence_days_of_week?: string[] | null
@@ -4738,6 +4740,7 @@ export type Database = {
           organizer_name?: string | null
           program_id?: string | null
           project_id?: string
+          recording_url?: string | null
           recurrence_count?: number | null
           recurrence_day_positions?: number[] | null
           recurrence_days_of_week?: string[] | null
@@ -5164,6 +5167,7 @@ export type Database = {
           program_id: string | null
           project_id: string
           published_at: string | null
+          recording_url: string | null
           registration_closes_at: string | null
           registration_enabled: boolean
           registration_opens_at: string | null
@@ -5209,6 +5213,7 @@ export type Database = {
           program_id?: string | null
           project_id: string
           published_at?: string | null
+          recording_url?: string | null
           registration_closes_at?: string | null
           registration_enabled?: boolean
           registration_opens_at?: string | null
@@ -5254,6 +5259,7 @@ export type Database = {
           program_id?: string | null
           project_id?: string
           published_at?: string | null
+          recording_url?: string | null
           registration_closes_at?: string | null
           registration_enabled?: boolean
           registration_opens_at?: string | null

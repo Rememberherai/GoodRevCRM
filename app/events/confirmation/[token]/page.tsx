@@ -16,7 +16,7 @@ export default async function ConfirmationPage({ params }: PageProps) {
 
   const { data: registration } = await supabase
     .from('event_registrations')
-    .select('id, registrant_name, registrant_email, status, cancel_token, confirmation_token, events(title, starts_at, ends_at, timezone, venue_name, venue_address, location_type, virtual_url)')
+    .select('id, registrant_name, registrant_email, status, cancel_token, confirmation_token, events(title, starts_at, ends_at, timezone, venue_name, venue_address, location_type, virtual_url, recording_url)')
     .eq('confirmation_token', token)
     .single();
 
@@ -38,7 +38,10 @@ export default async function ConfirmationPage({ params }: PageProps) {
     venue_address: string | null;
     location_type: string;
     virtual_url: string | null;
+    recording_url: string | null;
   };
+
+  const isPast = new Date(event.ends_at) < new Date();
 
   const formatDate = (iso: string) =>
     new Date(iso).toLocaleDateString('en-US', {
@@ -101,6 +104,13 @@ export default async function ConfirmationPage({ params }: PageProps) {
               <span className="ml-6">to {formatDate(event.ends_at)}</span>
             </div>
             <div className="text-muted-foreground ml-6">{location}</div>
+            {isPast && event.recording_url && (
+              <div className="ml-6">
+                <a href={event.recording_url} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
+                  Watch Recording
+                </a>
+              </div>
+            )}
           </div>
 
           <div className="border-t pt-4 space-y-1 text-sm">

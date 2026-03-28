@@ -30,7 +30,7 @@ export async function GET(_request: Request, context: RouteContext) {
     // Fetch published public events
     const { data: events, error } = await supabase
       .from('events')
-      .select('id, title, slug, description, cover_image_url, category, tags, starts_at, ends_at, timezone, is_all_day, location_type, venue_name, venue_address, venue_latitude, venue_longitude, virtual_url, registration_enabled, total_capacity, organizer_name, series_id')
+      .select('id, title, slug, description, cover_image_url, category, tags, starts_at, ends_at, timezone, is_all_day, location_type, venue_name, venue_address, venue_latitude, venue_longitude, virtual_url, recording_url, registration_enabled, total_capacity, organizer_name, series_id')
       .eq('project_id', calendarSettings.project_id)
       .eq('status', 'published')
       .eq('visibility', 'public')

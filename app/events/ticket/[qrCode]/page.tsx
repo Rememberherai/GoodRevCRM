@@ -27,7 +27,7 @@ export default async function TicketScanPage({ params }: PageProps) {
 
   const { data: registration } = await supabase
     .from('event_registrations')
-    .select('id, registrant_name, registrant_email, status, event_id, events(title, starts_at, ends_at, timezone, venue_name, location_type, virtual_url, project_id)')
+    .select('id, registrant_name, registrant_email, status, event_id, events(title, starts_at, ends_at, timezone, venue_name, location_type, virtual_url, recording_url, project_id)')
     .eq('id', registrationId)
     .single();
 
@@ -62,7 +62,10 @@ export default async function TicketScanPage({ params }: PageProps) {
     venue_name: string | null;
     location_type: string;
     virtual_url: string | null;
+    recording_url: string | null;
   };
+
+  const isPast = new Date(event.ends_at) < new Date();
 
   const ticketType = ticket.event_ticket_types as { name: string } | null;
   const isCheckedIn = !!ticket.checked_in_at;
@@ -112,6 +115,11 @@ export default async function TicketScanPage({ params }: PageProps) {
                 <><MapPin className="h-4 w-4" /><span>{event.venue_name}</span></>
               ) : null}
             </div>
+            {isPast && event.recording_url && (
+              <a href={event.recording_url} target="_blank" rel="noreferrer" className="text-sm text-primary hover:underline">
+                Watch Recording
+              </a>
+            )}
           </div>
 
           <div className="border-t pt-4 space-y-1 text-sm">

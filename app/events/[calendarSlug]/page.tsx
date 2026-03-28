@@ -7,20 +7,25 @@ interface PageProps {
   params: Promise<{ calendarSlug: string }>;
 }
 
-async function loadRecentPublicEvents(projectId: string) {
+async function loadPublicEvents(projectId: string, mode: 'upcoming' | 'past') {
   const supabase = createServiceClient();
   const cutoff = new Date();
   cutoff.setDate(cutoff.getDate() - 1);
 
-  const { data: events } = await supabase
+  const query = supabase
     .from('events')
-    .select('id, title, slug, description, cover_image_url, category, starts_at, ends_at, timezone, location_type, venue_name, total_capacity, registration_enabled, registration_opens_at, registration_closes_at')
+    .select('id, title, slug, description, cover_image_url, category, starts_at, ends_at, timezone, location_type, venue_name, total_capacity, registration_enabled, registration_opens_at, registration_closes_at, recording_url')
     .eq('project_id', projectId)
     .eq('status', 'published')
-    .eq('visibility', 'public')
-    .gte('starts_at', cutoff.toISOString())
-    .order('starts_at', { ascending: true })
-    .limit(200);
+    .eq('visibility', 'public');
+
+  if (mode === 'upcoming') {
+    query.gte('starts_at', cutoff.toISOString()).order('starts_at', { ascending: true }).limit(200);
+  } else {
+    query.lt('starts_at', cutoff.toISOString()).order('starts_at', { ascending: false }).limit(50);
+  }
+
+  const { data: events } = await query;
 
   if (!events || events.length === 0) return [];
 
@@ -79,7 +84,10 @@ export default async function PublicCalendarPage({ params }: PageProps) {
     .single();
 
   if (!settings) notFound();
-  const events = await loadRecentPublicEvents(settings.project_id);
+  const [events, pastEvents] = await Promise.all([
+    loadPublicEvents(settings.project_id, 'upcoming'),
+    loadPublicEvents(settings.project_id, 'past'),
+  ]);
 
   return (
     <div>
@@ -92,7 +100,7 @@ export default async function PublicCalendarPage({ params }: PageProps) {
         <h1 className="text-3xl sm:text-4xl font-bold text-center">{settings.title}</h1>
         {settings.description && <p className="mt-3 text-center text-muted-foreground max-w-2xl mx-auto">{settings.description}</p>}
       </div>
-      <PublicEventList events={events} calendarSlug={calendarSlug} />
+      <PublicEventList events={events} pastEvents={pastEvents} calendarSlug={calendarSlug} />
     </div>
   );
 }

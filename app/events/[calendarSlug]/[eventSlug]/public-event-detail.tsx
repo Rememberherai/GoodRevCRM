@@ -36,6 +36,7 @@ interface Props {
     venue_name: string | null;
     venue_address: string | null;
     virtual_url: string | null;
+    recording_url: string | null;
     registration_enabled: boolean;
     registration_opens_at: string | null;
     registration_closes_at: string | null;
@@ -93,6 +94,7 @@ export function PublicEventDetail({
   const activeTicketTypes = isSeriesRegistration ? seriesTicketTypes : ticketTypes;
   const activeSelections = isSeriesRegistration ? seriesSelections : eventTicketSelections;
 
+  const isPast = new Date(event.ends_at) < new Date();
   const eventDate = new Date(event.starts_at);
 
   const formatDate = (iso: string) =>
@@ -326,11 +328,17 @@ export function PublicEventDetail({
                       {event.venue_address && (
                         <p className="text-sm text-muted-foreground mt-0.5">{event.venue_address}</p>
                       )}
-                      {event.location_type === 'virtual' && event.virtual_url && (
+                      {isPast && event.recording_url ? (
+                        <a href={event.recording_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-primary hover:underline mt-0.5">
+                          Watch Recording <ExternalLink className="h-3 w-3" />
+                        </a>
+                      ) : isPast ? (
+                        <p className="text-sm text-muted-foreground mt-0.5">This event has ended</p>
+                      ) : event.location_type === 'virtual' && event.virtual_url ? (
                         <a href={event.virtual_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1 text-sm text-primary hover:underline mt-0.5">
                           Join link <ExternalLink className="h-3 w-3" />
                         </a>
-                      )}
+                      ) : null}
                     </div>
                   </div>
                 </div>
@@ -394,7 +402,19 @@ export function PublicEventDetail({
 
         {/* Registration form — right column */}
         <div className="md:sticky md:top-4 self-start">
-          {(() => {
+          {isPast ? (
+            <Card className="border-dashed">
+              <CardContent className="p-6 text-center">
+                <CalendarDays className="h-8 w-8 text-muted-foreground mx-auto mb-3" />
+                <p className="text-sm font-medium">This event has ended</p>
+                {event.recording_url && (
+                  <a href={event.recording_url} target="_blank" rel="noreferrer" className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline mt-2">
+                    Watch Recording <ExternalLink className="h-3 w-3" />
+                  </a>
+                )}
+              </CardContent>
+            </Card>
+          ) : (() => {
             const now = new Date();
             const notYetOpen = event.registration_opens_at && new Date(event.registration_opens_at) > now;
             const alreadyClosed = event.registration_closes_at && new Date(event.registration_closes_at) < now;

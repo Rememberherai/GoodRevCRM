@@ -2,7 +2,7 @@
 
 import { useMemo, useState } from 'react';
 import Link from 'next/link';
-import { CalendarDays, ChevronLeft, ChevronRight, MapPin, Monitor, Clock } from 'lucide-react';
+import { CalendarDays, ChevronLeft, ChevronRight, MapPin, Monitor, Clock, Play } from 'lucide-react';
 import { Card, CardContent } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
 import { Button } from '@/components/ui/button';
@@ -23,12 +23,14 @@ interface PublicEvent {
   registration_enabled: boolean;
   registration_opens_at?: string | null;
   registration_closes_at?: string | null;
+  recording_url?: string | null;
   attendee_count?: number;
   attendee_names?: string[];
 }
 
 interface Props {
   events: PublicEvent[];
+  pastEvents?: PublicEvent[];
   calendarSlug: string;
   basePath?: string;
 }
@@ -63,31 +65,34 @@ const AVATAR_COLORS = [
 const MONTH_NAMES = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
 const DAY_HEADERS = ['Sun', 'Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat'];
 
-export function PublicEventList({ events, calendarSlug, basePath }: Props) {
+export function PublicEventList({ events, pastEvents = [], calendarSlug, basePath }: Props) {
   const now = new Date();
+  const [view, setView] = useState<'upcoming' | 'past'>('upcoming');
   const [calMonth, setCalMonth] = useState(now.getMonth());
   const [calYear, setCalYear] = useState(now.getFullYear());
   const [selectedDate, setSelectedDate] = useState<Date | null>(null);
 
+  const activeEvents = view === 'upcoming' ? events : pastEvents;
+
   // Build set of dates that have events
   const eventDates = useMemo(() => {
     const dates = new Map<string, number>();
-    for (const event of events) {
+    for (const event of activeEvents) {
       const d = new Date(event.starts_at);
       const key = `${d.getFullYear()}-${d.getMonth()}-${d.getDate()}`;
       dates.set(key, (dates.get(key) ?? 0) + 1);
     }
     return dates;
-  }, [events]);
+  }, [activeEvents]);
 
   // Filter events by selected date or show all
   const filteredEvents = useMemo(() => {
-    if (!selectedDate) return events;
-    return events.filter(event => {
+    if (!selectedDate) return activeEvents;
+    return activeEvents.filter(event => {
       const d = new Date(event.starts_at);
       return isSameDay(d, selectedDate);
     });
-  }, [events, selectedDate]);
+  }, [activeEvents, selectedDate]);
 
   // Group events by month
   const groupedEvents = useMemo(() => {
@@ -154,13 +159,13 @@ export function PublicEventList({ events, calendarSlug, basePath }: Props) {
     });
   }
 
-  if (events.length === 0) {
+  if (events.length === 0 && pastEvents.length === 0) {
     return (
       <div className="flex flex-col items-center justify-center py-20 text-center">
         <div className="flex h-16 w-16 items-center justify-center rounded-2xl bg-muted mb-4">
           <CalendarDays className="h-8 w-8 text-muted-foreground" />
         </div>
-        <h3 className="text-xl font-semibold">No upcoming events</h3>
+        <h3 className="text-xl font-semibold">No events</h3>
         <p className="mt-2 text-muted-foreground max-w-sm">There are no events scheduled at this time. Check back later for updates.</p>
       </div>
     );
@@ -168,6 +173,26 @@ export function PublicEventList({ events, calendarSlug, basePath }: Props) {
 
   return (
     <div className="space-y-8">
+      {/* Upcoming / Past toggle */}
+      {pastEvents.length > 0 && (
+        <div className="flex gap-2 justify-center">
+          <Button
+            variant={view === 'upcoming' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => { setView('upcoming'); setSelectedDate(null); }}
+          >
+            Upcoming{events.length > 0 ? ` (${events.length})` : ''}
+          </Button>
+          <Button
+            variant={view === 'past' ? 'default' : 'outline'}
+            size="sm"
+            onClick={() => { setView('past'); setSelectedDate(null); }}
+          >
+            Past{pastEvents.length > 0 ? ` (${pastEvents.length})` : ''}
+          </Button>
+        </div>
+      )}
+
       {/* Mini Calendar */}
       <Card className="overflow-hidden">
         <CardContent className="p-0">
@@ -235,6 +260,14 @@ export function PublicEventList({ events, calendarSlug, basePath }: Props) {
       </Card>
 
       {/* Event list */}
+      {activeEvents.length === 0 && (
+        <div className="flex flex-col items-center justify-center py-16 text-center">
+          <CalendarDays className="h-8 w-8 text-muted-foreground mb-3" />
+          <p className="text-muted-foreground">
+            {view === 'upcoming' ? 'No upcoming events. Check back later!' : 'No past events.'}
+          </p>
+        </div>
+      )}
       <div className="space-y-8">
         {groupedEvents.map(group => (
           <div key={group.label}>
@@ -310,9 +343,14 @@ export function PublicEventList({ events, calendarSlug, basePath }: Props) {
                               ) : event.venue_name ? (
                                 <span className="flex items-center gap-1"><MapPin className="h-3 w-3" />{event.venue_name}</span>
                               ) : null}
-                              {regOpen && (
+                              {view === 'upcoming' && regOpen && (
                                 <Badge className="bg-green-100 text-green-700 dark:bg-green-900 dark:text-green-300 border-0 text-xs">
                                   Registration Open
+                                </Badge>
+                              )}
+                              {view === 'past' && event.recording_url && (
+                                <Badge className="bg-purple-100 text-purple-700 dark:bg-purple-900 dark:text-purple-300 border-0 text-xs">
+                                  <Play className="h-3 w-3 mr-1" />Recording
                                 </Badge>
                               )}
                             </div>

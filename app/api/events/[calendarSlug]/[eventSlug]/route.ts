@@ -102,6 +102,7 @@ export async function GET(_request: Request, context: RouteContext) {
         venue_latitude: event.venue_latitude,
         venue_longitude: event.venue_longitude,
         virtual_url: event.virtual_url,
+        recording_url: event.recording_url,
         registration_enabled: event.registration_enabled,
         registration_opens_at: event.registration_opens_at,
         registration_closes_at: event.registration_closes_at,

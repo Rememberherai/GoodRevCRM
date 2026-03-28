@@ -43,6 +43,7 @@ export function EventEditTab({ projectSlug, eventId, event, onUpdated }: EventEd
   const [venueName, setVenueName] = useState(event.venue_name as string || '');
   const [venueAddress, setVenueAddress] = useState(event.venue_address as string || '');
   const [virtualUrl, setVirtualUrl] = useState(event.virtual_url as string || '');
+  const [recordingUrl, setRecordingUrl] = useState(event.recording_url as string || '');
   const [category, setCategory] = useState(event.category as string || '');
   const [totalCapacity, setTotalCapacity] = useState(event.total_capacity != null ? String(event.total_capacity) : '');
   const [registrationEnabled, setRegistrationEnabled] = useState(event.registration_enabled as boolean ?? true);
@@ -81,6 +82,7 @@ export function EventEditTab({ projectSlug, eventId, event, onUpdated }: EventEd
         venue_name: venueName.trim() || null,
         venue_address: venueAddress.trim() || null,
         virtual_url: virtualUrl.trim() || null,
+        recording_url: recordingUrl.trim() || null,
         category: category || null,
         total_capacity: totalCapacity ? parseInt(totalCapacity, 10) : null,
         registration_enabled: registrationEnabled,
@@ -188,6 +190,11 @@ export function EventEditTab({ projectSlug, eventId, event, onUpdated }: EventEd
             <Input id="edit-virtual-url" type="url" value={virtualUrl} onChange={e => setVirtualUrl(e.target.value)} placeholder="https://..." />
           </div>
         )}
+
+        <div className="space-y-2">
+          <Label htmlFor="edit-recording-url">Recording / Replay URL</Label>
+          <Input id="edit-recording-url" type="url" value={recordingUrl} onChange={e => setRecordingUrl(e.target.value)} placeholder="https://..." />
+        </div>
 
         <div className="grid grid-cols-2 gap-4">
           <div className="space-y-2">
