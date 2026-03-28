@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { ArrowLeft, Building2, MapPin, Pencil, Power } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
@@ -47,7 +47,8 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [editOpen, setEditOpen] = useState(false);
-  const [activeTab, setActiveTab] = useState('details');
+  const searchParams = useSearchParams();
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'details');
   const [togglingAccess, setTogglingAccess] = useState(false);
 
   const loadAsset = useCallback(async () => {

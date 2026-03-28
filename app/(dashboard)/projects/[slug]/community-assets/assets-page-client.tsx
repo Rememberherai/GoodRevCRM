@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useRouter } from 'next/navigation';
 import { Building2, Filter, Plus, Settings } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -51,6 +51,7 @@ const CONDITION_OPTIONS = ['excellent', 'good', 'fair', 'poor'] as const;
 
 export function AssetsPageClient() {
   const params = useParams();
+  const router = useRouter();
   const slug = params.slug as string;
   const [assets, setAssets] = useState<AssetRecord[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -260,7 +261,13 @@ export function AssetsPageClient() {
         </TabsContent>
       </Tabs>
 
-      <NewAssetDialog open={isDialogOpen} onOpenChange={setIsDialogOpen} onCreated={() => void loadAssets()} />
+      <NewAssetDialog open={isDialogOpen} onOpenChange={setIsDialogOpen} onCreated={(assetId) => {
+        if (assetId) {
+          router.push(`/projects/${slug}/community-assets/${assetId}?tab=access`);
+        } else {
+          void loadAssets();
+        }
+      }} />
     </div>
   );
 }

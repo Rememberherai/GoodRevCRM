@@ -24,6 +24,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { createCommunityAssetSchema } from '@/lib/validators/community/assets';
 import { AddressAutocomplete, type AddressResult } from '@/components/ui/address-autocomplete';
 
@@ -39,7 +40,7 @@ export function NewAssetDialog({
 }: {
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  onCreated: () => void;
+  onCreated: (assetId?: string) => void;
 }) {
   const params = useParams();
   const slug = params.slug as string;
@@ -57,6 +58,7 @@ export function NewAssetDialog({
   const [notes, setNotes] = useState('');
   const [stewardPersonId, setStewardPersonId] = useState<string | null>(null);
   const [stewardOrganizationId, setStewardOrganizationId] = useState<string | null>(null);
+  const [isShared, setIsShared] = useState(false);
 
   useEffect(() => {
     if (!open) return;
@@ -92,6 +94,7 @@ export function NewAssetDialog({
     setNotes('');
     setStewardPersonId(null);
     setStewardOrganizationId(null);
+    setIsShared(false);
   };
 
   const handleSubmit = async () => {
@@ -123,15 +126,16 @@ export function NewAssetDialog({
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify(validation.data),
       });
-      const data = await response.json() as { error?: string };
+      const data = await response.json() as { asset?: { id: string }; error?: string };
       if (!response.ok) {
         throw new Error(data.error ?? 'Failed to create asset');
       }
 
       toast.success('Community asset created');
       onOpenChange(false);
+      const createdId = isShared ? data.asset?.id : undefined;
       reset();
-      onCreated();
+      onCreated(createdId);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to create asset');
     } finally {
@@ -238,6 +242,17 @@ export function NewAssetDialog({
             <Label htmlFor="asset-notes">Notes</Label>
             <Textarea id="asset-notes" value={notes} onChange={(event) => setNotes(event.target.value)} placeholder="Maintenance needs, booking notes, or condition context." />
           </div>
+        </div>
+
+        <div className="flex items-center gap-2 rounded-lg border bg-muted/50 px-4 py-3">
+          <Checkbox
+            id="asset-shared"
+            checked={isShared}
+            onCheckedChange={(checked) => setIsShared(checked === true)}
+          />
+          <Label htmlFor="asset-shared" className="text-sm font-medium leading-none cursor-pointer">
+            This asset will be shared or bookable by the public
+          </Label>
         </div>
 
         <DialogFooter>
