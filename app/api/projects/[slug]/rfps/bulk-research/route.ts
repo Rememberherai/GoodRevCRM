@@ -123,10 +123,9 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    // Pre-check that the API key is available before starting background jobs
-    // This ensures a friendly 422 is returned instead of silent background failures
-    const client = await getProjectOpenRouterClient(project.id);
-    void client; // used only to verify key availability; actual calls happen in executeResearch
+    // Pre-check that the API key is available before creating job records.
+    // This avoids orphaned 'running' rows that block retries with 409.
+    await getProjectOpenRouterClient(project.id);
 
     // Create research job records for all RFPs
     const jobInserts = rfpsToResearch.map((rfp) => ({

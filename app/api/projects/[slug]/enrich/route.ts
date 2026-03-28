@@ -588,8 +588,15 @@ export async function POST(request: Request, context: RouteContext) {
           message: 'Enrichment started. Results will be available shortly.',
         });
       } catch (enrichError) {
-        // Let ApiKeyMissingError bubble up to the outer catch for a friendly 422
-        if (isApiKeyMissingError(enrichError)) throw enrichError;
+        // Let ApiKeyMissingError bubble up to the outer catch for a friendly 422,
+        // but first mark the job as failed so it doesn't stay orphaned as 'pending'
+        if (isApiKeyMissingError(enrichError)) {
+          await supabaseAny
+            .from('enrichment_jobs')
+            .update({ status: 'failed', error: 'API key not configured', completed_at: new Date().toISOString() })
+            .eq('id', job.id);
+          throw enrichError;
+        }
 
         console.error('Enrichment error:', enrichError);
 
@@ -688,8 +695,15 @@ export async function POST(request: Request, context: RouteContext) {
         estimated_completion: bulkRequest.estimated_completion,
       });
     } catch (enrichError) {
-      // Let ApiKeyMissingError bubble up to the outer catch for a friendly 422
-      if (isApiKeyMissingError(enrichError)) throw enrichError;
+      // Let ApiKeyMissingError bubble up to the outer catch for a friendly 422,
+      // but first mark all jobs as failed so they don't stay orphaned as 'pending'
+      if (isApiKeyMissingError(enrichError)) {
+        await supabaseAny
+          .from('enrichment_jobs')
+          .update({ status: 'failed', error: 'API key not configured', completed_at: new Date().toISOString() })
+          .in('id', (insertedJobs as EnrichmentJobRow[]).map((j) => j.id));
+        throw enrichError;
+      }
 
       const errorMessage = enrichError instanceof Error ? enrichError.message : 'Bulk enrichment failed';
 

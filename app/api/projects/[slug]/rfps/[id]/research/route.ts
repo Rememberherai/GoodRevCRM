@@ -175,6 +175,10 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    // Pre-check that the API key is available before creating the job record.
+    // This avoids orphaned 'running' rows that block retries with 409.
+    await getProjectOpenRouterClient(project.id);
+
     // Create the research job record with status 'running'
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: job, error: insertError } = await (adminClient as any)
@@ -193,11 +197,6 @@ export async function POST(request: Request, context: RouteContext) {
       console.error('Error creating research job:', insertError);
       return NextResponse.json({ error: 'Failed to create research job' }, { status: 500 });
     }
-
-    // Pre-check that the API key is available before starting the background job
-    // This ensures a friendly 422 is returned instead of a silent background failure
-    const client = await getProjectOpenRouterClient(project.id);
-    void client; // used only to verify key availability; actual call happens in executeResearch
 
     // Build research context
     const org = rfp.organization;

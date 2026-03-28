@@ -398,8 +398,15 @@ export async function POST(request: Request, context: RouteContext) {
         }
       });
     } catch (researchError) {
-      // Let ApiKeyMissingError bubble up to the outer catch for a friendly 422
-      if (isApiKeyMissingError(researchError)) throw researchError;
+      // Let ApiKeyMissingError bubble up to the outer catch for a friendly 422,
+      // but first mark the job as failed so it doesn't stay orphaned as 'running'
+      if (isApiKeyMissingError(researchError)) {
+        await supabaseAny
+          .from('research_jobs')
+          .update({ status: 'failed', error: 'API key not configured', completed_at: new Date().toISOString() })
+          .eq('id', job.id);
+        throw researchError;
+      }
 
       // Update the job with error
       const errorMessage = researchError instanceof Error ? researchError.message : 'Research failed';
