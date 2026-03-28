@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Pen, Copy, Plug, Plug2, KeyRound, Clock, Package, Tag, Wrench, MapPin, RotateCcw } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Copy, Plug, Package, Tag, MapPin, RotateCcw } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
@@ -684,7 +684,7 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
           </TabsContent>
         </Tabs>
       ) : (
-        /* ── Standard (sales) project layout — unchanged for now ── */
+        /* ── Standard (sales) project layout (8 condensed tabs) ── */
         <Tabs defaultValue="general">
           <TabsList className="flex flex-wrap h-auto gap-1">
             <TabsTrigger value="general" className="gap-2">
@@ -703,42 +703,18 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
               <Zap className="h-4 w-4" />
               Automation
             </TabsTrigger>
-            <TabsTrigger value="contact-discovery" className="gap-2">
+            <TabsTrigger value="contacts" className="gap-2">
               <UserSearch className="h-4 w-4" />
-              Contact Discovery
-            </TabsTrigger>
-            <TabsTrigger value="signatures" className="gap-2">
-              <Pen className="h-4 w-4" />
-              Signatures
-            </TabsTrigger>
-            <TabsTrigger value="duplicates" className="gap-2">
-              <Copy className="h-4 w-4" />
-              Duplicates
+              Contacts
               <DuplicatesBadge projectSlug={slug} className="ml-1" />
             </TabsTrigger>
-            <TabsTrigger value="mcp" className="gap-2">
+            <TabsTrigger value="integrations" className="gap-2">
               <Plug className="h-4 w-4" />
-              MCP
-            </TabsTrigger>
-            <TabsTrigger value="api-keys" className="gap-2">
-              <KeyRound className="h-4 w-4" />
-              API Keys
-            </TabsTrigger>
-            <TabsTrigger value="api-connections" className="gap-2">
-              <Plug2 className="h-4 w-4" />
-              API Connections
-            </TabsTrigger>
-            <TabsTrigger value="scheduler" className="gap-2">
-              <Clock className="h-4 w-4" />
-              Scheduler
+              Integrations
             </TabsTrigger>
             <TabsTrigger value="dispositions" className="gap-2">
               <Tag className="h-4 w-4" />
               Dispositions
-            </TabsTrigger>
-            <TabsTrigger value="service-types" className="gap-2">
-              <Wrench className="h-4 w-4" />
-              Service Types
             </TabsTrigger>
             <TabsTrigger value="products" className="gap-2">
               <Package className="h-4 w-4" />
@@ -746,8 +722,10 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             </TabsTrigger>
           </TabsList>
 
+          {/* General + Signatures */}
           <TabsContent value="general" className="space-y-6 mt-6">
             {generalContent}
+            <EmailSignaturesPanel slug={slug} />
             {tourReplayContent}
             {dangerZoneContent}
           </TabsContent>
@@ -760,44 +738,60 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             <ResearchSettingsPanel slug={slug} />
           </TabsContent>
 
-          <TabsContent value="automation" className="space-y-6 mt-6">
-            <AutomationPanel slug={slug} />
+          {/* Automation + Scheduler — sub-tabs */}
+          <TabsContent value="automation" className="mt-6">
+            <Tabs defaultValue="automations">
+              <TabsList>
+                <TabsTrigger value="automations">Automations</TabsTrigger>
+                <TabsTrigger value="scheduler">Scheduler</TabsTrigger>
+              </TabsList>
+              <TabsContent value="automations" className="space-y-6 mt-4">
+                <AutomationPanel slug={slug} />
+              </TabsContent>
+              <TabsContent value="scheduler" className="space-y-6 mt-4">
+                <SchedulerPanel slug={slug} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
-          <TabsContent value="contact-discovery" className="space-y-6 mt-6">
-            <ContactProvidersSettings slug={slug} />
+          {/* Contacts — sub-tabs */}
+          <TabsContent value="contacts" className="mt-6">
+            <Tabs defaultValue="contact-discovery">
+              <TabsList>
+                <TabsTrigger value="contact-discovery">Contact Discovery</TabsTrigger>
+                <TabsTrigger value="duplicates">Duplicates</TabsTrigger>
+              </TabsList>
+              <TabsContent value="contact-discovery" className="space-y-6 mt-4">
+                <ContactProvidersSettings slug={slug} />
+              </TabsContent>
+              <TabsContent value="duplicates" className="space-y-6 mt-4">
+                <DuplicatesPanel slug={slug} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
-          <TabsContent value="signatures" className="space-y-6 mt-6">
-            <EmailSignaturesPanel slug={slug} />
-          </TabsContent>
-
-          <TabsContent value="duplicates" className="space-y-6 mt-6">
-            <DuplicatesPanel slug={slug} />
-          </TabsContent>
-
-          <TabsContent value="mcp" className="space-y-6 mt-6">
-            <McpSettingsPanel slug={slug} />
-          </TabsContent>
-
-          <TabsContent value="api-keys" className="space-y-6 mt-6">
-            <ProjectSecretsPanel slug={slug} />
-          </TabsContent>
-
-          <TabsContent value="api-connections" className="space-y-6 mt-6">
-            <ApiConnectionsPanel slug={slug} />
-          </TabsContent>
-
-          <TabsContent value="scheduler" className="space-y-6 mt-6">
-            <SchedulerPanel slug={slug} />
+          {/* Integrations — sub-tabs */}
+          <TabsContent value="integrations" className="mt-6">
+            <Tabs defaultValue="mcp">
+              <TabsList>
+                <TabsTrigger value="mcp">MCP</TabsTrigger>
+                <TabsTrigger value="api-keys">API Keys</TabsTrigger>
+                <TabsTrigger value="connections">Connections</TabsTrigger>
+              </TabsList>
+              <TabsContent value="mcp" className="space-y-6 mt-4">
+                <McpSettingsPanel slug={slug} />
+              </TabsContent>
+              <TabsContent value="api-keys" className="space-y-6 mt-4">
+                <ProjectSecretsPanel slug={slug} />
+              </TabsContent>
+              <TabsContent value="connections" className="space-y-6 mt-4">
+                <ApiConnectionsPanel slug={slug} />
+              </TabsContent>
+            </Tabs>
           </TabsContent>
 
           <TabsContent value="dispositions" className="space-y-6 mt-6">
             <DispositionsPanel currentUserRole={currentUserRole} />
-          </TabsContent>
-
-          <TabsContent value="service-types" className="space-y-6 mt-6">
-            <ServiceTypesPanel currentUserRole={currentUserRole} />
           </TabsContent>
 
           <TabsContent value="products" className="space-y-6 mt-6">
