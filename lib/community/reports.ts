@@ -263,7 +263,7 @@ export async function getContributionSummaryReport(
 ): Promise<ContributionSummaryReport> {
   let query = supabase
     .from('contributions')
-    .select('type, status, value, hours, dimension_id')
+    .select('type, status, value, hours, dimension_ids')
     .eq('project_id', projectId);
   if (dateRange) {
     query = query.gte('date', dateRange.from).lte('date', dateRange.to);
@@ -284,7 +284,11 @@ export async function getContributionSummaryReport(
   }
 
   // By dimension — need dimension labels
-  const dimensionIds = [...new Set(items.map((c) => c.dimension_id).filter(Boolean))] as string[];
+  const allDimIds = new Set<string>();
+  for (const c of items) {
+    for (const id of c.dimension_ids ?? []) allDimIds.add(id);
+  }
+  const dimensionIds = [...allDimIds];
   let dimensionMap = new Map<string, string>();
   if (dimensionIds.length) {
     const { data: dims } = await supabase
@@ -296,15 +300,16 @@ export async function getContributionSummaryReport(
 
   const dimAgg = new Map<string, { label: string; count: number; total_value: number }>();
   for (const c of items) {
-    if (!c.dimension_id) continue;
-    const entry = dimAgg.get(c.dimension_id) ?? {
-      label: dimensionMap.get(c.dimension_id) ?? 'Unknown',
-      count: 0,
-      total_value: 0,
-    };
-    entry.count++;
-    entry.total_value += Number(c.value ?? 0);
-    dimAgg.set(c.dimension_id, entry);
+    for (const dimId of c.dimension_ids ?? []) {
+      const entry = dimAgg.get(dimId) ?? {
+        label: dimensionMap.get(dimId) ?? 'Unknown',
+        count: 0,
+        total_value: 0,
+      };
+      entry.count++;
+      entry.total_value += Number(c.value ?? 0);
+      dimAgg.set(dimId, entry);
+    }
   }
 
   // By status

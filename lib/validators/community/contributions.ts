@@ -15,7 +15,7 @@ export const contributionBaseSchema = z.object({
   project_id: optionalUuidSchema,
   type: contributionTypeSchema,
   status: contributionStatusSchema.default('received'),
-  dimension_id: optionalUuidSchema,
+  dimension_ids: z.array(z.string().uuid()).max(25).default([]),
   program_id: optionalUuidSchema,
   grant_id: optionalUuidSchema,
   donor_person_id: optionalUuidSchema,

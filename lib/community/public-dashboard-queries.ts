@@ -35,7 +35,7 @@ export async function getPublicDashboardAggregateData(
   const [householdsResult, programsResult, contributionsResult, dimensionsResult] = await Promise.all([
     admin.from('households').select('id', { count: 'exact', head: true }).eq('project_id', config.project_id).is('deleted_at', null),
     admin.from('programs').select('id, name, status').eq('project_id', config.project_id),
-    admin.from('contributions').select('type, value, dimension_id').eq('project_id', config.project_id),
+    admin.from('contributions').select('type, value, dimension_ids').eq('project_id', config.project_id),
     impactFrameworkId
       ? admin.from('impact_dimensions').select('id, label, color').eq('framework_id', impactFrameworkId)
       : Promise.resolve({ data: [], error: null }),
@@ -88,20 +88,22 @@ export async function getPublicDashboardAggregateData(
 
   const dimensionGroups = new Map<string, { label: string; count: number; totalValue: number; color: string | null }>();
   for (const contribution of contributions) {
-    if (!contribution.dimension_id) continue;
-    const dimension = dimensions.find((item) => item.id === contribution.dimension_id);
-    if (!dimension) continue;
-    const existing = dimensionGroups.get(dimension.id);
-    if (existing) {
-      existing.count += 1;
-      existing.totalValue += Number(contribution.value ?? 0);
-    } else {
-      dimensionGroups.set(dimension.id, {
-        label: dimension.label,
-        count: 1,
-        totalValue: Number(contribution.value ?? 0),
-        color: dimension.color,
-      });
+    if (!contribution.dimension_ids || contribution.dimension_ids.length === 0) continue;
+    for (const dimId of contribution.dimension_ids) {
+      const dimension = dimensions.find((item) => item.id === dimId);
+      if (!dimension) continue;
+      const existing = dimensionGroups.get(dimension.id);
+      if (existing) {
+        existing.count += 1;
+        existing.totalValue += Number(contribution.value ?? 0);
+      } else {
+        dimensionGroups.set(dimension.id, {
+          label: dimension.label,
+          count: 1,
+          totalValue: Number(contribution.value ?? 0),
+          color: dimension.color,
+        });
+      }
     }
   }
 

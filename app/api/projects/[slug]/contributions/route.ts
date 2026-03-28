@@ -45,7 +45,6 @@ export async function GET(request: Request, context: RouteContext) {
       .from('contributions')
       .select(`
         *,
-        dimension:impact_dimensions!contributions_dimension_id_fkey(id, label, color),
         donor_person:people!contributions_donor_person_id_fkey(id, first_name, last_name),
         donor_organization:organizations!contributions_donor_organization_id_fkey(id, name),
         donor_household:households!contributions_donor_household_id_fkey(id, name),
@@ -56,7 +55,7 @@ export async function GET(request: Request, context: RouteContext) {
       .range(offset, offset + limit - 1);
 
     if (type) query = query.eq('type', type);
-    if (dimensionId) query = query.eq('dimension_id', dimensionId);
+    if (dimensionId) query = query.contains('dimension_ids', [dimensionId]);
     if (programId) query = query.eq('program_id', programId);
 
     const { data: contributions, error, count } = await query;
@@ -111,23 +110,23 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    let dimensionId = validation.data.dimension_id ?? null;
-    if (!dimensionId && validation.data.program_id) {
+    let dimensionIds = validation.data.dimension_ids ?? [];
+    if (dimensionIds.length === 0 && validation.data.program_id) {
       const { data: program } = await supabase
         .from('programs')
         .select('target_dimensions')
         .eq('id', validation.data.program_id)
         .eq('project_id', project.id)
         .single();
-      dimensionId = Array.isArray(program?.target_dimensions) && program.target_dimensions.length > 0
-        ? program.target_dimensions[0] ?? null
-        : null;
+      dimensionIds = Array.isArray(program?.target_dimensions)
+        ? (program.target_dimensions as string[])
+        : [];
     }
 
     const insertData: ContributionInsert = {
       ...validation.data,
       project_id: project.id,
-      dimension_id: dimensionId,
+      dimension_ids: dimensionIds,
     };
 
     const { data: contribution, error } = await supabase

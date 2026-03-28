@@ -187,7 +187,7 @@ const programsAttendanceToolSchema = batchAttendanceSchema.extend({
 
 const contributionsListSchema = paginatedListSchema.extend({
   type: z.string().optional(),
-  dimension_id: z.string().uuid().optional(),
+  dimension_id: z.string().uuid().optional().describe('Filter contributions that include this dimension'),
   program_id: z.string().uuid().optional(),
 });
 const contributionsCreateToolSchema = contributionBaseSchema.omit({ project_id: true });
@@ -851,7 +851,7 @@ defineCommunityTool({
       .range(offset, to);
     if (parsed.search) query = query.ilike('description', `%${parsed.search}%`);
     if (parsed.type) query = query.eq('type', parsed.type);
-    if (parsed.dimension_id) query = query.eq('dimension_id', parsed.dimension_id);
+    if (parsed.dimension_id) query = query.contains('dimension_ids', [parsed.dimension_id]);
     if (parsed.program_id) query = query.eq('program_id', parsed.program_id);
     const { data, error, count } = await query;
     if (error) throw communityError(`Failed to list contributions: ${error.message}`);
@@ -898,22 +898,22 @@ defineCommunityTool({
   handler: async (params, ctx) => {
     const parsed = contributionsCreateToolSchema.parse(params);
     const admin = createAdminClient();
-    let dimensionId = parsed.dimension_id ?? null;
-    if (!dimensionId && parsed.program_id) {
+    let dimensionIds = parsed.dimension_ids ?? [];
+    if (dimensionIds.length === 0 && parsed.program_id) {
       const { data: program } = await admin
         .from('programs')
         .select('target_dimensions')
         .eq('project_id', ctx.projectId)
         .eq('id', parsed.program_id)
         .single();
-      dimensionId = Array.isArray(program?.target_dimensions) ? (program.target_dimensions[0] ?? null) : null;
+      dimensionIds = Array.isArray(program?.target_dimensions) ? (program.target_dimensions as string[]) : [];
     }
     const { data, error } = await admin
       .from('contributions')
       .insert({
         ...parsed,
         project_id: ctx.projectId,
-        dimension_id: dimensionId,
+        dimension_ids: dimensionIds,
       })
       .select('*')
       .single();

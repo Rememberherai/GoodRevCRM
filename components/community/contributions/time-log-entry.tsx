@@ -23,6 +23,7 @@ import {
   SelectTrigger,
   SelectValue,
 } from '@/components/ui/select';
+import { Checkbox } from '@/components/ui/checkbox';
 import { createContributionSchema } from '@/lib/validators/community/contributions';
 
 interface ProgramOption {
@@ -33,6 +34,7 @@ interface ProgramOption {
 interface DimensionOption {
   id: string;
   label: string;
+  color?: string;
 }
 
 export function TimeLogEntry({
@@ -54,7 +56,7 @@ export function TimeLogEntry({
   const [description, setDescription] = useState('');
   const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
   const [programId, setProgramId] = useState<string>('none');
-  const [dimensionId, setDimensionId] = useState<string>('none');
+  const [selectedDimensions, setSelectedDimensions] = useState<string[]>([]);
   const [personId, setPersonId] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -86,7 +88,7 @@ export function TimeLogEntry({
     setDescription('');
     setDate(new Date().toISOString().slice(0, 10));
     setProgramId('none');
-    setDimensionId('none');
+    setSelectedDimensions([]);
     setPersonId(null);
   };
 
@@ -98,7 +100,7 @@ export function TimeLogEntry({
       description: description || null,
       date,
       program_id: programId === 'none' ? null : programId,
-      dimension_id: dimensionId === 'none' ? null : dimensionId,
+      dimension_ids: selectedDimensions,
       donor_person_id: personId,
     };
 
@@ -193,16 +195,41 @@ export function TimeLogEntry({
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>Dimension</Label>
-            <Select value={dimensionId} onValueChange={setDimensionId}>
-              <SelectTrigger><SelectValue placeholder="Auto / none" /></SelectTrigger>
-              <SelectContent>
-                <SelectItem value="none">Auto / none</SelectItem>
+            <Label>Dimensions</Label>
+            {dimensions.length === 0 ? (
+              <div className="rounded-lg border border-dashed p-3 text-sm text-muted-foreground">
+                No dimensions available. Auto from program if linked.
+              </div>
+            ) : (
+              <div className="grid gap-2">
                 {dimensions.map((dimension) => (
-                  <SelectItem key={dimension.id} value={dimension.id}>{dimension.label}</SelectItem>
+                  <label key={dimension.id} className="flex items-center gap-3 rounded-lg border p-3">
+                    <Checkbox
+                      checked={selectedDimensions.includes(dimension.id)}
+                      onCheckedChange={(checked) =>
+                        setSelectedDimensions((prev) =>
+                          checked === true
+                            ? [...prev, dimension.id]
+                            : prev.filter((id) => id !== dimension.id)
+                        )
+                      }
+                    />
+                    <div className="flex items-center gap-2">
+                      {dimension.color && (
+                        <span
+                          className="inline-block h-3 w-3 rounded-full shrink-0"
+                          style={{ backgroundColor: dimension.color }}
+                        />
+                      )}
+                      <span className="text-sm font-medium">{dimension.label}</span>
+                    </div>
+                  </label>
                 ))}
-              </SelectContent>
-            </Select>
+                <p className="text-xs text-muted-foreground">
+                  Leave unchecked to auto-fill from linked program.
+                </p>
+              </div>
+            )}
           </div>
           <div className="space-y-2 sm:col-span-2">
             <Label htmlFor="time-description">Description</Label>

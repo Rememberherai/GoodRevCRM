@@ -2276,6 +2276,7 @@ export type Database = {
           concurrent_capacity: number
           condition: string
           created_at: string
+          custom_questions: Json | null
           description: string | null
           dimension_id: string | null
           geocoded_status: string
@@ -2310,6 +2311,7 @@ export type Database = {
           concurrent_capacity?: number
           condition?: string
           created_at?: string
+          custom_questions?: Json | null
           description?: string | null
           dimension_id?: string | null
           geocoded_status?: string
@@ -2344,6 +2346,7 @@ export type Database = {
           concurrent_capacity?: number
           condition?: string
           created_at?: string
+          custom_questions?: Json | null
           description?: string | null
           dimension_id?: string | null
           geocoded_status?: string
@@ -3078,7 +3081,7 @@ export type Database = {
           currency: string
           date: string
           description: string | null
-          dimension_id: string | null
+          dimension_ids: string[]
           donor_household_id: string | null
           donor_organization_id: string | null
           donor_person_id: string | null
@@ -3099,7 +3102,7 @@ export type Database = {
           currency?: string
           date: string
           description?: string | null
-          dimension_id?: string | null
+          dimension_ids?: string[]
           donor_household_id?: string | null
           donor_organization_id?: string | null
           donor_person_id?: string | null
@@ -3120,7 +3123,7 @@ export type Database = {
           currency?: string
           date?: string
           description?: string | null
-          dimension_id?: string | null
+          dimension_ids?: string[]
           donor_household_id?: string | null
           donor_organization_id?: string | null
           donor_person_id?: string | null
@@ -3137,13 +3140,6 @@ export type Database = {
           value?: number | null
         }
         Relationships: [
-          {
-            foreignKeyName: "contributions_dimension_id_fkey"
-            columns: ["dimension_id"]
-            isOneToOne: false
-            referencedRelation: "impact_dimensions"
-            referencedColumns: ["id"]
-          },
           {
             foreignKeyName: "contributions_donor_household_id_fkey"
             columns: ["donor_household_id"]
