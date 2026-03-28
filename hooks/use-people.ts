@@ -11,6 +11,7 @@ import {
   deletePerson,
 } from '@/stores/person';
 import type { CreatePersonInput, UpdatePersonInput } from '@/lib/validators/person';
+import type { PersonWithRelations } from '@/types/person';
 
 export function usePeople() {
   const params = useParams();
@@ -203,59 +204,79 @@ export function usePerson(personId: string) {
   const params = useParams();
   const projectSlug = params.slug as string;
 
-  const {
-    currentPerson,
-    isLoading,
-    error,
-    setCurrentPerson,
-    setLoading,
-    setError,
-  } = usePersonStore();
-
-  // Track whether initial fetch has completed to avoid flashing "not found"
-  const [hasLoaded, setHasLoaded] = useState(false);
+  const setCurrentPerson = usePersonStore((state) => state.setCurrentPerson);
+  const updatePersonInStore = usePersonStore((state) => state.updatePerson);
+  const [person, setPerson] = useState<PersonWithRelations | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
 
   const loadPerson = useCallback(async () => {
     if (!projectSlug || !personId) return;
 
-    setLoading(true);
-    try {
-      const person = await fetchPerson(projectSlug, personId);
-      setCurrentPerson(person);
-    } catch (err) {
-      setError(err instanceof Error ? err.message : 'Failed to fetch person');
-    } finally {
-      setHasLoaded(true);
+    const isInitialLoad = !person || person.id !== personId;
+
+    setIsLoading(true);
+    setError(null);
+
+    if (isInitialLoad) {
+      setPerson(null);
+      setCurrentPerson(null);
     }
-  }, [projectSlug, personId, setCurrentPerson, setLoading, setError]);
+
+    try {
+      const nextPerson = await fetchPerson(projectSlug, personId);
+      setPerson(nextPerson);
+      setCurrentPerson(nextPerson);
+    } catch (err) {
+      const message = err instanceof Error ? err.message : 'Failed to fetch person';
+      setError(message);
+      if (isInitialLoad) {
+        setPerson(null);
+        setCurrentPerson(null);
+      }
+    } finally {
+      setIsLoading(false);
+    }
+  }, [projectSlug, personId, person, setCurrentPerson]);
 
   const update = useCallback(
     async (data: UpdatePersonInput) => {
       if (!projectSlug || !personId) throw new Error('Invalid parameters');
 
-      setLoading(true);
+      setIsLoading(true);
+      setError(null);
       try {
-        const person = await updatePersonApi(projectSlug, personId, data);
-        setCurrentPerson({ ...person, organization_count: 0, opportunities_count: 0 });
-        return person;
+        const updatedPerson = await updatePersonApi(projectSlug, personId, data);
+        const nextPerson = person
+          ? { ...person, ...updatedPerson }
+          : { ...updatedPerson, organization_count: 0, opportunities_count: 0 };
+
+        setPerson(nextPerson as PersonWithRelations);
+        setCurrentPerson(nextPerson as PersonWithRelations);
+        updatePersonInStore(personId, updatedPerson);
+
+        return updatedPerson;
       } catch (err) {
         const message = err instanceof Error ? err.message : 'Failed to update person';
         setError(message);
         throw err;
+      } finally {
+        setIsLoading(false);
       }
     },
-    [projectSlug, personId, setCurrentPerson, setLoading, setError]
+    [projectSlug, personId, person, setCurrentPerson, updatePersonInStore]
   );
 
   useEffect(() => {
-    loadPerson();
+    void loadPerson();
   }, [loadPerson]);
 
   return {
-    person: currentPerson,
-    isLoading: isLoading || !hasLoaded,
+    person,
+    isLoading,
     error,
     refresh: loadPerson,
     update,
+    setPerson,
   };
 }

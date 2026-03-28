@@ -113,9 +113,8 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
   const [isEmployeeToggling, setIsEmployeeToggling] = useState(false);
   const { checkWithDisposition, GuardDialog } = useOutreachGuard(slug);
 
-  const { person, isLoading, error, refresh } = usePerson(personId);
+  const { person, isLoading, error, refresh, setPerson } = usePerson(personId);
   const removePerson = usePersonStore((s) => s.removePerson);
-  const setCurrentPerson = usePersonStore((s) => s.setCurrentPerson);
 
   const getPersonDisposition = useCallback(() => {
     if (!person?.disposition_id) return null;
@@ -417,7 +416,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
     return `${firstName} ${lastName}`.trim();
   };
 
-  if (isLoading) {
+  if (isLoading && !person) {
     return (
       <div className="flex items-center justify-center py-12">
         <div className="text-muted-foreground">Loading...</div>
@@ -425,7 +424,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
     );
   }
 
-  if (error || !person) {
+  if (!person) {
     return (
       <div className="space-y-4">
         <Button variant="ghost" asChild>
@@ -558,7 +557,9 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
                   const newId = v === 'none' ? null : v;
                   try {
                     await updatePersonApi(slug, person.id, { disposition_id: newId });
-                    setCurrentPerson({ ...person, disposition_id: newId });
+                    setPerson((current) => (
+                      current ? { ...current, disposition_id: newId } : current
+                    ));
                     toast.success('Disposition updated');
                   } catch {
                     toast.error('Failed to update disposition');
