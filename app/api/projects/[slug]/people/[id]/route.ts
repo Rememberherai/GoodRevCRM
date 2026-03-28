@@ -1,4 +1,4 @@
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { updatePersonSchema } from '@/lib/validators/person';
 import { emitAutomationEvent } from '@/lib/automations/engine';
@@ -223,8 +223,10 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
-    // Soft delete by setting deleted_at
-    const { data: deletedPerson, error } = await supabase
+    // Soft delete by setting deleted_at — use service client to bypass RLS
+    // since the UPDATE WITH CHECK policies reject rows where deleted_at is set
+    const serviceClient = createServiceClient();
+    const { data: deletedPerson, error } = await serviceClient
       .from('people')
       .update({ deleted_at: new Date().toISOString() } as PersonUpdate)
       .eq('id', id)
