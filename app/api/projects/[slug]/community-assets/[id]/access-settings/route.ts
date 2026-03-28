@@ -33,7 +33,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     const { data: asset, error: assetError } = await supabase
       .from('community_assets')
-      .select('id, name, access_mode, access_enabled, approval_policy, concurrent_capacity, booking_owner_user_id, return_required, resource_slug, public_name, public_description, public_visibility, access_instructions')
+      .select('id, name, access_mode, access_enabled, approval_policy, concurrent_capacity, booking_owner_user_id, return_required, resource_slug, public_name, public_description, public_visibility, access_instructions, custom_questions')
       .eq('id', id)
       .eq('project_id', project.id)
       .single();

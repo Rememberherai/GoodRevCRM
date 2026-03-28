@@ -14,6 +14,7 @@ interface AssetData {
     concurrent_capacity: number;
     return_required: boolean;
     access_instructions: string | null;
+    custom_questions?: unknown;
   };
   presets: {
     id: string;

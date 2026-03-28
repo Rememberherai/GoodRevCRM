@@ -1,4 +1,5 @@
 import { z } from 'zod';
+import { customQuestionSchema } from './calendar';
 
 // ── Shared enums ────────────────────────────────────────────
 
@@ -36,6 +37,7 @@ export const updateAssetAccessSettingsSchema = z.object({
   booking_owner_user_id: z.string().uuid().nullable().optional(),
   concurrent_capacity: z.number().int().min(1).optional(),
   return_required: z.boolean().optional(),
+  custom_questions: z.array(customQuestionSchema).optional(),
 });
 
 export type UpdateAssetAccessSettingsInput = z.infer<typeof updateAssetAccessSettingsSchema>;

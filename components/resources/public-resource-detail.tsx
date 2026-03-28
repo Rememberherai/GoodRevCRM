@@ -31,6 +31,7 @@ interface AssetInfo {
   concurrent_capacity: number;
   return_required: boolean;
   access_instructions: string | null;
+  custom_questions?: unknown;
 }
 
 interface CustomQuestion {
@@ -152,22 +153,34 @@ export function PublicResourceDetail({
     return { days, firstDayOffset: firstDay };
   }, [calendarMonth, availableDateSet, todayKey]);
 
-  // ── Parse custom questions ───────────────────────────────────
+  // ── Parse custom questions (asset-level + preset-level) ─────
 
   const customQuestions = useMemo((): CustomQuestion[] => {
-    if (!selectedPreset?.custom_questions) return [];
-    try {
-      if (Array.isArray(selectedPreset.custom_questions)) {
-        return selectedPreset.custom_questions as CustomQuestion[];
+    function parseQuestions(raw: unknown): CustomQuestion[] {
+      if (!raw) return [];
+      try {
+        if (Array.isArray(raw)) return raw as CustomQuestion[];
+        if (typeof raw === 'string') return JSON.parse(raw) as CustomQuestion[];
+        return [];
+      } catch {
+        return [];
       }
-      if (typeof selectedPreset.custom_questions === 'string') {
-        return JSON.parse(selectedPreset.custom_questions) as CustomQuestion[];
-      }
-      return [];
-    } catch {
-      return [];
     }
-  }, [selectedPreset]);
+
+    const assetQuestions = parseQuestions(asset.custom_questions);
+    const presetQuestions = parseQuestions(selectedPreset?.custom_questions);
+
+    // Deduplicate by id (asset questions first, preset questions additive)
+    const seen = new Set<string>();
+    const merged: CustomQuestion[] = [];
+    for (const q of [...assetQuestions, ...presetQuestions]) {
+      if (!seen.has(q.id)) {
+        seen.add(q.id);
+        merged.push(q);
+      }
+    }
+    return merged;
+  }, [asset.custom_questions, selectedPreset]);
 
   // ── Submit handler ───────────────────────────────────────────
 

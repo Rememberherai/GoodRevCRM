@@ -33,7 +33,8 @@ export async function GET(_request: Request, context: RouteContext) {
         id, name, public_name, public_description, access_mode,
         resource_slug, access_enabled, approval_policy,
         concurrent_capacity, booking_owner_user_id,
-        return_required, access_instructions, public_visibility
+        return_required, access_instructions, public_visibility,
+        custom_questions
       `)
       .eq('project_id', hub.project_id)
       .eq('resource_slug', resourceSlug)
@@ -92,6 +93,7 @@ export async function GET(_request: Request, context: RouteContext) {
         concurrent_capacity: asset.concurrent_capacity,
         return_required: asset.return_required,
         access_instructions: asset.access_instructions,
+        custom_questions: asset.custom_questions,
       },
       presets: (presets ?? []).map((p) => ({
         id: p.id,
