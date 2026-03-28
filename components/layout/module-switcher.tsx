@@ -1,7 +1,7 @@
 'use client';
 
 import { useRouter, usePathname } from 'next/navigation';
-import { ChevronDown, LayoutGrid, Calculator, CalendarDays } from 'lucide-react';
+import { ChevronDown, LayoutGrid, Calculator, CalendarDays, FileSignature } from 'lucide-react';
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -28,6 +28,13 @@ const modules = [
     icon: Calculator,
     href: '/accounting',
     matchPrefix: '/accounting',
+  },
+  {
+    id: 'documents' as const,
+    label: 'Documents',
+    icon: FileSignature,
+    href: '/documents',
+    matchPrefix: '/documents',
   },
   {
     id: 'calendar' as const,
