@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { startRfpResearchSchema, rfpResearchResultSchema } from '@/lib/validators/rfp-research';
 import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 import { logAiUsage } from '@/lib/openrouter/usage';
 import { buildRfpResearchPrompt, RFP_RESEARCH_MODEL } from '@/lib/openrouter/rfp-research-prompts';
 import type { RfpResearchContext, RfpResearchResult } from '@/types/rfp-research';
@@ -193,6 +194,11 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to create research job' }, { status: 500 });
     }
 
+    // Pre-check that the API key is available before starting the background job
+    // This ensures a friendly 422 is returned instead of a silent background failure
+    const client = await getProjectOpenRouterClient(project.id);
+    void client; // used only to verify key availability; actual call happens in executeResearch
+
     // Build research context
     const org = rfp.organization;
     const researchContext: RfpResearchContext = {
@@ -226,6 +232,7 @@ export async function POST(request: Request, context: RouteContext) {
       status: 'started',
     });
   } catch (error) {
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     console.error('Error in POST /api/projects/[slug]/rfps/[id]/research:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

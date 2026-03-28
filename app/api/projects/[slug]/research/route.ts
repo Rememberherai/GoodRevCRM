@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { startResearchSchema, researchHistoryQuerySchema } from '@/lib/validators/research';
 import { getProjectOpenRouterClient, DEFAULT_MODEL, type OpenRouterUsage } from '@/lib/openrouter/client';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 import { logAiUsage } from '@/lib/openrouter/usage';
 import {
   organizationResearchSchema,
@@ -397,6 +398,9 @@ export async function POST(request: Request, context: RouteContext) {
         }
       });
     } catch (researchError) {
+      // Let ApiKeyMissingError bubble up to the outer catch for a friendly 422
+      if (isApiKeyMissingError(researchError)) throw researchError;
+
       // Update the job with error
       const errorMessage = researchError instanceof Error ? researchError.message : 'Research failed';
 
@@ -414,6 +418,7 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ job: { ...job, status: 'failed', error: errorMessage } });
     }
   } catch (error) {
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     console.error('Error in POST /api/projects/[slug]/research:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

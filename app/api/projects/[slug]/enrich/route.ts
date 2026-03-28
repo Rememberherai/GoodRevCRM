@@ -7,6 +7,7 @@ import {
   enrichmentHistoryQuerySchema,
 } from '@/lib/validators/enrichment';
 import { getProjectFullEnrichClient, type EnrichmentPerson } from '@/lib/fullenrich/client';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 import type { EnrichmentJob, EnrichmentInput } from '@/types/enrichment';
 import type { EnrichmentStatus } from '@/lib/fullenrich/client';
 
@@ -385,6 +386,7 @@ export async function GET(request: Request, context: RouteContext) {
       },
     });
   } catch (error) {
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     console.error('Error in GET /api/projects/[slug]/enrich:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -586,6 +588,9 @@ export async function POST(request: Request, context: RouteContext) {
           message: 'Enrichment started. Results will be available shortly.',
         });
       } catch (enrichError) {
+        // Let ApiKeyMissingError bubble up to the outer catch for a friendly 422
+        if (isApiKeyMissingError(enrichError)) throw enrichError;
+
         console.error('Enrichment error:', enrichError);
 
         let errorMessage = 'Enrichment failed';
@@ -683,6 +688,9 @@ export async function POST(request: Request, context: RouteContext) {
         estimated_completion: bulkRequest.estimated_completion,
       });
     } catch (enrichError) {
+      // Let ApiKeyMissingError bubble up to the outer catch for a friendly 422
+      if (isApiKeyMissingError(enrichError)) throw enrichError;
+
       const errorMessage = enrichError instanceof Error ? enrichError.message : 'Bulk enrichment failed';
 
       // Mark all jobs as failed
@@ -701,6 +709,7 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
   } catch (error) {
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     console.error('Error in POST /api/projects/[slug]/enrich:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

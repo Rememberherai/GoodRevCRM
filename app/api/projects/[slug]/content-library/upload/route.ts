@@ -1,6 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { Database } from '@/types/database';
 
@@ -209,6 +210,7 @@ export async function POST(request: Request, context: RouteContext) {
       documentName: file.name,
     });
   } catch (error) {
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     console.error('[content-library/upload] Unhandled error:', error instanceof Error ? error.stack : error);
     return NextResponse.json(
       { error: 'Failed to process file' },

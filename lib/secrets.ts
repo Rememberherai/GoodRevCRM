@@ -1,6 +1,53 @@
 import { createAdminClient } from '@/lib/supabase/admin';
 import { decrypt, encrypt, maskApiKey } from '@/lib/encryption';
 import { getSystemSetting } from '@/lib/admin/queries';
+import { NextResponse } from 'next/server';
+
+/**
+ * Thrown when a required API key is not configured and fallback is blocked.
+ * Callers can catch this specifically to return a user-friendly response.
+ */
+export class ApiKeyMissingError extends Error {
+  public readonly keyName: string;
+  public readonly keyLabel: string;
+
+  constructor(keyName: string, keyLabel: string) {
+    super(`${keyLabel} is not configured for this project. Please add it in Project Settings → API Keys.`);
+    this.name = 'ApiKeyMissingError';
+    this.keyName = keyName;
+    this.keyLabel = keyLabel;
+  }
+}
+
+/**
+ * Check if an error is an ApiKeyMissingError (or a legacy "not configured" error).
+ */
+export function isApiKeyMissingError(err: unknown): err is ApiKeyMissingError {
+  if (err instanceof ApiKeyMissingError) return true;
+  if (err instanceof Error && err.message.includes('not configured for this project')) return true;
+  return false;
+}
+
+/**
+ * Return a user-friendly 422 JSON response for missing API keys.
+ * Use in API route catch blocks: `if (isApiKeyMissingError(err)) return apiKeyMissingResponse(err);`
+ */
+export function apiKeyMissingResponse(err: unknown): NextResponse {
+  const message =
+    err instanceof ApiKeyMissingError
+      ? err.message
+      : err instanceof Error
+        ? err.message
+        : 'A required API key is not configured for this project.';
+
+  return NextResponse.json(
+    {
+      error: message,
+      code: 'API_KEY_MISSING',
+    },
+    { status: 422 }
+  );
+}
 
 /**
  * Known secret key names that can be stored per project.

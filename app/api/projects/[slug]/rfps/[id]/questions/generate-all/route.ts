@@ -4,6 +4,7 @@ import { getProjectOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/clie
 import { logAiUsage } from '@/lib/openrouter/usage';
 import { buildRfpResponsePrompt, type RfpResponseContext } from '@/lib/openrouter/prompts';
 import { generateRfpResponseInputSchema, aiRfpResponseSchema } from '@/lib/validators/rfp-question';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 import type { CompanyContext } from '@/lib/validators/project';
 import type { Database } from '@/types/database';
 
@@ -225,6 +226,7 @@ export async function POST(request: Request, context: RouteContext) {
       errors: errors.length > 0 ? errors : undefined,
     });
   } catch (error) {
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     console.error('Error in POST /api/.../generate-all:', error);
     return NextResponse.json(
       { error: 'Failed to generate responses' },

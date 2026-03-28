@@ -1,6 +1,6 @@
 import { z } from 'zod';
 import { createAdminClient } from '@/lib/supabase/admin';
-import { getProjectSecret } from '@/lib/secrets';
+import { getProjectSecret, ApiKeyMissingError } from '@/lib/secrets';
 
 const OPENROUTER_API_URL = 'https://openrouter.ai/api/v1/chat/completions';
 
@@ -73,7 +73,7 @@ async function loadSourceBytes(source: ReceiptSource) {
 async function callOpenRouterForJson(projectId: string, body: Record<string, unknown>) {
   const apiKey = await getProjectSecret(projectId, 'openrouter_api_key');
   if (!apiKey) {
-    throw new Error('OpenRouter API key not configured for this project');
+    throw new ApiKeyMissingError('openrouter_api_key', 'OpenRouter API Key');
   }
 
   const response = await fetch(OPENROUTER_API_URL, {

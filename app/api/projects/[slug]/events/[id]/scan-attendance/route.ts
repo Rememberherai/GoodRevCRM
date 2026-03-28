@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { ProjectAccessError } from '@/lib/projects/permissions';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 import { parseSignInSheet, matchParsedNames } from '@/lib/events/scan-attendance';
 import { checkRateLimit } from '@/lib/calendar/service';
 
@@ -61,6 +62,7 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ parsed_names: matchedNames });
   } catch (error) {
     if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: 403 });
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     console.error('Error in POST scan-attendance:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

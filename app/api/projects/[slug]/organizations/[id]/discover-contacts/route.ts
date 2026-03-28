@@ -5,6 +5,7 @@ import { contactDiscoverySchema } from '@/lib/validators/contact-discovery';
 import { buildContactDiscoveryPrompt } from '@/lib/openrouter/prompts';
 import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
 import { logAiUsage } from '@/lib/openrouter/usage';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 import type { DiscoveredContact, ContactDiscoveryResult } from '@/types/contact-discovery';
 
 interface RouteContext {
@@ -160,6 +161,7 @@ export async function POST(request: Request, context: RouteContext) {
       roles_searched: roles,
     });
   } catch (error) {
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     console.error('Error in POST /api/projects/[slug]/organizations/[id]/discover-contacts:', error);
 
     if (error instanceof Error && error.name === 'OpenRouterError') {

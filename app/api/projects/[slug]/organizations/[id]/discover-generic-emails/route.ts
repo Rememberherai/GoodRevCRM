@@ -4,6 +4,7 @@ import { z } from 'zod';
 import { buildGenericEmailDiscoveryPrompt } from '@/lib/openrouter/prompts';
 import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
 import { logAiUsage } from '@/lib/openrouter/usage';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
@@ -180,6 +181,7 @@ export async function POST(request: Request, context: RouteContext) {
       departments_searched: departments,
     });
   } catch (error) {
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     console.error(
       'Error in POST /api/projects/[slug]/organizations/[id]/discover-generic-emails:',
       error

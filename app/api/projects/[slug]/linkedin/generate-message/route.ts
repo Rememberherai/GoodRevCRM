@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getProjectOpenRouterClient, FAST_MODEL } from '@/lib/openrouter/client';
 import { logAiUsage } from '@/lib/openrouter/usage';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 import { z } from 'zod';
 
 const generateMessageSchema = z.object({
@@ -118,6 +119,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     return NextResponse.json({ message });
   } catch (error) {
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     console.error('Error generating LinkedIn message:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

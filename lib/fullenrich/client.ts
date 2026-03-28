@@ -387,10 +387,10 @@ export function getFullEnrichClient(): FullEnrichClient {
 export async function getProjectFullEnrichClient(
   projectId: string
 ): Promise<FullEnrichClient> {
-  const { getProjectSecret } = await import('@/lib/secrets');
+  const { getProjectSecret, ApiKeyMissingError } = await import('@/lib/secrets');
   const apiKey = await getProjectSecret(projectId, 'fullenrich_api_key');
   if (!apiKey) {
-    throw new FullEnrichError('FullEnrich API key not configured for this project');
+    throw new ApiKeyMissingError('fullenrich_api_key', 'FullEnrich API Key');
   }
   return new FullEnrichClient({ apiKey });
 }

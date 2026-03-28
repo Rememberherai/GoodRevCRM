@@ -447,10 +447,10 @@ export function getOpenRouterClient(): OpenRouterClient {
 export async function getProjectOpenRouterClient(
   projectId: string
 ): Promise<OpenRouterClient> {
-  const { getProjectSecret } = await import('@/lib/secrets');
+  const { getProjectSecret, ApiKeyMissingError } = await import('@/lib/secrets');
   const apiKey = await getProjectSecret(projectId, 'openrouter_api_key');
   if (!apiKey) {
-    throw new OpenRouterError('OpenRouter API key not configured for this project');
+    throw new ApiKeyMissingError('openrouter_api_key', 'OpenRouter API Key');
   }
   return new OpenRouterClient({ apiKey });
 }

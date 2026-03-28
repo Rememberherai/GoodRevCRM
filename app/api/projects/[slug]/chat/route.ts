@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 import type { ChatMessageWithTools, ToolCallFunction } from '@/lib/openrouter/client';
 import { getToolDefinitions, executeTool, getStandardToolsForGrants, executeStandardToolForGrants } from '@/lib/chat/tool-registry';
 import { getCommunityToolDefinitions, executeCommunityTool } from '@/lib/chat/community-tool-registry';
@@ -361,7 +362,8 @@ export async function POST(request: Request, context: RouteContext) {
         'Connection': 'keep-alive',
       },
     });
-  } catch {
+  } catch (err) {
+    if (isApiKeyMissingError(err)) return apiKeyMissingResponse(err);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
 }

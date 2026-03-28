@@ -106,10 +106,10 @@ export function getNewsApiClient(): NewsApiClient {
 export async function getProjectNewsApiClient(
   projectId: string
 ): Promise<NewsApiClient> {
-  const { getProjectSecret } = await import('@/lib/secrets');
+  const { getProjectSecret, ApiKeyMissingError } = await import('@/lib/secrets');
   const apiKey = await getProjectSecret(projectId, 'news_api_key');
   if (!apiKey) {
-    throw new NewsApiError('News API key not configured for this project');
+    throw new ApiKeyMissingError('news_api_key', 'News API Key');
   }
   return new NewsApiClient(apiKey);
 }

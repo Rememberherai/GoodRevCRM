@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -78,6 +79,7 @@ Return ONLY a JSON array, no markdown or other text. Return up to 10 results.`,
 
     return NextResponse.json({ opportunities, query });
   } catch (error) {
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     if (error instanceof ProjectAccessError)
       return NextResponse.json({ error: error.message }, { status: error.status });
     console.error('Error in GET /grants/discover/search:', error);

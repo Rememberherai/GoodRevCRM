@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { getProjectOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
 import { logAiUsage } from '@/lib/openrouter/usage';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 import { buildSequenceGenerationPrompt } from '@/lib/openrouter/prompts';
 import {
   generateSequenceInputSchema,
@@ -208,6 +209,7 @@ export async function POST(request: Request, context: RouteContext) {
     }, { status: 201 });
 
   } catch (error) {
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     console.error('Error in POST /api/projects/[slug]/sequences/generate:', error);
     return NextResponse.json(
       { error: 'Internal server error' },

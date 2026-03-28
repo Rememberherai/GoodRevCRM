@@ -3,6 +3,7 @@ import { NextResponse } from 'next/server';
 import { extractTextFromPdf, extractTextFromPlainText } from '@/lib/pdf/extract-text';
 import { getProjectOpenRouterClient, DEFAULT_MODEL } from '@/lib/openrouter/client';
 import { logAiUsage } from '@/lib/openrouter/usage';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 import { buildRfpQuestionExtractionPrompt } from '@/lib/openrouter/prompts';
 import { rfpDocumentExtractionResultSchema } from '@/lib/validators/rfp-question';
 import type { CompanyContext } from '@/lib/validators/project';
@@ -154,6 +155,7 @@ export async function POST(request: Request, context: RouteContext) {
       documentName: file.name,
     });
   } catch (error) {
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     console.error('Error in POST /api/.../questions/parse-document:', error);
     return NextResponse.json(
       { error: 'Failed to process document' },

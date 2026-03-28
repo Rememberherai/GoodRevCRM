@@ -3,6 +3,7 @@ import { createAdminClient } from '@/lib/supabase/admin';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
+import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
 import { logAiUsage } from '@/lib/openrouter/usage';
 import { buildRfpResearchPrompt, RFP_RESEARCH_MODEL } from '@/lib/openrouter/rfp-research-prompts';
 import { rfpResearchResultSchema } from '@/lib/validators/rfp-research';
@@ -122,6 +123,11 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    // Pre-check that the API key is available before starting background jobs
+    // This ensures a friendly 422 is returned instead of silent background failures
+    const client = await getProjectOpenRouterClient(project.id);
+    void client; // used only to verify key availability; actual calls happen in executeResearch
+
     // Create research job records for all RFPs
     const jobInserts = rfpsToResearch.map((rfp) => ({
       project_id: project.id,
@@ -186,6 +192,7 @@ export async function POST(request: Request, context: RouteContext) {
       jobs: jobs.map((j: { id: string; rfp_id: string }) => ({ id: j.id, rfp_id: j.rfp_id })),
     });
   } catch (error) {
+    if (isApiKeyMissingError(error)) return apiKeyMissingResponse(error);
     console.error('Error in POST /api/projects/[slug]/rfps/bulk-research:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

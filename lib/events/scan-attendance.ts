@@ -6,7 +6,7 @@
 
 import { createServiceClient } from '@/lib/supabase/server';
 import { jaroWinkler } from '@/lib/deduplication/detector';
-import { getProjectSecret } from '@/lib/secrets';
+import { getProjectSecret, ApiKeyMissingError } from '@/lib/secrets';
 
 // ============================================================
 // OCR via OpenRouter
@@ -42,7 +42,7 @@ export async function parseSignInSheet(
 ): Promise<ScannedEntry[]> {
   const apiKey = await getProjectSecret(projectId, 'openrouter_api_key');
   if (!apiKey) {
-    throw new Error('OpenRouter API key not configured for this project');
+    throw new ApiKeyMissingError('openrouter_api_key', 'OpenRouter API Key');
   }
 
   const controller = new AbortController();
