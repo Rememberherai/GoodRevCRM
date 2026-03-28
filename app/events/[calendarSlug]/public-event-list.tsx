@@ -259,10 +259,8 @@ export function PublicEventList({ events, pastEvents = [], calendarSlug, calenda
                 Google Calendar
               </a>
             </DropdownMenuItem>
-            <DropdownMenuItem asChild>
-              <a href={webcalUrl}>
-                Apple Calendar
-              </a>
+            <DropdownMenuItem onSelect={() => { window.location.href = webcalUrl; }}>
+              Apple Calendar
             </DropdownMenuItem>
             <DropdownMenuItem asChild>
               <a
