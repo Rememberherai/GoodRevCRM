@@ -226,9 +226,9 @@ export function JobDetailClient({ jobId }: { jobId: string }) {
     return (
       <div className="space-y-4">
         <Button variant="ghost" asChild className="px-0">
-          <Link href={`/projects/${slug}/jobs`}>
+          <Link href={`/projects/${slug}/workforce?tab=jobs`}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Jobs
+            Back to Workforce
           </Link>
         </Button>
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
@@ -243,9 +243,9 @@ export function JobDetailClient({ jobId }: { jobId: string }) {
   return (
     <div className="space-y-6">
       <Button variant="ghost" asChild className="px-0">
-        <Link href={`/projects/${slug}/jobs`}>
+        <Link href={`/projects/${slug}/workforce?tab=jobs`}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Jobs
+          Back to Workforce
         </Link>
       </Button>
 

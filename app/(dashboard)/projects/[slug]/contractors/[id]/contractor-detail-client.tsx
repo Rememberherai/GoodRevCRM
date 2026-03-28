@@ -172,9 +172,9 @@ export function ContractorDetailClient({ contractorId }: { contractorId: string 
     return (
       <div className="space-y-4">
         <Button variant="ghost" asChild className="px-0">
-          <Link href={`/projects/${slug}/contractors`}>
+          <Link href={`/projects/${slug}/workforce`}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Contractors
+            Back to Workforce
           </Link>
         </Button>
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
@@ -187,9 +187,9 @@ export function ContractorDetailClient({ contractorId }: { contractorId: string 
   return (
     <div className="space-y-6">
       <Button variant="ghost" asChild className="px-0">
-        <Link href={`/projects/${slug}/contractors`}>
+        <Link href={`/projects/${slug}/workforce`}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Contractors
+          Back to Workforce
         </Link>
       </Button>
 

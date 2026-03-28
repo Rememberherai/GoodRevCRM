@@ -124,9 +124,9 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
     return (
       <div className="space-y-4">
         <Button variant="ghost" asChild className="px-0">
-          <Link href={`/projects/${slug}/community-assets`}>
+          <Link href={`/projects/${slug}/assets`}>
             <ArrowLeft className="mr-2 h-4 w-4" />
-            Back to Community Assets
+            Back to Assets & Map
           </Link>
         </Button>
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
@@ -142,9 +142,9 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
   return (
     <div className="space-y-6">
       <Button variant="ghost" asChild className="px-0">
-        <Link href={`/projects/${slug}/community-assets`}>
+        <Link href={`/projects/${slug}/assets`}>
           <ArrowLeft className="mr-2 h-4 w-4" />
-          Back to Community Assets
+          Back to Assets & Map
         </Link>
       </Button>
 

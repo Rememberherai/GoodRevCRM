@@ -241,9 +241,9 @@ export function EmployeeDetailClient({ employeeId, projectSlug, initialPerson }:
   return (
     <div className="space-y-6">
       <div className="flex items-center gap-2 text-sm text-muted-foreground">
-        <Link href={`/projects/${slug}/employees`} className="hover:text-foreground flex items-center gap-1">
+        <Link href={`/projects/${slug}/workforce?tab=employees`} className="hover:text-foreground flex items-center gap-1">
           <ArrowLeft className="h-4 w-4" />
-          Employees
+          Back to Workforce
         </Link>
       </div>
 
