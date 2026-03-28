@@ -348,14 +348,18 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
     }
   }, [slug, personId]);
 
-  const handleDelete = async () => {
+  const handleDelete = async (e: React.MouseEvent) => {
+    e.preventDefault();
     setIsDeleting(true);
     try {
       await deletePerson(slug, personId);
       removePerson(personId);
+      toast.success('Person deleted');
+      setShowDeleteDialog(false);
       router.push(backUrl);
-    } catch {
+    } catch (err) {
       setIsDeleting(false);
+      toast.error(err instanceof Error ? err.message : 'Failed to delete person');
     }
   };
 
@@ -644,7 +648,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
           {projectType === 'community' && (
             <TabsTrigger value="approved-for" className="gap-2">
               <ShieldCheck className="h-4 w-4" />
-              Approved For
+              Assets
             </TabsTrigger>
           )}
         </TabsList>

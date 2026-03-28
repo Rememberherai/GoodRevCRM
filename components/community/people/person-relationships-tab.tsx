@@ -1,8 +1,9 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Network, Plus } from 'lucide-react';
+import { Network, Plus, Users, GitBranch } from 'lucide-react';
+import { toast } from 'sonner';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Dialog, DialogContent, DialogDescription, DialogFooter, DialogHeader, DialogTitle } from '@/components/ui/dialog';
@@ -10,6 +11,7 @@ import { Label } from '@/components/ui/label';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
 import { Textarea } from '@/components/ui/textarea';
 import { Badge } from '@/components/ui/badge';
+import { PersonCombobox } from '@/components/ui/person-combobox';
 
 interface RelationshipRecord {
   id: string;
@@ -21,37 +23,25 @@ interface RelationshipRecord {
   person_b?: { id: string; first_name: string | null; last_name: string | null } | null;
 }
 
-interface OptionRecord {
-  id: string;
-  name: string;
-}
-
 export function PersonRelationshipsTab({ personId }: { personId: string }) {
   const params = useParams();
   const slug = params.slug as string;
   const [relationships, setRelationships] = useState<RelationshipRecord[]>([]);
-  const [people, setPeople] = useState<OptionRecord[]>([]);
   const [open, setOpen] = useState(false);
-  const [otherPersonId, setOtherPersonId] = useState('none');
+  const [otherPersonId, setOtherPersonId] = useState<string | null>(null);
   const [type, setType] = useState('neighbor');
   const [notes, setNotes] = useState('');
   const [isSaving, setIsSaving] = useState(false);
 
   const loadRelationships = useCallback(async () => {
-    const [relationshipsResponse, peopleResponse] = await Promise.all([
-      fetch(`/api/projects/${slug}/relationships?person_id=${personId}`),
-      fetch(`/api/projects/${slug}/people?limit=100`),
-    ]);
-    const [relationshipsData, peopleData] = await Promise.all([
-      relationshipsResponse.json(),
-      peopleResponse.json(),
-    ]);
-
-    setRelationships((relationshipsData.relationships ?? []) as RelationshipRecord[]);
-    setPeople(((peopleData.people ?? []) as Array<{ id: string; first_name?: string | null; last_name?: string | null }>).filter((person) => person.id !== personId).map((person) => ({
-      id: person.id,
-      name: [person.first_name, person.last_name].filter(Boolean).join(' ') || 'Unnamed person',
-    })));
+    try {
+      const response = await fetch(`/api/projects/${slug}/relationships?person_id=${personId}`);
+      if (!response.ok) return;
+      const data = await response.json();
+      setRelationships((data.relationships ?? []) as RelationshipRecord[]);
+    } catch {
+      // non-critical initial load
+    }
   }, [personId, slug]);
 
   useEffect(() => {
@@ -59,7 +49,7 @@ export function PersonRelationshipsTab({ personId }: { personId: string }) {
   }, [loadRelationships]);
 
   async function handleCreate() {
-    if (otherPersonId === 'none') return;
+    if (!otherPersonId) return;
     setIsSaving(true);
     try {
       const response = await fetch(`/api/projects/${slug}/relationships`, {
@@ -77,14 +67,27 @@ export function PersonRelationshipsTab({ personId }: { personId: string }) {
         throw new Error(data.error ?? 'Failed to create relationship');
       }
       setOpen(false);
-      setOtherPersonId('none');
+      setOtherPersonId(null);
       setType('neighbor');
       setNotes('');
       await loadRelationships();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to create relationship');
     } finally {
       setIsSaving(false);
     }
   }
+
+  // Compute influence snapshot from loaded relationships
+  const totalConnections = relationships.length;
+  const bridgingTypes = new Set(['neighbor', 'service_provider_client', 'mentor_mentee']);
+  const bridgingCount = relationships.filter((r) => bridgingTypes.has(r.type)).length;
+  const typeCounts = relationships.reduce<Record<string, number>>((acc, r) => {
+    acc[r.type] = (acc[r.type] ?? 0) + 1;
+    return acc;
+  }, {});
+
+  const excludeIds = useMemo(() => new Set([personId]), [personId]);
 
   return (
     <div className="space-y-6">
@@ -128,8 +131,42 @@ export function PersonRelationshipsTab({ personId }: { personId: string }) {
             <Network className="h-5 w-5" />
             Influence Snapshot
           </CardTitle>
-          <CardDescription>This tab also feeds community-level influencer analysis and isolation detection.</CardDescription>
+          <CardDescription>Community connection summary for influencer analysis and isolation detection.</CardDescription>
         </CardHeader>
+        <CardContent>
+          {totalConnections === 0 ? (
+            <p className="text-sm text-muted-foreground">Add relationships above to see this person&apos;s influence snapshot.</p>
+          ) : (
+            <div className="space-y-4">
+              <div className="grid grid-cols-2 gap-4">
+                <div className="rounded-lg border p-4 text-center">
+                  <div className="flex items-center justify-center gap-2 text-muted-foreground mb-1">
+                    <Users className="h-4 w-4" />
+                    <span className="text-xs font-medium uppercase">Connections</span>
+                  </div>
+                  <div className="text-2xl font-bold">{totalConnections}</div>
+                </div>
+                <div className="rounded-lg border p-4 text-center">
+                  <div className="flex items-center justify-center gap-2 text-muted-foreground mb-1">
+                    <GitBranch className="h-4 w-4" />
+                    <span className="text-xs font-medium uppercase">Bridging</span>
+                  </div>
+                  <div className="text-2xl font-bold">{bridgingCount}</div>
+                  <div className="text-xs text-muted-foreground">neighbor, mentor, provider</div>
+                </div>
+              </div>
+              {Object.keys(typeCounts).length > 0 && (
+                <div className="flex flex-wrap gap-2">
+                  {Object.entries(typeCounts).map(([relType, count]) => (
+                    <Badge key={relType} variant="outline">
+                      {relType.replace(/_/g, ' ')} ({count})
+                    </Badge>
+                  ))}
+                </div>
+              )}
+            </div>
+          )}
+        </CardContent>
       </Card>
 
       <Dialog open={open} onOpenChange={setOpen}>
@@ -141,17 +178,12 @@ export function PersonRelationshipsTab({ personId }: { personId: string }) {
           <div className="space-y-4">
             <div className="space-y-2">
               <Label>Other Person</Label>
-              <Select value={otherPersonId} onValueChange={setOtherPersonId}>
-                <SelectTrigger>
-                  <SelectValue placeholder="Select person" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="none">Select person</SelectItem>
-                  {people.map((person) => (
-                    <SelectItem key={person.id} value={person.id}>{person.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <PersonCombobox
+                value={otherPersonId}
+                onValueChange={setOtherPersonId}
+                placeholder="Search people..."
+                excludeIds={excludeIds}
+              />
             </div>
             <div className="space-y-2">
               <Label>Relationship Type</Label>
@@ -173,7 +205,7 @@ export function PersonRelationshipsTab({ personId }: { personId: string }) {
           </div>
           <DialogFooter>
             <Button variant="outline" onClick={() => setOpen(false)} disabled={isSaving}>Cancel</Button>
-            <Button onClick={handleCreate} disabled={isSaving || otherPersonId === 'none'}>
+            <Button onClick={handleCreate} disabled={isSaving || !otherPersonId}>
               Create
             </Button>
           </DialogFooter>
