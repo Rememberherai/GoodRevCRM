@@ -19,8 +19,15 @@ import {
   DropdownMenuItem,
   DropdownMenuTrigger,
 } from '@/components/ui/dropdown-menu';
+import { Badge } from '@/components/ui/badge';
 import { cn } from '@/lib/utils';
 import type { Note } from '@/types/note';
+
+const CATEGORY_STYLES: Record<string, { label: string; className: string }> = {
+  general: { label: 'General', className: 'bg-zinc-100 text-zinc-700 dark:bg-zinc-800 dark:text-zinc-300' },
+  feedback: { label: 'Feedback', className: 'bg-blue-100 text-blue-700 dark:bg-blue-900/40 dark:text-blue-300' },
+  observation: { label: 'Observation', className: 'bg-amber-100 text-amber-700 dark:bg-amber-900/40 dark:text-amber-300' },
+};
 
 interface NotesPanelProps {
   notes: Note[];
@@ -139,6 +146,20 @@ export function NotesPanel({
                     {note.is_pinned && (
                       <Pin className="h-3 w-3 text-primary" />
                     )}
+                    {(() => {
+                      const cat = note.category ? CATEGORY_STYLES[note.category] : null;
+                      return cat ? (
+                        <Badge
+                          variant="secondary"
+                          className={cn(
+                            'text-[10px] px-1.5 py-0 h-4 font-medium',
+                            cat.className
+                          )}
+                        >
+                          {cat.label}
+                        </Badge>
+                      ) : null;
+                    })()}
                   </div>
                 </div>
 

@@ -16,6 +16,7 @@ export interface Note {
   organization_id: string | null;
   opportunity_id: string | null;
   rfp_id: string | null;
+  category?: string | null;
   is_pinned: boolean;
   created_by: string;
   created_at: string;

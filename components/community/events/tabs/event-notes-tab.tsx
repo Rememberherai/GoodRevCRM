@@ -10,17 +10,13 @@ import { NotesPanel } from '@/components/notes/notes-panel';
 import { toast } from 'sonner';
 import type { Note } from '@/types/note';
 
-interface EventNote extends Note {
-  category?: string | null;
-}
-
 interface EventNotesTabProps {
   projectSlug: string;
   eventId: string;
 }
 
 export function EventNotesTab({ projectSlug, eventId }: EventNotesTabProps) {
-  const [notes, setNotes] = useState<EventNote[]>([]);
+  const [notes, setNotes] = useState<Note[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [categoryFilter, setCategoryFilter] = useState('all');
 
