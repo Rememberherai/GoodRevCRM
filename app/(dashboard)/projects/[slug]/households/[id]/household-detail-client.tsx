@@ -215,7 +215,7 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
             <CardHeader>
               <CardTitle>Programs</CardTitle>
               <CardDescription>
-                Enrollment details will expand here as the rest of Phase 3 program management lands.
+                Program enrollments linked to this household.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">
@@ -230,7 +230,7 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
             <CardHeader>
               <CardTitle>Contributions</CardTitle>
               <CardDescription>
-                Contribution detail will appear here once the contributions UI is built.
+                Contributions linked to this household.
               </CardDescription>
             </CardHeader>
             <CardContent className="text-sm text-muted-foreground">

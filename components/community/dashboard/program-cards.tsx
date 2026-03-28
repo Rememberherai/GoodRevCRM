@@ -17,7 +17,7 @@ export function ProgramCards({ programs }: ProgramCardsProps) {
       <CardContent className="space-y-3">
         {programs.length === 0 ? (
           <div className="rounded-lg border border-dashed p-6 text-sm text-muted-foreground">
-            No programs yet. Program cards will appear here once Phase 3 program management is in place.
+            No programs yet. Create a program to see enrollment data here.
           </div>
         ) : (
           programs.map((program) => {
