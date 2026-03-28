@@ -16,6 +16,7 @@ import { registerCommunityTools } from './tools/community';
 import { registerCommunityContractorTools } from './tools/contractors';
 import { registerServiceTypeTools } from './tools/service-types';
 import { registerBugReportTools } from './tools/bug-reports';
+import { registerDocumentTools } from './tools/documents';
 import { registerMemberTools } from './tools/members';
 import type { McpContext } from '@/types/mcp';
 
@@ -69,6 +70,7 @@ export function createMcpServer(getContext: () => McpContext): McpServer {
   registerProductTools(server, getContext);
   registerQuoteTools(server, getContext);
   registerDispositionTools(server, getContext);
+  registerDocumentTools(server, getContext);
   registerMemberTools(server, getContext);
   registerBugReportTools(server, getContext);
 

@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { createContractDocumentSchema } from '@/lib/validators/contract';
 import { createDocument, listDocuments } from '@/lib/contracts/service';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 export async function GET(request: Request) {
   const supabase = await createClient();
@@ -86,6 +87,17 @@ export async function POST(request: Request) {
       originalFileHash: result.data.original_file_hash ?? undefined,
       pageCount: result.data.page_count ?? 1,
     });
+
+    // Standalone docs have no project_id — skip automation events
+    if (document.project_id) {
+      emitAutomationEvent({
+        projectId: document.project_id,
+        triggerType: 'entity.created',
+        entityType: 'document' as never,
+        entityId: document.id,
+        data: document as unknown as Record<string, unknown>,
+      });
+    }
 
     return NextResponse.json({ document }, { status: 201 });
   } catch (err) {

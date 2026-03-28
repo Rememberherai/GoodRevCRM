@@ -139,6 +139,8 @@ const MUTATING_TOOLS = new Set([
   'asset_access.grant_person_approval', 'asset_access_grant_person_approval',
   'asset_access.revoke_person_approval', 'asset_access_revoke_person_approval',
   'asset_access.update_settings', 'asset_access_update_settings',
+  'documents.create', 'documents_create',
+  'documents.void', 'documents_void',
 ]);
 
 function normalizeToolName(toolName: string) {

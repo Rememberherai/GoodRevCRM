@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { verifyDocumentAccess } from '@/lib/contracts/access';
 import { sendDocument } from '@/lib/contracts/service';
 import { sendContractSchema } from '@/lib/validators/contract';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -41,6 +42,16 @@ export async function POST(request: Request, context: RouteContext) {
       gmailConnectionId: result.data.gmail_connection_id,
       message: result.data.message,
     });
+
+    if (document.project_id) {
+      emitAutomationEvent({
+        projectId: document.project_id,
+        triggerType: 'document.sent' as never,
+        entityType: 'document' as never,
+        entityId: id,
+        data: { title: document.title, sent_count: sendResult.sentCount },
+      });
+    }
 
     return NextResponse.json({
       success: true,

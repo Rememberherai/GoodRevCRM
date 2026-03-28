@@ -2,6 +2,7 @@ import { NextResponse } from 'next/server';
 import { createClient } from '@/lib/supabase/server';
 import { verifyDocumentAccess } from '@/lib/contracts/access';
 import { voidDocument } from '@/lib/contracts/service';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -16,8 +17,8 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { authorized } = await verifyDocumentAccess(supabase, id, user.id);
-  if (!authorized) {
+  const { document, authorized } = await verifyDocumentAccess(supabase, id, user.id);
+  if (!authorized || !document) {
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
@@ -26,6 +27,17 @@ export async function POST(request: Request, context: RouteContext) {
 
   try {
     await voidDocument({ supabase, documentId: id, userId: user.id, reason });
+
+    if (document.project_id) {
+      emitAutomationEvent({
+        projectId: document.project_id,
+        triggerType: 'document.voided' as never,
+        entityType: 'document' as never,
+        entityId: id,
+        data: { title: document.title },
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed to void' }, { status: 400 });

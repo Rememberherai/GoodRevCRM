@@ -6,6 +6,7 @@ import Link from 'next/link';
 import {
   Plus, Search, MoreHorizontal, Trash2, Eye, FileSignature,
   FileText, Clock, CheckCircle2, AlertTriangle, Loader2,
+  Ban, Bell,
 } from 'lucide-react';
 import { DOCUMENT_STATUS_LABELS, type ContractDocumentStatus } from '@/types/contract';
 import { Button } from '@/components/ui/button';
@@ -43,6 +44,7 @@ import {
 } from '@/components/ui/alert-dialog';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent } from '@/components/ui/card';
+import { Checkbox } from '@/components/ui/checkbox';
 import { NewDocumentDialog } from '@/components/documents/new-document-dialog';
 
 const STATUS_COLORS: Record<ContractDocumentStatus, string> = {
@@ -89,8 +91,93 @@ export function DocumentsPageClient() {
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [stats, setStats] = useState({ total: 0, awaiting: 0, completedMonth: 0, expiringSoon: 0 });
+  const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
+  const [bulkLoading, setBulkLoading] = useState(false);
 
   const hasFilters = searchInput.trim().length > 0 || !!statusFilter || !!sourceFilter;
+
+  const toggleSelect = (id: string) => {
+    setSelectedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const toggleSelectAll = () => {
+    if (selectedIds.size === documents.length) {
+      setSelectedIds(new Set());
+    } else {
+      setSelectedIds(new Set(documents.map((d) => d.id)));
+    }
+  };
+
+  const selectedDocs = documents.filter((d) => selectedIds.has(d.id));
+  const canBulkRemind = selectedDocs.some((d) => ['sent', 'viewed', 'partially_signed'].includes(d.status));
+  const canBulkVoid = selectedDocs.some((d) => ['sent', 'viewed', 'partially_signed', 'expired', 'declined'].includes(d.status));
+  const canBulkDelete = selectedDocs.some((d) => d.status === 'draft');
+
+  const runBulkRequests = useCallback(async (
+    requests: Array<Promise<Response>>,
+    failureMessage: string
+  ) => {
+    const results = await Promise.allSettled(requests);
+    const failures = results.filter((result) => result.status === 'rejected'
+      || (result.status === 'fulfilled' && !result.value.ok));
+
+    if (failures.length > 0) {
+      throw new Error(failureMessage);
+    }
+  }, []);
+
+  const bulkRemind = async () => {
+    setBulkLoading(true);
+    const remindable = selectedDocs.filter((d) => ['sent', 'viewed', 'partially_signed'].includes(d.status));
+    try {
+      await runBulkRequests(
+        remindable.map((d) => fetch(`/api/documents/${d.id}/remind`, { method: 'POST' })),
+        'Some reminders failed to send'
+      );
+      setSelectedIds(new Set());
+      await loadDocuments();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Some reminders failed to send');
+    }
+    setBulkLoading(false);
+  };
+
+  const bulkVoid = async () => {
+    setBulkLoading(true);
+    const voidable = selectedDocs.filter((d) => ['sent', 'viewed', 'partially_signed', 'expired', 'declined'].includes(d.status));
+    try {
+      await runBulkRequests(
+        voidable.map((d) => fetch(`/api/documents/${d.id}/void`, { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: JSON.stringify({ reason: 'Bulk void' }) })),
+        'Some void operations failed'
+      );
+      setSelectedIds(new Set());
+      await loadDocuments();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Some void operations failed');
+    }
+    setBulkLoading(false);
+  };
+
+  const bulkDelete = async () => {
+    setBulkLoading(true);
+    const deletable = selectedDocs.filter((d) => d.status === 'draft');
+    try {
+      await runBulkRequests(
+        deletable.map((d) => fetch(`/api/documents/${d.id}`, { method: 'DELETE' })),
+        'Some delete operations failed'
+      );
+      setSelectedIds(new Set());
+      await loadDocuments();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Some delete operations failed');
+    }
+    setBulkLoading(false);
+  };
 
   const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
   const handleSearch = (value: string) => {
@@ -114,6 +201,7 @@ export function DocumentsPageClient() {
       const data = await res.json();
       setDocuments(data.documents ?? []);
       setPagination(data.pagination);
+      setSelectedIds(new Set());
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Unknown error');
     } finally {
@@ -277,6 +365,30 @@ export function DocumentsPageClient() {
         </Select>
       </div>
 
+      {/* Bulk Actions Bar */}
+      {selectedIds.size > 0 && (
+        <div className="flex items-center gap-3 bg-muted/50 border rounded-md px-4 py-2">
+          <span className="text-sm font-medium">{selectedIds.size} selected</span>
+          <div className="flex-1" />
+          {canBulkRemind && (
+            <Button variant="outline" size="sm" disabled={bulkLoading} onClick={bulkRemind}>
+              <Bell className="mr-2 h-4 w-4" /> Remind
+            </Button>
+          )}
+          {canBulkVoid && (
+            <Button variant="outline" size="sm" disabled={bulkLoading} onClick={bulkVoid}>
+              <Ban className="mr-2 h-4 w-4" /> Void
+            </Button>
+          )}
+          {canBulkDelete && (
+            <Button variant="outline" size="sm" disabled={bulkLoading} onClick={bulkDelete} className="text-destructive">
+              <Trash2 className="mr-2 h-4 w-4" /> Delete
+            </Button>
+          )}
+          <Button variant="ghost" size="sm" onClick={() => setSelectedIds(new Set())}>Clear</Button>
+        </div>
+      )}
+
       {error && (
         <div className="bg-destructive/15 text-destructive px-4 py-3 rounded-md text-sm flex items-center justify-between">
           {error}
@@ -289,6 +401,12 @@ export function DocumentsPageClient() {
         <Table>
           <TableHeader>
             <TableRow>
+              <TableHead className="w-[40px]">
+                <Checkbox
+                  checked={documents.length > 0 && selectedIds.size === documents.length}
+                  onCheckedChange={toggleSelectAll}
+                />
+              </TableHead>
               <TableHead>Title</TableHead>
               <TableHead>Status</TableHead>
               <TableHead>Source</TableHead>
@@ -301,14 +419,14 @@ export function DocumentsPageClient() {
             {isLoading ? (
               Array.from({ length: 5 }).map((_, i) => (
                 <TableRow key={i}>
-                  <TableCell colSpan={6} className="h-12">
+                  <TableCell colSpan={7} className="h-12">
                     <div className="animate-pulse h-4 bg-muted rounded w-48" />
                   </TableCell>
                 </TableRow>
               ))
             ) : documents.length === 0 ? (
               <TableRow>
-                <TableCell colSpan={6} className="text-center py-12 text-muted-foreground">
+                <TableCell colSpan={7} className="text-center py-12 text-muted-foreground">
                   <FileSignature className="mx-auto h-12 w-12 mb-4 opacity-20" />
                   <p>{hasFilters ? 'No documents match your filters' : 'No documents yet'}</p>
                   <p className="text-sm mt-1">
@@ -347,6 +465,12 @@ export function DocumentsPageClient() {
                   className="cursor-pointer"
                   onClick={() => router.push(`/documents/${doc.id}`)}
                 >
+                  <TableCell onClick={(e) => e.stopPropagation()}>
+                    <Checkbox
+                      checked={selectedIds.has(doc.id)}
+                      onCheckedChange={() => toggleSelect(doc.id)}
+                    />
+                  </TableCell>
                   <TableCell>
                     <div>
                       <p className="font-medium">{doc.title}</p>

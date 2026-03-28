@@ -3,6 +3,7 @@ import { createClient } from '@/lib/supabase/server';
 import { updateContractDocumentSchema } from '@/lib/validators/contract';
 import { verifyDocumentAccess } from '@/lib/contracts/access';
 import { getDocument, updateDocument, deleteDocument } from '@/lib/contracts/service';
+import { emitAutomationEvent } from '@/lib/automations/engine';
 
 interface RouteContext {
   params: Promise<{ id: string }>;
@@ -86,6 +87,17 @@ export async function PATCH(request: Request, context: RouteContext) {
       updates: result.data,
       currentStatus: existing.status,
     });
+
+    if (existing.project_id) {
+      emitAutomationEvent({
+        projectId: existing.project_id,
+        triggerType: 'entity.updated',
+        entityType: 'document' as never,
+        entityId: id,
+        data: document as unknown as Record<string, unknown>,
+      });
+    }
+
     return NextResponse.json({ document });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed to update' }, { status: 400 });
@@ -101,13 +113,24 @@ export async function DELETE(_request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
   }
 
-  const { authorized } = await verifyDocumentAccess(supabase, id, user.id);
-  if (!authorized) {
+  const { document: docToDelete, authorized } = await verifyDocumentAccess(supabase, id, user.id);
+  if (!authorized || !docToDelete) {
     return NextResponse.json({ error: 'Document not found' }, { status: 404 });
   }
 
   try {
     await deleteDocument({ supabase, documentId: id });
+
+    if (docToDelete.project_id) {
+      emitAutomationEvent({
+        projectId: docToDelete.project_id,
+        triggerType: 'entity.deleted',
+        entityType: 'document' as never,
+        entityId: id,
+        data: { id, title: docToDelete.title },
+      });
+    }
+
     return NextResponse.json({ success: true });
   } catch (err) {
     return NextResponse.json({ error: err instanceof Error ? err.message : 'Failed to delete' }, { status: 400 });

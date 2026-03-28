@@ -161,6 +161,7 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 - **Products**: List, get, create, update, delete products in the catalog (name, SKU, default price, unit type)
 - **Quotes**: List, get, create, update, delete quotes on opportunities; accept/reject quotes; set primary quote; add/update/remove line items with product references, quantities, prices, and discounts
 - **Contracts/E-Signatures**: List, get, create, void contract documents; add recipients and fields; view audit trails; list templates
+- **Standalone Documents**: List, get, create, void standalone documents (not tied to a project); view audit trails; list templates — accessible from the top-level Documents module
 - **Accounting**: List invoices, bills, chart of accounts, journal entries, and recurring transactions; get invoice details; record payments against invoices
 - **Calendar/Scheduling**: List and manage event types; list and view bookings; cancel bookings; update calendar profile and availability; get public booking links for event types; manage team members on event types (add/remove/list); view round robin assignment statistics
 - **Dispositions**: Manage dispositions (status categories like Prospect, Customer, Partner) for organizations and people — list, create, update, delete; assign via disposition_id when creating/updating orgs or people
