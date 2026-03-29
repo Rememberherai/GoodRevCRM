@@ -131,6 +131,18 @@ async function createGoodRevBill(params: ReceiptAccountingInput) {
     .eq('id', params.projectId)
     .single();
 
+  // BUG-F: Verify the calling user is a project member (not viewer) before creating a bill
+  const { data: projectMembership } = await admin
+    .from('project_memberships')
+    .select('role')
+    .eq('project_id', params.projectId)
+    .eq('user_id', params.userId)
+    .maybeSingle();
+
+  if (!projectMembership || projectMembership.role === 'viewer') {
+    throw new Error('Insufficient permissions to create a bill for this project');
+  }
+
   const companyId = await ensureAccountingCompany(params.projectId, params.userId, project?.name ?? 'Community Project');
   const accountId = await resolveExpenseAccount(companyId, params.accountCode);
 

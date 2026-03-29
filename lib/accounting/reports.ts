@@ -363,6 +363,7 @@ export async function generateGeneralLedger(
       .in('account_id', accountIds);
 
     if (projectId) priorQuery = priorQuery.eq('journal_entries.project_id', projectId);
+    priorQuery = priorQuery.limit(50000); // BUG-BE guard: prevent unbounded query on large datasets
 
     const { data: priorLines, error: priorErr } = await priorQuery;
 

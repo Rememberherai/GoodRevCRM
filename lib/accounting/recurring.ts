@@ -189,6 +189,7 @@ export async function processRecurringTransactions(
           p_contact_id: rec.contact_id ?? undefined,
           p_project_id: rec.project_id ?? undefined,
           p_lines: lineItems,
+          p_created_by: rec.created_by ?? undefined,
         });
 
         if (createErr) throw new Error(createErr.message);

@@ -131,7 +131,6 @@ export async function POST(
         typeof currentInvoice.customer_address === 'string' ? currentInvoice.customer_address : null,
       currency: currentInvoice.currency,
       subtotal: Number(currentInvoice.subtotal),
-      discount_amount: 0,
       tax_total: Number(currentInvoice.tax_total ?? 0),
       total: Number(currentInvoice.total),
       amount_paid: Number(currentInvoice.amount_paid),

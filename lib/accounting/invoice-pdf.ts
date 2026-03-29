@@ -18,7 +18,7 @@ interface InvoicePdfData {
   customer_address?: string | null;
   currency: string;
   subtotal: number;
-  discount_amount: number;
+  discount_amount?: number;
   tax_total: number;
   total: number;
   amount_paid: number;
@@ -137,9 +137,12 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   y -= 22;
 
   // Line items
-  for (const item of data.line_items) {
+  let truncated = false;
+  for (let li = 0; li < data.line_items.length; li++) {
+    const item = data.line_items[li]!;
     if (y < 120) {
-      // Would need pagination for very long invoices — skip for v1
+      // Not enough vertical space — note truncation and stop
+      truncated = true;
       break;
     }
 
@@ -159,6 +162,11 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
     y -= 16;
   }
 
+  if (truncated) {
+    drawText(page, `(${data.line_items.length} line items total — PDF truncated, see invoice details for full list)`, colDesc, y, font, 8, gray);
+    y -= 14;
+  }
+
   // --- Separator line ---
   y -= 5;
   page.drawLine({
@@ -176,7 +184,7 @@ export async function generateInvoicePdf(data: InvoicePdfData): Promise<Uint8Arr
   drawRightAligned(page, fmt(data.subtotal, data.currency), colAmount, y, font, 9, darkGray);
   y -= 15;
 
-  if (data.discount_amount > 0) {
+  if (data.discount_amount && data.discount_amount > 0) {
     drawText(page, 'Discount:', totalsX, y, font, 9, gray);
     drawRightAligned(page, `-${fmt(data.discount_amount, data.currency)}`, colAmount, y, font, 9, darkGray);
     y -= 15;
