@@ -4478,6 +4478,241 @@ defineCommunityTool({
   },
 });
 
+// ── Workflow tools ─────────────────────────────────────────────────────────────
+
+defineCommunityTool({
+  name: 'workflows.list',
+  description: 'List all workflows in this community project, with their status and trigger type.',
+  parameters: z.object({
+    is_active: z.boolean().optional().describe('Filter by active/inactive status'),
+    limit: z.number().int().min(1).max(100).default(20),
+  }),
+  resource: 'workflows',
+  action: 'view',
+  handler: async (params, ctx) => {
+    const supabase = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = (supabase as any)
+      .from('workflows')
+      .select('id, name, description, trigger_type, is_active, created_at, updated_at')
+      .eq('project_id', ctx.projectId)
+      .order('name', { ascending: true })
+      .limit(params.limit ?? 20);
+
+    if (params.is_active !== undefined) {
+      query = query.eq('is_active', params.is_active);
+    }
+
+    const { data, error } = await query;
+    if (error) return `Error: ${error.message}`;
+    if (!data?.length) return 'No workflows found.';
+    return JSON.stringify(data, null, 2);
+  },
+});
+
+defineCommunityTool({
+  name: 'workflows.get',
+  description: 'Get full details and definition of a specific workflow by ID.',
+  parameters: z.object({
+    workflow_id: z.string().uuid(),
+  }),
+  resource: 'workflows',
+  action: 'view',
+  handler: async (params, ctx) => {
+    const supabase = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from('workflows')
+      .select('id, name, description, trigger_type, is_active, definition, created_at, updated_at, execution_count')
+      .eq('id', params.workflow_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+
+    if (error) return `Error: ${error.message}`;
+    if (!data) return 'Workflow not found.';
+    return JSON.stringify(data, null, 2);
+  },
+});
+
+defineCommunityTool({
+  name: 'workflows.activate',
+  description: 'Activate or deactivate a workflow.',
+  parameters: z.object({
+    workflow_id: z.string().uuid(),
+    is_active: z.boolean(),
+  }),
+  resource: 'workflows',
+  action: 'manage',
+  handler: async (params, ctx) => {
+    const supabase = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: workflow, error: fetchError } = await (supabase as any)
+      .from('workflows')
+      .select('id, is_active, definition')
+      .eq('id', params.workflow_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+
+    if (fetchError || !workflow) return `Error: ${fetchError?.message ?? 'Workflow not found'}`;
+
+    if (params.is_active) {
+      const { validateWorkflow } = await import('@/lib/workflows/validators/validate-workflow');
+      const blockers = validateWorkflow(workflow.definition).filter((e) => e.severity === 'error');
+      if (blockers.length > 0) {
+        return `Error: Validation failed. ${blockers.map((e) => e.message).join('; ')}`;
+      }
+    }
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { error } = await (supabase as any)
+      .from('workflows')
+      .update({ is_active: params.is_active })
+      .eq('id', params.workflow_id)
+      .eq('project_id', ctx.projectId);
+
+    if (error) return `Error: ${error.message}`;
+    return `Workflow ${params.is_active ? 'activated' : 'deactivated'} successfully.`;
+  },
+});
+
+defineCommunityTool({
+  name: 'workflows.executions',
+  description: 'List recent workflow executions for a specific workflow.',
+  parameters: z.object({
+    workflow_id: z.string().uuid(),
+    limit: z.number().int().min(1).max(50).default(10),
+  }),
+  resource: 'workflows',
+  action: 'view',
+  handler: async (params, ctx) => {
+    const supabase = createAdminClient();
+
+    // Verify this workflow belongs to the project before fetching executions
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: wf } = await (supabase as any)
+      .from('workflows')
+      .select('id')
+      .eq('id', params.workflow_id)
+      .eq('project_id', ctx.projectId)
+      .maybeSingle();
+    if (!wf) return 'Workflow not found in this project.';
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data, error } = await (supabase as any)
+      .from('workflow_executions')
+      .select('id, status, started_at, completed_at, error_message, trigger_event, entity_type, entity_id')
+      .eq('workflow_id', params.workflow_id)
+      .order('started_at', { ascending: false })
+      .limit(params.limit ?? 10);
+
+    if (error) return `Error: ${error.message}`;
+    if (!data?.length) return 'No executions found.';
+
+    return JSON.stringify(data, null, 2);
+  },
+});
+
+defineCommunityTool({
+  name: 'workflows.execute',
+  description: 'Manually trigger a workflow execution for a specific entity.',
+  parameters: z.object({
+    workflow_id: z.string().uuid(),
+    entity_type: z.string().optional().describe('Entity type (e.g. household, grant, referral)'),
+    entity_id: z.string().uuid().optional().describe('Entity ID to run the workflow against'),
+  }),
+  resource: 'workflows',
+  action: 'manage',
+  handler: async (params, ctx) => {
+    const supabase = createAdminClient();
+
+    // Verify workflow belongs to project and is active
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: workflow, error: wfError } = await (supabase as any)
+      .from('workflows')
+      .select('id, is_active, definition, current_version')
+      .eq('id', params.workflow_id)
+      .eq('project_id', ctx.projectId)
+      .single();
+
+    if (wfError || !workflow) return 'Workflow not found.';
+    if (!workflow.is_active) return 'Workflow is not active. Activate it first.';
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: executionId, error: rpcError } = await (supabase as any).rpc('log_workflow_execution', {
+      p_workflow_id: workflow.id,
+      p_workflow_version: workflow.current_version,
+      p_trigger_event: { type: 'manual', triggered_by: ctx.userId },
+      p_status: 'running',
+      p_entity_type: params.entity_type ?? null,
+      p_entity_id: params.entity_id ?? null,
+    });
+
+    if (rpcError || !executionId) return `Failed to create execution: ${rpcError?.message}`;
+
+    const { executeWorkflow } = await import('@/lib/workflows/engine');
+    const ctxData: Record<string, unknown> = {};
+    if (params.entity_type) ctxData.entity_type = params.entity_type;
+    if (params.entity_id) ctxData.entity_id = params.entity_id;
+
+    executeWorkflow(
+      workflow.id,
+      executionId,
+      ctx.projectId,
+      workflow.definition,
+      ctxData,
+    ).catch((err: Error) => console.error('Workflow execution failed:', err));
+
+    return `Workflow execution started. Execution ID: ${executionId}`;
+  },
+});
+
+defineCommunityTool({
+  name: 'workflows.summary',
+  description: 'Get a summary of workflow activity: total workflows, active count, recent executions, and common failures.',
+  parameters: z.object({}),
+  resource: 'workflows',
+  action: 'view',
+  handler: async (_params, ctx) => {
+    const supabase = createAdminClient();
+
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: workflows } = await (supabase as any)
+      .from('workflows')
+      .select('id, name, is_active, execution_count')
+      .eq('project_id', ctx.projectId);
+
+    const workflowIds: string[] = (workflows ?? []).map((w: { id: string }) => w.id);
+
+    let recentExecs: { workflow_id: string; status: string; started_at: string; error_message: string }[] = [];
+    if (workflowIds.length > 0) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const { data } = await (supabase as any)
+        .from('workflow_executions')
+        .select('workflow_id, status, started_at, error_message')
+        .in('workflow_id', workflowIds)
+        .order('started_at', { ascending: false })
+        .limit(20);
+      recentExecs = data ?? [];
+    }
+
+    const totalWorkflows = workflows?.length ?? 0;
+    const activeWorkflows = (workflows ?? []).filter((w: { is_active: boolean }) => w.is_active).length;
+    const recentFailures = recentExecs.filter((e) => e.status === 'failed');
+
+    return JSON.stringify({
+      total_workflows: totalWorkflows,
+      active_workflows: activeWorkflows,
+      inactive_workflows: totalWorkflows - activeWorkflows,
+      recent_executions: recentExecs.length,
+      recent_failures: recentFailures.length,
+      failure_details: recentFailures.slice(0, 3).map((e) => ({
+        error: e.error_message,
+        at: e.started_at,
+      })),
+    }, null, 2);
+  },
+});
+
 function getAllowedTools(role?: ProjectRole) {
   if (!role) return tools;
   return tools.filter((tool) => {

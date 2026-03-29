@@ -63,7 +63,7 @@ export function WorkflowToolbar({ projectSlug }: WorkflowToolbarProps) {
   } = useWorkflowStore();
 
   async function handleSave() {
-    if (!workflowId) return;
+    if (!workflowId) return false;
     setIsSaving(true);
     setSaveError(null);
     try {
@@ -82,7 +82,7 @@ export function WorkflowToolbar({ projectSlug }: WorkflowToolbarProps) {
         // Block save for active workflows with validation errors
         if (isActive) {
           setIsSaving(false);
-          return;
+          return false;
         }
       }
 
@@ -100,8 +100,21 @@ export function WorkflowToolbar({ projectSlug }: WorkflowToolbarProps) {
       });
 
       if (res.ok) {
+        const data = await res.json().catch(() => ({}));
+        if (data.workflow) {
+          useWorkflowStore.setState((state) => ({
+            workflowName: data.workflow.name ?? state.workflowName,
+            workflowDescription: data.workflow.description ?? state.workflowDescription,
+            triggerType: data.workflow.trigger_type ?? state.triggerType,
+            triggerConfig: data.workflow.trigger_config ?? state.triggerConfig,
+            tags: data.workflow.tags ?? state.tags,
+            currentVersion: data.workflow.current_version ?? state.currentVersion,
+            isActive: data.workflow.is_active ?? state.isActive,
+          }));
+        }
         markSaved();
         setSaveError(null);
+        return true;
       } else {
         const data = await res.json().catch(() => ({}));
         let msg = data.error || `Save failed (${res.status})`;
@@ -117,9 +130,11 @@ export function WorkflowToolbar({ projectSlug }: WorkflowToolbarProps) {
           msg = data.validation_errors.map((e: { message: string }) => e.message).join('; ');
         }
         setSaveError(msg);
+        return false;
       }
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : 'Save failed');
+      return false;
     } finally {
       setIsSaving(false);
     }
@@ -129,6 +144,11 @@ export function WorkflowToolbar({ projectSlug }: WorkflowToolbarProps) {
     if (!workflowId) return;
     setSaveError(null);
     try {
+      if (hasUnsavedChanges()) {
+        const saved = await handleSave();
+        if (!saved) return;
+      }
+
       const res = await fetch(
         `/api/projects/${projectSlug}/workflows/${workflowId}/activate`,
         { method: 'POST' }
@@ -154,6 +174,11 @@ export function WorkflowToolbar({ projectSlug }: WorkflowToolbarProps) {
     if (!workflowId) return;
     setSaveError(null);
     try {
+      if (hasUnsavedChanges()) {
+        const saved = await handleSave();
+        if (!saved) return;
+      }
+
       const res = await fetch(
         `/api/projects/${projectSlug}/workflows/${workflowId}/execute`,
         { method: 'POST', headers: { 'Content-Type': 'application/json' }, body: '{}' }

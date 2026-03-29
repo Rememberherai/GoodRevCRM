@@ -11,6 +11,14 @@ export default function WorkflowEditorPage() {
   const id = params.id as string;
   const { workflowId, isLoading } = useWorkflowStore();
   const [error, setError] = useState<string | null>(null);
+  const [projectType, setProjectType] = useState<string>('standard');
+
+  useEffect(() => {
+    fetch(`/api/projects/${slug}`)
+      .then((r) => r.json())
+      .then((d) => { if (d.project?.project_type) setProjectType(d.project.project_type); })
+      .catch(() => {});
+  }, [slug]);
 
   useEffect(() => {
     let cancelled = false;
@@ -67,5 +75,5 @@ export default function WorkflowEditorPage() {
     );
   }
 
-  return <WorkflowEditor projectSlug={slug} />;
+  return <WorkflowEditor projectSlug={slug} projectType={projectType} />;
 }

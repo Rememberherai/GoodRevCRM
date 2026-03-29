@@ -23,6 +23,7 @@ import type {
 import { sendBookingCancellation } from '@/lib/calendar/notifications';
 import { removeBookingFromCalendar } from '@/lib/calendar/sync';
 import { syncBookingStatusToMeeting } from '@/lib/calendar/crm-bridge';
+import { assertWorkflowTriggerSupported, normalizeWorkflowTriggerConfig } from '@/lib/workflows/trigger-config';
 import type { Json } from '@/types/database';
 import type { McpContext } from '@/types/mcp';
 
@@ -4100,18 +4101,25 @@ defineTool({
 
 defineTool({
   name: 'workflows.create',
-  description: `Create a new workflow with a visual node graph. Each node MUST have: id (string), type (one of: start, end, action, ai_agent, condition, switch, delay, loop, sub_workflow, mcp_tool, webhook, zapier), position ({x, y} coordinates for canvas layout), and data ({label, config: {}}). Every workflow needs exactly one "start" node and at least one "end" node. Edges connect nodes: {id, source, target}. If nodes/edges are omitted, a default start→end workflow is created. Positions should be spaced ~150px apart vertically (e.g. start at y:50, next at y:200, etc.) with x:250 as center.`,
+  description: `Create a new workflow with a visual node graph. Each node MUST have: id (string), type (one of: start, end, action, ai_agent, condition, switch, delay, loop, sub_workflow, mcp_tool, webhook, zapier), position ({x, y} coordinates for canvas layout), and data ({label, config: {}}). Every workflow needs exactly one "start" node and at least one "end" node. Edges connect nodes: {id, source, target}. If nodes/edges are omitted, a default start→end workflow is created. Positions should be spaced ~150px apart vertically (e.g. start at y:50, next at y:200, etc.) with x:250 as center. Supported trigger types include manual, schedule, and event triggers like entity.created. Do not use webhook_inbound yet.`,
   minRole: 'member',
   parameters: z.object({
     name: z.string().min(1).max(50).describe('Workflow name'),
     description: z.string().max(2000).optional().describe('Description'),
-    trigger_type: z.string().default('manual').describe('Trigger type'),
+    trigger_type: z.string().default('manual').describe('Trigger type. Supported: manual, schedule, and event triggers like entity.created. Unsupported: webhook_inbound.'),
+    trigger_config: z.record(z.string(), z.unknown()).default({}).describe('Trigger configuration. For schedule use cron_expression or interval_minutes.'),
     nodes: z.array(z.record(z.string(), z.unknown())).optional().describe('Workflow nodes array. Each node: {id, type, position: {x, y}, data: {label, config: {}}}. Valid types: start, end, action, ai_agent, condition, switch, delay, loop, sub_workflow, mcp_tool, webhook, zapier'),
     edges: z.array(z.record(z.string(), z.unknown())).optional().describe('Edges connecting nodes: {id, source, target}'),
     tags: z.array(z.string()).optional().describe('Tags'),
   }),
   handler: async (params, ctx) => {
     const { sanitizeWorkflowDefinition } = await import('@/lib/workflows/sanitize-nodes');
+    const triggerType = (params.trigger_type as string) ?? 'manual';
+    assertWorkflowTriggerSupported(triggerType);
+    const triggerConfig = normalizeWorkflowTriggerConfig(
+      triggerType,
+      params.trigger_config as Record<string, unknown> | undefined,
+    );
 
     const definition = sanitizeWorkflowDefinition(
       params.nodes as unknown[] | undefined,
@@ -4123,8 +4131,8 @@ defineTool({
       .insert({
         name: params.name as string,
         description: (params.description as string) ?? null,
-        trigger_type: (params.trigger_type as string) ?? 'manual',
-        trigger_config: {} as Json,
+        trigger_type: triggerType,
+        trigger_config: triggerConfig as Json,
         definition: definition as unknown as Json,
         tags: (params.tags as string[]) ?? [],
         project_id: ctx.projectId,
@@ -4140,8 +4148,8 @@ defineTool({
       workflow_id: data.id,
       version: 1,
       definition: definition as unknown as Json,
-      trigger_type: (params.trigger_type as string) ?? 'manual',
-      trigger_config: {} as Json,
+      trigger_type: triggerType,
+      trigger_config: triggerConfig as Json,
       change_summary: 'Initial creation',
       created_by: ctx.userId,
     });
@@ -4159,6 +4167,7 @@ defineTool({
     name: z.string().min(1).max(50).optional(),
     description: z.string().max(2000).optional(),
     trigger_type: z.string().optional(),
+    trigger_config: z.record(z.string(), z.unknown()).optional(),
     nodes: z.array(z.record(z.string(), z.unknown())).optional().describe('Updated nodes'),
     edges: z.array(z.record(z.string(), z.unknown())).optional().describe('Updated edges'),
     change_summary: z.string().optional().describe('Description of changes'),
@@ -4175,13 +4184,30 @@ defineTool({
 
     if (getError) throw new Error(`Workflow not found: ${getError.message}`);
 
-    const definitionChanged = params.nodes !== undefined || params.edges !== undefined || params.trigger_type !== undefined;
-    const newVersion = definitionChanged ? (current.current_version ?? 0) + 1 : current.current_version;
+    if (params.trigger_type !== undefined) {
+      assertWorkflowTriggerSupported(params.trigger_type as string);
+    }
+
+    const effectiveTriggerType = (params.trigger_type as string | undefined) ?? current.trigger_type;
+    const normalizedTriggerConfig = params.trigger_config !== undefined
+      ? normalizeWorkflowTriggerConfig(
+        effectiveTriggerType,
+        params.trigger_config as Record<string, unknown>,
+      )
+      : undefined;
+
+    const versionChanged =
+      params.nodes !== undefined ||
+      params.edges !== undefined ||
+      params.trigger_type !== undefined ||
+      params.trigger_config !== undefined;
+    const newVersion = versionChanged ? (current.current_version ?? 0) + 1 : current.current_version;
     const updateData: Record<string, unknown> = {};
-    if (definitionChanged) updateData.current_version = newVersion;
+    if (versionChanged) updateData.current_version = newVersion;
     if (params.name !== undefined) updateData.name = params.name;
     if (params.description !== undefined) updateData.description = params.description;
     if (params.trigger_type !== undefined) updateData.trigger_type = params.trigger_type;
+    if (normalizedTriggerConfig !== undefined) updateData.trigger_config = normalizedTriggerConfig;
 
     const existingDef = current.definition as { schema_version: string; nodes: unknown[]; edges: unknown[] };
     if (params.nodes !== undefined || params.edges !== undefined) {
@@ -4204,13 +4230,13 @@ defineTool({
     if (error) throw new Error(`Failed to update workflow: ${error.message}`);
 
     // Only create version record when definition/trigger changes
-    if (definitionChanged) {
+    if (versionChanged) {
       await ctx.supabase.from('workflow_versions').insert({
         workflow_id: id,
         version: newVersion,
         definition: (updateData.definition ?? current.definition) as Json,
-        trigger_type: (params.trigger_type as string) ?? current.trigger_type,
-        trigger_config: current.trigger_config as Json,
+        trigger_type: effectiveTriggerType,
+        trigger_config: (normalizedTriggerConfig ?? current.trigger_config) as Json,
         change_summary: (params.change_summary as string) ?? 'Updated via chat',
         created_by: ctx.userId,
       });

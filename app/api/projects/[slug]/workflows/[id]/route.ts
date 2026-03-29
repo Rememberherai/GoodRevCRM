@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { ProjectAccessError } from '@/lib/projects/permissions';
+import { requireWorkflowPermission } from '@/lib/projects/workflow-permissions';
 import { updateWorkflowSchema } from '@/lib/validators/workflow';
+import { assertWorkflowTriggerSupported, normalizeWorkflowTriggerConfig } from '@/lib/workflows/trigger-config';
 import { validateWorkflow } from '@/lib/workflows/validators/validate-workflow';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 
@@ -18,16 +21,13 @@ export async function GET(_request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: project } = await supabase
-      .from('projects').select('id').eq('slug', slug).is('deleted_at', null).single();
+      .from('projects').select('id, project_type').eq('slug', slug).is('deleted_at', null).single();
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+
+    await requireWorkflowPermission(supabase, user.id, project, 'view');
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
-
-    const { data: membership } = await supabaseAny
-      .from('project_memberships').select('role')
-      .eq('project_id', project.id).eq('user_id', user.id).single();
-    if (!membership) return NextResponse.json({ error: 'Access denied' }, { status: 403 });
 
     const { data: workflow, error } = await supabaseAny
       .from('workflows').select('*')
@@ -39,6 +39,7 @@ export async function GET(_request: Request, context: RouteContext) {
 
     return NextResponse.json({ workflow });
   } catch (error) {
+    if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error('Error in GET /api/projects/[slug]/workflows/[id]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -54,18 +55,13 @@ export async function PATCH(request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: project } = await supabase
-      .from('projects').select('id').eq('slug', slug).is('deleted_at', null).single();
+      .from('projects').select('id, project_type').eq('slug', slug).is('deleted_at', null).single();
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+
+    await requireWorkflowPermission(supabase, user.id, project, 'update');
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
-
-    const { data: membership } = await supabaseAny
-      .from('project_memberships').select('role')
-      .eq('project_id', project.id).eq('user_id', user.id).single();
-    if (!membership || !['owner', 'admin', 'member'].includes(membership.role)) {
-      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
-    }
 
     // Get current workflow
     const { data: existing } = await supabaseAny
@@ -83,12 +79,35 @@ export async function PATCH(request: Request, context: RouteContext) {
       );
     }
 
-    const updates = validationResult.data;
+    let updates = validationResult.data;
+
+    if (updates.trigger_type !== undefined) {
+      try {
+        assertWorkflowTriggerSupported(updates.trigger_type);
+      } catch (error) {
+        return NextResponse.json(
+          { error: error instanceof Error ? error.message : 'Unsupported workflow trigger' },
+          { status: 400 }
+        );
+      }
+    }
+
+    if (updates.trigger_config !== undefined) {
+      const effectiveTriggerType = updates.trigger_type ?? existing.trigger_type;
+      updates = {
+        ...updates,
+        trigger_config: normalizeWorkflowTriggerConfig(
+          effectiveTriggerType,
+          updates.trigger_config,
+        ),
+      };
+    }
+
     const { change_summary, ...workflowUpdates } = updates;
 
     // RBAC: only admin/owner can toggle is_active (matches /activate endpoint)
-    if (workflowUpdates.is_active !== undefined && !['owner', 'admin'].includes(membership.role)) {
-      return NextResponse.json({ error: 'Admin role required to change active status' }, { status: 403 });
+    if (workflowUpdates.is_active !== undefined) {
+      await requireWorkflowPermission(supabase, user.id, project, 'manage');
     }
 
     // Validate graph if definition changed
@@ -104,15 +123,18 @@ export async function PATCH(request: Request, context: RouteContext) {
       }
     }
 
-    // Auto-version if definition changed
-    const definitionChanged = workflowUpdates.definition !== undefined;
-    const newVersion = definitionChanged ? existing.current_version + 1 : existing.current_version;
+    // Auto-version when graph or trigger behavior changes
+    const versionChanged =
+      workflowUpdates.definition !== undefined ||
+      workflowUpdates.trigger_type !== undefined ||
+      workflowUpdates.trigger_config !== undefined;
+    const newVersion = versionChanged ? existing.current_version + 1 : existing.current_version;
 
     const { data: workflow, error } = await supabaseAny
       .from('workflows')
       .update({
         ...workflowUpdates,
-        ...(definitionChanged ? { current_version: newVersion } : {}),
+        ...(versionChanged ? { current_version: newVersion } : {}),
       })
       .eq('id', id)
       .eq('project_id', project.id)
@@ -124,8 +146,8 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to update workflow' }, { status: 500 });
     }
 
-    // Create version record if definition changed
-    if (definitionChanged) {
+    // Create version record when execution behavior changed
+    if (versionChanged) {
       const { error: versionError } = await supabaseAny.from('workflow_versions').insert({
         workflow_id: id,
         version: newVersion,
@@ -148,6 +170,7 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     return NextResponse.json({ workflow });
   } catch (error) {
+    if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error('Error in PATCH /api/projects/[slug]/workflows/[id]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -163,18 +186,13 @@ export async function DELETE(_request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: project } = await supabase
-      .from('projects').select('id').eq('slug', slug).is('deleted_at', null).single();
+      .from('projects').select('id, project_type').eq('slug', slug).is('deleted_at', null).single();
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+
+    await requireWorkflowPermission(supabase, user.id, project, 'delete');
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
-
-    const { data: membership } = await supabaseAny
-      .from('project_memberships').select('role')
-      .eq('project_id', project.id).eq('user_id', user.id).single();
-    if (!membership || !['owner', 'admin'].includes(membership.role)) {
-      return NextResponse.json({ error: 'Admin role required to delete workflows' }, { status: 403 });
-    }
 
     const { error } = await supabaseAny
       .from('workflows').delete()
@@ -187,6 +205,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
 
     return NextResponse.json({ success: true });
   } catch (error) {
+    if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error('Error in DELETE /api/projects/[slug]/workflows/[id]:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

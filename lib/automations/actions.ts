@@ -1,5 +1,5 @@
 import { createClient } from '@supabase/supabase-js';
-import type { AutomationAction, AutomationEntityType } from '@/types/automation';
+import type { AutomationAction, AutomationEntityType, TriggerType } from '@/types/automation';
 import { sendOutboundSms } from '@/lib/telnyx/sms-service';
 
 interface ActionContext {
@@ -113,6 +113,29 @@ export async function executeAction(
         return await executeFireWebhook(action, context);
       case 'run_workflow':
         return await executeRunWorkflow(action, context);
+      // ── Community actions ──
+      case 'enroll_in_program':
+        return await executeEnrollInProgram(action, context);
+      case 'update_enrollment_status':
+        return await executeUpdateEnrollmentStatus(action, context);
+      case 'record_attendance':
+        return await executeRecordAttendance(action, context);
+      case 'create_contribution':
+        return await executeCreateContribution(action, context);
+      case 'assign_job':
+        return await executeAssignJob(action, context);
+      case 'update_job_status':
+        return await executeUpdateJobStatus(action, context);
+      case 'create_referral':
+        return await executeCreateReferral(action, context);
+      case 'update_referral_status':
+        return await executeUpdateReferralStatus(action, context);
+      case 'send_broadcast':
+        return await executeSendBroadcast(action, context);
+      case 'update_grant_status':
+        return await executeUpdateGrantStatus(action, context);
+      case 'flag_household_risk':
+        return await executeFlagHouseholdRisk(action, context);
       default:
         return { action_type: action.type, success: false, error: `Unknown action type: ${action.type}` };
     }
@@ -142,17 +165,29 @@ async function executeCreateTask(
   else if (context.entityType === 'organization') entityLinks.organization_id = context.entityId;
   else if (context.entityType === 'opportunity') entityLinks.opportunity_id = context.entityId;
   else if (context.entityType === 'rfp') entityLinks.rfp_id = context.entityId;
+  else if (context.entityType === 'grant') entityLinks.grant_id = context.entityId;
+  else if (
+    (context.entityType === 'household' || context.entityType === 'event_registration' || context.entityType === 'asset_access_booking') &&
+    typeof context.data.person_id === 'string'
+  ) entityLinks.person_id = context.data.person_id;
+  else if (context.entityType === 'household' && typeof context.data.primary_contact_id === 'string') entityLinks.person_id = context.data.primary_contact_id;
+
+  const createdBy = await resolveAutomationActorUserId(supabase, context);
+  if (!createdBy) {
+    return { action_type: action.type, success: false, error: 'Could not resolve created_by user for task' };
+  }
 
   const { data, error } = await supabase
     .from('tasks')
     .insert({
       project_id: context.projectId,
-      title: String(config.title || `Auto-task: ${context.automationName}`),
-      description: config.description ? String(config.description) : null,
+      title: interpolateContextString(config.title || `Auto-task: ${context.automationName}`, context.data) || `Auto-task: ${context.automationName}`,
+      description: interpolateContextString(config.description, context.data),
       priority: String(config.priority || 'medium'),
       status: 'pending',
       due_date: dueDate,
       assigned_to: config.assign_to ? String(config.assign_to) : null,
+      created_by: createdBy,
       ...entityLinks,
     })
     .select('id')
@@ -299,8 +334,30 @@ async function executeSendNotification(
 ): Promise<ActionResult> {
   const supabase = createAdminClient();
   const config = action.config;
-  const userIds = Array.isArray(config.user_ids) ? config.user_ids : config.user_id ? [config.user_id] : [];
-  const message = String(config.message || `Automation "${context.automationName}" triggered`);
+  let userIds = Array.isArray(config.user_ids) ? config.user_ids : config.user_id ? [config.user_id] : [];
+  const message = interpolateContextString(
+    config.message || `Automation "${context.automationName}" triggered`,
+    context.data,
+  ) || `Automation "${context.automationName}" triggered`;
+
+  if (userIds.length === 0) {
+    const roles = Array.isArray(config.notify_roles)
+      ? config.notify_roles.map(String)
+      : config.notify_role
+        ? [String(config.notify_role)]
+        : [];
+
+    if (roles.length > 0) {
+      const { data: memberships, error } = await supabase
+        .from('project_memberships')
+        .select('user_id')
+        .eq('project_id', context.projectId)
+        .in('role', roles);
+
+      if (error) return { action_type: action.type, success: false, error: error.message };
+      userIds = [...new Set((memberships || []).map((membership) => membership.user_id).filter(Boolean))];
+    }
+  }
 
   if (userIds.length === 0) {
     return { action_type: action.type, success: false, error: 'No user_id(s) specified' };
@@ -632,8 +689,8 @@ async function executeCreateActivity(
       entity_id: context.entityId,
       action: 'automation',
       activity_type: String(config.type || 'note'),
-      subject: String(config.subject || context.automationName),
-      notes: config.notes ? String(config.notes) : null,
+      subject: interpolateContextString(config.subject || context.automationName, context.data) || context.automationName,
+      notes: interpolateContextString(config.notes, context.data),
       ...entityLinks,
       metadata: {
         automation_id: context.automationId,
@@ -813,4 +870,605 @@ async function executeRunWorkflow(
     success: true,
     result: { workflow_id: workflowId, execution_id: executionId },
   };
+}
+
+// ── Community action handlers ─────────────────────────────────────────────────
+
+function resolveContextField(fieldPath: string, contextData: Record<string, unknown>): string | null {
+  const normalized = fieldPath
+    .trim()
+    .replace(/^\{\{\s*/, '')
+    .replace(/\s*\}\}$/, '')
+    .replace(/^context\./, '');
+  const parts = normalized.split('.');
+
+  const tryResolve = (candidateParts: string[]) => {
+    let cur: unknown = contextData;
+    for (const part of candidateParts) {
+      if (cur == null || typeof cur !== 'object') return null;
+      cur = (cur as Record<string, unknown>)[part];
+    }
+    return cur != null ? String(cur) : null;
+  };
+
+  const direct = tryResolve(parts);
+  if (direct != null) return direct;
+
+  if (parts.length > 1) {
+    const withoutPrefix = tryResolve(parts.slice(1));
+    if (withoutPrefix != null) return withoutPrefix;
+
+    const snakeCaseKey = parts.join('_');
+    if (snakeCaseKey in contextData && contextData[snakeCaseKey] != null) {
+      return String(contextData[snakeCaseKey]);
+    }
+  }
+
+  return null;
+}
+
+function resolveStringOrContext(
+  value: unknown,
+  contextData: Record<string, unknown>,
+): string | null {
+  if (value == null) return null;
+  if (typeof value !== 'string') return String(value);
+
+  const trimmed = value.trim();
+  if (!trimmed) return null;
+
+  if (trimmed.startsWith('{{') || trimmed.startsWith('context.') || trimmed.includes('.')) {
+    const resolved = resolveContextField(trimmed, contextData);
+    if (resolved != null) return resolved;
+  }
+
+  return trimmed;
+}
+
+function interpolateContextString(
+  value: unknown,
+  contextData: Record<string, unknown>,
+): string | null {
+  if (value == null) return null;
+
+  const template = String(value);
+  if (!template) return null;
+
+  return template.replace(/\{\{\s*([^}]+?)\s*\}\}/g, (_match, path: string) => {
+    const resolved = resolveContextField(path, contextData);
+    return resolved ?? '';
+  });
+}
+
+async function resolveAutomationActorUserId(
+  supabase: ReturnType<typeof createAdminClient>,
+  context: ActionContext,
+): Promise<string | null> {
+  const candidates = [
+    context.data.owner_id,
+    context.data.created_by,
+    context.data.updated_by,
+  ].filter((value): value is string => typeof value === 'string' && value.length > 0);
+
+  if (candidates.length > 0) {
+    const { data: membership } = await supabase
+      .from('project_memberships')
+      .select('user_id')
+      .eq('project_id', context.projectId)
+      .in('user_id', candidates)
+      .limit(1)
+      .maybeSingle();
+
+    if (membership?.user_id) return membership.user_id;
+  }
+
+  const { data: elevatedMembership } = await supabase
+    .from('project_memberships')
+    .select('user_id')
+    .eq('project_id', context.projectId)
+    .in('role', ['owner', 'admin'])
+    .limit(1)
+    .maybeSingle();
+
+  if (elevatedMembership?.user_id) return elevatedMembership.user_id;
+
+  const { data: anyMembership } = await supabase
+    .from('project_memberships')
+    .select('user_id')
+    .eq('project_id', context.projectId)
+    .limit(1)
+    .maybeSingle();
+
+  return anyMembership?.user_id ?? null;
+}
+
+function queueAutomationEvent(event: {
+  projectId: string;
+  triggerType: TriggerType;
+  entityType: AutomationEntityType;
+  entityId: string;
+  data: Record<string, unknown>;
+}) {
+  import('@/lib/automations/engine')
+    .then(({ emitAutomationEvent }) => emitAutomationEvent(event))
+    .catch(console.error);
+}
+
+async function executeEnrollInProgram(
+  action: AutomationAction,
+  context: ActionContext,
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+  const config = action.config;
+
+  const programId = resolveStringOrContext(config.program_id, context.data) || '';
+  if (!programId) return { action_type: action.type, success: false, error: 'No program_id specified' };
+
+  const personId = config.person_id_field
+    ? resolveContextField(String(config.person_id_field), context.data) ?? String(context.data.person_id || '')
+    : String(context.data.person_id || context.data.primary_contact_id || '');
+
+  const householdId = config.household_id_field
+    ? resolveContextField(String(config.household_id_field), context.data) ?? String(context.data.household_id || '')
+    : String(context.data.household_id || '');
+
+  const status = String(config.status || 'active');
+
+  // Prevent duplicate active enrollments (only check when personId is known)
+  const { data: existing } = personId ? await supabase
+    .from('program_enrollments')
+    .select('id')
+    .eq('program_id', programId)
+    .eq('person_id', personId)
+    .in('status', ['active', 'waitlisted'])
+    .maybeSingle() : { data: null };
+
+  if (existing) {
+    return { action_type: action.type, success: true, result: { already_enrolled: true, enrollment_id: existing.id } };
+  }
+
+  if (!personId && !householdId) {
+    return { action_type: action.type, success: false, error: 'No person_id or household_id resolved — enrollment requires at least one' };
+  }
+
+  const { data, error } = await supabase
+    .from('program_enrollments')
+    .insert({
+      program_id: programId,
+      person_id: personId || null,
+      household_id: householdId || null,
+      status,
+      enrolled_at: new Date().toISOString(),
+    })
+    .select('id')
+    .single();
+
+  if (error) return { action_type: action.type, success: false, error: error.message };
+  queueAutomationEvent({
+    projectId: context.projectId,
+    triggerType: 'program.enrollment.created',
+    entityType: 'program_enrollment',
+    entityId: data.id,
+    data: {
+      id: data.id,
+      program_id: programId,
+      person_id: personId || null,
+      household_id: householdId || null,
+      status,
+      enrolled_at: new Date().toISOString(),
+    },
+  });
+  return { action_type: action.type, success: true, result: { enrollment_id: data.id } };
+}
+
+async function executeUpdateEnrollmentStatus(
+  action: AutomationAction,
+  context: ActionContext,
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+  const config = action.config;
+
+  const enrollmentId = config.enrollment_id_field
+    ? resolveContextField(String(config.enrollment_id_field), context.data) ?? String(context.data.enrollment_id || '')
+    : String(context.data.enrollment_id || context.entityId);
+
+  if (!enrollmentId) return { action_type: action.type, success: false, error: 'No enrollment_id resolved' };
+
+  const status = String(config.status || 'active');
+
+  const { error } = await supabase
+    .from('program_enrollments')
+    .update({ status, updated_at: new Date().toISOString() })
+    .eq('id', enrollmentId);
+
+  if (error) return { action_type: action.type, success: false, error: error.message };
+  queueAutomationEvent({
+    projectId: context.projectId,
+    triggerType: 'entity.updated',
+    entityType: 'program_enrollment',
+    entityId: enrollmentId,
+    data: { id: enrollmentId, status },
+  });
+  return { action_type: action.type, success: true, result: { enrollment_id: enrollmentId, status } };
+}
+
+async function executeRecordAttendance(
+  action: AutomationAction,
+  context: ActionContext,
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+  const config = action.config;
+
+  const programId = config.program_id_field
+    ? resolveContextField(String(config.program_id_field), context.data) ?? String(context.data.program_id || '')
+    : String(context.data.program_id || '');
+
+  if (!programId) return { action_type: action.type, success: false, error: 'No program_id resolved' };
+
+  const personId = config.person_id_field
+    ? resolveContextField(String(config.person_id_field), context.data) ?? String(context.data.person_id || '')
+    : String(context.data.person_id || '');
+
+  if (!personId) return { action_type: action.type, success: false, error: 'No person_id resolved' };
+
+  const attendanceStatus = String(config.status || 'present');
+  const date = resolveStringOrContext(config.date, context.data) || new Date().toISOString().split('T')[0];
+
+  const { data, error } = await supabase
+    .from('program_attendance')
+    .upsert({
+      program_id: programId,
+      person_id: personId,
+      date,
+      status: attendanceStatus,
+      hours: config.hours != null ? Number(config.hours) : 0,
+    }, { onConflict: 'program_id,person_id,date' })
+    .select('id')
+    .single();
+
+  if (error) return { action_type: action.type, success: false, error: error.message };
+  queueAutomationEvent({
+    projectId: context.projectId,
+    triggerType: 'program.attendance.batch',
+    entityType: 'program_attendance',
+    entityId: data.id,
+    data: {
+      id: data.id,
+      program_id: programId,
+      person_id: personId,
+      date,
+      status: attendanceStatus,
+    },
+  });
+  return { action_type: action.type, success: true, result: { attendance_id: data.id, date, status: attendanceStatus } };
+}
+
+async function executeCreateContribution(
+  action: AutomationAction,
+  context: ActionContext,
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+  const config = action.config;
+
+  const householdId = config.household_id_field
+    ? resolveContextField(String(config.household_id_field), context.data) ?? String(context.data.household_id || '')
+    : String(context.data.household_id || '');
+
+  if (!householdId) return { action_type: action.type, success: false, error: 'No household_id resolved' };
+
+  const contributionType = String(config.type || 'monetary');
+  const resolvedValue = resolveStringOrContext(config.value, context.data);
+  const resolvedHours = resolveStringOrContext(config.hours, context.data);
+  const value = resolvedValue != null ? Number(resolvedValue) : null;
+  const hours = resolvedHours != null ? Number(resolvedHours) : null;
+
+  const { data, error } = await supabase
+    .from('contributions')
+    .insert({
+      project_id: context.projectId,
+      recipient_household_id: householdId,
+      type: contributionType,
+      value: value ?? undefined,
+      hours: hours ?? undefined,
+      date: new Date().toISOString().split('T')[0],
+      status: 'received',
+      description: `Automated by workflow: ${context.automationName ?? context.automationId}`,
+    })
+    .select('id')
+    .single();
+
+  if (error) return { action_type: action.type, success: false, error: error.message };
+  queueAutomationEvent({
+    projectId: context.projectId,
+    triggerType: 'contribution.created',
+    entityType: 'contribution',
+    entityId: data.id,
+    data: {
+      id: data.id,
+      recipient_household_id: householdId,
+      type: contributionType,
+      value,
+      hours,
+    },
+  });
+  return { action_type: action.type, success: true, result: { contribution_id: data.id } };
+}
+
+async function executeAssignJob(
+  action: AutomationAction,
+  context: ActionContext,
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+  const config = action.config;
+
+  const jobId = config.job_id_field
+    ? resolveContextField(String(config.job_id_field), context.data) ?? String(context.data.job_id || '')
+    : String(context.data.job_id || context.entityId);
+
+  if (!jobId) return { action_type: action.type, success: false, error: 'No job_id resolved' };
+
+  const contractorId = config.contractor_id_field
+    ? resolveContextField(String(config.contractor_id_field), context.data) ?? String(context.data.contractor_id || '')
+    : String(context.data.contractor_id || '');
+
+  if (!contractorId) return { action_type: action.type, success: false, error: 'No contractor_id resolved' };
+
+  const { error } = await supabase
+    .from('jobs')
+    .update({
+      contractor_id: contractorId,
+      status: 'assigned',
+    })
+    .eq('id', jobId)
+    .eq('project_id', context.projectId);
+
+  if (error) return { action_type: action.type, success: false, error: error.message };
+  queueAutomationEvent({
+    projectId: context.projectId,
+    triggerType: 'job.assigned',
+    entityType: 'job',
+    entityId: jobId,
+    data: { id: jobId, contractor_id: contractorId, status: 'assigned' },
+  });
+  return { action_type: action.type, success: true, result: { job_id: jobId, contractor_id: contractorId } };
+}
+
+async function executeUpdateJobStatus(
+  action: AutomationAction,
+  context: ActionContext,
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+  const config = action.config;
+
+  const jobId = config.job_id_field
+    ? resolveContextField(String(config.job_id_field), context.data) ?? String(context.data.job_id || '')
+    : String(context.data.job_id || context.entityId);
+
+  if (!jobId) return { action_type: action.type, success: false, error: 'No job_id resolved' };
+
+  const status = String(config.status || 'in_progress');
+  const updates: Record<string, unknown> = { status };
+  if (status === 'completed') updates.completed_at = new Date().toISOString();
+
+  const { error } = await supabase
+    .from('jobs')
+    .update(updates)
+    .eq('id', jobId)
+    .eq('project_id', context.projectId);
+
+  if (error) return { action_type: action.type, success: false, error: error.message };
+  queueAutomationEvent({
+    projectId: context.projectId,
+    triggerType: status === 'completed' ? 'job.completed' : 'entity.updated',
+    entityType: 'job',
+    entityId: jobId,
+    data: { id: jobId, status, ...updates },
+  });
+  return { action_type: action.type, success: true, result: { job_id: jobId, status } };
+}
+
+async function executeCreateReferral(
+  action: AutomationAction,
+  context: ActionContext,
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+  const config = action.config;
+
+  const householdId = config.household_id_field
+    ? resolveContextField(String(config.household_id_field), context.data) ?? String(context.data.household_id || '')
+    : String(context.data.household_id || '');
+
+  if (!householdId) return { action_type: action.type, success: false, error: 'No household_id resolved' };
+
+  const serviceType = String(config.service_type || '');
+  if (!serviceType) return { action_type: action.type, success: false, error: 'No service_type specified' };
+
+  const { data, error } = await supabase
+    .from('referrals')
+    .insert({
+      project_id: context.projectId,
+      household_id: householdId,
+      service_type: serviceType,
+      status: 'submitted',
+      notes: config.notes
+        ? String(config.notes)
+        : `Automated by workflow: ${context.automationName ?? context.automationId}`,
+    })
+    .select('id')
+    .single();
+
+  if (error) return { action_type: action.type, success: false, error: error.message };
+  queueAutomationEvent({
+    projectId: context.projectId,
+    triggerType: 'referral.created',
+    entityType: 'referral',
+    entityId: data.id,
+    data: {
+      id: data.id,
+      household_id: householdId,
+      service_type: serviceType,
+      status: 'submitted',
+    },
+  });
+  return { action_type: action.type, success: true, result: { referral_id: data.id } };
+}
+
+async function executeUpdateReferralStatus(
+  action: AutomationAction,
+  context: ActionContext,
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+  const config = action.config;
+
+  const referralId = config.referral_id_field
+    ? resolveContextField(String(config.referral_id_field), context.data) ?? String(context.data.referral_id || '')
+    : String(context.data.referral_id || context.entityId);
+
+  if (!referralId) return { action_type: action.type, success: false, error: 'No referral_id resolved' };
+
+  const status = String(config.status || 'in_progress');
+  const updates: Record<string, unknown> = { status };
+  if (config.outcome) updates.outcome = String(config.outcome);
+
+  const { error } = await supabase
+    .from('referrals')
+    .update(updates)
+    .eq('id', referralId)
+    .eq('project_id', context.projectId);
+
+  if (error) return { action_type: action.type, success: false, error: error.message };
+  queueAutomationEvent({
+    projectId: context.projectId,
+    triggerType: status === 'completed' ? 'referral.completed' : 'entity.updated',
+    entityType: 'referral',
+    entityId: referralId,
+    data: { id: referralId, status, ...updates },
+  });
+  return { action_type: action.type, success: true, result: { referral_id: referralId, status } };
+}
+
+async function executeSendBroadcast(
+  action: AutomationAction,
+  context: ActionContext,
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+  const config = action.config;
+
+  const subject = interpolateContextString(config.subject || `Broadcast: ${context.automationName}`, context.data) || `Broadcast: ${context.automationName}`;
+  const body = interpolateContextString(config.body, context.data) || '';
+  const channel = String(config.channel || 'email');
+
+  if (!body) return { action_type: action.type, success: false, error: 'No body specified' };
+
+  // Create a draft broadcast — actual sending requires explicit review
+  const { data, error } = await supabase
+    .from('broadcasts')
+    .insert({
+      project_id: context.projectId,
+      subject,
+      body,
+      channel,
+      status: 'draft',
+      filter_criteria: {
+        automation_id: context.automationId,
+        automation_name: context.automationName,
+        entity_type: context.entityType,
+        entity_id: context.entityId,
+      },
+    })
+    .select('id')
+    .single();
+
+  if (error) return { action_type: action.type, success: false, error: error.message };
+  return { action_type: action.type, success: true, result: { broadcast_id: data.id, channel } };
+}
+
+async function executeUpdateGrantStatus(
+  action: AutomationAction,
+  context: ActionContext,
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+  const config = action.config;
+
+  const grantId = config.grant_id_field
+    ? resolveContextField(String(config.grant_id_field), context.data) ?? String(context.data.grant_id || '')
+    : String(context.data.grant_id || context.entityId);
+
+  if (!grantId) return { action_type: action.type, success: false, error: 'No grant_id resolved' };
+
+  const status = String(config.status || '');
+  if (!status) return { action_type: action.type, success: false, error: 'No status specified' };
+
+  const { error } = await supabase
+    .from('grants')
+    .update({ status })
+    .eq('id', grantId)
+    .eq('project_id', context.projectId);
+
+  if (error) return { action_type: action.type, success: false, error: error.message };
+  queueAutomationEvent({
+    projectId: context.projectId,
+    triggerType: 'grant.status_changed',
+    entityType: 'grant',
+    entityId: grantId,
+    data: { id: grantId, status },
+  });
+  return { action_type: action.type, success: true, result: { grant_id: grantId, status } };
+}
+
+async function executeFlagHouseholdRisk(
+  action: AutomationAction,
+  context: ActionContext,
+): Promise<ActionResult> {
+  const supabase = createAdminClient();
+  const config = action.config;
+
+  const householdId = config.household_id_field
+    ? resolveContextField(String(config.household_id_field), context.data) ?? String(context.data.household_id || '')
+    : String(context.data.household_id || context.entityId);
+
+  if (!householdId) return { action_type: action.type, success: false, error: 'No household_id resolved' };
+
+  const riskLevel = String(config.risk_level || 'high');
+  const reason = config.reason ? String(config.reason) : null;
+
+  // Fetch current custom_fields to merge into
+  const { data: current, error: fetchError } = await supabase
+    .from('households')
+    .select('custom_fields')
+    .eq('id', householdId)
+    .eq('project_id', context.projectId)
+    .single();
+
+  if (fetchError || !current) return { action_type: action.type, success: false, error: fetchError?.message ?? 'Household not found' };
+
+  const existingCustomFields = (current.custom_fields as Record<string, unknown>) ?? {};
+  const updatedCustomFields: Record<string, unknown> = {
+    ...existingCustomFields,
+    risk_level: riskLevel,
+    risk_flagged_at: new Date().toISOString(),
+    risk_flagged_by: `automation:${context.automationId}`,
+  };
+  if (reason) updatedCustomFields.risk_reason = reason;
+
+  const { error } = await supabase
+    .from('households')
+    .update({ custom_fields: updatedCustomFields })
+    .eq('id', householdId)
+    .eq('project_id', context.projectId);
+
+  if (error) return { action_type: action.type, success: false, error: error.message };
+  queueAutomationEvent({
+    projectId: context.projectId,
+    triggerType: riskLevel === 'high' ? 'risk_score.high' : 'entity.updated',
+    entityType: 'household',
+    entityId: householdId,
+    data: {
+      id: householdId,
+      custom_fields: updatedCustomFields,
+      risk_level: riskLevel,
+      risk_reason: reason,
+    },
+  });
+  return { action_type: action.type, success: true, result: { household_id: householdId, risk_level: riskLevel } };
 }

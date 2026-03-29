@@ -1,5 +1,7 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { ProjectAccessError } from '@/lib/projects/permissions';
+import { requireWorkflowPermission } from '@/lib/projects/workflow-permissions';
 import { executeWorkflowSchema } from '@/lib/validators/workflow';
 
 interface RouteContext {
@@ -16,18 +18,13 @@ export async function POST(request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
 
     const { data: project } = await supabase
-      .from('projects').select('id').eq('slug', slug).is('deleted_at', null).single();
+      .from('projects').select('id, project_type').eq('slug', slug).is('deleted_at', null).single();
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+
+    await requireWorkflowPermission(supabase, user.id, project, 'execute');
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
-
-    const { data: membership } = await supabaseAny
-      .from('project_memberships').select('role')
-      .eq('project_id', project.id).eq('user_id', user.id).single();
-    if (!membership || !['owner', 'admin', 'member'].includes(membership.role)) {
-      return NextResponse.json({ error: 'Member role required' }, { status: 403 });
-    }
 
     const { data: workflow } = await supabaseAny
       .from('workflows').select('*')
@@ -94,6 +91,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     return NextResponse.json({ execution }, { status: 201 });
   } catch (error) {
+    if (error instanceof ProjectAccessError) return NextResponse.json({ error: error.message }, { status: error.status });
     console.error('Error in POST /workflows/[id]/execute:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

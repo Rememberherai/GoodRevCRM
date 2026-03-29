@@ -1,6 +1,9 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
+import { ProjectAccessError } from '@/lib/projects/permissions';
+import { requireWorkflowPermission } from '@/lib/projects/workflow-permissions';
 import { createWorkflowSchema, workflowQuerySchema } from '@/lib/validators/workflow';
+import { assertWorkflowTriggerSupported, normalizeWorkflowTriggerConfig } from '@/lib/workflows/trigger-config';
 import { validateWorkflow } from '@/lib/workflows/validators/validate-workflow';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 
@@ -24,7 +27,7 @@ export async function GET(request: Request, context: RouteContext) {
 
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id')
+      .select('id, project_type')
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
@@ -33,19 +36,10 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    await requireWorkflowPermission(supabase, user.id, project, 'view');
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
-
-    const { data: membership } = await supabaseAny
-      .from('project_memberships')
-      .select('role')
-      .eq('project_id', project.id)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!membership) {
-      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
-    }
 
     const { searchParams } = new URL(request.url);
     const queryResult = workflowQuerySchema.safeParse({
@@ -104,6 +98,9 @@ export async function GET(request: Request, context: RouteContext) {
       pagination: { limit, offset },
     });
   } catch (error) {
+    if (error instanceof ProjectAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Error in GET /api/projects/[slug]/workflows:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }
@@ -125,7 +122,7 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { data: project, error: projectError } = await supabase
       .from('projects')
-      .select('id')
+      .select('id, project_type')
       .eq('slug', slug)
       .is('deleted_at', null)
       .single();
@@ -134,22 +131,10 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    await requireWorkflowPermission(supabase, user.id, project, 'create');
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
-
-    const { data: membership } = await supabaseAny
-      .from('project_memberships')
-      .select('role')
-      .eq('project_id', project.id)
-      .eq('user_id', user.id)
-      .single();
-
-    if (!membership || !['owner', 'admin', 'member'].includes(membership.role)) {
-      return NextResponse.json(
-        { error: 'Insufficient permissions. Member role or above required.' },
-        { status: 403 }
-      );
-    }
 
     const body = await request.json();
     const validationResult = createWorkflowSchema.safeParse(body);
@@ -161,12 +146,29 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
+    try {
+      assertWorkflowTriggerSupported(validationResult.data.trigger_type);
+    } catch (error) {
+      return NextResponse.json(
+        { error: error instanceof Error ? error.message : 'Unsupported workflow trigger' },
+        { status: 400 }
+      );
+    }
+
+    const workflowInput = {
+      ...validationResult.data,
+      trigger_config: normalizeWorkflowTriggerConfig(
+        validationResult.data.trigger_type,
+        validationResult.data.trigger_config,
+      ),
+    };
+
     // Validate workflow graph if definition has nodes
-    const { definition } = validationResult.data;
+    const { definition } = workflowInput;
     if (definition.nodes.length > 0) {
       const graphErrors = validateWorkflow(definition);
       const blockingErrors = graphErrors.filter((e) => e.severity === 'error');
-      if (blockingErrors.length > 0 && validationResult.data.is_active) {
+      if (blockingErrors.length > 0 && workflowInput.is_active) {
         return NextResponse.json(
           { error: 'Cannot activate workflow with validation errors', validation_errors: blockingErrors },
           { status: 400 }
@@ -179,7 +181,7 @@ export async function POST(request: Request, context: RouteContext) {
       .insert({
         project_id: project.id,
         created_by: user.id,
-        ...validationResult.data,
+        ...workflowInput,
       })
       .select()
       .single();
@@ -211,6 +213,9 @@ export async function POST(request: Request, context: RouteContext) {
 
     return NextResponse.json({ workflow }, { status: 201 });
   } catch (error) {
+    if (error instanceof ProjectAccessError) {
+      return NextResponse.json({ error: error.message }, { status: error.status });
+    }
     console.error('Error in POST /api/projects/[slug]/workflows:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
   }

@@ -35,10 +35,11 @@ import {
   conditionOperatorLabels,
   opportunityStages,
   rfpStatuses,
+  triggerTypeGroups,
 } from '@/types/automation';
 import { ACTIVITY_TYPE_LABELS } from '@/types/activity';
 import type { ActivityType } from '@/types/activity';
-import type { WorkflowNodeType } from '@/types/workflow';
+import type { WorkflowNodeType, WorkflowTriggerType } from '@/types/workflow';
 
 // ── Resource types (matching automation-form.tsx) ────────────────────────────
 
@@ -119,6 +120,117 @@ const activityTypeOptionsForAction: { value: ActivityType; label: string }[] = (
   .filter(([v]) => v !== 'system' && v !== 'sequence_completed')
   .map(([value, label]) => ({ value, label }));
 
+// ── Community workflow constants ──────────────────────────────────────────────
+
+// Trigger group keys visible in community projects
+const COMMUNITY_TRIGGER_GROUP_KEYS = ['entity', 'time', 'community', 'events', 'assetAccess', 'email', 'sms', 'task', 'meeting'];
+// Trigger group keys visible in standard/grants projects
+const STANDARD_TRIGGER_GROUP_KEYS = ['entity', 'pipeline', 'email', 'sequence', 'meeting', 'task', 'time', 'call', 'sms', 'news', 'document', 'accounting', 'booking'];
+
+// Shared triggers always shown regardless of project type
+const SHARED_TRIGGER_TYPES: WorkflowTriggerType[] = ['workflow.completed', 'workflow.failed', 'workflow.step_failed'];
+
+function getFilteredTriggerGroups(projectType: string) {
+  const allowedKeys = projectType === 'community' ? COMMUNITY_TRIGGER_GROUP_KEYS : STANDARD_TRIGGER_GROUP_KEYS;
+  return Object.entries(triggerTypeGroups)
+    .filter(([key]) => allowedKeys.includes(key))
+    .map(([, group]) => group);
+}
+
+// Action types available for community projects
+const COMMUNITY_ACTION_TYPES = new Set([
+  'create_task', 'send_notification', 'send_email', 'send_sms',
+  'update_field', 'add_tag', 'remove_tag', 'fire_webhook',
+  'run_workflow', 'run_ai_research', 'create_activity',
+  'enroll_in_program', 'update_enrollment_status', 'record_attendance',
+  'create_contribution', 'assign_job', 'update_job_status',
+  'create_referral', 'update_referral_status', 'send_broadcast',
+  'update_grant_status', 'flag_household_risk',
+]);
+
+// Action types available for standard projects
+const STANDARD_ACTION_TYPES = new Set([
+  'create_task', 'update_field', 'change_stage', 'change_status', 'assign_owner',
+  'send_notification', 'send_email', 'send_sms', 'enroll_in_sequence',
+  'add_tag', 'remove_tag', 'run_ai_research', 'create_activity', 'fire_webhook', 'run_workflow',
+]);
+
+// Context fields available per trigger prefix (for the Start node reference panel)
+const TRIGGER_CONTEXT_FIELDS: Partial<Record<WorkflowTriggerType, string[]>> = {
+  'household.created': ['household.id', 'household.name', 'household.address', 'household.city', 'household.state', 'household.zip', 'household.household_size', 'household.risk_score', 'household.primary_contact_id'],
+  'household.member_added': ['household.id', 'household.name', 'member.id', 'member.person_id', 'member.relationship_type'],
+  'program.enrollment.created': ['enrollment.id', 'enrollment.household_id', 'enrollment.person_id', 'enrollment.program_id', 'enrollment.status', 'enrollment.waiver_status', 'enrollment.enrolled_at'],
+  'program.attendance.batch': ['program.id', 'program.name', 'attendance.date', 'attendance.present_count', 'attendance.absent_count'],
+  'contribution.created': ['contribution.id', 'contribution.type', 'contribution.value', 'contribution.hours', 'contribution.dimension_id', 'contribution.household_id', 'contribution.date'],
+  'grant.created': ['grant.id', 'grant.name', 'grant.status', 'grant.amount_requested', 'grant.deadline', 'grant.category', 'grant.tier'],
+  'grant.status_changed': ['grant.id', 'grant.name', 'grant.status', 'grant.amount_requested', 'grant.amount_awarded'],
+  'grant.deadline_approaching': ['grant.id', 'grant.name', 'grant.deadline', 'grant.amount_requested', 'grant.amount_awarded', 'grant.report_due_date'],
+  'grant.report_due_soon': ['grant.id', 'grant.name', 'grant.report_due_date', 'grant.amount_awarded'],
+  'grant.report_overdue': ['grant.id', 'grant.name', 'grant.report_due_date'],
+  'grant.report_submitted': ['grant.id', 'grant.name', 'grant.report_submitted_at'],
+  'grant.document_uploaded': ['grant.id', 'grant.name', 'document.name', 'document.type'],
+  'grant.agreement_executed': ['grant.id', 'grant.name', 'grant.award_number', 'grant.amount_awarded'],
+  'job.assigned': ['job.id', 'job.title', 'job.status', 'job.priority', 'job.contractor_id', 'job.service_address', 'job.assigned_by'],
+  'job.accepted': ['job.id', 'job.title', 'job.contractor_id', 'job.service_address'],
+  'job.declined': ['job.id', 'job.title', 'job.contractor_id'],
+  'job.completed': ['job.id', 'job.title', 'job.contractor_id', 'job.completed_at', 'job.service_address'],
+  'job.inaction_warning': ['job.id', 'job.title', 'job.status', 'job.assigned_at', 'job.contractor_id'],
+  'contractor.onboarded': ['contractor.id', 'contractor.name', 'contractor.service_categories', 'contractor.certifications'],
+  'referral.created': ['referral.id', 'referral.person_id', 'referral.household_id', 'referral.service_type', 'referral.status', 'referral.partner_organization_id'],
+  'referral.completed': ['referral.id', 'referral.service_type', 'referral.outcome', 'referral.completed_at'],
+  'referral.overdue': ['referral.id', 'referral.service_type', 'referral.status', 'referral.created_at', 'referral.household_id'],
+  'broadcast.sent': ['broadcast.id', 'broadcast.subject', 'broadcast.channel', 'broadcast.recipient_count', 'broadcast.sent_at'],
+  'risk_score.high': ['household.id', 'household.name', 'household.risk_score', 'household.primary_contact_id'],
+  'event.created': ['event.id', 'event.title', 'event.start_at', 'event.end_at', 'event.location', 'event.capacity'],
+  'event.published': ['event.id', 'event.title', 'event.start_at', 'event.registration_count'],
+  'event.cancelled': ['event.id', 'event.title', 'event.start_at'],
+  'event.registration.created': ['registration.id', 'registration.event_id', 'registration.person_id', 'registration.waiver_status'],
+  'event.registration.confirmed': ['registration.id', 'registration.event_id', 'registration.person_id'],
+  'event.registration.cancelled': ['registration.id', 'registration.event_id'],
+  'event.registration.checked_in': ['registration.id', 'registration.event_id', 'registration.person_id', 'registration.checked_in_at'],
+  'event.capacity_reached': ['event.id', 'event.title', 'event.capacity', 'event.registration_count'],
+  'asset_access.submitted': ['access.id', 'access.asset_id', 'access.person_id', 'access.start_time', 'access.end_time', 'access.purpose'],
+  'asset_access.confirmed': ['access.id', 'access.asset_id', 'access.person_id', 'access.start_time', 'access.end_time'],
+  'asset_access.denied': ['access.id', 'access.asset_id', 'access.person_id', 'access.denial_reason'],
+  'asset_access.returned': ['access.id', 'access.asset_id', 'access.person_id', 'access.returned_at'],
+};
+
+// Community entity fields for condition node suggestions
+const COMMUNITY_ENTITY_FIELD_SUGGESTIONS: Record<string, string[]> = {
+  household: ['name', 'household_size', 'address', 'city', 'state', 'zip', 'risk_score', 'primary_contact_id', 'created_at'],
+  enrollment: ['status', 'waiver_status', 'enrolled_at', 'completed_at', 'program_id', 'household_id'],
+  contribution: ['type', 'value', 'hours', 'status', 'dimension_id', 'household_id', 'date'],
+  grant: ['status', 'amount_requested', 'amount_awarded', 'deadline', 'report_due_date', 'tier', 'urgency', 'category', 'mission_fit'],
+  job: ['status', 'priority', 'service_address', 'contractor_id', 'assigned_at', 'completed_at'],
+  referral: ['service_type', 'status', 'outcome', 'partner_organization_id', 'created_at'],
+  registration: ['waiver_status', 'check_in_at', 'event_id', 'person_id'],
+  access: ['status', 'start_time', 'end_time', 'approved_by', 'purpose'],
+  broadcast: ['status', 'channel', 'recipient_count', 'sent_at'],
+};
+
+// Community loop collection sources
+const COMMUNITY_LOOP_COLLECTIONS = [
+  { value: 'household.members', label: 'Household members' },
+  { value: 'household.enrollments', label: 'Household program enrollments' },
+  { value: 'household.contributions', label: 'Household contributions' },
+  { value: 'household.referrals', label: 'Household referrals' },
+  { value: 'program.enrollments', label: 'Program enrollments' },
+  { value: 'event.registrations', label: 'Event registrations' },
+  { value: 'job.time_entries', label: 'Job time entries' },
+  { value: 'grant.milestones', label: 'Grant report milestones' },
+];
+
+// Community AI agent prompt suggestions
+const COMMUNITY_AI_PROMPTS = [
+  "Summarize this household's service history and identify gaps in coverage",
+  "Draft a compassionate follow-up email to a program participant who missed their last session",
+  "Review this grant narrative and identify potential compliance risks or missing required elements",
+  "Analyze this household's contribution and engagement history and suggest an appropriate recognition level",
+  "Generate a clear, professional job brief for a contractor based on the scope description and service address",
+  "Identify households that may be at risk of dropping out based on recent attendance patterns",
+  "Draft a thank-you note for a volunteer contribution, personalizing it based on hours contributed",
+];
+
 // ── Hook: fetch project resources ────────────────────────────────────────────
 
 function useProjectResources(slug: string | undefined) {
@@ -177,16 +289,20 @@ function getMemberLabel(m: ProjectMember) {
 
 // ── Component ────────────────────────────────────────────────────────────────
 
-export function WorkflowPropertyPanel() {
+export function WorkflowPropertyPanel({ projectType }: { projectType?: string }) {
   const params = useParams();
   const slug = params.slug as string | undefined;
   const resources = useProjectResources(slug);
 
   const {
     nodes,
+    triggerType,
+    triggerConfig,
     selectedNodeId,
     setSelectedNodeId,
     setPropertyPanelOpen,
+    setTriggerType,
+    setTriggerConfig,
     updateNodeData,
     removeNode,
   } = useWorkflowStore();
@@ -195,9 +311,20 @@ export function WorkflowPropertyPanel() {
   if (!selectedNode) return null;
 
   const { type, data } = selectedNode;
-  const config = data.config || {};
+  const config = type === 'start'
+    ? { ...(data.config || {}), ...triggerConfig, trigger_type: triggerType }
+    : data.config || {};
 
   function updateConfig(key: string, value: unknown) {
+    if (type === 'start') {
+      if (key === 'trigger_type') {
+        setTriggerType(String(value || 'manual'));
+        return;
+      }
+      setTriggerConfig({ ...triggerConfig, [key]: value });
+      return;
+    }
+
     updateNodeData(selectedNode!.id, {
       config: { ...config, [key]: value },
     });
@@ -248,7 +375,7 @@ export function WorkflowPropertyPanel() {
       </div>
 
       {/* Type-specific config */}
-      {renderTypeConfig(type, config, updateConfig, resources, slug, batchUpdateConfig)}
+      {renderTypeConfig(type, config, updateConfig, resources, slug, batchUpdateConfig, projectType)}
 
       {/* Delete button */}
       {type !== 'start' && (
@@ -276,10 +403,133 @@ function renderTypeConfig(
   resources: ReturnType<typeof useProjectResources>,
   slug?: string,
   batchUpdateConfig?: (updates: Record<string, unknown>) => void,
+  projectType?: string,
 ) {
   const { members, tags, sequences, templates } = resources;
+  const isCommunity = projectType === 'community';
+
+  // Filter action options by project type
+  const visibleActionOptions = actionTypeOptions.filter((opt) =>
+    isCommunity ? COMMUNITY_ACTION_TYPES.has(opt.type) : STANDARD_ACTION_TYPES.has(opt.type)
+  );
 
   switch (type) {
+    case 'start': {
+      const selectedTrigger = (config.trigger_type as WorkflowTriggerType) || null;
+      const contextFields = selectedTrigger ? (TRIGGER_CONTEXT_FIELDS[selectedTrigger] ?? []) : [];
+      const filteredGroups = getFilteredTriggerGroups(projectType ?? 'standard');
+      return (
+        <div className="space-y-3">
+          <div className="space-y-1.5">
+            <Label className="text-xs">Trigger Type</Label>
+            <Select
+              value={(config.trigger_type as string) || ''}
+              onValueChange={(v) => updateConfig('trigger_type', v)}
+            >
+              <SelectTrigger className="h-8 text-sm">
+                <SelectValue placeholder="Select trigger..." />
+              </SelectTrigger>
+              <SelectContent className="max-h-80">
+                {/* Shared neutral triggers */}
+                <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">General</div>
+                <SelectItem value="manual">Manual (triggered by user)</SelectItem>
+                <SelectItem value="schedule">Schedule (cron)</SelectItem>
+                {SHARED_TRIGGER_TYPES.map((t) => (
+                  <SelectItem key={t} value={t}>{t.replace(/\./g, ' › ')}</SelectItem>
+                ))}
+                {/* Project-type-specific groups */}
+                {filteredGroups.map((group) => (
+                  <div key={group.label}>
+                    <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider mt-1">{group.label}</div>
+                    {group.triggers.map((t) => (
+                      <SelectItem key={t.type} value={t.type}>{t.label}</SelectItem>
+                    ))}
+                  </div>
+                ))}
+              </SelectContent>
+            </Select>
+          </div>
+
+          {/* Trigger config fields for time-based triggers */}
+          {selectedTrigger && (selectedTrigger === 'time.entity_inactive' || selectedTrigger === 'time.created_ago' || selectedTrigger === 'referral.overdue' || selectedTrigger === 'job.inaction_warning') && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Days</Label>
+              <Input
+                type="number"
+                value={(config.days as number) ?? 14}
+                onChange={(e) => updateConfig('days', Number(e.target.value))}
+                className="h-8 text-sm"
+                min={1}
+              />
+            </div>
+          )}
+          {selectedTrigger && (selectedTrigger === 'grant.deadline_approaching' || selectedTrigger === 'grant.report_due_soon') && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Days Before</Label>
+              <Input
+                type="number"
+                value={(config.days_before as number) ?? 7}
+                onChange={(e) => updateConfig('days_before', Number(e.target.value))}
+                className="h-8 text-sm"
+                min={1}
+              />
+            </div>
+          )}
+          {selectedTrigger === 'schedule' && (
+            <>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Cron Expression</Label>
+                <Input
+                  value={(config.cron_expression as string) ?? ''}
+                  onChange={(e) => updateConfig('cron_expression', e.target.value)}
+                  className="h-8 text-sm font-mono"
+                  placeholder="0 9 * * 1"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  5-field cron: minute hour day month weekday
+                </p>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Or Interval Minutes</Label>
+                <Input
+                  type="number"
+                  value={(config.interval_minutes as number) ?? ''}
+                  onChange={(e) => {
+                    const value = e.target.value.trim();
+                    updateConfig('interval_minutes', value ? Number(value) : undefined);
+                  }}
+                  className="h-8 text-sm"
+                  min={1}
+                  placeholder="60"
+                />
+                <p className="text-[10px] text-muted-foreground">
+                  Leave blank if using cron. The scheduler will use whichever is configured.
+                </p>
+              </div>
+            </>
+          )}
+          {selectedTrigger === 'webhook_inbound' && (
+            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
+              Inbound webhook triggers are not wired to a public receiver yet. This trigger type should not be used until the webhook endpoint exists.
+            </div>
+          )}
+
+          {/* Context variable reference */}
+          {contextFields.length > 0 && (
+            <div className="space-y-1.5">
+              <Label className="text-xs">Available context variables</Label>
+              <div className="rounded-md border bg-muted/50 p-2 space-y-0.5">
+                {contextFields.map((f) => (
+                  <div key={f} className="text-[10px] font-mono text-muted-foreground">{'{{context.' + f + '}}'}</div>
+                ))}
+              </div>
+              <p className="text-[10px] text-muted-foreground">Use these in action templates and conditions downstream.</p>
+            </div>
+          )}
+        </div>
+      );
+    }
+
     case 'action':
       return (
         <div className="space-y-3">
@@ -294,7 +544,7 @@ function renderTypeConfig(
                 <SelectValue placeholder="Select action..." />
               </SelectTrigger>
               <SelectContent>
-                {actionTypeOptions.map((opt) => (
+                {visibleActionOptions.map((opt) => (
                   <SelectItem key={opt.type} value={opt.type}>
                     {opt.label}
                   </SelectItem>
@@ -742,6 +992,269 @@ function renderTypeConfig(
               />
             </div>
           )}
+
+          {/* ── Community-specific action configs ── */}
+
+          {config.action_type === 'enroll_in_program' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Program ID or context field</Label>
+                <Input value={(config.program_id as string) ?? ''} onChange={(e) => updateConfig('program_id', e.target.value)} className="h-8 text-sm" placeholder="e.g. {{context.program_id}} or UUID" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Person ID field</Label>
+                <Input value={(config.person_id_field as string) ?? 'household.primary_contact_id'} onChange={(e) => updateConfig('person_id_field', e.target.value)} className="h-8 text-sm" placeholder="context field path" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Household ID field</Label>
+                <Input value={(config.household_id_field as string) ?? 'household.id'} onChange={(e) => updateConfig('household_id_field', e.target.value)} className="h-8 text-sm" placeholder="context field path" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Initial Status</Label>
+                <Select value={(config.status as string) ?? 'active'} onValueChange={(v) => updateConfig('status', v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="waitlisted">Waitlisted</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'update_enrollment_status' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Enrollment ID field</Label>
+                <Input value={(config.enrollment_id_field as string) ?? 'enrollment.id'} onChange={(e) => updateConfig('enrollment_id_field', e.target.value)} className="h-8 text-sm" placeholder="context field path" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">New Status</Label>
+                <Select value={(config.status as string) ?? 'active'} onValueChange={(v) => updateConfig('status', v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="active">Active</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="withdrawn">Withdrawn</SelectItem>
+                    <SelectItem value="waitlisted">Waitlisted</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'record_attendance' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Program ID field</Label>
+                <Input value={(config.program_id_field as string) ?? 'program.id'} onChange={(e) => updateConfig('program_id_field', e.target.value)} className="h-8 text-sm" placeholder="context field path" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Person ID field</Label>
+                <Input value={(config.person_id_field as string) ?? 'person.id'} onChange={(e) => updateConfig('person_id_field', e.target.value)} className="h-8 text-sm" placeholder="context field path" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Attendance Status</Label>
+                <Select value={(config.status as string) ?? 'present'} onValueChange={(v) => updateConfig('status', v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="present">Present</SelectItem>
+                    <SelectItem value="absent">Absent</SelectItem>
+                    <SelectItem value="excused">Excused</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Hours</Label>
+                <Input value={(config.hours as string) ?? ''} onChange={(e) => updateConfig('hours', e.target.value)} className="h-8 text-sm" placeholder="number (default 0)" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Date (leave blank for today)</Label>
+                <Input value={(config.date as string) ?? ''} onChange={(e) => updateConfig('date', e.target.value)} className="h-8 text-sm" placeholder="YYYY-MM-DD or context field" />
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'create_contribution' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Contribution Type</Label>
+                <Select value={(config.type as string) ?? 'monetary'} onValueChange={(v) => updateConfig('type', v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="monetary">Monetary</SelectItem>
+                    <SelectItem value="in_kind">In-Kind</SelectItem>
+                    <SelectItem value="volunteer_hours">Volunteer Hours</SelectItem>
+                    <SelectItem value="grant">Grant</SelectItem>
+                    <SelectItem value="service">Service</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Household ID field</Label>
+                <Input value={(config.household_id_field as string) ?? 'household.id'} onChange={(e) => updateConfig('household_id_field', e.target.value)} className="h-8 text-sm" placeholder="context field path" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Value / Amount</Label>
+                <Input value={(config.value as string) ?? ''} onChange={(e) => updateConfig('value', e.target.value)} className="h-8 text-sm" placeholder="number or context field" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Hours (for volunteer_hours)</Label>
+                <Input value={(config.hours as string) ?? ''} onChange={(e) => updateConfig('hours', e.target.value)} className="h-8 text-sm" placeholder="number or context field" />
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'assign_job' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Job ID field</Label>
+                <Input value={(config.job_id_field as string) ?? 'job.id'} onChange={(e) => updateConfig('job_id_field', e.target.value)} className="h-8 text-sm" placeholder="context field path" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Contractor ID field</Label>
+                <Input value={(config.contractor_id_field as string) ?? ''} onChange={(e) => updateConfig('contractor_id_field', e.target.value)} className="h-8 text-sm" placeholder="context field path or UUID" />
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'update_job_status' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Job ID field</Label>
+                <Input value={(config.job_id_field as string) ?? 'job.id'} onChange={(e) => updateConfig('job_id_field', e.target.value)} className="h-8 text-sm" placeholder="context field path" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">New Status</Label>
+                <Select value={(config.status as string) ?? 'in_progress'} onValueChange={(v) => updateConfig('status', v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="assigned">Assigned</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="paused">Paused</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="cancelled">Cancelled</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'create_referral' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Household ID field</Label>
+                <Input value={(config.household_id_field as string) ?? 'household.id'} onChange={(e) => updateConfig('household_id_field', e.target.value)} className="h-8 text-sm" placeholder="context field path" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Service Type</Label>
+                <Input value={(config.service_type as string) ?? ''} onChange={(e) => updateConfig('service_type', e.target.value)} className="h-8 text-sm" placeholder="e.g. Food Assistance" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Notes</Label>
+                <Textarea value={(config.notes as string) ?? ''} onChange={(e) => updateConfig('notes', e.target.value)} className="text-sm min-h-[60px]" placeholder="Optional referral notes..." />
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'update_referral_status' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Referral ID field</Label>
+                <Input value={(config.referral_id_field as string) ?? 'referral.id'} onChange={(e) => updateConfig('referral_id_field', e.target.value)} className="h-8 text-sm" placeholder="context field path" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">New Status</Label>
+                <Select value={(config.status as string) ?? 'in_progress'} onValueChange={(v) => updateConfig('status', v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="acknowledged">Acknowledged</SelectItem>
+                    <SelectItem value="in_progress">In Progress</SelectItem>
+                    <SelectItem value="completed">Completed</SelectItem>
+                    <SelectItem value="closed">Closed</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Outcome (optional)</Label>
+                <Input value={(config.outcome as string) ?? ''} onChange={(e) => updateConfig('outcome', e.target.value)} className="h-8 text-sm" placeholder="Outcome notes..." />
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'send_broadcast' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Subject</Label>
+                <Input value={(config.subject as string) ?? ''} onChange={(e) => updateConfig('subject', e.target.value)} className="h-8 text-sm" placeholder="Broadcast subject..." />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Body</Label>
+                <Textarea value={(config.body as string) ?? ''} onChange={(e) => updateConfig('body', e.target.value)} className="text-sm min-h-[80px]" placeholder="Message body. Use {{context.field}} for variables." />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Channel</Label>
+                <Select value={(config.channel as string) ?? 'email'} onValueChange={(v) => updateConfig('channel', v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="email">Email only</SelectItem>
+                    <SelectItem value="sms">SMS only</SelectItem>
+                    <SelectItem value="both">Email + SMS</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <p className="text-[10px] text-muted-foreground">⚠ This will send to all matching recipients. Use carefully.</p>
+            </div>
+          )}
+
+          {config.action_type === 'update_grant_status' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Grant ID field</Label>
+                <Input value={(config.grant_id_field as string) ?? 'grant.id'} onChange={(e) => updateConfig('grant_id_field', e.target.value)} className="h-8 text-sm" placeholder="context field path" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">New Status</Label>
+                <Select value={(config.status as string) ?? 'under_review'} onValueChange={(v) => updateConfig('status', v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="researching">Researching</SelectItem>
+                    <SelectItem value="preparing">Preparing</SelectItem>
+                    <SelectItem value="submitted">Submitted</SelectItem>
+                    <SelectItem value="under_review">Under Review</SelectItem>
+                    <SelectItem value="awarded">Awarded</SelectItem>
+                    <SelectItem value="declined">Declined</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+            </div>
+          )}
+
+          {config.action_type === 'flag_household_risk' && (
+            <div className="space-y-2">
+              <div className="space-y-1.5">
+                <Label className="text-xs">Household ID field</Label>
+                <Input value={(config.household_id_field as string) ?? 'household.id'} onChange={(e) => updateConfig('household_id_field', e.target.value)} className="h-8 text-sm" placeholder="context field path" />
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Risk Level</Label>
+                <Select value={(config.risk_level as string) ?? 'high'} onValueChange={(v) => updateConfig('risk_level', v)}>
+                  <SelectTrigger className="h-8 text-sm"><SelectValue /></SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="high">High</SelectItem>
+                    <SelectItem value="medium">Medium</SelectItem>
+                    <SelectItem value="low">Low</SelectItem>
+                    <SelectItem value="none">None (clear flag)</SelectItem>
+                  </SelectContent>
+                </Select>
+              </div>
+              <div className="space-y-1.5">
+                <Label className="text-xs">Reason (optional)</Label>
+                <Input value={(config.reason as string) ?? ''} onChange={(e) => updateConfig('reason', e.target.value)} className="h-8 text-sm" placeholder="Reason for flag..." />
+              </div>
+            </div>
+          )}
         </div>
       );
 
@@ -773,6 +1286,24 @@ function renderTypeConfig(
               placeholder="Describe what the AI should do..."
             />
           </div>
+          {isCommunity && (
+            <div className="space-y-1.5">
+              <Label className="text-xs text-muted-foreground">Community prompt suggestions</Label>
+              <div className="space-y-1">
+                {COMMUNITY_AI_PROMPTS.map((suggestion) => (
+                  <button
+                    key={suggestion}
+                    type="button"
+                    className="w-full text-left text-[10px] text-muted-foreground hover:text-foreground bg-muted/50 hover:bg-muted rounded px-2 py-1 transition-colors truncate"
+                    onClick={() => updateConfig('prompt', suggestion)}
+                    title={suggestion}
+                  >
+                    {suggestion}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label className="text-xs">Output Key</Label>
             <Input
@@ -797,6 +1328,28 @@ function renderTypeConfig(
               placeholder="e.g. context.stage"
             />
           </div>
+          {isCommunity && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Field suggestions</Label>
+              {Object.entries(COMMUNITY_ENTITY_FIELD_SUGGESTIONS).map(([entity, fields]) => (
+                <div key={entity} className="space-y-0.5">
+                  <div className="text-[9px] font-semibold text-muted-foreground uppercase tracking-wider px-1">{entity}</div>
+                  <div className="flex flex-wrap gap-1">
+                    {fields.map((f) => (
+                      <button
+                        key={f}
+                        type="button"
+                        className="text-[9px] bg-muted hover:bg-accent rounded px-1.5 py-0.5 font-mono transition-colors"
+                        onClick={() => updateConfig('field', `context.${entity}.${f}`)}
+                      >
+                        {f}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label className="text-xs">Operator</Label>
             <Select
@@ -969,6 +1522,24 @@ function renderTypeConfig(
               placeholder="e.g. context.organizations"
             />
           </div>
+          {isCommunity && (
+            <div className="space-y-1">
+              <Label className="text-xs text-muted-foreground">Collection quick-picks</Label>
+              <div className="flex flex-wrap gap-1">
+                {COMMUNITY_LOOP_COLLECTIONS.map((col) => (
+                  <button
+                    key={col.value}
+                    type="button"
+                    className="text-[9px] bg-muted hover:bg-accent rounded px-1.5 py-0.5 transition-colors"
+                    onClick={() => updateConfig('collection_path', `context.${col.value}`)}
+                    title={col.label}
+                  >
+                    {col.label}
+                  </button>
+                ))}
+              </div>
+            </div>
+          )}
           <div className="space-y-1.5">
             <Label className="text-xs">Item Key</Label>
             <Input

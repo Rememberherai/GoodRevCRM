@@ -132,7 +132,19 @@ export type ActionType =
   | 'run_ai_research'
   | 'create_activity'
   | 'fire_webhook'
-  | 'run_workflow';
+  | 'run_workflow'
+  // Community-specific actions
+  | 'enroll_in_program'
+  | 'update_enrollment_status'
+  | 'record_attendance'
+  | 'create_contribution'
+  | 'assign_job'
+  | 'update_job_status'
+  | 'create_referral'
+  | 'update_referral_status'
+  | 'send_broadcast'
+  | 'update_grant_status'
+  | 'flag_household_risk';
 
 export type ConditionOperator =
   | 'equals'
@@ -485,6 +497,19 @@ export const actionTypeOptions = [
   { type: 'run_ai_research' as ActionType, label: 'Run AI Research', description: 'Trigger AI research on the entity' },
   { type: 'create_activity' as ActionType, label: 'Log Activity', description: 'Create a custom activity log entry' },
   { type: 'fire_webhook' as ActionType, label: 'Fire Webhook', description: 'Send a custom webhook request' },
+  { type: 'run_workflow' as ActionType, label: 'Run Workflow', description: 'Trigger another workflow' },
+  // Community-specific actions
+  { type: 'enroll_in_program' as ActionType, label: 'Enroll in Program', description: 'Enroll a household or person in a selected program' },
+  { type: 'update_enrollment_status' as ActionType, label: 'Update Enrollment Status', description: 'Change an enrollment to active, completed, withdrawn, or waitlisted' },
+  { type: 'record_attendance' as ActionType, label: 'Record Attendance', description: 'Log a present, absent, or excused attendance record for a program' },
+  { type: 'create_contribution' as ActionType, label: 'Create Contribution', description: 'Record a monetary, volunteer hours, in-kind, grant, or service contribution' },
+  { type: 'assign_job' as ActionType, label: 'Assign Job', description: 'Assign an existing job to a contractor' },
+  { type: 'update_job_status' as ActionType, label: 'Update Job Status', description: 'Change job status to assigned, in_progress, completed, or cancelled' },
+  { type: 'create_referral' as ActionType, label: 'Create Referral', description: 'Create a referral for a household to a partner organization' },
+  { type: 'update_referral_status' as ActionType, label: 'Update Referral Status', description: 'Change referral status' },
+  { type: 'send_broadcast' as ActionType, label: 'Send Broadcast', description: 'Trigger a broadcast message to a filtered set of recipients' },
+  { type: 'update_grant_status' as ActionType, label: 'Update Grant Status', description: 'Change grant status' },
+  { type: 'flag_household_risk' as ActionType, label: 'Flag Household Risk', description: 'Set household risk level to high, medium, or low' },
 ];
 
 export const conditionOperatorLabels: Record<ConditionOperator, string> = {

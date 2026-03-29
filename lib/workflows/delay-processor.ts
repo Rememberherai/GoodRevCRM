@@ -154,7 +154,7 @@ export async function processDelayedSteps(): Promise<DelayProcessorResult> {
  * Process scheduled workflows — triggers active workflows with trigger_type='schedule'
  * whose cron expression matches the current minute.
  *
- * trigger_config format: { cron: "0 9 * * 1" } (standard 5-field cron)
+ * trigger_config format: { cron_expression: "0 9 * * 1" } (standard 5-field cron)
  * Also supports: { interval_minutes: 60 } for simple repeating intervals.
  */
 export async function processScheduledWorkflows(): Promise<{ triggered: number; errors: string[] }> {
@@ -178,12 +178,14 @@ export async function processScheduledWorkflows(): Promise<{ triggered: number; 
 
   for (const wf of scheduledWorkflows) {
     try {
-      const config = wf.trigger_config as { cron?: string; interval_minutes?: number; last_run?: string };
+      const config = wf.trigger_config as { cron?: string; cron_expression?: string; interval_minutes?: number; last_run?: string };
       let shouldTrigger = false;
 
-      if (config.cron) {
+      const cronExpression = config.cron_expression || config.cron;
+
+      if (cronExpression) {
         // Simple 5-field cron matching (minute, hour, day-of-month, month, day-of-week)
-        shouldTrigger = matchesCron(config.cron, now);
+        shouldTrigger = matchesCron(cronExpression, now);
       } else if (config.interval_minutes) {
         // Interval-based: check if enough time has passed since last run
         const lastRun = config.last_run ? new Date(config.last_run) : new Date(0);

@@ -51,7 +51,11 @@ export async function executeWorkflow(
   const supabase = createAdminClient();
 
   if (depth >= WORKFLOW_CONSTRAINTS.MAX_CHAIN_DEPTH) {
-    if (depth === 0) await updateExecutionStatus(supabase, executionId, 'failed', 'Max sub-workflow depth exceeded');
+    if (depth === 0) {
+      await updateExecutionStatus(supabase, executionId, 'failed', 'Max sub-workflow depth exceeded');
+    } else {
+      throw new Error('Max sub-workflow depth exceeded');
+    }
     return;
   }
 
@@ -407,6 +411,27 @@ async function traverseNode(
 
 function resolveContextPath(context: Record<string, unknown>, path: string): unknown {
   const parts = path.replace(/^context\./, '').split('.');
+
+  const tryResolve = (candidateParts: string[]) => {
+    let current: unknown = context;
+    for (const part of candidateParts) {
+      if (current === null || current === undefined || typeof current !== 'object') return undefined;
+      current = (current as Record<string, unknown>)[part];
+    }
+    return current;
+  };
+
+  const direct = tryResolve(parts);
+  if (direct !== undefined) return direct;
+
+  if (parts.length > 1) {
+    const withoutPrefix = tryResolve(parts.slice(1));
+    if (withoutPrefix !== undefined) return withoutPrefix;
+
+    const snakeCaseKey = parts.join('_');
+    if (snakeCaseKey in context) return context[snakeCaseKey];
+  }
+
   let current: unknown = context;
   for (const part of parts) {
     if (current === null || current === undefined) return undefined;

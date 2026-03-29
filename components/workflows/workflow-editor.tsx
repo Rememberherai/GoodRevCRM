@@ -62,6 +62,7 @@ const edgeTypes = {
 
 interface WorkflowEditorProps {
   projectSlug: string;
+  projectType?: string;
 }
 
 interface ContextMenuState {
@@ -71,7 +72,7 @@ interface ContextMenuState {
   flowY: number;
 }
 
-function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
+function WorkflowEditorInner({ projectSlug, projectType }: WorkflowEditorProps) {
   const reactFlowWrapper = useRef<HTMLDivElement>(null);
   const { screenToFlowPosition, fitView } = useReactFlow();
   const [contextMenu, setContextMenu] = useState<ContextMenuState | null>(null);
@@ -101,15 +102,6 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
     }
     return undefined;
   }, [nodes.length, fitView]);
-
-  // DEBUG: Log nodes to help diagnose rendering issues (only on count change)
-  useEffect(() => {
-    console.log('[WorkflowEditor] nodes count:', nodes.length);
-    if (nodes.length > 0) {
-      console.log('[WorkflowEditor] nodes:', JSON.stringify(nodes.map(n => ({ id: n.id, type: n.type, position: n.position })), null, 2));
-    }
-  // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [nodes.length]);
 
   // Convert our nodes/edges to ReactFlow format
   const rfNodes: Node[] = nodes.map((n) => ({
@@ -230,11 +222,7 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
 
   const addNodeFromContextMenu = useCallback(
     (type: WorkflowNodeType) => {
-      console.log('[ContextMenu] addNode called, type:', type, 'contextMenu:', contextMenu);
-      if (!contextMenu) {
-        console.warn('[ContextMenu] contextMenu is null, skipping add');
-        return;
-      }
+        if (!contextMenu) return;
       const newNode: WorkflowNode = {
         id: `${type}-${Date.now()}`,
         type,
@@ -244,7 +232,6 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
           config: {},
         },
       };
-      console.log('[ContextMenu] adding node:', JSON.stringify(newNode));
       addNode(newNode);
       setSelectedNodeId(newNode.id);
       setContextMenu(null);
@@ -463,7 +450,7 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
         {/* Right: Property Panel */}
         {propertyPanelOpen && selectedNodeId && (
           <div className="w-80 border-l overflow-y-auto bg-background">
-            <WorkflowPropertyPanel />
+            <WorkflowPropertyPanel projectType={projectType} />
           </div>
         )}
       </div>
@@ -471,10 +458,10 @@ function WorkflowEditorInner({ projectSlug }: WorkflowEditorProps) {
   );
 }
 
-export function WorkflowEditor({ projectSlug }: WorkflowEditorProps) {
+export function WorkflowEditor({ projectSlug, projectType }: WorkflowEditorProps) {
   return (
     <ReactFlowProvider>
-      <WorkflowEditorInner projectSlug={projectSlug} />
+      <WorkflowEditorInner projectSlug={projectSlug} projectType={projectType} />
     </ReactFlowProvider>
   );
 }

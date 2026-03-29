@@ -60,7 +60,7 @@ const standardNavItems: NavItem[] = [
   { title: 'Reporting', href: '/reports', icon: BarChart3 },
   { title: 'News', href: '/news', icon: Newspaper },
   { title: 'Contracts', href: '/contracts', icon: PenTool },
-  { title: 'Workflows', href: '/workflows', icon: GitBranch },
+  { title: 'Workflows', href: '/workflows', icon: GitBranch, resource: 'workflows' },
 ];
 
 const grantsNavItems: NavItem[] = [
@@ -87,6 +87,7 @@ const communityNavItems: NavItem[] = [
   { title: 'Grants', href: '/grants', icon: Award, resource: 'grants' },
   { title: 'Communications', href: '/communications', icon: Mail, resource: 'broadcasts', alsoMatchPaths: ['/sequences', '/templates', '/broadcasts'] },
   { title: 'Assets & Map', href: '/assets', icon: Building2, resource: 'community_assets', alsoMatchPaths: ['/community-assets'] },
+  { title: 'Workflows', href: '/workflows', icon: GitBranch },
   { title: 'Reporting', href: '/reports', icon: BarChart3, resource: 'reports' },
 ];
 

@@ -167,11 +167,55 @@ const initialState: WorkflowStoreState = {
   clipboard: null,
 };
 
+function normalizeWorkflowDefinition(definition: WorkflowDefinition): WorkflowDefinition {
+  const normalizeNode = (node: WorkflowNode): WorkflowNode => {
+    if (node.type === 'action' && node.data?.config && typeof node.data.config === 'object') {
+      const actionConfig = node.data.config as Record<string, unknown>;
+      const nestedConfig = actionConfig.config;
+      if (nestedConfig && typeof nestedConfig === 'object' && !Array.isArray(nestedConfig)) {
+        const { config: _legacyNestedConfig, ...rest } = actionConfig;
+        return {
+          ...node,
+          data: {
+            ...node.data,
+            config: {
+              ...rest,
+              ...(nestedConfig as Record<string, unknown>),
+            },
+          },
+        };
+      }
+    }
+
+    if (node.type === 'sub_workflow' && node.data?.config?.inline_definition) {
+      return {
+        ...node,
+        data: {
+          ...node.data,
+          config: {
+            ...node.data.config,
+            inline_definition: normalizeWorkflowDefinition(
+              node.data.config.inline_definition as WorkflowDefinition
+            ),
+          },
+        },
+      };
+    }
+
+    return node;
+  };
+
+  return {
+    ...definition,
+    nodes: definition.nodes.map(normalizeNode),
+  };
+}
+
 export const useWorkflowStore = create<WorkflowStoreState & WorkflowStoreActions>((set, get) => ({
   ...initialState,
 
   loadWorkflow: (workflow) => {
-    const def = workflow.definition;
+    const def = normalizeWorkflowDefinition(workflow.definition);
     set({
       workflowId: workflow.id,
       workflowName: workflow.name,

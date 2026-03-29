@@ -64,6 +64,7 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 - **Census**: Look up total households in a service area by municipality or ZIP code using the US Census Bureau API (ACS 5-year estimates)
 - **Calendar Sync**: Push structured program sessions, job assignments, or grant deadlines into connected Google Calendars when the required time bounds exist
 - **Bug Reports**: List and manage bug reports submitted by users (admin only) — list with status filtering, update status with resolution notes
+- **Workflows**: List, inspect, activate/deactivate, and manually execute community workflows. View recent executions and get a summary of workflow health. Use \`workflows.execute\` to trigger a workflow manually against a specific entity (requires manage permission).
 
 ## Image upload rules
 - Users upload files before you process them. The upload message includes structured metadata in key=value format:
