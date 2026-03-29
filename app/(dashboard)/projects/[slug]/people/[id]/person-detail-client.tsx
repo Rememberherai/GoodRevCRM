@@ -70,6 +70,7 @@ import { useOutreachGuard } from '@/hooks/use-outreach-guard';
 import { NewScopeDialog } from '@/components/community/contractors/new-scope-dialog';
 import { PersonRelationshipsTab } from '@/components/community/people/person-relationships-tab';
 import { PersonApprovedForTab } from '@/components/community/people/person-approved-for-tab';
+import { PersonParticipationTab } from '@/components/community/people/person-participation-tab';
 
 interface PersonDetailClientProps {
   personId: string;
@@ -650,6 +651,12 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
               Assets
             </TabsTrigger>
           )}
+          {projectType === 'community' && (
+            <TabsTrigger value="participation" className="gap-2">
+              <ClipboardList className="h-4 w-4" />
+              Participation
+            </TabsTrigger>
+          )}
         </TabsList>
 
         {/* Info Tab */}
@@ -1069,6 +1076,11 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
         {projectType === 'community' && (
           <TabsContent value="approved-for" className="space-y-6">
             <PersonApprovedForTab personId={personId} />
+          </TabsContent>
+        )}
+        {projectType === 'community' && (
+          <TabsContent value="participation" className="space-y-6">
+            <PersonParticipationTab personId={personId} />
           </TabsContent>
         )}
       </Tabs>
