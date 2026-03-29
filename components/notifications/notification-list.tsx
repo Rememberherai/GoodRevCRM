@@ -72,7 +72,7 @@ export function NotificationList({
   }
 
   return (
-    <div className="flex flex-col h-full">
+    <div className="flex flex-col h-full overflow-hidden">
       <div className="flex items-center justify-between p-4 border-b">
         <div className="flex items-center gap-2">
           <Bell className="h-5 w-5" />
@@ -96,7 +96,7 @@ export function NotificationList({
         )}
       </div>
 
-      <ScrollArea className="flex-1">
+      <ScrollArea className="flex-1 overflow-hidden">
         <div className="divide-y">
           {notifications.map((notification) => {
             const PriorityIcon = priorityIcons[notification.priority];
