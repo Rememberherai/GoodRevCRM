@@ -1,4 +1,5 @@
 import { createAdminClient } from '@/lib/supabase/admin';
+import { getAccountingMembershipForUser } from '@/lib/accounting/helpers';
 import { createQBBill } from './quickbooks';
 
 interface ReceiptAccountingInput {
@@ -33,15 +34,8 @@ async function ensureAccountingCompany(projectId: string, userId: string, projec
     return project.accounting_company_id;
   }
 
-  const { data: membership } = await admin
-    .from('accounting_company_memberships')
-    .select('company_id')
-    .eq('user_id', userId)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  let companyId = membership?.company_id ?? null;
+  const membership = await getAccountingMembershipForUser(admin, userId);
+  let companyId = membership?.companyId ?? null;
 
   if (!companyId) {
     const { data: company, error: companyError } = await admin
@@ -214,4 +208,3 @@ export async function createBill(params: ReceiptAccountingInput) {
 
   return createGoodRevBill(params);
 }
-

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getAccountingMembershipForUser } from '@/lib/accounting/helpers';
 import { redirect } from 'next/navigation';
 import { AgingReportView } from '@/components/accounting/reports/aging-report';
 import Link from 'next/link';
@@ -10,15 +11,11 @@ export default async function ARAgingPage() {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: membership } = user
-    ? await supabase
-        .from('accounting_company_memberships')
-        .select('company_id')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle()
-    : { data: null };
+  if (!user) {
+    redirect('/login');
+  }
+
+  const membership = await getAccountingMembershipForUser(supabase, user.id);
 
   if (!membership) {
     redirect('/accounting');

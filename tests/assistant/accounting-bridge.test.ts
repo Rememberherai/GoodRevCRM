@@ -67,6 +67,18 @@ function createMockAdminClient(config: {
       };
     }
 
+    if (table === 'project_memberships') {
+      return {
+        select: vi.fn(() => ({
+          eq: vi.fn(() => ({
+            eq: vi.fn(() => ({
+              maybeSingle: vi.fn().mockResolvedValue({ data: { role: 'member' }, error: null }),
+            })),
+          })),
+        })),
+      };
+    }
+
     return {
       insert: vi.fn(() => ({ select: vi.fn(() => ({ single: vi.fn().mockResolvedValue({ data: { id: 'company-1' }, error: null }) })) })),
       select: vi.fn(() => ({

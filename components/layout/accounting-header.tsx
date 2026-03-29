@@ -1,5 +1,6 @@
 'use client';
 
+import { AccountingCompanySwitcher } from '@/components/accounting/accounting-company-switcher';
 import { ModuleSwitcher } from '@/components/layout/module-switcher';
 import { ThemeToggle } from '@/components/theme-toggle';
 import { UserMenu } from '@/components/layout/user-menu';
@@ -22,6 +23,7 @@ export function AccountingHeader() {
       <div className="flex items-center gap-2 md:gap-4">
         <MobileMenuButton />
         <ModuleSwitcher />
+        <AccountingCompanySwitcher />
       </div>
       <div className="flex-1" />
       <div className="flex items-center gap-4">

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getAccountingMembershipWithCompanyForUser } from '@/lib/accounting/helpers';
 import { redirect } from 'next/navigation';
 import { AccountingOnboarding } from './accounting-onboarding';
 import { AccountingOverview } from './accounting-overview';
@@ -14,18 +15,11 @@ export default async function AccountingPage() {
     redirect('/login');
   }
 
-  // Check if user has an accounting company
-  const { data: membership } = await supabase
-    .from('accounting_company_memberships')
-    .select('company_id, role, accounting_companies(*)')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
+  const membership = await getAccountingMembershipWithCompanyForUser(supabase, user.id);
 
-  if (!membership?.accounting_companies) {
+  if (!membership?.company) {
     return <AccountingOnboarding />;
   }
 
-  return <AccountingOverview company={membership.accounting_companies} />;
+  return <AccountingOverview company={membership.company} />;
 }

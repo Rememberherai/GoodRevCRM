@@ -1,4 +1,5 @@
 import { BillForm } from '@/components/accounting/bill-form';
+import { getAccountingMembershipForUser } from '@/lib/accounting/helpers';
 import { createClient } from '@/lib/supabase/server';
 import { redirect } from 'next/navigation';
 
@@ -13,15 +14,11 @@ export default async function EditBillPage({ params }: EditBillPageProps) {
     data: { user },
   } = await supabase.auth.getUser();
 
-  const { data: membership } = user
-    ? await supabase
-        .from('accounting_company_memberships')
-        .select('company_id, role')
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: true })
-        .limit(1)
-        .maybeSingle()
-    : { data: null };
+  if (!user) {
+    redirect('/login');
+  }
+
+  const membership = await getAccountingMembershipForUser(supabase, user.id);
 
   if (!membership || membership.role === 'viewer') {
     redirect(`/accounting/bills/${id}`);
@@ -31,7 +28,7 @@ export default async function EditBillPage({ params }: EditBillPageProps) {
     .from('bills')
     .select('status')
     .eq('id', id)
-    .eq('company_id', membership.company_id)
+    .eq('company_id', membership.companyId)
     .is('deleted_at', null)
     .maybeSingle();
 

@@ -1,4 +1,5 @@
 import { createClient } from '@/lib/supabase/server';
+import { getAccountingMembershipWithCompanyForUser } from '@/lib/accounting/helpers';
 import { redirect } from 'next/navigation';
 import { AccountingShell } from './accounting-shell';
 
@@ -17,17 +18,9 @@ export default async function AccountingLayout({
     redirect('/login');
   }
 
-  // Fetch user's accounting company (via membership)
-  const { data: membership } = await supabase
-    .from('accounting_company_memberships')
-    .select('company_id, role, accounting_companies(*)')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  const company = membership?.accounting_companies ?? null;
-  const companyId = membership?.company_id ?? null;
+  const membership = await getAccountingMembershipWithCompanyForUser(supabase, user.id);
+  const company = membership?.company ?? null;
+  const companyId = membership?.companyId ?? null;
 
   return (
     <AccountingShell
