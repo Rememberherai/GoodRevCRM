@@ -9,12 +9,11 @@ function readProjectFile(...segments: string[]) {
 describe('Community Project Phase 7', () => {
   it('adds the community map in the assets hub and data API', () => {
     const sidebar = readProjectFile('components', 'layout', 'project-sidebar.tsx');
-    const assetsHub = readProjectFile('app', '(dashboard)', 'projects', '[slug]', 'assets', 'assets-hub-page-client.tsx');
+    const mapPage = readProjectFile('app', '(dashboard)', 'projects', '[slug]', 'assets', 'map', 'page.tsx');
     const mapRoute = readProjectFile('app', 'api', 'projects', '[slug]', 'community', 'map', 'route.ts');
 
     expect(sidebar).toContain("{ title: 'Assets & Map', href: '/assets'");
-    expect(assetsHub).toContain('CommunityMapTab');
-    expect(assetsHub).toContain('/api/projects/${slug}/community/map');
+    expect(mapPage).toContain('/api/projects/${slug}/community/map');
     expect(mapRoute).toContain("project.project_type !== 'community'");
     expect(mapRoute).toContain("from('households')");
     expect(mapRoute).toContain("from('community_assets')");

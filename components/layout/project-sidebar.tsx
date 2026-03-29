@@ -86,7 +86,7 @@ const communityNavItems: NavItem[] = [
   { title: 'Grants', href: '/grants', icon: Award, resource: 'grants' },
   { title: 'Communications', href: '/communications', icon: Mail, resource: 'broadcasts', alsoMatchPaths: ['/sequences', '/templates', '/broadcasts'] },
   { title: 'Assets & Map', href: '/assets', icon: Building2, resource: 'community_assets', alsoMatchPaths: ['/community-assets'] },
-  { title: 'Reporting', href: '/reports', icon: BarChart3, resource: 'reports', alsoMatchPaths: ['/settings/public-dashboard'] },
+  { title: 'Reporting', href: '/reports', icon: BarChart3, resource: 'reports' },
 ];
 
 const bottomNavItems: NavItem[] = [
@@ -179,8 +179,7 @@ export function ProjectSidebar({ project, role, deniedResources, className }: Pr
         </button>
         {!(project.project_type === 'community' && (role === 'board_viewer' || role === 'contractor')) && bottomNavItems.map((item) => {
           const href = `${basePath}${item.href}`;
-          // For community projects, don't highlight Settings when on /settings/public-dashboard (that's under Reporting)
-          const isActive = pathname.startsWith(href) && !(project.project_type === 'community' && item.href === '/settings' && pathname.startsWith(`${basePath}/settings/public-dashboard`));
+          const isActive = pathname.startsWith(href);
 
           return (
             <Link
