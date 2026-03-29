@@ -4,7 +4,8 @@ import { useAuth } from '@/hooks/use-auth';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { GmailConnection, GmailApiTester } from '@/components/gmail';
 import { TelnyxSettingsPanel } from '@/components/calls/telnyx-settings-panel';
-import { User, Mail, Phone } from 'lucide-react';
+import { PasskeyManager } from '@/components/auth/passkey-manager';
+import { User, Mail, Phone, Fingerprint } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import { UserMenu } from '@/components/layout/user-menu';
 import { ThemeToggle } from '@/components/theme-toggle';
@@ -49,6 +50,10 @@ export default function SettingsPage() {
                 <Phone className="h-4 w-4" />
                 Phone
               </TabsTrigger>
+              <TabsTrigger value="security" className="gap-2">
+                <Fingerprint className="h-4 w-4" />
+                Security
+              </TabsTrigger>
             </TabsList>
 
             <TabsContent value="account" className="mt-6">
@@ -91,6 +96,10 @@ export default function SettingsPage() {
 
             <TabsContent value="phone" className="mt-6">
               <TelnyxSettingsPanel />
+            </TabsContent>
+
+            <TabsContent value="security" className="mt-6">
+              <PasskeyManager />
             </TabsContent>
           </Tabs>
         </div>

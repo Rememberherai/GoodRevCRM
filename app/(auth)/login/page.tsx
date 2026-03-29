@@ -1,6 +1,6 @@
 'use client';
 
-import { Suspense, useState } from 'react';
+import { Suspense, useState, useEffect } from 'react';
 import { useSearchParams, useRouter } from 'next/navigation';
 import { createClient } from '@/lib/supabase/client';
 import { Button } from '@/components/ui/button';
@@ -8,9 +8,10 @@ import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/com
 import { Alert, AlertDescription } from '@/components/ui/alert';
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
-import { Loader2, Mail, CheckCircle } from 'lucide-react';
+import { Loader2, Mail, CheckCircle, Fingerprint } from 'lucide-react';
 import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
+import { isWebAuthnSupported } from '@/lib/webauthn';
 
 function LoginForm() {
   const [email, setEmail] = useState('');
@@ -18,6 +19,10 @@ function LoginForm() {
   const [showPassword, setShowPassword] = useState(false);
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
   const [isEmailLoading, setIsEmailLoading] = useState(false);
+  const [isPasskeyLoading, setIsPasskeyLoading] = useState(false);
+  const [passkeyEmail, setPasskeyEmail] = useState('');
+  const [showPasskeyEmail, setShowPasskeyEmail] = useState(false);
+  const [webAuthnSupported, setWebAuthnSupported] = useState(false);
   const [magicLinkSent, setMagicLinkSent] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const searchParams = useSearchParams();
@@ -25,7 +30,11 @@ function LoginForm() {
   const urlError = searchParams.get('error');
   const next = searchParams.get('next') ?? '/projects';
 
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
+
+  useEffect(() => {
+    setWebAuthnSupported(isWebAuthnSupported());
+  }, []);
 
   const handleMagicLink = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -37,7 +46,7 @@ function LoginForm() {
     try {
       const redirectTo = `${window.location.origin}/auth/callback?next=${encodeURIComponent(next)}`;
       const { error } = await supabase.auth.signInWithOtp({
-        email,
+        email: email.trim(),
         options: { emailRedirectTo: redirectTo },
       });
       if (error) throw error;
@@ -58,7 +67,7 @@ function LoginForm() {
     setError(null);
 
     try {
-      const { error } = await supabase.auth.signInWithPassword({ email, password });
+      const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
       if (error) throw error;
       router.push(next);
     } catch (err: unknown) {
@@ -72,6 +81,59 @@ function LoginForm() {
       }
     } finally {
       setIsEmailLoading(false);
+    }
+  };
+
+  const handlePasskeyLogin = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!passkeyEmail.trim()) return;
+
+    setIsPasskeyLoading(true);
+    setError(null);
+
+    try {
+      const { startAuthentication } = await import('@simplewebauthn/browser');
+
+      const optionsRes = await fetch('/api/auth/webauthn/authenticate/options', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ email: passkeyEmail.trim() }),
+      });
+
+      if (!optionsRes.ok) {
+        const err = await optionsRes.json();
+        throw new Error(err.error ?? 'Failed to get passkey options');
+      }
+
+      const options = await optionsRes.json();
+      const assertion = await startAuthentication({ optionsJSON: options });
+
+      const verifyRes = await fetch('/api/auth/webauthn/authenticate/verify', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ response: assertion, email: passkeyEmail.trim() }),
+      });
+
+      if (!verifyRes.ok) {
+        const err = await verifyRes.json();
+        throw new Error(err.error ?? 'Passkey verification failed');
+      }
+
+      const { callbackUrl } = await verifyRes.json();
+      // Append next param to callbackUrl
+      const url = new URL(callbackUrl, window.location.origin);
+      url.searchParams.set('next', next);
+      window.location.href = url.toString();
+    } catch (err: unknown) {
+      // NotAllowedError means user cancelled/dismissed the biometric prompt
+      if (err instanceof Error && err.name === 'NotAllowedError') {
+        setShowPasskeyEmail(false);
+      } else {
+        const message = err instanceof Error ? err.message : 'Passkey sign in failed';
+        setError(message);
+      }
+    } finally {
+      setIsPasskeyLoading(false);
     }
   };
 
@@ -149,6 +211,65 @@ function LoginForm() {
             </AlertDescription>
           </Alert>
         )}
+
+        {/* Passkey / fingerprint login */}
+        {webAuthnSupported && (
+          <>
+            {showPasskeyEmail ? (
+              <form onSubmit={handlePasskeyLogin} className="space-y-3">
+                <div className="space-y-2">
+                  <Label htmlFor="passkeyEmail">Your email</Label>
+                  <Input
+                    id="passkeyEmail"
+                    type="email"
+                    placeholder="you@example.com"
+                    value={passkeyEmail}
+                    onChange={(e) => setPasskeyEmail(e.target.value)}
+                    required
+                    autoFocus
+                    autoComplete="email"
+                  />
+                </div>
+                <div className="flex gap-2">
+                  <Button type="submit" disabled={isPasskeyLoading} className="flex-1">
+                    {isPasskeyLoading ? (
+                      <><Loader2 className="mr-2 h-4 w-4 animate-spin" />Waiting...</>
+                    ) : (
+                      <><Fingerprint className="mr-2 h-4 w-4" />Continue</>
+                    )}
+                  </Button>
+                  <Button
+                    type="button"
+                    variant="outline"
+                    onClick={() => { setShowPasskeyEmail(false); setPasskeyEmail(''); setError(null); }}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              </form>
+            ) : (
+              <Button
+                variant="outline"
+                className="w-full"
+                size="lg"
+                onClick={() => { setShowPasskeyEmail(true); setError(null); }}
+              >
+                <Fingerprint className="mr-2 h-4 w-4" />
+                Sign in with passkey
+              </Button>
+            )}
+
+            <div className="relative">
+              <div className="absolute inset-0 flex items-center">
+                <span className="w-full border-t" />
+              </div>
+              <div className="relative flex justify-center text-xs uppercase">
+                <span className="bg-card px-2 text-muted-foreground">or</span>
+              </div>
+            </div>
+          </>
+        )}
+
 
         <form onSubmit={showPassword ? handlePasswordLogin : handleMagicLink} className="space-y-3">
           <div className="space-y-2">

@@ -19,7 +19,7 @@ export function useAuth() {
     isSystemAdmin: false,
   });
 
-  const supabase = createClient();
+  const [supabase] = useState(() => createClient());
 
   useEffect(() => {
     // Get initial session — set auth state immediately, fetch admin status in background
@@ -77,11 +77,11 @@ export function useAuth() {
     return () => {
       subscription.unsubscribe();
     };
-  }, [supabase.auth]);
+  }, [supabase]);
 
   const signOut = useCallback(async () => {
     await supabase.auth.signOut();
-  }, [supabase.auth]);
+  }, [supabase]);
 
   const signInWithGoogle = useCallback(async (redirectTo?: string) => {
     const { error } = await supabase.auth.signInWithOAuth({
@@ -98,11 +98,11 @@ export function useAuth() {
     if (error) {
       throw error;
     }
-  }, [supabase.auth]);
+  }, [supabase]);
 
   const signInWithMagicLink = useCallback(async (email: string, emailRedirectTo?: string) => {
     const { error } = await supabase.auth.signInWithOtp({
-      email,
+      email: email.trim(),
       options: {
         emailRedirectTo: emailRedirectTo || `${window.location.origin}/auth/callback`,
       },
@@ -111,18 +111,18 @@ export function useAuth() {
     if (error) {
       throw error;
     }
-  }, [supabase.auth]);
+  }, [supabase]);
 
   const signInWithEmail = useCallback(async (email: string, password: string) => {
-    const { error } = await supabase.auth.signInWithPassword({ email, password });
+    const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
     if (error) {
       throw error;
     }
-  }, [supabase.auth]);
+  }, [supabase]);
 
   const signUp = useCallback(async (email: string, password: string, fullName?: string) => {
     const { data, error } = await supabase.auth.signUp({
-      email,
+      email: email.trim(),
       password,
       options: {
         data: fullName ? { full_name: fullName } : undefined,
@@ -133,7 +133,46 @@ export function useAuth() {
       throw error;
     }
     return data;
-  }, [supabase.auth]);
+  }, [supabase]);
+
+  // Passkey (WebAuthn) login — orchestrates the full flow client-side.
+  // Returns the callbackUrl to navigate to, or throws on failure.
+  const signInWithPasskey = useCallback(async (email: string): Promise<string> => {
+    const { startAuthentication } = await import('@simplewebauthn/browser');
+    const normalizedEmail = email.trim();
+
+    // 1. Get authentication options from server
+    const optionsRes = await fetch('/api/auth/webauthn/authenticate/options', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: normalizedEmail }),
+    });
+
+    if (!optionsRes.ok) {
+      const err = await optionsRes.json();
+      throw new Error(err.error ?? 'Failed to get authentication options');
+    }
+
+    const options = await optionsRes.json();
+
+    // 2. Trigger biometric prompt in browser
+    const assertion = await startAuthentication({ optionsJSON: options });
+
+    // 3. Verify with server and get callbackUrl
+    const verifyRes = await fetch('/api/auth/webauthn/authenticate/verify', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ response: assertion, email: normalizedEmail }),
+    });
+
+    if (!verifyRes.ok) {
+      const err = await verifyRes.json();
+      throw new Error(err.error ?? 'Passkey verification failed');
+    }
+
+    const { callbackUrl } = await verifyRes.json();
+    return callbackUrl;
+  }, []);
 
   return {
     user: state.user,
@@ -146,5 +185,6 @@ export function useAuth() {
     signInWithMagicLink,
     signInWithEmail,
     signUp,
+    signInWithPasskey,
   };
 }
