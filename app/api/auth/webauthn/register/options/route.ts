@@ -42,6 +42,7 @@ export async function POST(request: Request) {
       attestationType: 'none',
       excludeCredentials,
       authenticatorSelection: {
+        authenticatorAttachment: 'platform',
         residentKey: 'preferred',
         userVerification: 'preferred',
       },
