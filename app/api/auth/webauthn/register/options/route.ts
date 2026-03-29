@@ -43,6 +43,7 @@ export async function POST(request: Request) {
       excludeCredentials,
       preferredAuthenticatorType: 'localDevice',
       authenticatorSelection: {
+        authenticatorAttachment: 'platform',
         residentKey: 'preferred',
         userVerification: 'preferred',
       },

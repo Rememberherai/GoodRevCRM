@@ -110,12 +110,12 @@ export async function GET(_request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { data: project } = await supabase.from('projects').select('id, project_type, settings').eq('slug', slug).is('deleted_at', null).single();
     if (!project || project.project_type !== 'community') return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    await requireCommunityPermission(supabase, user.id, project.id, 'risk_scores', 'view');
+
     const settings = (project.settings ?? {}) as { risk_index_enabled?: boolean; risk_index_weights?: Partial<RiskWeights> };
     if (!settings.risk_index_enabled) {
       return NextResponse.json({ scores: [] });
     }
-
-    await requireCommunityPermission(supabase, user.id, project.id, 'risk_scores', 'view');
 
     const weights = settings.risk_index_weights;
     const scores = await computeProjectRiskScores(supabase as never, project.id, weights);
@@ -135,12 +135,12 @@ export async function POST(request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { data: project } = await supabase.from('projects').select('id, project_type, settings').eq('slug', slug).is('deleted_at', null).single();
     if (!project || project.project_type !== 'community') return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    await requireCommunityPermission(supabase, user.id, project.id, 'risk_scores', 'update');
+
     const postSettings = (project.settings ?? {}) as { risk_index_enabled?: boolean; risk_index_weights?: Partial<RiskWeights> };
     if (!postSettings.risk_index_enabled) {
       return NextResponse.json({ scores: [] });
     }
-
-    await requireCommunityPermission(supabase, user.id, project.id, 'risk_scores', 'update');
 
     const body = await request.json().catch(() => ({})) as { weights?: Partial<RiskWeights> };
     const fallbackWeights = postSettings.risk_index_weights;
