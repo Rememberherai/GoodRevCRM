@@ -2,6 +2,7 @@ import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireWorkflowPermission } from '@/lib/projects/workflow-permissions';
+import { validateWorkflowTriggerConfig } from '@/lib/workflows/trigger-config';
 import { validateWorkflow, hasErrors } from '@/lib/workflows/validators/validate-workflow';
 
 interface RouteContext {
@@ -35,6 +36,20 @@ export async function POST(_request: Request, context: RouteContext) {
 
     // Validate before activation
     if (newActive) {
+      const triggerErrors = validateWorkflowTriggerConfig(
+        existing.trigger_type as string,
+        existing.trigger_config as Record<string, unknown> | undefined,
+      );
+      if (triggerErrors.length > 0) {
+        return NextResponse.json(
+          {
+            error: 'Cannot activate workflow with invalid trigger configuration',
+            validation_errors: triggerErrors,
+          },
+          { status: 400 }
+        );
+      }
+
       const errors = validateWorkflow(existing.definition);
       if (hasErrors(errors)) {
         return NextResponse.json(

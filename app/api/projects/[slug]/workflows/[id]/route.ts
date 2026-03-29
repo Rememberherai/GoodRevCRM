@@ -3,7 +3,11 @@ import { NextResponse } from 'next/server';
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireWorkflowPermission } from '@/lib/projects/workflow-permissions';
 import { updateWorkflowSchema } from '@/lib/validators/workflow';
-import { assertWorkflowTriggerSupported, normalizeWorkflowTriggerConfig } from '@/lib/workflows/trigger-config';
+import {
+  assertWorkflowTriggerSupported,
+  normalizeWorkflowTriggerConfig,
+  validateWorkflowTriggerConfig,
+} from '@/lib/workflows/trigger-config';
 import { validateWorkflow } from '@/lib/workflows/validators/validate-workflow';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 
@@ -94,16 +98,28 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     if (updates.trigger_config !== undefined) {
       const effectiveTriggerType = updates.trigger_type ?? existing.trigger_type;
+      const normalizedTriggerConfig = normalizeWorkflowTriggerConfig(
+        effectiveTriggerType,
+        updates.trigger_config,
+      );
       updates = {
         ...updates,
-        trigger_config: normalizeWorkflowTriggerConfig(
-          effectiveTriggerType,
-          updates.trigger_config,
-        ),
+        trigger_config:
+          effectiveTriggerType === 'webhook_inbound' &&
+          existing.trigger_config?.webhook_secret_enc &&
+          normalizedTriggerConfig.webhook_secret_enc === undefined
+            ? {
+                ...normalizedTriggerConfig,
+                webhook_secret_enc: existing.trigger_config.webhook_secret_enc,
+              }
+            : normalizedTriggerConfig,
       };
     }
 
     const { change_summary, ...workflowUpdates } = updates;
+    const effectiveTriggerType = workflowUpdates.trigger_type ?? existing.trigger_type;
+    const effectiveTriggerConfig = (workflowUpdates.trigger_config ??
+      existing.trigger_config) as Record<string, unknown>;
 
     // RBAC: only admin/owner can toggle is_active (matches /activate endpoint)
     if (workflowUpdates.is_active !== undefined) {
@@ -121,6 +137,18 @@ export async function PATCH(request: Request, context: RouteContext) {
           { status: 400 }
         );
       }
+    }
+
+    const willBeActive = workflowUpdates.is_active ?? existing.is_active;
+    const triggerErrors = validateWorkflowTriggerConfig(
+      effectiveTriggerType,
+      effectiveTriggerConfig,
+    );
+    if (triggerErrors.length > 0 && willBeActive) {
+      return NextResponse.json(
+        { error: 'Cannot activate workflow with invalid trigger configuration', validation_errors: triggerErrors },
+        { status: 400 }
+      );
     }
 
     // Auto-version when graph or trigger behavior changes

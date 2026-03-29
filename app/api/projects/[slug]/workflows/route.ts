@@ -3,7 +3,11 @@ import { NextResponse } from 'next/server';
 import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireWorkflowPermission } from '@/lib/projects/workflow-permissions';
 import { createWorkflowSchema, workflowQuerySchema } from '@/lib/validators/workflow';
-import { assertWorkflowTriggerSupported, normalizeWorkflowTriggerConfig } from '@/lib/workflows/trigger-config';
+import {
+  assertWorkflowTriggerSupported,
+  normalizeWorkflowTriggerConfig,
+  validateWorkflowTriggerConfig,
+} from '@/lib/workflows/trigger-config';
 import { validateWorkflow } from '@/lib/workflows/validators/validate-workflow';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 
@@ -162,6 +166,17 @@ export async function POST(request: Request, context: RouteContext) {
         validationResult.data.trigger_config,
       ),
     };
+
+    const triggerErrors = validateWorkflowTriggerConfig(
+      workflowInput.trigger_type,
+      workflowInput.trigger_config,
+    );
+    if (triggerErrors.length > 0 && workflowInput.is_active) {
+      return NextResponse.json(
+        { error: 'Cannot activate workflow with invalid trigger configuration', validation_errors: triggerErrors },
+        { status: 400 }
+      );
+    }
 
     // Validate workflow graph if definition has nodes
     const { definition } = workflowInput;
