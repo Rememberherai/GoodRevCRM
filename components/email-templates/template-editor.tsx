@@ -66,7 +66,7 @@ export function TemplateEditor({ template, projectType = 'standard', slug, onSav
   const existingDesign = parseDesignJson(template?.design_json);
 
   const [saving, setSaving] = useState(false);
-  const [editorMode, setEditorMode] = useState<EditorMode>(existingDesign ? 'builder' : 'html');
+  const [editorMode, setEditorMode] = useState<EditorMode>('builder');
   const [showConvertDialog, setShowConvertDialog] = useState(false);
   const [variables, setVariables] = useState<TemplateVariable[]>(
     template?.variables || []
