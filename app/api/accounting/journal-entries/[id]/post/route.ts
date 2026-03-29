@@ -38,12 +38,15 @@ export async function POST(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Can only post draft journal entries' }, { status: 400 });
     }
 
+    // BUG-AQ fix: include deleted_at IS NULL so a deleted JE returns 404 via the earlier check,
+    // not a confusing trigger error.
     // Update status to posted (trigger validates balance + min lines)
     const { data, error } = await supabase
       .from('journal_entries')
       .update({ status: 'posted' })
       .eq('id', id)
       .eq('company_id', ctx.companyId)
+      .is('deleted_at', null)
       .select('*, journal_entry_lines(*, chart_of_accounts(id, account_code, name))')
       .single();
 

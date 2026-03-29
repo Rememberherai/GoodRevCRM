@@ -162,8 +162,10 @@ export async function wouldCreateAccountCycle(
 
   const visited = new Set<string>();
   let currentParentId: string | null = parentAccountId;
+  // BUG-Q fix: cap traversal to prevent unbounded N+1 queries on a corrupted hierarchy
+  const MAX_DEPTH = 100;
 
-  while (currentParentId) {
+  while (currentParentId && visited.size < MAX_DEPTH) {
     if (visited.has(currentParentId)) {
       return true;
     }

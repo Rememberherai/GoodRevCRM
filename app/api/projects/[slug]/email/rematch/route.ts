@@ -32,6 +32,18 @@ export async function POST(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // BUG-BN fix: only members (owner/admin/member) may trigger rematch
+    const { data: membership } = await supabase
+      .from('project_memberships')
+      .select('role')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membership || !['owner', 'admin', 'member'].includes(membership.role)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
     // Get all unmatched emails (org-only, no person)
     const serviceClient = createServiceClient();
     const { data: unmatchedEmails } = await serviceClient

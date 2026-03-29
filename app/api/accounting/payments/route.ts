@@ -74,6 +74,8 @@ export async function POST(request: Request) {
     const body = await request.json();
     const parsed = createPaymentSchema.parse(body);
 
+    // BUG-S fix: normalise Zod nullable fields (string|null) to undefined so they map to
+    // the RPC's optional params (string|undefined) rather than passing empty strings
     const { data: paymentId, error } = await supabase.rpc('record_invoice_payment', {
       p_invoice_id: parsed.invoice_id,
       p_payment_date: parsed.payment_date,
@@ -104,11 +106,13 @@ export async function POST(request: Request) {
     const linkedInvoiceId = payment.invoice_id;
     const linkedBillId = payment.bill_id;
     if (linkedInvoiceId) {
+      // BUG-T fix: exclude soft-deleted invoices from automation event lookup
       const { data: inv } = await supabase
         .from('invoices')
         .select('project_id, invoice_number, customer_name, total, balance_due, status')
         .eq('id', linkedInvoiceId)
         .eq('company_id', ctx.companyId)
+        .is('deleted_at', null)
         .maybeSingle();
       if (inv?.project_id) {
         emitAutomationEvent({

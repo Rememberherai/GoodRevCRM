@@ -190,14 +190,15 @@ export function registerAccountingTools(server: McpServer, getContext: () => Mcp
       const companyId = await getCompanyId(ctx);
       if (!companyId) throw new Error('No accounting company found');
 
+      // BUG-L fix: pass undefined (not empty string) for optional params
       const { data, error } = await ctx.supabase.rpc('record_invoice_payment', {
         p_account_id: params.account_id,
         p_invoice_id: params.invoice_id,
         p_amount: params.amount,
         p_payment_date: params.payment_date,
-        p_payment_method: params.payment_method ?? 'other',
-        p_reference: params.reference ?? '',
-        p_notes: params.notes ?? '',
+        p_payment_method: params.payment_method ?? undefined,
+        p_reference: params.reference ?? undefined,
+        p_notes: params.notes ?? undefined,
       });
 
       if (error) throw new Error(`Failed to record payment: ${error.message}`);

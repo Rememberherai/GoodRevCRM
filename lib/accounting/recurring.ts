@@ -83,6 +83,49 @@ export async function processRecurringTransactions(
 
   for (const rec of recurrings) {
     try {
+      // BUG-BH fix: if schedule already expired, deactivate without creating a document
+      if (rec.end_date && rec.next_date > rec.end_date) {
+        await supabase
+          .from('recurring_transactions')
+          .update({ is_active: false })
+          .eq('id', rec.id)
+          .eq('next_date', rec.next_date);
+        result.details.push({ id: rec.id, type: rec.type, name: rec.name });
+        continue;
+      }
+
+      // BUG-AZ fix: atomically claim this record by advancing next_date first.
+      // Only the worker that wins the race (sees the original next_date) proceeds.
+      // BUG-K fix: parse at local noon to avoid UTC-midnight timezone drift.
+      const nextDateAfter = toDateStr(advanceDate(
+        new Date(rec.next_date + 'T12:00:00'),
+        rec.frequency,
+      ));
+      const remaining =
+        rec.occurrences_remaining != null ? rec.occurrences_remaining - 1 : null;
+      const shouldDeactivate =
+        (remaining != null && remaining <= 0) ||
+        (rec.end_date != null && nextDateAfter > rec.end_date);
+
+      const { data: claimResult } = await supabase
+        .from('recurring_transactions')
+        .update({
+          next_date: nextDateAfter,
+          last_generated_at: new Date().toISOString(),
+          total_generated: rec.total_generated + 1,
+          occurrences_remaining: remaining,
+          is_active: shouldDeactivate ? false : true,
+        })
+        .eq('id', rec.id)
+        .eq('next_date', rec.next_date) // atomic claim — concurrent worker will see updated value and skip
+        .eq('is_active', true)
+        .select('id');
+
+      if (!claimResult || claimResult.length === 0) {
+        // Another worker already processed this record
+        continue;
+      }
+
       // Get accounting settings for defaults
       const { data: settings } = await supabase
         .from('accounting_settings')
@@ -92,8 +135,9 @@ export async function processRecurringTransactions(
 
       const paymentTerms = settings?.default_payment_terms ?? 30;
       const invoiceDate = rec.next_date;
+      // BUG-K fix: parse at local noon to avoid UTC-midnight timezone drift
       const dueDate = toDateStr(
-        new Date(new Date(rec.next_date).getTime() + paymentTerms * 86400000),
+        new Date(new Date(rec.next_date + 'T12:00:00').getTime() + paymentTerms * 86400000),
       );
 
       // Build line items from template
@@ -169,29 +213,7 @@ export async function processRecurringTransactions(
         if (billErr) throw new Error(billErr.message);
       }
 
-      // Advance schedule
-      const nextDate = advanceDate(new Date(rec.next_date), rec.frequency);
-      const remaining =
-        rec.occurrences_remaining != null ? rec.occurrences_remaining - 1 : null;
-      const shouldDeactivate =
-        (remaining != null && remaining <= 0) ||
-        (rec.end_date && toDateStr(nextDate) > rec.end_date);
-
-      const { error: updateError } = await supabase
-        .from('recurring_transactions')
-        .update({
-          next_date: toDateStr(nextDate),
-          last_generated_at: new Date().toISOString(),
-          total_generated: rec.total_generated + 1,
-          occurrences_remaining: remaining,
-          is_active: shouldDeactivate ? false : true,
-        })
-        .eq('id', rec.id);
-
-      if (updateError) {
-        throw new Error(`Failed to update recurring schedule: ${updateError.message}`);
-      }
-
+      // Schedule was already advanced at the top of the loop (optimistic claim)
       result.processed++;
       result.details.push({ id: rec.id, type: rec.type, name: rec.name });
     } catch (err) {

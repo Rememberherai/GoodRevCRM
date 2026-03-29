@@ -786,14 +786,19 @@ export async function generateCashFlow(
     }
   }
 
+  // BUG-P fix: derive net_change from the sum of category totals so it is always consistent.
+  // totalCashChangeCents (Track 1) can diverge from opTotal+invTotal+finTotal (Track 2) when
+  // a non-cash account in a cash-touching JE is missing from accountMap. Using the category
+  // sum guarantees net_change == operating.total + investing.total + financing.total.
+  const netChangeCents = opTotal + invTotal + finTotal;
   const today = todayStr();
   return {
     operating: { label: 'Operating Activities', items: operating, total: fromCents(opTotal) },
     investing: { label: 'Investing Activities', items: investing, total: fromCents(invTotal) },
     financing: { label: 'Financing Activities', items: financing, total: fromCents(finTotal) },
-    net_change: fromCents(totalCashChangeCents),
+    net_change: fromCents(netChangeCents),
     opening_cash: fromCents(openingCashCents),
-    closing_cash: fromCents(openingCashCents + totalCashChangeCents),
+    closing_cash: fromCents(openingCashCents + netChangeCents),
     start_date: startDate ?? '',
     end_date: endDate ?? today,
   };

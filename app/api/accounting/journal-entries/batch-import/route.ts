@@ -38,7 +38,14 @@ const batchSchema = z.object({
 });
 
 // POST /api/accounting/journal-entries/batch-import
-// Import multiple journal entries at once
+// Import multiple journal entries at once.
+//
+// NOTE (BUG-BJ): This endpoint uses best-effort (non-atomic) semantics.
+// Each entry is created independently. If entry N fails, entries 1..N-1
+// are already committed and will NOT be rolled back. The response reports
+// per-entry success/error status so callers can identify partial failures.
+// For all-or-nothing import, validate all entries client-side before submitting,
+// or use individual POST /api/accounting/journal-entries calls inside a UI transaction.
 export async function POST(request: Request) {
   try {
     const supabase = await createClient();
