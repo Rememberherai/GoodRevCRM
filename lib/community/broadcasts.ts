@@ -115,7 +115,9 @@ export async function resolveBroadcastRecipients(
 
 async function getProjectGmailConnection(projectId: string, userId: string): Promise<GmailConnectionRow | null> {
   const admin = createAdminClient();
-  const { data } = await admin
+
+  // Prefer the acting user's own connection first
+  const { data: userConn } = await admin
     .from('gmail_connections')
     .select('*')
     .eq('project_id', projectId)
@@ -125,7 +127,19 @@ async function getProjectGmailConnection(projectId: string, userId: string): Pro
     .limit(1)
     .maybeSingle();
 
-  return data ?? null;
+  if (userConn) return userConn;
+
+  // Fall back to any active Gmail connection on the project
+  const { data: anyConn } = await admin
+    .from('gmail_connections')
+    .select('*')
+    .eq('project_id', projectId)
+    .eq('status', 'active')
+    .order('updated_at', { ascending: false })
+    .limit(1)
+    .maybeSingle();
+
+  return anyConn ?? null;
 }
 
 export async function sendBroadcast(
