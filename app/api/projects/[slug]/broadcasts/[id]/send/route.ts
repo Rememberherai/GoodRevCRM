@@ -48,7 +48,8 @@ export async function POST(_request: Request, context: RouteContext) {
 
     try {
       const result = await sendBroadcast(sendingRow, user.id);
-      const status = result.failures.length > 0 ? 'failed' : 'sent';
+      const noRecipients = result.sentCount === 0 && result.failures.length === 0;
+      const status = (result.failures.length > 0 || noRecipients) ? 'failed' : 'sent';
 
       const { error: finalUpdateError } = await supabase
         .from('broadcasts')
@@ -56,7 +57,9 @@ export async function POST(_request: Request, context: RouteContext) {
           status,
           sent_at: status === 'sent' ? new Date().toISOString() : null,
           scheduled_at: null,
-          failure_reason: result.failures.length > 0 ? result.failures.join('\n').slice(0, 2000) : null,
+          failure_reason: noRecipients
+            ? 'No recipients matched the filter criteria.'
+            : result.failures.length > 0 ? result.failures.join('\n').slice(0, 2000) : null,
         })
         .eq('id', id)
         .eq('project_id', project.id);

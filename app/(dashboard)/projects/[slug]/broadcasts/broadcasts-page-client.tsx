@@ -355,11 +355,19 @@ export function BroadcastsPageClient() {
 
   async function handleSend(id: string) {
     setSendingId(id);
+    setError(null);
     try {
       const response = await fetch(`/api/projects/${slug}/broadcasts/${id}/send`, { method: 'POST' });
       const data = await response.json();
       if (!response.ok) {
         throw new Error(data.error ?? 'Failed to send broadcast');
+      }
+      if (data.sent_count === 0 && data.failure_count === 0) {
+        setError('Broadcast sent but no recipients matched. Add recipients before sending.');
+      } else if (data.failure_count > 0 && data.sent_count === 0) {
+        setError(`Send failed for all ${data.failure_count} recipient(s). Check the broadcast for details.`);
+      } else if (data.failure_count > 0) {
+        setError(`Sent to ${data.sent_count} recipient(s) but ${data.failure_count} failed. Check the broadcast for details.`);
       }
       await loadBroadcasts();
     } catch (sendError) {
