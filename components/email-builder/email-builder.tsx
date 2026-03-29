@@ -164,9 +164,9 @@ export function EmailBuilder({ initialDesign, variables, showPreview = true, slu
     >
       <div className="flex h-full min-h-[500px] border rounded-lg overflow-hidden bg-background">
         {/* Left panel: palette + global styles */}
-        <div className="w-56 border-r flex flex-col shrink-0">
-          <Tabs value={sidePanel} onValueChange={(v) => setSidePanel(v as 'blocks' | 'styles')}>
-            <TabsList className="w-full rounded-none border-b h-9">
+        <div className="w-56 border-r flex flex-col shrink-0 overflow-hidden">
+          <Tabs value={sidePanel} onValueChange={(v) => setSidePanel(v as 'blocks' | 'styles')} className="flex flex-col h-full">
+            <TabsList className="w-full rounded-none border-b h-9 shrink-0">
               <TabsTrigger value="blocks" className="flex-1 text-xs">
                 Blocks
               </TabsTrigger>
@@ -174,10 +174,10 @@ export function EmailBuilder({ initialDesign, variables, showPreview = true, slu
                 Styles
               </TabsTrigger>
             </TabsList>
-            <TabsContent value="blocks" className="mt-0 p-3">
+            <TabsContent value="blocks" className="mt-0 p-3 flex-1 overflow-y-auto">
               <Palette />
             </TabsContent>
-            <TabsContent value="styles" className="mt-0">
+            <TabsContent value="styles" className="mt-0 flex-1 overflow-y-auto">
               <GlobalStylesPanel />
             </TabsContent>
           </Tabs>
@@ -187,10 +187,10 @@ export function EmailBuilder({ initialDesign, variables, showPreview = true, slu
         <Canvas variables={variables} />
 
         {/* Right panel: property editor or preview */}
-        <div className="w-64 border-l flex flex-col shrink-0">
+        <div className="w-64 border-l flex flex-col shrink-0 overflow-hidden">
           {showPreview ? (
-            <Tabs defaultValue="properties">
-              <TabsList className="w-full rounded-none border-b h-9">
+            <Tabs defaultValue="properties" className="flex flex-col h-full">
+              <TabsList className="w-full rounded-none border-b h-9 shrink-0">
                 <TabsTrigger value="properties" className="flex-1 text-xs">
                   Properties
                 </TabsTrigger>
@@ -198,15 +198,17 @@ export function EmailBuilder({ initialDesign, variables, showPreview = true, slu
                   Preview
                 </TabsTrigger>
               </TabsList>
-              <TabsContent value="properties" className="mt-0">
+              <TabsContent value="properties" className="mt-0 flex-1 overflow-y-auto">
                 <PropertyPanel slug={slug} />
               </TabsContent>
-              <TabsContent value="preview" className="mt-0 h-[calc(100%-36px)]">
+              <TabsContent value="preview" className="mt-0 flex-1 overflow-y-auto">
                 <PreviewPanel />
               </TabsContent>
             </Tabs>
           ) : (
-            <PropertyPanel slug={slug} />
+            <div className="flex-1 overflow-y-auto">
+              <PropertyPanel slug={slug} />
+            </div>
           )}
         </div>
       </div>

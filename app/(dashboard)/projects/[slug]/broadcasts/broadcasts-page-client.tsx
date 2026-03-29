@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Megaphone, Send, Plus, Blocks, Code, CalendarIcon, Clock, X, RotateCcw } from 'lucide-react';
+import { Megaphone, Send, Plus, Blocks, Code, CalendarIcon, Clock, X, RotateCcw, Pencil, Trash2, Copy } from 'lucide-react';
 import { format, isBefore, startOfDay } from 'date-fns';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -23,14 +23,23 @@ import { getVariablesForProjectType } from '@/lib/email-builder/variables';
 import { createDefaultDesign } from '@/lib/email-builder/default-blocks';
 import { renderDesignToInnerHtml } from '@/lib/email-builder/render-html';
 import { renderDesignToText } from '@/lib/email-builder/render-text';
+import { emailDesignSchema } from '@/lib/email-builder/schema';
+import type { EmailDesign } from '@/types/email-builder';
 import { cn } from '@/lib/utils';
 
 type EditorMode = 'builder' | 'html';
+
+interface RecipientFilterValue {
+  person_ids?: string[];
+  household_ids?: string[];
+  program_ids?: string[];
+}
 
 interface BroadcastRecord {
   id: string;
   subject: string;
   body: string;
+  body_html: string | null;
   channel: 'email' | 'sms' | 'both';
   status: string;
   updated_at: string;
@@ -38,6 +47,8 @@ interface BroadcastRecord {
   sent_at: string | null;
   failure_reason: string | null;
   send_config_id: string | null;
+  design_json: Record<string, unknown> | null;
+  filter_criteria: RecipientFilterValue | null;
 }
 
 interface EmailSendConfigOption {
@@ -48,12 +59,6 @@ interface EmailSendConfigOption {
   gmail_email: string | null;
   is_default: boolean | null;
   domain_verified: boolean | null;
-}
-
-interface RecipientFilterValue {
-  person_ids?: string[];
-  household_ids?: string[];
-  program_ids?: string[];
 }
 
 const STATUS_BADGE_VARIANT: Record<string, 'default' | 'secondary' | 'destructive' | 'outline'> = {
@@ -93,6 +98,10 @@ export function BroadcastsPageClient() {
   const [sendingId, setSendingId] = useState<string | null>(null);
   const [signatureHtml, setSignatureHtml] = useState<string | null>(null);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
+
+  // Edit state — when set, dialog is in edit mode for this broadcast
+  const [editingBroadcast, setEditingBroadcast] = useState<BroadcastRecord | null>(null);
+  const [isDeleting, setIsDeleting] = useState<string | null>(null);
 
   // Scheduling state
   const [scheduleDate, setScheduleDate] = useState<Date | undefined>(undefined);
@@ -252,6 +261,7 @@ export function BroadcastsPageClient() {
 
   function resetDialog() {
     setOpen(false);
+    setEditingBroadcast(null);
     setSubject('');
     setBodyHtml('');
     setBodyText('');
@@ -395,7 +405,170 @@ export function BroadcastsPageClient() {
     }
   }
 
+  async function handleEdit(broadcast: BroadcastRecord) {
+    // Load design into builder store if present
+    let parsedDesign: EmailDesign | null = null;
+    if (broadcast.design_json) {
+      const result = emailDesignSchema.safeParse(broadcast.design_json);
+      if (result.success) parsedDesign = result.data;
+    }
+
+    setEditingBroadcast(broadcast);
+    setSubject(broadcast.subject);
+    setChannel(broadcast.channel);
+    setSendConfigId(broadcast.send_config_id);
+    setFilterCriteria((broadcast.filter_criteria as RecipientFilterValue) ?? {});
+    setValidationErrors([]);
+    setError(null);
+
+    if (parsedDesign) {
+      setEditorMode('builder');
+      useEmailBuilderStore.getState().loadDesign(parsedDesign);
+      setBodyHtml(broadcast.body_html ?? '');
+      setBodyText(broadcast.body ?? '');
+    } else {
+      setEditorMode('html');
+      setBodyHtml(broadcast.body_html ?? '');
+      setBodyText(broadcast.body ?? '');
+      resetDesign();
+    }
+
+    if (broadcast.scheduled_at) {
+      const d = new Date(broadcast.scheduled_at);
+      setScheduleDate(d);
+      setScheduleTime(`${String(d.getHours()).padStart(2, '0')}:${String(d.getMinutes()).padStart(2, '0')}`);
+    } else {
+      setScheduleDate(undefined);
+      setScheduleTime('09:00');
+    }
+
+    setOpen(true);
+  }
+
+  async function handleUpdate() {
+    if (!editingBroadcast) return;
+
+    setValidationErrors([]);
+    if (editorMode === 'builder' && !validateBuilderDesign()) return;
+
+    setIsSaving(true);
+    setError(null);
+    try {
+      const payload = buildPayload();
+
+      const response = await fetch(`/api/projects/${slug}/broadcasts/${editingBroadcast.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Failed to update broadcast');
+      }
+      resetDialog();
+      await loadBroadcasts();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Failed to update broadcast');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleUpdateAndSchedule() {
+    if (!editingBroadcast || !scheduleDate) return;
+
+    setValidationErrors([]);
+    if (editorMode === 'builder' && !validateBuilderDesign()) return;
+
+    const parts = scheduleTime.split(':').map(Number);
+    const hours = parts[0] ?? 0;
+    const minutes = parts[1] ?? 0;
+    const scheduledAt = new Date(scheduleDate);
+    scheduledAt.setHours(hours, minutes, 0, 0);
+
+    if (isBefore(scheduledAt, new Date())) {
+      setValidationErrors(['Scheduled time must be in the future.']);
+      return;
+    }
+
+    setIsSaving(true);
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${slug}/broadcasts/${editingBroadcast.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          ...buildPayload(),
+          status: 'scheduled',
+          scheduled_at: scheduledAt.toISOString(),
+        }),
+      });
+      const data = await response.json();
+      if (!response.ok) {
+        throw new Error(data.error ?? 'Failed to schedule broadcast');
+      }
+      resetDialog();
+      await loadBroadcasts();
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : 'Failed to schedule broadcast');
+    } finally {
+      setIsSaving(false);
+    }
+  }
+
+  async function handleDelete(id: string) {
+    if (!confirm('Delete this broadcast? This cannot be undone.')) return;
+    setIsDeleting(id);
+    setError(null);
+    try {
+      const response = await fetch(`/api/projects/${slug}/broadcasts/${id}`, { method: 'DELETE' });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error ?? 'Failed to delete broadcast');
+      }
+      await loadBroadcasts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to delete broadcast');
+    } finally {
+      setIsDeleting(null);
+    }
+  }
+
+  async function handleDuplicate(broadcast: BroadcastRecord) {
+    setError(null);
+    try {
+      const payload: Record<string, unknown> = {
+        subject: `${broadcast.subject} (copy)`,
+        channel: broadcast.channel,
+        filter_criteria: broadcast.filter_criteria ?? {},
+      };
+      if (broadcast.design_json) {
+        payload.design_json = broadcast.design_json;
+      } else {
+        payload.body = broadcast.body;
+        payload.body_html = broadcast.body_html;
+      }
+      if (broadcast.send_config_id) {
+        payload.send_config_id = broadcast.send_config_id;
+      }
+
+      const response = await fetch(`/api/projects/${slug}/broadcasts`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify(payload),
+      });
+      if (!response.ok) {
+        const data = await response.json();
+        throw new Error(data.error ?? 'Failed to duplicate broadcast');
+      }
+      await loadBroadcasts();
+    } catch (err) {
+      setError(err instanceof Error ? err.message : 'Failed to duplicate broadcast');
+    }
+  }
+
   function handleOpenDialog() {
+    setEditingBroadcast(null);
     setSubject('');
     setBodyText('');
     setBodyHtml('');
@@ -413,32 +586,50 @@ export function BroadcastsPageClient() {
 
   function renderBroadcastActions(broadcast: BroadcastRecord) {
     const isSending = sendingId === broadcast.id;
+    const canEdit = ['draft', 'scheduled', 'failed'].includes(broadcast.status);
+    const canDelete = ['draft', 'failed'].includes(broadcast.status);
 
-    switch (broadcast.status) {
-      case 'draft':
-        return (
+    return (
+      <div className="flex items-center gap-1">
+        {canEdit && (
+          <Button size="sm" variant="ghost" onClick={() => void handleEdit(broadcast)} title="Edit">
+            <Pencil className="h-3.5 w-3.5" />
+          </Button>
+        )}
+        <Button size="sm" variant="ghost" onClick={() => void handleDuplicate(broadcast)} title="Duplicate">
+          <Copy className="h-3.5 w-3.5" />
+        </Button>
+        {canDelete && (
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={() => void handleDelete(broadcast.id)}
+            disabled={isDeleting === broadcast.id}
+            title="Delete"
+          >
+            <Trash2 className="h-3.5 w-3.5 text-destructive" />
+          </Button>
+        )}
+        {broadcast.status === 'draft' && (
           <Button size="sm" onClick={() => void handleSend(broadcast.id)} disabled={isSending}>
-            <Send className="mr-2 h-4 w-4" />
-            {isSending ? 'Sending...' : 'Send Now'}
+            <Send className="mr-1.5 h-3.5 w-3.5" />
+            {isSending ? 'Sending...' : 'Send'}
           </Button>
-        );
-      case 'scheduled':
-        return (
+        )}
+        {broadcast.status === 'scheduled' && (
           <Button size="sm" variant="outline" onClick={() => void handleCancelSchedule(broadcast.id)}>
-            <X className="mr-2 h-4 w-4" />
-            Cancel Schedule
+            <X className="mr-1.5 h-3.5 w-3.5" />
+            Cancel
           </Button>
-        );
-      case 'failed':
-        return (
+        )}
+        {broadcast.status === 'failed' && (
           <Button size="sm" variant="outline" onClick={() => void handleRetry(broadcast.id)}>
-            <RotateCcw className="mr-2 h-4 w-4" />
+            <RotateCcw className="mr-1.5 h-3.5 w-3.5" />
             Retry
           </Button>
-        );
-      default:
-        return null;
-    }
+        )}
+      </div>
+    );
   }
 
   function renderBroadcastMeta(broadcast: BroadcastRecord) {
@@ -531,7 +722,7 @@ export function BroadcastsPageClient() {
       >
         <DialogContent className="sm:max-w-6xl max-h-[90vh] flex flex-col">
           <DialogHeader>
-            <DialogTitle>Create Broadcast</DialogTitle>
+            <DialogTitle>{editingBroadcast ? 'Edit Broadcast' : 'Create Broadcast'}</DialogTitle>
             <DialogDescription>Choose recipients, channel, and message content. Save as draft or schedule for later.</DialogDescription>
           </DialogHeader>
 
@@ -727,15 +918,18 @@ export function BroadcastsPageClient() {
             <Button variant="outline" onClick={resetDialog} disabled={isSaving}>Cancel</Button>
             {scheduleDate ? (
               <Button
-                onClick={() => void handleCreateAndSchedule()}
+                onClick={() => void (editingBroadcast ? handleUpdateAndSchedule() : handleCreateAndSchedule())}
                 disabled={isSaving || !subject.trim() || !hasContent}
               >
                 <CalendarIcon className="mr-2 h-4 w-4" />
                 {isSaving ? 'Scheduling...' : 'Schedule Broadcast'}
               </Button>
             ) : (
-              <Button onClick={() => void handleCreate()} disabled={isSaving || !subject.trim() || !hasContent}>
-                Create Draft
+              <Button
+                onClick={() => void (editingBroadcast ? handleUpdate() : handleCreate())}
+                disabled={isSaving || !subject.trim() || !hasContent}
+              >
+                {isSaving ? 'Saving...' : editingBroadcast ? 'Save Changes' : 'Create Draft'}
               </Button>
             )}
           </DialogFooter>

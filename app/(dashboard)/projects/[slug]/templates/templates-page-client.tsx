@@ -186,7 +186,7 @@ export function TemplatesPageClient() {
           setEditingTemplate(undefined);
         }
       }}>
-        <DialogContent className="max-w-5xl max-h-[90vh] overflow-auto">
+        <DialogContent className="max-w-7xl max-h-[90vh] overflow-auto">
           <DialogHeader>
             <DialogTitle>
               {editingTemplate ? 'Edit Template' : 'New Template'}
