@@ -88,13 +88,19 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    const entries: ProgramAttendanceInsert[] = validation.data.entries.map((entry) => ({
-      program_id: id,
-      person_id: entry.person_id,
-      date: validation.data.date,
-      status: entry.status,
-      hours: entry.hours ?? 0,
-    }));
+    const seen = new Set<string>();
+    const entries: ProgramAttendanceInsert[] = [];
+    for (const entry of validation.data.entries) {
+      if (seen.has(entry.person_id)) continue;
+      seen.add(entry.person_id);
+      entries.push({
+        program_id: id,
+        person_id: entry.person_id,
+        date: validation.data.date,
+        status: entry.status,
+        hours: entry.hours ?? 0,
+      });
+    }
 
     const { data: attendance, error } = await supabase
       .from('program_attendance')
