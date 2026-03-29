@@ -25,7 +25,6 @@ import {
 
   Search,
   BookOpen,
-  Map,
 } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Avatar, AvatarFallback, AvatarImage } from '@/components/ui/avatar';
@@ -86,7 +85,6 @@ const communityNavItems: NavItem[] = [
   { title: 'Contributions', href: '/contributions', icon: HandCoins, resource: 'contributions' },
   { title: 'Grants', href: '/grants', icon: Award, resource: 'grants' },
   { title: 'Communications', href: '/communications', icon: Mail, resource: 'broadcasts', alsoMatchPaths: ['/sequences', '/templates', '/broadcasts'] },
-  { title: 'Community Map', href: '/community-map', icon: Map },
   { title: 'Assets & Map', href: '/assets', icon: Building2, resource: 'community_assets', alsoMatchPaths: ['/community-assets'] },
   { title: 'Reporting', href: '/reports', icon: BarChart3, resource: 'reports', alsoMatchPaths: ['/settings/public-dashboard'] },
 ];

@@ -35,8 +35,7 @@ const communitySteps: TourStepDef[] = [
   { tourId: '/contributions', title: 'Contributions', content: 'Record donations, volunteer hours, and in-kind gifts.' },
   { tourId: '/grants', title: 'Grants', content: 'Manage grants from discovery through reporting and compliance.' },
   { tourId: '/broadcasts', title: 'Broadcasts', content: 'Send communications to groups of households or participants.' },
-  { tourId: '/community-assets', title: 'Community Assets', content: 'Catalog community resources and shared assets.' },
-  { tourId: '/community-map', title: 'Community Map', content: 'Visualize households, assets, and service areas on a map.' },
+  { tourId: '/assets', title: 'Assets & Map', content: 'Catalog community resources and visualize them on a map.' },
   { tourId: '/settings', title: 'Settings', content: 'Configure your project and team. Replay this tour anytime from here.' },
 ];
 
