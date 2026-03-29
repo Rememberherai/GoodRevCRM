@@ -23,7 +23,11 @@ import type {
 import { sendBookingCancellation } from '@/lib/calendar/notifications';
 import { removeBookingFromCalendar } from '@/lib/calendar/sync';
 import { syncBookingStatusToMeeting } from '@/lib/calendar/crm-bridge';
-import { assertWorkflowTriggerSupported, normalizeWorkflowTriggerConfig } from '@/lib/workflows/trigger-config';
+import {
+  assertWorkflowTriggerSupported,
+  normalizeWorkflowTriggerConfig,
+  validateWorkflowTriggerConfig,
+} from '@/lib/workflows/trigger-config';
 import type { Json } from '@/types/database';
 import type { McpContext } from '@/types/mcp';
 
@@ -4101,13 +4105,13 @@ defineTool({
 
 defineTool({
   name: 'workflows.create',
-  description: `Create a new workflow with a visual node graph. Each node MUST have: id (string), type (one of: start, end, action, ai_agent, condition, switch, delay, loop, sub_workflow, mcp_tool, webhook, zapier), position ({x, y} coordinates for canvas layout), and data ({label, config: {}}). Every workflow needs exactly one "start" node and at least one "end" node. Edges connect nodes: {id, source, target}. If nodes/edges are omitted, a default start→end workflow is created. Positions should be spaced ~150px apart vertically (e.g. start at y:50, next at y:200, etc.) with x:250 as center. Supported trigger types include manual, schedule, and event triggers like entity.created. Do not use webhook_inbound yet.`,
+  description: `Create a new workflow with a visual node graph. Each node MUST have: id (string), type (one of: start, end, action, ai_agent, condition, switch, delay, loop, sub_workflow, mcp_tool, webhook, zapier), position ({x, y} coordinates for canvas layout), and data ({label, config: {}}). Every workflow needs exactly one "start" node and at least one "end" node. Edges connect nodes: {id, source, target}. If nodes/edges are omitted, a default start→end workflow is created. Positions should be spaced ~150px apart vertically (e.g. start at y:50, next at y:200, etc.) with x:250 as center. Supported trigger types include manual, schedule, webhook_inbound, and event triggers like entity.created. Inbound webhooks also require a generated secret token before the public receiver will accept requests.`,
   minRole: 'member',
   parameters: z.object({
     name: z.string().min(1).max(50).describe('Workflow name'),
     description: z.string().max(2000).optional().describe('Description'),
-    trigger_type: z.string().default('manual').describe('Trigger type. Supported: manual, schedule, and event triggers like entity.created. Unsupported: webhook_inbound.'),
-    trigger_config: z.record(z.string(), z.unknown()).default({}).describe('Trigger configuration. For schedule use cron_expression or interval_minutes.'),
+    trigger_type: z.string().default('manual').describe('Trigger type. Supported: manual, schedule, webhook_inbound, and event triggers like entity.created. Inbound webhooks also require a generated secret token before the public receiver will accept requests.'),
+    trigger_config: z.record(z.string(), z.unknown()).default({}).describe('Trigger configuration. For schedule use cron_expression or interval_minutes. For webhook_inbound, the server stores the encrypted secret token in trigger_config after token generation.'),
     nodes: z.array(z.record(z.string(), z.unknown())).optional().describe('Workflow nodes array. Each node: {id, type, position: {x, y}, data: {label, config: {}}}. Valid types: start, end, action, ai_agent, condition, switch, delay, loop, sub_workflow, mcp_tool, webhook, zapier'),
     edges: z.array(z.record(z.string(), z.unknown())).optional().describe('Edges connecting nodes: {id, source, target}'),
     tags: z.array(z.string()).optional().describe('Tags'),
@@ -4177,7 +4181,7 @@ defineTool({
 
     const { data: current, error: getError } = await ctx.supabase
       .from('workflows')
-      .select('current_version, definition, trigger_type, trigger_config')
+      .select('current_version, definition, trigger_type, trigger_config, is_active')
       .eq('id', id)
       .eq('project_id', ctx.projectId)
       .single();
@@ -4195,6 +4199,15 @@ defineTool({
         params.trigger_config as Record<string, unknown>,
       )
       : undefined;
+    const persistedTriggerConfig = normalizedTriggerConfig !== undefined &&
+      effectiveTriggerType === 'webhook_inbound' &&
+      (current.trigger_config as Record<string, unknown> | null)?.webhook_secret_enc &&
+      normalizedTriggerConfig.webhook_secret_enc === undefined
+      ? {
+          ...normalizedTriggerConfig,
+          webhook_secret_enc: (current.trigger_config as Record<string, unknown>).webhook_secret_enc,
+        }
+      : normalizedTriggerConfig;
 
     const versionChanged =
       params.nodes !== undefined ||
@@ -4207,7 +4220,7 @@ defineTool({
     if (params.name !== undefined) updateData.name = params.name;
     if (params.description !== undefined) updateData.description = params.description;
     if (params.trigger_type !== undefined) updateData.trigger_type = params.trigger_type;
-    if (normalizedTriggerConfig !== undefined) updateData.trigger_config = normalizedTriggerConfig;
+    if (persistedTriggerConfig !== undefined) updateData.trigger_config = persistedTriggerConfig;
 
     const existingDef = current.definition as { schema_version: string; nodes: unknown[]; edges: unknown[] };
     if (params.nodes !== undefined || params.edges !== undefined) {
@@ -4217,6 +4230,17 @@ defineTool({
         (params.edges as unknown[] | undefined) ?? existingDef.edges,
       );
       updateData.definition = sanitized;
+    }
+
+    const triggerErrors = validateWorkflowTriggerConfig(
+      effectiveTriggerType,
+      (persistedTriggerConfig ?? current.trigger_config) as Record<string, unknown>,
+    );
+    if (triggerErrors.length > 0 && current.is_active) {
+      return JSON.stringify({
+        error: 'Cannot update active workflow with invalid trigger configuration',
+        validation_errors: triggerErrors,
+      });
     }
 
     const { data, error } = await ctx.supabase
@@ -4236,7 +4260,7 @@ defineTool({
         version: newVersion,
         definition: (updateData.definition ?? current.definition) as Json,
         trigger_type: effectiveTriggerType,
-        trigger_config: (normalizedTriggerConfig ?? current.trigger_config) as Json,
+        trigger_config: (persistedTriggerConfig ?? current.trigger_config) as Json,
         change_summary: (params.change_summary as string) ?? 'Updated via chat',
         created_by: ctx.userId,
       });
@@ -4288,6 +4312,17 @@ defineTool({
     const newActive = params.active !== undefined ? (params.active as boolean) : !workflow.is_active;
 
     if (newActive) {
+      const triggerErrors = validateWorkflowTriggerConfig(
+        workflow.trigger_type as string,
+        workflow.trigger_config as Record<string, unknown> | undefined,
+      );
+      if (triggerErrors.length > 0) {
+        return JSON.stringify({
+          error: 'Cannot activate workflow with invalid trigger configuration',
+          validation_errors: triggerErrors,
+        });
+      }
+
       try {
         const def = workflow.definition as unknown as Parameters<typeof validateWorkflow>[0];
         const errors = validateWorkflow(def);
@@ -4679,6 +4714,26 @@ defineTool({
 // OpenRouter requires tool names matching ^[a-zA-Z0-9_-]{1,64}$ (no dots)
 function toApiName(name: string): string {
   return name.replace(/\./g, '_');
+}
+
+function canWorkflowExecuteTool(minRole: ChatTool['minRole']): boolean {
+  return minRole === 'viewer' || minRole === 'member';
+}
+
+function toToolDefinition(tool: ChatTool): ToolDefinition {
+  // Use Zod v4's built-in JSON Schema conversion (zod-to-json-schema doesn't support Zod v4)
+  const schema = z.toJSONSchema(tool.parameters) as Record<string, unknown>;
+  // Remove top-level $schema and additionalProperties that some providers reject
+  delete schema.$schema;
+
+  return {
+    type: 'function' as const,
+    function: {
+      name: toApiName(tool.name),
+      description: tool.description,
+      parameters: schema,
+    },
+  };
 }
 
 // ── Project Secrets Tools ────────────────────────────────────────────────────
@@ -6626,21 +6681,13 @@ defineTool({
 // ── Exports ──────────────────────────────────────────────────────────────────
 
 export function getToolDefinitions(): ToolDefinition[] {
-  return tools.map((tool) => {
-    // Use Zod v4's built-in JSON Schema conversion (zod-to-json-schema doesn't support Zod v4)
-    const schema = z.toJSONSchema(tool.parameters) as Record<string, unknown>;
-    // Remove top-level $schema and additionalProperties that some providers reject
-    delete schema.$schema;
+  return tools.map(toToolDefinition);
+}
 
-    return {
-      type: 'function' as const,
-      function: {
-        name: toApiName(tool.name),
-        description: tool.description,
-        parameters: schema,
-      },
-    };
-  });
+export function getWorkflowToolDefinitions(): ToolDefinition[] {
+  return tools
+    .filter((tool) => canWorkflowExecuteTool(tool.minRole))
+    .map(toToolDefinition);
 }
 
 export async function executeTool(
@@ -6665,6 +6712,12 @@ export async function executeTool(
 
 export function getToolNames(): string[] {
   return tools.map((t) => t.name);
+}
+
+export function getWorkflowToolNames(): string[] {
+  return tools
+    .filter((tool) => canWorkflowExecuteTool(tool.minRole))
+    .map((tool) => tool.name);
 }
 
 // ── Grants Project Helpers ───────────────────────────────────────────────────
