@@ -116,11 +116,12 @@ export async function resolveBroadcastRecipients(
 async function getProjectGmailConnection(projectId: string, userId: string): Promise<GmailConnectionRow | null> {
   const admin = createAdminClient();
 
-  // Prefer the acting user's own connection first
+  // Prefer the acting user's own connection first.
+  // Note: gmail_connections may not have project_id set (OAuth callback doesn't store it),
+  // so we search by user_id only — not by project_id.
   const { data: userConn } = await admin
     .from('gmail_connections')
     .select('*')
-    .eq('project_id', projectId)
     .eq('user_id', userId)
     .eq('status', 'connected')
     .order('updated_at', { ascending: false })
@@ -129,11 +130,21 @@ async function getProjectGmailConnection(projectId: string, userId: string): Pro
 
   if (userConn) return userConn;
 
-  // Fall back to any active Gmail connection on the project
+  // Fall back to any connected Gmail on the project (matched via project members).
+  // Query project members, then find any connected Gmail connection for those users.
+  const { data: members } = await admin
+    .from('project_memberships')
+    .select('user_id')
+    .eq('project_id', projectId);
+
+  if (!members || members.length === 0) return null;
+
+  const memberUserIds = members.map((m) => m.user_id);
+
   const { data: anyConn } = await admin
     .from('gmail_connections')
     .select('*')
-    .eq('project_id', projectId)
+    .in('user_id', memberUserIds)
     .eq('status', 'connected')
     .order('updated_at', { ascending: false })
     .limit(1)
