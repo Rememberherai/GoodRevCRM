@@ -354,11 +354,11 @@ export const NODE_PALETTE: NodePaletteItem[] = [
   { type: 'delay', label: 'Delay', description: 'Wait for a duration or date', icon: 'Clock', color: 'orange', category: 'flow_control' },
   { type: 'loop', label: 'Loop', description: 'Iterate over a collection', icon: 'Repeat', color: 'cyan', category: 'flow_control' },
   // Actions
-  { type: 'action', label: 'CRM Action', description: 'Execute a CRM action (create task, send email, etc.)', icon: 'Zap', color: 'blue', category: 'actions' },
+  { type: 'action', label: 'Automation Action', description: 'Execute a CRM automation action (create task, send email, etc.)', icon: 'Zap', color: 'blue', category: 'actions' },
   { type: 'ai_agent', label: 'AI Agent', description: 'AI-powered decision or content generation', icon: 'Brain', color: 'violet', category: 'actions' },
   { type: 'sub_workflow', label: 'Sub-Workflow', description: 'Run another workflow as a sub-step', icon: 'Layers', color: 'indigo', category: 'actions' },
   // Integrations
-  { type: 'mcp_tool', label: 'MCP Tool', description: 'Invoke an MCP tool (3 modes)', icon: 'Wrench', color: 'slate', category: 'integrations' },
+  { type: 'mcp_tool', label: 'CRM Action', description: 'Execute any CRM operation (create record, send email, look up data, etc.)', icon: 'Database', color: 'blue', category: 'actions' },
   { type: 'zapier', label: 'Zapier', description: 'Execute a Zapier action', icon: 'Bolt', color: 'orange', category: 'integrations' },
   { type: 'webhook', label: 'Webhook', description: 'Call an external HTTP endpoint', icon: 'Globe', color: 'teal', category: 'integrations' },
 ];
@@ -383,7 +383,7 @@ export const NODE_COLORS: Record<WorkflowNodeType, string> = {
   delay: '#f97316',      // orange-500
   loop: '#06b6d4',       // cyan-500
   sub_workflow: '#6366f1', // indigo-500
-  mcp_tool: '#64748b',    // slate-500
+  mcp_tool: '#2563eb',    // blue-600
   zapier: '#ff4a00',      // Zapier orange
   webhook: '#14b8a6',     // teal-500
 };

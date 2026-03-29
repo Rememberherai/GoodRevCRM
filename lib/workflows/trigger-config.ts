@@ -1,10 +1,8 @@
-const UNSUPPORTED_INBOUND_WEBHOOK_ERROR =
-  'Inbound webhook workflow triggers are not supported yet because no public receiver route is wired.';
+import type { WorkflowValidationError } from '@/types/workflow';
 
-export function assertWorkflowTriggerSupported(triggerType: string) {
-  if (triggerType === 'webhook_inbound') {
-    throw new Error(UNSUPPORTED_INBOUND_WEBHOOK_ERROR);
-  }
+export function assertWorkflowTriggerSupported(_triggerType: string) {
+  // All trigger types are supported. This function is kept as a hook
+  // for future unsupported trigger types.
 }
 
 export function normalizeWorkflowTriggerConfig(
@@ -42,4 +40,40 @@ export function normalizeWorkflowTriggerConfig(
   }
 
   return normalized;
+}
+
+export function validateWorkflowTriggerConfig(
+  triggerType: string,
+  triggerConfig?: Record<string, unknown>,
+): WorkflowValidationError[] {
+  const config = normalizeWorkflowTriggerConfig(triggerType, triggerConfig);
+  const errors: WorkflowValidationError[] = [];
+
+  if (triggerType === 'schedule') {
+    const cronExpression = typeof config.cron_expression === 'string' ? config.cron_expression.trim() : '';
+    const intervalMinutes =
+      typeof config.interval_minutes === 'number'
+        ? config.interval_minutes
+        : typeof config.interval_minutes === 'string'
+          ? Number(config.interval_minutes)
+          : undefined;
+
+    if (!cronExpression && (!intervalMinutes || intervalMinutes < 1)) {
+      errors.push({
+        code: 'SCHEDULE_TRIGGER_MISSING_CONFIG',
+        message: 'Schedule trigger requires a cron expression or an interval in minutes.',
+        severity: 'error',
+      });
+    }
+  }
+
+  if (triggerType === 'webhook_inbound' && !config.webhook_secret_enc) {
+    errors.push({
+      code: 'WEBHOOK_TRIGGER_MISSING_SECRET',
+      message: 'Inbound webhook trigger requires a generated secret token before activation.',
+      severity: 'error',
+    });
+  }
+
+  return errors;
 }

@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
-import { Check, ChevronsUpDown, Loader2, RefreshCw, X } from 'lucide-react';
+import { Check, ChevronsUpDown, Copy, Loader2, RefreshCw, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
@@ -193,6 +193,7 @@ const TRIGGER_CONTEXT_FIELDS: Partial<Record<WorkflowTriggerType, string[]>> = {
   'asset_access.confirmed': ['access.id', 'access.asset_id', 'access.person_id', 'access.start_time', 'access.end_time'],
   'asset_access.denied': ['access.id', 'access.asset_id', 'access.person_id', 'access.denial_reason'],
   'asset_access.returned': ['access.id', 'access.asset_id', 'access.person_id', 'access.returned_at'],
+  webhook_inbound: ['webhook_payload', 'webhook_headers.content-type', 'webhook_headers.user-agent', 'triggered_at'],
 };
 
 // Community entity fields for condition node suggestions
@@ -292,6 +293,7 @@ function getMemberLabel(m: ProjectMember) {
 export function WorkflowPropertyPanel({ projectType }: { projectType?: string }) {
   const params = useParams();
   const slug = params.slug as string | undefined;
+  const workflowId = params.id as string | undefined;
   const resources = useProjectResources(slug);
 
   const {
@@ -375,7 +377,7 @@ export function WorkflowPropertyPanel({ projectType }: { projectType?: string })
       </div>
 
       {/* Type-specific config */}
-      {renderTypeConfig(type, config, updateConfig, resources, slug, batchUpdateConfig, projectType)}
+      {renderTypeConfig(type, config, updateConfig, resources, slug, batchUpdateConfig, projectType, workflowId)}
 
       {/* Delete button */}
       {type !== 'start' && (
@@ -394,6 +396,427 @@ export function WorkflowPropertyPanel({ projectType }: { projectType?: string })
   );
 }
 
+// ── WebhookInboundConfig component ───────────────────────────────────────────
+
+interface WebhookTokenState {
+  hasToken: boolean;
+  maskedToken: string | null;
+  receiverUrl: string;
+  revealedToken: string | null;
+  loading: boolean;
+  regenerating: boolean;
+  copied: boolean;
+  tokenCopied: boolean;
+}
+
+function WebhookInboundConfig({ slug, workflowId }: { slug: string; workflowId: string }) {
+  const [state, setState] = useState<WebhookTokenState>({
+    hasToken: false,
+    maskedToken: null,
+    receiverUrl: '',
+    revealedToken: null,
+    loading: true,
+    regenerating: false,
+    copied: false,
+    tokenCopied: false,
+  });
+  const [confirmRegen, setConfirmRegen] = useState(false);
+
+  useEffect(() => {
+    if (!slug || !workflowId) return;
+    fetch(`/api/projects/${slug}/workflows/${workflowId}/webhook-token`)
+      .then((r) => r.json())
+      .then((d) => setState((s) => ({
+        ...s,
+        hasToken: d.has_token ?? false,
+        maskedToken: d.masked_token ?? null,
+        receiverUrl: d.receiver_url ?? '',
+        loading: false,
+      })))
+      .catch(() => setState((s) => ({ ...s, loading: false })));
+  }, [slug, workflowId]);
+
+  async function generateToken() {
+    setState((s) => ({ ...s, regenerating: true }));
+    setConfirmRegen(false);
+    try {
+      const res = await fetch(`/api/projects/${slug}/workflows/${workflowId}/webhook-token`, { method: 'POST' });
+      if (res.ok) {
+        const d = await res.json();
+        setState((s) => ({
+          ...s,
+          hasToken: true,
+          maskedToken: null,
+          receiverUrl: d.receiver_url ?? s.receiverUrl,
+          revealedToken: d.token ?? null,
+          regenerating: false,
+        }));
+      } else {
+        setState((s) => ({ ...s, regenerating: false }));
+      }
+    } catch {
+      setState((s) => ({ ...s, regenerating: false }));
+    }
+  }
+
+  function copyUrl() {
+    navigator.clipboard.writeText(state.receiverUrl).then(() => {
+      setState((s) => ({ ...s, copied: true }));
+      setTimeout(() => setState((s) => ({ ...s, copied: false })), 2000);
+    }).catch(() => {});
+  }
+
+  function copyToken() {
+    const tok = state.revealedToken ?? '';
+    navigator.clipboard.writeText(tok).then(() => {
+      setState((s) => ({ ...s, tokenCopied: true }));
+      setTimeout(() => setState((s) => ({ ...s, tokenCopied: false })), 2000);
+    }).catch(() => {});
+  }
+
+  if (state.loading) {
+    return <div className="flex items-center gap-2 text-xs text-muted-foreground"><Loader2 className="h-3 w-3 animate-spin" />Loading…</div>;
+  }
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-md border bg-muted/30 p-3 space-y-1">
+        <p className="text-[11px] text-muted-foreground leading-relaxed">
+          This workflow triggers when an external service POSTs to your unique webhook URL.
+          Compatible with Typeform, Stripe, n8n, and any service that sends HTTP webhooks.
+        </p>
+      </div>
+
+      {/* Receiver URL */}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Receiver URL</Label>
+        <div className="flex gap-1.5">
+          <Input
+            readOnly
+            value={state.receiverUrl || '(save workflow first)'}
+            className="h-8 text-xs font-mono flex-1 bg-muted/50"
+          />
+          <Button variant="outline" size="sm" className="h-8 px-2 shrink-0" onClick={copyUrl} disabled={!state.receiverUrl}>
+            {state.copied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+          </Button>
+        </div>
+      </div>
+
+      {/* Secret Token */}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Secret Token</Label>
+        {state.revealedToken ? (
+          <div className="space-y-1.5">
+            <div className="flex gap-1.5">
+              <Input
+                readOnly
+                value={state.revealedToken}
+                className="h-8 text-xs font-mono flex-1 bg-green-50 dark:bg-green-950 border-green-300"
+              />
+              <Button variant="outline" size="sm" className="h-8 px-2 shrink-0" onClick={copyToken}>
+                {state.tokenCopied ? <Check className="h-3.5 w-3.5 text-green-500" /> : <Copy className="h-3.5 w-3.5" />}
+              </Button>
+            </div>
+            <p className="text-[10px] text-amber-700 dark:text-amber-400 font-medium">
+              Copy this token now — it cannot be shown again after you leave this panel.
+            </p>
+          </div>
+        ) : state.hasToken ? (
+          <div className="flex items-center gap-2 text-xs text-muted-foreground">
+            <span className="font-mono">{state.maskedToken ?? '••••••••••••'}</span>
+            <span className="text-[10px]">(token set)</span>
+          </div>
+        ) : (
+          <p className="text-xs text-muted-foreground">No token generated yet.</p>
+        )}
+      </div>
+
+      {/* Generate / Regenerate button */}
+      {!confirmRegen ? (
+        <Button
+          variant="outline"
+          size="sm"
+          className="w-full h-8 text-xs"
+          onClick={() => {
+            if (state.hasToken) {
+              setConfirmRegen(true);
+            } else {
+              generateToken();
+            }
+          }}
+          disabled={state.regenerating}
+        >
+          {state.regenerating ? (
+            <><Loader2 className="h-3 w-3 mr-1.5 animate-spin" />Generating…</>
+          ) : state.hasToken ? (
+            <><RefreshCw className="h-3 w-3 mr-1.5" />Regenerate Token</>
+          ) : (
+            'Generate Token'
+          )}
+        </Button>
+      ) : (
+        <div className="rounded-md border border-amber-300 bg-amber-50 dark:bg-amber-950 p-2.5 space-y-2">
+          <p className="text-[11px] text-amber-800 dark:text-amber-300">
+            Regenerating will invalidate the existing token. Any services using the old token will stop working immediately.
+          </p>
+          <div className="flex gap-2">
+            <Button variant="destructive" size="sm" className="flex-1 h-7 text-xs" onClick={generateToken}>
+              Regenerate
+            </Button>
+            <Button variant="outline" size="sm" className="flex-1 h-7 text-xs" onClick={() => setConfirmRegen(false)}>
+              Cancel
+            </Button>
+          </div>
+        </div>
+      )}
+
+      {/* Usage instructions */}
+      <div className="space-y-1 pt-1">
+        <Label className="text-xs text-muted-foreground">How to use</Label>
+        <p className="text-[10px] text-muted-foreground leading-relaxed">
+          POST to the URL above with your token as <code className="font-mono bg-muted px-0.5 rounded">?token=…</code> or as <code className="font-mono bg-muted px-0.5 rounded">Authorization: Bearer …</code>. The request body (JSON or text) will be available as <code className="font-mono bg-muted px-0.5 rounded">{'{{context.webhook_payload}}'}</code> in downstream nodes.
+        </p>
+      </div>
+    </div>
+  );
+}
+
+// ── CrmActionPanel component ──────────────────────────────────────────────────
+
+interface CrmTool {
+  name: string;
+  description: string;
+  parameters: Record<string, unknown>;
+}
+
+interface CrmToolGroup {
+  key: string;
+  label: string;
+  tools: CrmTool[];
+}
+
+interface CrmActionPanelProps {
+  config: Record<string, unknown>;
+  updateConfig: (key: string, value: unknown) => void;
+  batchUpdateConfig: (updates: Record<string, unknown>) => void;
+  slug: string;
+}
+
+function CrmActionPanel({ config, updateConfig, batchUpdateConfig, slug }: CrmActionPanelProps) {
+  const mode = (config.mode as string) || 'manual';
+  const toolName = (config.tool_name as string) || '';
+
+  const [groups, setGroups] = useState<CrmToolGroup[]>([]);
+  const [toolsLoading, setToolsLoading] = useState(false);
+  const [toolOpen, setToolOpen] = useState(false);
+  const [search, setSearch] = useState('');
+
+  useEffect(() => {
+    if (!slug) return;
+    setToolsLoading(true);
+    fetch(`/api/projects/${slug}/workflows/tools`)
+      .then((r) => r.json())
+      .then((d) => setGroups(d.groups ?? []))
+      .catch(() => setGroups([]))
+      .finally(() => setToolsLoading(false));
+  }, [slug]);
+
+  const allTools = groups.flatMap((g) => g.tools);
+  const selectedTool = allTools.find((t) => t.name === toolName);
+
+  const filteredGroups = search.trim()
+    ? [{
+        key: 'results',
+        label: 'Results',
+        tools: allTools.filter((t) =>
+          t.name.toLowerCase().includes(search.toLowerCase()) ||
+          t.description.toLowerCase().includes(search.toLowerCase())
+        ),
+      }]
+    : groups;
+
+  const schemaProps = selectedTool?.parameters
+    ? ((selectedTool.parameters as { properties?: Record<string, { type?: string; description?: string }> }).properties ?? null)
+    : null;
+  const requiredFields: string[] = selectedTool?.parameters
+    ? ((selectedTool.parameters as { required?: string[] }).required ?? [])
+    : [];
+
+  const params = (config.params as Record<string, unknown>) || {};
+
+  return (
+    <div className="space-y-3">
+      {/* Mode selector */}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Mode</Label>
+        <Select value={mode} onValueChange={(v) => updateConfig('mode', v)}>
+          <SelectTrigger className="h-8 text-sm">
+            <SelectValue />
+          </SelectTrigger>
+          <SelectContent>
+            <SelectItem value="manual">CRM Action (specify tool + params)</SelectItem>
+            <SelectItem value="ai_params">AI-Assisted (you pick tool, AI fills params)</SelectItem>
+            <SelectItem value="ai_selection">Fully Automatic (AI picks tool and params)</SelectItem>
+          </SelectContent>
+        </Select>
+      </div>
+
+      {/* Tool picker — shown for manual and ai_params */}
+      {(mode === 'manual' || mode === 'ai_params' || !mode) && (
+        <div className="space-y-1.5">
+          <Label className="text-xs">Action</Label>
+          <Popover open={toolOpen} onOpenChange={setToolOpen}>
+            <PopoverTrigger asChild>
+              <Button
+                variant="outline"
+                role="combobox"
+                aria-expanded={toolOpen}
+                className="w-full justify-between h-8 text-sm font-normal"
+              >
+                {selectedTool
+                  ? <span className="truncate">{selectedTool.description || toolName}</span>
+                  : <span className="text-muted-foreground truncate">Search CRM actions…</span>
+                }
+                <ChevronsUpDown className="ml-2 h-3.5 w-3.5 shrink-0 opacity-50" />
+              </Button>
+            </PopoverTrigger>
+            <PopoverContent className="w-80 p-0" align="start">
+              <Command shouldFilter={false}>
+                <CommandInput
+                  placeholder="Search actions…"
+                  value={search}
+                  onValueChange={setSearch}
+                  className="text-sm"
+                />
+                <CommandList className="max-h-64">
+                  {toolsLoading && (
+                    <div className="flex items-center justify-center py-4 text-xs text-muted-foreground gap-2">
+                      <Loader2 className="h-3 w-3 animate-spin" />Loading actions…
+                    </div>
+                  )}
+                  {!toolsLoading && filteredGroups.length === 0 && (
+                    <CommandEmpty>No actions found.</CommandEmpty>
+                  )}
+                  {!toolsLoading && filteredGroups.map((group) => (
+                    <CommandGroup key={group.key} heading={group.label}>
+                      {group.tools.map((tool) => (
+                        <CommandItem
+                          key={tool.name}
+                          value={tool.name}
+                          onSelect={() => {
+                            batchUpdateConfig({ tool_name: tool.name, params: {}, server_url: 'internal' });
+                            setToolOpen(false);
+                            setSearch('');
+                          }}
+                        >
+                          <Check className={cn('mr-2 h-3.5 w-3.5 shrink-0', toolName === tool.name ? 'opacity-100' : 'opacity-0')} />
+                          <div className="min-w-0">
+                            <div className="text-xs font-medium truncate">{tool.description}</div>
+                            <div className="text-[10px] text-muted-foreground font-mono">{tool.name}</div>
+                          </div>
+                        </CommandItem>
+                      ))}
+                    </CommandGroup>
+                  ))}
+                </CommandList>
+              </Command>
+            </PopoverContent>
+          </Popover>
+
+          {/* Selected tool description */}
+          {selectedTool?.description && (
+            <p className="text-[10px] text-muted-foreground bg-muted/50 rounded px-2 py-1.5">
+              {selectedTool.description}
+              <span className="ml-1 font-mono opacity-60">({toolName})</span>
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Parameter form — manual mode with a selected tool */}
+      {mode === 'manual' && schemaProps && Object.keys(schemaProps).length > 0 && (
+        <div className="space-y-2 border-t pt-3">
+          <Label className="text-xs font-medium">Parameters</Label>
+          {Object.entries(schemaProps).map(([key, prop]) => (
+            <div key={key} className="space-y-1">
+              <Label className="text-[10px] text-muted-foreground">
+                {key}
+                {requiredFields.includes(key) && <span className="text-red-500 ml-0.5">*</span>}
+                {prop.description && <span className="ml-1 opacity-60">— {prop.description}</span>}
+              </Label>
+              <Input
+                value={(params[key] as string) ?? ''}
+                onChange={(e) => updateConfig('params', { ...params, [key]: e.target.value })}
+                className="h-7 text-xs"
+                placeholder={`{{context.${key}}}`}
+              />
+            </div>
+          ))}
+          <p className="text-[10px] text-muted-foreground">
+            Use <code className="font-mono bg-muted px-0.5 rounded">{'{{context.field}}'}</code> for dynamic values from previous nodes.
+          </p>
+        </div>
+      )}
+
+      {/* Manual mode — raw JSON params fallback when no schema */}
+      {mode === 'manual' && toolName && !schemaProps && (
+        <div className="space-y-1.5">
+          <Label className="text-xs">Parameters (JSON)</Label>
+          <Textarea
+            value={Object.keys(params).length > 0 ? JSON.stringify(params, null, 2) : ''}
+            onChange={(e) => {
+              try { updateConfig('params', JSON.parse(e.target.value)); } catch { /* let user keep typing */ }
+            }}
+            className="text-xs font-mono min-h-[80px]"
+            placeholder={'{\n  "name": "{{context.name}}"\n}'}
+          />
+          <p className="text-[10px] text-muted-foreground">
+            Use <code className="font-mono bg-muted px-0.5 rounded">{'{{context.field}}'}</code> for dynamic values.
+          </p>
+        </div>
+      )}
+
+      {/* AI prompt — shown for ai_params and ai_selection */}
+      {(mode === 'ai_params' || mode === 'ai_selection') && (
+        <div className="space-y-1.5">
+          <Label className="text-xs">
+            {mode === 'ai_params' ? 'Describe parameters' : 'Describe what to do'}
+          </Label>
+          <Textarea
+            value={(config.task_description as string) || ''}
+            onChange={(e) => updateConfig('task_description', e.target.value)}
+            className="text-sm min-h-[80px]"
+            placeholder={
+              mode === 'ai_params'
+                ? 'e.g. Create a follow-up task assigned to the deal owner, due in 3 days'
+                : 'e.g. Look up the contact and log a call activity with a summary'
+            }
+          />
+          {mode === 'ai_selection' && (
+            <p className="text-[10px] text-muted-foreground">
+              The AI will choose the best CRM action based on your description.
+            </p>
+          )}
+        </div>
+      )}
+
+      {/* Output key */}
+      <div className="space-y-1.5">
+        <Label className="text-xs">Output Key</Label>
+        <Input
+          value={(config.output_key as string) || ''}
+          onChange={(e) => updateConfig('output_key', e.target.value)}
+          className="h-8 text-sm"
+          placeholder="crm_result"
+        />
+        <p className="text-[10px] text-muted-foreground">
+          Result stored as <code className="font-mono bg-muted px-0.5 rounded">{'{{context.<output_key>}}'}</code>
+        </p>
+      </div>
+    </div>
+  );
+}
+
 // ── Type-specific config rendering ───────────────────────────────────────────
 
 function renderTypeConfig(
@@ -404,6 +827,7 @@ function renderTypeConfig(
   slug?: string,
   batchUpdateConfig?: (updates: Record<string, unknown>) => void,
   projectType?: string,
+  workflowId?: string,
 ) {
   const { members, tags, sequences, templates } = resources;
   const isCommunity = projectType === 'community';
@@ -433,6 +857,7 @@ function renderTypeConfig(
                 {/* Shared neutral triggers */}
                 <div className="px-2 py-1 text-[10px] font-semibold text-muted-foreground uppercase tracking-wider">General</div>
                 <SelectItem value="manual">Manual (triggered by user)</SelectItem>
+                <SelectItem value="webhook_inbound">Inbound Webhook</SelectItem>
                 <SelectItem value="schedule">Schedule (cron)</SelectItem>
                 {SHARED_TRIGGER_TYPES.map((t) => (
                   <SelectItem key={t} value={t}>{t.replace(/\./g, ' › ')}</SelectItem>
@@ -508,10 +933,8 @@ function renderTypeConfig(
               </div>
             </>
           )}
-          {selectedTrigger === 'webhook_inbound' && (
-            <div className="rounded-md border border-amber-300 bg-amber-50 px-3 py-2 text-[11px] text-amber-900">
-              Inbound webhook triggers are not wired to a public receiver yet. This trigger type should not be used until the webhook endpoint exists.
-            </div>
+          {selectedTrigger === 'webhook_inbound' && slug && workflowId && (
+            <WebhookInboundConfig slug={slug} workflowId={workflowId} />
           )}
 
           {/* Context variable reference */}
@@ -1468,46 +1891,12 @@ function renderTypeConfig(
 
     case 'mcp_tool':
       return (
-        <div className="space-y-3">
-          <div className="space-y-1.5">
-            <Label className="text-xs">Mode</Label>
-            <Select
-              value={(config.mode as string) || 'manual'}
-              onValueChange={(v) => updateConfig('mode', v)}
-            >
-              <SelectTrigger className="h-8 text-sm">
-                <SelectValue />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="manual">Manual (select tool + params)</SelectItem>
-                <SelectItem value="ai_params">AI Parameters (tool selected, AI fills params)</SelectItem>
-                <SelectItem value="ai_selection">AI Selection (AI picks the tool)</SelectItem>
-              </SelectContent>
-            </Select>
-          </div>
-          {((config.mode as string) === 'manual' || (config.mode as string) === 'ai_params' || !config.mode) && (
-            <div className="space-y-1.5">
-              <Label className="text-xs">Tool Name</Label>
-              <Input
-                value={(config.tool_name as string) || ''}
-                onChange={(e) => updateConfig('tool_name', e.target.value)}
-                className="h-8 text-sm"
-                placeholder="e.g. organizations.list"
-              />
-            </div>
-          )}
-          {((config.mode as string) === 'ai_params' || (config.mode as string) === 'ai_selection') && (
-            <div className="space-y-1.5">
-              <Label className="text-xs">Natural Language Prompt</Label>
-              <Textarea
-                value={(config.task_description as string) || ''}
-                onChange={(e) => updateConfig('task_description', e.target.value)}
-                className="text-sm min-h-[80px]"
-                placeholder="Describe what tool to use and how..."
-              />
-            </div>
-          )}
-        </div>
+        <CrmActionPanel
+          config={config}
+          updateConfig={updateConfig}
+          batchUpdateConfig={batchUpdateConfig ?? (() => {})}
+          slug={slug ?? ''}
+        />
       );
 
     case 'loop':

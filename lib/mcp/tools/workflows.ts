@@ -1,7 +1,11 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { checkPermission } from '../auth';
-import { assertWorkflowTriggerSupported, normalizeWorkflowTriggerConfig } from '@/lib/workflows/trigger-config';
+import {
+  assertWorkflowTriggerSupported,
+  normalizeWorkflowTriggerConfig,
+  validateWorkflowTriggerConfig,
+} from '@/lib/workflows/trigger-config';
 import { validateWorkflow } from '@/lib/workflows/validators/validate-workflow';
 import { sanitizeWorkflowDefinition } from '@/lib/workflows/sanitize-nodes';
 import { WORKFLOW_SCHEMA_VERSION } from '@/types/workflow';
@@ -86,8 +90,8 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
     {
       name: z.string().min(1).max(50).describe('Workflow name (lowercase alphanum, hyphens, underscores)'),
       description: z.string().max(2000).optional().describe('Workflow description'),
-      trigger_type: z.string().default('manual').describe('Trigger type. Supported: manual, schedule, and event triggers like entity.created. Unsupported: webhook_inbound.'),
-      trigger_config: z.record(z.string(), z.unknown()).optional().describe('Trigger configuration. For schedule use cron_expression or interval_minutes.'),
+      trigger_type: z.string().default('manual').describe('Trigger type. Supported: manual, schedule, webhook_inbound, and event triggers like entity.created. Inbound webhooks also require a generated secret token before the public receiver will accept requests.'),
+      trigger_config: z.record(z.string(), z.unknown()).optional().describe('Trigger configuration. For schedule use cron_expression or interval_minutes. For webhook_inbound, the server stores the encrypted secret token in trigger_config after token generation.'),
       definition: z.object({
         schema_version: z.string().default(WORKFLOW_SCHEMA_VERSION),
         nodes: z.array(z.record(z.string(), z.unknown())).default([]),
@@ -169,7 +173,7 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
       // Get current workflow for versioning
       const { data: current, error: getError } = await ctx.supabase
         .from('workflows')
-        .select('current_version, definition, trigger_type, trigger_config')
+        .select('current_version, definition, trigger_type, trigger_config, is_active')
         .eq('id', id)
         .eq('project_id', ctx.projectId)
         .single();
@@ -187,6 +191,15 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
           updates.trigger_config as Record<string, unknown>,
         )
         : undefined;
+      const persistedTriggerConfig = normalizedTriggerConfig !== undefined &&
+        effectiveTriggerType === 'webhook_inbound' &&
+        (current.trigger_config as Record<string, unknown> | null)?.webhook_secret_enc &&
+        normalizedTriggerConfig.webhook_secret_enc === undefined
+        ? {
+            ...normalizedTriggerConfig,
+            webhook_secret_enc: (current.trigger_config as Record<string, unknown>).webhook_secret_enc,
+          }
+        : normalizedTriggerConfig;
 
       const definitionChanged = updates.definition !== undefined || updates.trigger_type !== undefined || updates.trigger_config !== undefined;
       const newVersion = definitionChanged ? (current.current_version ?? 0) + 1 : current.current_version;
@@ -195,12 +208,28 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
       if (updates.name !== undefined) updateData.name = updates.name;
       if (updates.description !== undefined) updateData.description = updates.description;
       if (updates.trigger_type !== undefined) updateData.trigger_type = updates.trigger_type;
-      if (normalizedTriggerConfig !== undefined) updateData.trigger_config = normalizedTriggerConfig;
+      if (persistedTriggerConfig !== undefined) updateData.trigger_config = persistedTriggerConfig;
       if (updates.definition !== undefined) {
         const currentDef = current.definition as { schema_version?: string; nodes?: unknown[]; edges?: unknown[] };
         const mergedNodes = (updates.definition.nodes as unknown[] | undefined) ?? currentDef.nodes ?? [];
         const mergedEdges = (updates.definition.edges as unknown[] | undefined) ?? currentDef.edges ?? [];
         updateData.definition = sanitizeWorkflowDefinition(mergedNodes, mergedEdges);
+      }
+
+      const triggerErrors = validateWorkflowTriggerConfig(
+        effectiveTriggerType,
+        (persistedTriggerConfig ?? current.trigger_config) as Record<string, unknown>,
+      );
+      if (triggerErrors.length > 0 && current.is_active) {
+        return {
+          content: [{
+            type: 'text' as const,
+            text: JSON.stringify({
+              error: 'Cannot update active workflow with invalid trigger configuration',
+              validation_errors: triggerErrors,
+            }),
+          }],
+        };
       }
 
       const { data, error } = await ctx.supabase
@@ -220,7 +249,7 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
           version: newVersion,
           definition: (updateData.definition ?? current.definition) as unknown as Json,
           trigger_type: effectiveTriggerType,
-          trigger_config: (normalizedTriggerConfig ?? current.trigger_config) as unknown as Json,
+          trigger_config: (persistedTriggerConfig ?? current.trigger_config) as unknown as Json,
           change_summary: change_summary ?? 'Updated via MCP',
           created_by: ctx.userId,
         });
@@ -277,6 +306,22 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
 
       // Validate before activating
       if (newActive) {
+        const triggerErrors = validateWorkflowTriggerConfig(
+          workflow.trigger_type as string,
+          workflow.trigger_config as Record<string, unknown> | undefined,
+        );
+        if (triggerErrors.length > 0) {
+          return {
+            content: [{
+              type: 'text' as const,
+              text: JSON.stringify({
+                error: 'Cannot activate workflow with invalid trigger configuration',
+                validation_errors: triggerErrors,
+              }),
+            }],
+          };
+        }
+
         const def = workflow.definition as { schema_version: string; nodes: unknown[]; edges: unknown[] };
         const errors = validateWorkflow(def as Parameters<typeof validateWorkflow>[0]);
         const blockers = errors.filter((e) => e.severity === 'error');
@@ -420,6 +465,27 @@ export function registerWorkflowTools(server: McpServer, getContext: () => McpCo
             errors: errors.filter((e) => e.severity === 'error'),
             warnings: errors.filter((e) => e.severity === 'warning'),
           }),
+        }],
+      };
+    }
+  );
+
+  // workflows.list_crm_tools
+  server.tool(
+    'workflows.list_crm_tools',
+    'List all available CRM actions that can be used in a CRM Action workflow node',
+    {},
+    async () => {
+      const ctx = getContext();
+      checkPermission(ctx.role, 'viewer');
+
+      const { getWorkflowToolNames } = await import('@/lib/chat/tool-registry');
+      const names = getWorkflowToolNames();
+
+      return {
+        content: [{
+          type: 'text' as const,
+          text: JSON.stringify({ tools: names, count: names.length }),
         }],
       };
     }
