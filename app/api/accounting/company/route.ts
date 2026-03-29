@@ -1,4 +1,5 @@
 import { createClient, createServiceClient } from '@/lib/supabase/server';
+import { getAccountingMembershipWithCompanyForUser } from '@/lib/accounting/helpers';
 import { NextResponse } from 'next/server';
 import { z } from 'zod';
 
@@ -21,19 +22,13 @@ export async function GET() {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     }
 
-    const { data: membership } = await supabase
-      .from('accounting_company_memberships')
-      .select('company_id, role, accounting_companies(*)')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
+    const membership = await getAccountingMembershipWithCompanyForUser(supabase, user.id);
 
-    if (!membership?.accounting_companies) {
+    if (!membership?.company) {
       return NextResponse.json({ company: null });
     }
 
-    return NextResponse.json({ company: membership.accounting_companies, role: membership.role });
+    return NextResponse.json({ company: membership.company, role: membership.role });
   } catch (error) {
     console.error('Error fetching accounting company:', error);
     return NextResponse.json({ error: 'Internal server error' }, { status: 500 });
@@ -51,19 +46,6 @@ export async function POST(request: Request) {
 
     if (!user) {
       return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
-    }
-
-    // Check if user already has a company
-    const { data: existing } = await supabase
-      .from('accounting_company_memberships')
-      .select('company_id')
-      .eq('user_id', user.id)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .maybeSingle();
-
-    if (existing) {
-      return NextResponse.json({ error: 'You already have an accounting company' }, { status: 400 });
     }
 
     const body = await request.json();
@@ -112,8 +94,21 @@ export async function POST(request: Request) {
 
     if (seedError) {
       console.error('Error seeding default accounts:', seedError);
+      // Clean up both settings and company — settings has no cascade from companies
+      await serviceClient.from('accounting_settings').delete().eq('company_id', company.id);
       await serviceClient.from('accounting_companies').delete().eq('id', company.id);
       return NextResponse.json({ error: 'Failed to initialize accounting company' }, { status: 500 });
+    }
+
+    const { error: selectionError } = await serviceClient
+      .from('user_settings')
+      .upsert(
+        { user_id: user.id, selected_accounting_company_id: company.id },
+        { onConflict: 'user_id' },
+      );
+
+    if (selectionError) {
+      console.error('Error selecting newly created accounting company:', selectionError);
     }
 
     return NextResponse.json({ company }, { status: 201 });

@@ -2,11 +2,18 @@ import { SupabaseClient } from '@supabase/supabase-js';
 import type { Database } from '@/types/database';
 
 type AccountingRole = Database['public']['Enums']['accounting_role'];
+type AccountingCompany = Database['public']['Tables']['accounting_companies']['Row'];
 
 interface AccountingContext {
   companyId: string;
   role: AccountingRole;
   userId: string;
+}
+
+type AccountingMembership = AccountingContext;
+
+interface AccountingMembershipWithCompany extends AccountingMembership {
+  company: AccountingCompany | null;
 }
 
 interface ValidateCompanyAccountIdsOptions {
@@ -19,9 +26,84 @@ interface CompanyAccountRecord {
   parent_id?: string | null;
 }
 
+async function resolveAccountingMembershipForUser(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<AccountingMembership | null> {
+  const { data: settings } = await supabase
+    .from('user_settings')
+    .select('selected_accounting_company_id')
+    .eq('user_id', userId)
+    .maybeSingle();
+
+  const preferredCompanyId = settings?.selected_accounting_company_id ?? null;
+
+  if (preferredCompanyId) {
+    const { data: preferred } = await supabase
+      .from('accounting_company_memberships')
+      .select('company_id, role')
+      .eq('user_id', userId)
+      .eq('company_id', preferredCompanyId)
+      .maybeSingle();
+
+    if (preferred) {
+      return { companyId: preferred.company_id, role: preferred.role, userId };
+    }
+  }
+
+  const { data: membership } = await supabase
+    .from('accounting_company_memberships')
+    .select('company_id, role')
+    .eq('user_id', userId)
+    .order('created_at', { ascending: true })
+    .limit(1)
+    .maybeSingle();
+
+  if (!membership) {
+    return null;
+  }
+
+  return {
+    companyId: membership.company_id,
+    role: membership.role,
+    userId,
+  };
+}
+
+export async function getAccountingMembershipForUser(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<AccountingMembership | null> {
+  return resolveAccountingMembershipForUser(supabase, userId);
+}
+
+export async function getAccountingMembershipWithCompanyForUser(
+  supabase: SupabaseClient<Database>,
+  userId: string,
+): Promise<AccountingMembershipWithCompany | null> {
+  const membership = await resolveAccountingMembershipForUser(supabase, userId);
+
+  if (!membership) {
+    return null;
+  }
+
+  const { data: company } = await supabase
+    .from('accounting_companies')
+    .select('*')
+    .eq('id', membership.companyId)
+    .maybeSingle();
+
+  return {
+    ...membership,
+    company: company ?? null,
+  };
+}
+
 /**
  * Get the current user's accounting company context.
- * Returns null if user has no accounting company.
+ * Respects the user's selected_accounting_company_id preference from user_settings.
+ * Falls back to the oldest membership if no preference is set or it is invalid.
+ * Returns null if user has no accounting company membership.
  */
 export async function getAccountingContext(
   supabase: SupabaseClient<Database>,
@@ -31,22 +113,7 @@ export async function getAccountingContext(
   } = await supabase.auth.getUser();
 
   if (!user) return null;
-
-  const { data: membership } = await supabase
-    .from('accounting_company_memberships')
-    .select('company_id, role')
-    .eq('user_id', user.id)
-    .order('created_at', { ascending: true })
-    .limit(1)
-    .maybeSingle();
-
-  if (!membership) return null;
-
-  return {
-    companyId: membership.company_id,
-    role: membership.role,
-    userId: user.id,
-  };
+  return resolveAccountingMembershipForUser(supabase, user.id);
 }
 
 const ROLE_HIERARCHY: Record<AccountingRole, number> = {
@@ -162,10 +229,14 @@ export async function wouldCreateAccountCycle(
 
   const visited = new Set<string>();
   let currentParentId: string | null = parentAccountId;
-  // BUG-Q fix: cap traversal to prevent unbounded N+1 queries on a corrupted hierarchy
+  // BUG-Q fix: cap traversal to prevent unbounded N+1 queries on a corrupted hierarchy.
+  // If depth limit is hit, treat as a cycle (refuse assignment) — safer than a false negative.
   const MAX_DEPTH = 100;
 
-  while (currentParentId && visited.size < MAX_DEPTH) {
+  while (currentParentId) {
+    if (visited.size >= MAX_DEPTH) {
+      return true; // depth limit hit — refuse to allow assignment
+    }
     if (visited.has(currentParentId)) {
       return true;
     }

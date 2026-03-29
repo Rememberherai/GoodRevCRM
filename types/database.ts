@@ -12410,6 +12410,7 @@ export type Database = {
           notifications_digest: string | null
           notifications_email: boolean | null
           notifications_push: boolean | null
+          selected_accounting_company_id: string | null
           theme: string | null
           time_format: string | null
           timezone: string | null
@@ -12424,6 +12425,7 @@ export type Database = {
           notifications_digest?: string | null
           notifications_email?: boolean | null
           notifications_push?: boolean | null
+          selected_accounting_company_id?: string | null
           theme?: string | null
           time_format?: string | null
           timezone?: string | null
@@ -12438,6 +12440,7 @@ export type Database = {
           notifications_digest?: string | null
           notifications_email?: boolean | null
           notifications_push?: boolean | null
+          selected_accounting_company_id?: string | null
           theme?: string | null
           time_format?: string | null
           timezone?: string | null
@@ -12457,6 +12460,13 @@ export type Database = {
             columns: ["default_project_id"]
             isOneToOne: false
             referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_settings_selected_accounting_company_id_fkey"
+            columns: ["selected_accounting_company_id"]
+            isOneToOne: false
+            referencedRelation: "accounting_companies"
             referencedColumns: ["id"]
           },
           {

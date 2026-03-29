@@ -1,22 +1,55 @@
 import { McpServer } from '@modelcontextprotocol/sdk/server/mcp.js';
 import { z } from 'zod';
 import { checkPermission } from '../auth';
-import { getSignedBalance } from '@/lib/accounting/helpers';
+import { getSignedBalance, hasMinRole } from '@/lib/accounting/helpers';
 import type { McpContext } from '@/types/mcp';
+import type { Database } from '@/types/database';
+
+type AccountingRole = Database['public']['Enums']['accounting_role'];
+
+interface AccountingCtx {
+  companyId: string;
+  accountingRole: AccountingRole;
+}
 
 /**
- * Get the user's accounting company ID from their membership.
+ * Get the user's accounting company ID and role, respecting their selected preference.
+ * Falls back to oldest membership if no preference is set or it is invalid.
  * Returns null if user has no accounting company.
  */
-async function getCompanyId(ctx: McpContext): Promise<string | null> {
+async function getAccountingCtx(ctx: McpContext): Promise<AccountingCtx | null> {
+  const { data: settings } = await ctx.supabase
+    .from('user_settings')
+    .select('selected_accounting_company_id')
+    .eq('user_id', ctx.userId)
+    .maybeSingle();
+
+  const preferredId = settings?.selected_accounting_company_id ?? null;
+  if (preferredId) {
+    const { data: preferred } = await ctx.supabase
+      .from('accounting_company_memberships')
+      .select('company_id, role')
+      .eq('user_id', ctx.userId)
+      .eq('company_id', preferredId)
+      .maybeSingle();
+    if (preferred) return { companyId: preferred.company_id, accountingRole: preferred.role };
+  }
+
   const { data } = await ctx.supabase
     .from('accounting_company_memberships')
-    .select('company_id')
+    .select('company_id, role')
     .eq('user_id', ctx.userId)
     .order('created_at', { ascending: true })
     .limit(1)
     .maybeSingle();
-  return data?.company_id ?? null;
+  if (!data) return null;
+  return { companyId: data.company_id, accountingRole: data.role };
+}
+
+// Backwards-compat shim used by read-only tools that only need the ID
+async function getCompanyId(ctx: McpContext): Promise<string | null> {
+  const result = await getAccountingCtx(ctx);
+  return result?.companyId ?? null;
 }
 
 export function registerAccountingTools(server: McpServer, getContext: () => McpContext) {
@@ -187,8 +220,9 @@ export function registerAccountingTools(server: McpServer, getContext: () => Mcp
     async (params) => {
       const ctx = getContext();
       checkPermission(ctx.role, 'member');
-      const companyId = await getCompanyId(ctx);
-      if (!companyId) throw new Error('No accounting company found');
+      const acctCtx = await getAccountingCtx(ctx);
+      if (!acctCtx) throw new Error('No accounting company found');
+      if (!hasMinRole(acctCtx.accountingRole, 'member')) throw new Error('Insufficient accounting permissions');
 
       // BUG-L fix: pass undefined (not empty string) for optional params
       const { data, error } = await ctx.supabase.rpc('record_invoice_payment', {
