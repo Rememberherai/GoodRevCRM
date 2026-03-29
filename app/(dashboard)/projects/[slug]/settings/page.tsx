@@ -4,7 +4,7 @@ import { useState, useEffect, useCallback, use } from 'react';
 import { useRouter } from 'next/navigation';
 import { useForm } from 'react-hook-form';
 import { zodResolver } from '@hookform/resolvers/zod';
-import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Copy, Plug, Package, Tag, MapPin, RotateCcw } from 'lucide-react';
+import { Loader2, Trash2, Zap, Users, UserPlus, Settings, Search, UserSearch, Copy, Plug, Package, Tag, MapPin, RotateCcw, ShieldAlert } from 'lucide-react';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { updateProjectSchema, type UpdateProjectInput } from '@/lib/validators/project';
 import { Button } from '@/components/ui/button';
@@ -34,6 +34,7 @@ import {
 import { toast } from 'sonner';
 import { LogoUpload } from '@/components/ui/logo-upload';
 import { Label } from '@/components/ui/label';
+import { Switch } from '@/components/ui/switch';
 import { useProjectStore } from '@/stores/project';
 import { useTourStore } from '@/stores/tour';
 import { ResearchSettingsPanel } from '@/components/settings/research-settings';
@@ -273,6 +274,52 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
   const projectType = (currentProject?.project_type as ProjectType | undefined) ?? 'standard';
   const isCommunity = projectType === 'community';
   const isGrants = projectType === 'grants';
+
+  // Risk index toggle (community projects only)
+  const [riskIndexEnabled, setRiskIndexEnabled] = useState(false);
+  const [riskToggleLoading, setRiskToggleLoading] = useState(false);
+
+  useEffect(() => {
+    if (!isCommunity) {
+      setRiskIndexEnabled(false);
+      return;
+    }
+
+    let isMounted = true;
+
+    fetch(`/api/projects/${slug}/settings`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((data) => {
+        if (!isMounted) return;
+        setRiskIndexEnabled(Boolean(data?.settings?.risk_index_enabled));
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setRiskIndexEnabled(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [slug, isCommunity]);
+
+  const handleRiskToggle = async (enabled: boolean) => {
+    setRiskToggleLoading(true);
+    try {
+      const res = await fetch(`/api/projects/${slug}/settings`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ risk_index_enabled: enabled }),
+      });
+      if (!res.ok) throw new Error('Failed to update setting');
+      setRiskIndexEnabled(enabled);
+      toast.success(enabled ? 'Risk index enabled' : 'Risk index disabled');
+    } catch {
+      toast.error('Failed to update risk index setting');
+    } finally {
+      setRiskToggleLoading(false);
+    }
+  };
 
   // Shared content blocks used across both layouts
   const generalContent = (
@@ -603,6 +650,32 @@ export default function ProjectSettingsPage({ params }: ProjectSettingsPageProps
             {generalContent}
             <EmailSignaturesPanel slug={slug} />
             <EmailProviderSettings slug={slug} />
+
+            <Card>
+              <CardHeader>
+                <CardTitle className="flex items-center gap-2">
+                  <ShieldAlert className="h-5 w-5" />
+                  Risk Index
+                </CardTitle>
+                <CardDescription>
+                  Enable the household risk scoring system. When enabled, households are scored based on program enrollment, referrals, engagement, and relationships.
+                </CardDescription>
+              </CardHeader>
+              <CardContent>
+                <div className="flex items-center gap-3">
+                  <Switch
+                    id="risk-index-toggle"
+                    checked={riskIndexEnabled}
+                    onCheckedChange={handleRiskToggle}
+                    disabled={riskToggleLoading}
+                  />
+                  <Label htmlFor="risk-index-toggle">
+                    {riskIndexEnabled ? 'Enabled' : 'Disabled'}
+                  </Label>
+                </div>
+              </CardContent>
+            </Card>
+
             {tourReplayContent}
             {dangerZoneContent}
           </TabsContent>

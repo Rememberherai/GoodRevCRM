@@ -110,9 +110,14 @@ export async function GET(_request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { data: project } = await supabase.from('projects').select('id, project_type, settings').eq('slug', slug).is('deleted_at', null).single();
     if (!project || project.project_type !== 'community') return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    const settings = (project.settings ?? {}) as { risk_index_enabled?: boolean; risk_index_weights?: Partial<RiskWeights> };
+    if (!settings.risk_index_enabled) {
+      return NextResponse.json({ scores: [] });
+    }
+
     await requireCommunityPermission(supabase, user.id, project.id, 'risk_scores', 'view');
 
-    const weights = ((project.settings ?? {}) as { risk_index_weights?: Partial<RiskWeights> }).risk_index_weights;
+    const weights = settings.risk_index_weights;
     const scores = await computeProjectRiskScores(supabase as never, project.id, weights);
     return NextResponse.json({ scores });
   } catch (error) {
@@ -130,10 +135,15 @@ export async function POST(request: Request, context: RouteContext) {
     if (!user) return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
     const { data: project } = await supabase.from('projects').select('id, project_type, settings').eq('slug', slug).is('deleted_at', null).single();
     if (!project || project.project_type !== 'community') return NextResponse.json({ error: 'Project not found' }, { status: 404 });
+    const postSettings = (project.settings ?? {}) as { risk_index_enabled?: boolean; risk_index_weights?: Partial<RiskWeights> };
+    if (!postSettings.risk_index_enabled) {
+      return NextResponse.json({ scores: [] });
+    }
+
     await requireCommunityPermission(supabase, user.id, project.id, 'risk_scores', 'update');
 
     const body = await request.json().catch(() => ({})) as { weights?: Partial<RiskWeights> };
-    const fallbackWeights = ((project.settings ?? {}) as { risk_index_weights?: Partial<RiskWeights> }).risk_index_weights;
+    const fallbackWeights = postSettings.risk_index_weights;
     const scores = await computeProjectRiskScores(supabase as never, project.id, body.weights ?? fallbackWeights);
 
     for (const score of scores.filter((item) => item.tier === 'high')) {

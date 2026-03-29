@@ -136,7 +136,28 @@ const REPORT_TABS = [
 
 export function CommunityReportsPageClient({ projectSlug }: { projectSlug: string }) {
   const { isDenied } = usePermissions();
-  const visibleTabs = REPORT_TABS.filter((t) => !isDenied(t.resource));
+  const [riskEnabled, setRiskEnabled] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch(`/api/projects/${projectSlug}/settings`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d) => {
+        if (!isMounted) return;
+        setRiskEnabled(Boolean(d?.settings?.risk_index_enabled));
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setRiskEnabled(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [projectSlug]);
+
+  const visibleTabs = REPORT_TABS.filter((t) => !isDenied(t.resource) && (t.value !== 'risk' || riskEnabled));
 
   const [data, setData] = useState<CommunityReportsResponse | null>(null);
   const [isLoading, setIsLoading] = useState(true);

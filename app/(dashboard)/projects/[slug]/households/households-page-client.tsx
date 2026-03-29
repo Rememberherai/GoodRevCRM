@@ -56,6 +56,26 @@ export function HouseholdsPageClient() {
   const [totalPages, setTotalPages] = useState(1);
   const [isDialogOpen, setIsDialogOpen] = useState(false);
   const [riskScores, setRiskScores] = useState<Record<string, RiskScoreRecord>>({});
+  const [riskEnabled, setRiskEnabled] = useState(false);
+
+  useEffect(() => {
+    let isMounted = true;
+
+    fetch(`/api/projects/${slug}/settings`)
+      .then((res) => (res.ok ? res.json() : null))
+      .then((d) => {
+        if (!isMounted) return;
+        setRiskEnabled(Boolean(d?.settings?.risk_index_enabled));
+      })
+      .catch(() => {
+        if (!isMounted) return;
+        setRiskEnabled(false);
+      });
+
+    return () => {
+      isMounted = false;
+    };
+  }, [slug]);
 
   const loadHouseholds = useCallback(async (nextPage: number, nextSearch: string) => {
     setIsLoading(true);
@@ -94,6 +114,7 @@ export function HouseholdsPageClient() {
   }, [loadHouseholds, search]);
 
   useEffect(() => {
+    if (!riskEnabled) return;
     const loadRiskScores = async () => {
       const response = await fetch(`/api/projects/${slug}/community/risk-index`);
       if (!response.ok) return;
@@ -102,7 +123,7 @@ export function HouseholdsPageClient() {
     };
 
     void loadRiskScores();
-  }, [slug]);
+  }, [slug, riskEnabled]);
 
   const emptyMessage = useMemo(() => {
     if (search.trim()) {
@@ -195,7 +216,7 @@ export function HouseholdsPageClient() {
                       {household.household_size !== null && (
                         <Badge variant="outline">Size {household.household_size}</Badge>
                       )}
-                      {(() => {
+                      {riskEnabled && (() => {
                         const riskScore = riskScores[household.id];
                         if (!riskScore) return null;
                         return (

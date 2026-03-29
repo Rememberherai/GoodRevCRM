@@ -4,6 +4,7 @@ import type { ProjectRole as UserProjectRole } from './user';
 // Project settings stored in the settings JSONB column
 export interface ProjectSettings {
   customRoles?: string[];
+  risk_index_enabled?: boolean;
 }
 
 export type ProjectType = 'standard' | 'community' | 'grants';
