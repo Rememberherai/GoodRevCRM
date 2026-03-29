@@ -58,7 +58,6 @@ export const programEnrollmentSchema = programEnrollmentBaseSchema.superRefine((
 
 export const attendanceRecordSchema = z.object({
   person_id: uuidSchema,
-  date: dateSchema,
   status: attendanceStatusSchema,
   hours: z.number().min(0).max(24).default(0),
 });
