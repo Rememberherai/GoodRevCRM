@@ -189,6 +189,20 @@ function WorkflowEditorInner({ projectSlug, projectType }: WorkflowEditorProps) 
         target: connection.target,
         sourceHandle: connection.sourceHandle || undefined,
       };
+
+      // Find the start node id so we can clean up the default Start→End edge
+      const startNode = store.nodes.find((n) => n.type === 'start');
+      const endNode = store.nodes.find((n) => n.type === 'end');
+      if (startNode && endNode && connection.source === startNode.id) {
+        // Remove the direct start→end edge if one exists and we're connecting start elsewhere
+        const directEdge = store.edges.find(
+          (e) => e.source === startNode.id && e.target === endNode.id
+        );
+        if (directEdge && connection.target !== endNode.id) {
+          store.removeEdge(directEdge.id);
+        }
+      }
+
       store.addEdge(newEdge);
     },
     []
