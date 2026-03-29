@@ -61,7 +61,7 @@ async function getScopedGmailConnection(
     .select('id, email, project_id, status')
     .eq('id', gmailConnectionId)
     .eq('project_id', projectId)
-    .eq('status', 'active')
+    .eq('status', 'connected')
     .maybeSingle();
 
   return data;

@@ -97,7 +97,7 @@ async function sendViaGmailProvider(
     .select('*')
     .eq('id', config.gmail_connection_id)
     .eq('project_id', projectId)
-    .eq('status', 'active')
+    .eq('status', 'connected')
     .maybeSingle();
 
   if (!gmailConn) {

@@ -122,7 +122,7 @@ async function getProjectGmailConnection(projectId: string, userId: string): Pro
     .select('*')
     .eq('project_id', projectId)
     .eq('user_id', userId)
-    .eq('status', 'active')
+    .eq('status', 'connected')
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
@@ -134,7 +134,7 @@ async function getProjectGmailConnection(projectId: string, userId: string): Pro
     .from('gmail_connections')
     .select('*')
     .eq('project_id', projectId)
-    .eq('status', 'active')
+    .eq('status', 'connected')
     .order('updated_at', { ascending: false })
     .limit(1)
     .maybeSingle();
