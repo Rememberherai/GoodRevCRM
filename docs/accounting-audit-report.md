@@ -14,6 +14,9 @@
 - **BUG-BE** — Opening-balance prior query now has `.limit(50000)` guard against unbounded scans.
 - **BUG-F** — `createGoodRevBill` in `accounting-bridge.ts` now verifies project membership (role ≠ viewer) before creating a bill.
 - **BUG-I** — Invoice PDF now renders a truncation indicator when line items are cut off, instead of silently rendering totals for the full list.
+- **BUG-R** — `validate_invoice_line_item_references` and `validate_bill_line_item_references` now add `AND is_active = true` to the tax rate lookup — inactive tax rates are rejected at insert/update time.
+- **v1-BUG-6** — `recompute_invoice_totals` and `recompute_bill_totals` now read `discount_amount` from the header row and subtract it: `total = subtotal + tax_total - discount_amount`.
+- **0175** — Added missing `resend_domain_id` column to `email_send_configs` (was skipped in 0169 due to `CREATE TABLE IF NOT EXISTS` on an existing table).
 
 **Previously fixed (migration 0173, commit 3ac04e4):**
 - BUG-BN, BUG-BP, BUG-BF, BUG-J, BUG-U, BUG-V, BUG-P, BUG-AZ, BUG-K, BUG-BH, BUG-BJ, BUG-AS, BUG-AJ, BUG-AI, BUG-BK, BUG-S, BUG-T, BUG-AQ, BUG-AX, BUG-G, BUG-H, BUG-L, BUG-Q
@@ -372,7 +375,7 @@ The same pattern exists in `generateCashFlow` (opening cash balance query at lin
 | BUG-C | `recurring_transactions` RLS write policy — replaced with `has_accounting_role('member')` in `0123_recurring_transactions_fixes.sql:35–52` | `0123_recurring_transactions_fixes.sql` | **RESOLVED** |
 | BUG-K | Timezone drift in `advanceDate` — `new Date('YYYY-MM-DD')` parsed as UTC midnight | `recurring.ts:21–52, 95–97` | **RESOLVED** |
 | BUG-A | `InvoicePdfData.discount_amount: number` (required) references dropped column | `invoice-pdf.ts:21` | **RESOLVED** |
-| v1-BUG-6 | `bills.discount_amount` column ignored by `recompute_bill_totals` — silent wrong total | `0112_bills.sql:35, 259` | **Unresolved** |
+| v1-BUG-6 | `bills.discount_amount` column ignored by `recompute_bill_totals` — silent wrong total | `0112_bills.sql:35, 259` | **RESOLVED** |
 | BUG-F | `accounting-bridge.ts` no membership re-validation before bill creation | `accounting-bridge.ts:36–44, 158` | **RESOLVED** |
 | BUG-E | `void_journal_entry` uses `auth.uid()` for `created_by` — FK violation from service role | `0101_accounting_bugfixes.sql:56, 84` | **RESOLVED** |
 | BUG-Q | `wouldCreateAccountCycle` unbounded N+1 DB queries | `lib/accounting/helpers.ts:149–185` | **RESOLVED** |
@@ -391,7 +394,7 @@ The same pattern exists in `generateCashFlow` (opening cash balance query at lin
 | BUG-H | `send_invoice` missing `deleted_at IS NULL` | `0104_invoices.sql:560–564` | **RESOLVED** |
 | BUG-I | Invoice PDF silently truncates items but renders full totals | `invoice-pdf.ts:141–144` | **RESOLVED** |
 | BUG-L | MCP `record_payment` passes `''` instead of null for reference/notes | `lib/mcp/tools/accounting.ts:199–200` | **RESOLVED** |
-| BUG-R | Invoice/bill line item triggers accept `is_active = false` tax rates | `0104_invoices.sql:305–312`, `0112_bills.sql` | **Unresolved** |
+| BUG-R | Invoice/bill line item triggers accept `is_active = false` tax rates | `0104_invoices.sql:305–312`, `0112_bills.sql` | **RESOLVED** |
 | BUG-S | API payment routes pass `undefined` for optional params → empty-string storage | `payments/route.ts:82–84` | **RESOLVED** |
 | BUG-T | Payment POST automation fetch missing `deleted_at IS NULL` | `payments/route.ts:107–113` | **RESOLVED** |
 | BUG-Z | Invoice email route hardcodes `discount_amount: 0` | `invoices/[id]/email/route.ts:134` | **RESOLVED** |
@@ -466,11 +469,9 @@ The same pattern exists in `generateCashFlow` (opening cash balance query at lin
 | v2.7 | +3 | 0 | 4 | **32** |
 | v2.8 | +2 | -2 | 0 | **32** |
 | v2.9 | +1 | 0 (correction only) | 0 | **33** |
-| v3.0 | 0 | -30 (mass fix) | 0 | **3** |
+| v3.0 | 0 | -32 (mass fix) | 0 | **1** |
 
-**Total open: 3 confirmed bugs**
+**Total open: 1 confirmed bug**
 - BUG-BO — multi-company switching (architectural, deferred)
-- v1-BUG-6 — `bills.discount_amount` ignored by `recompute_bill_totals`
-- BUG-R — inactive tax rates accepted on invoice/bill line items
 
-All other 30 bugs resolved across migrations 0173–0174 and TypeScript fixes.
+All other 32 bugs resolved across migrations 0173–0176 and TypeScript fixes.

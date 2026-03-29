@@ -7,30 +7,10 @@ export type Json =
   | Json[]
 
 export type Database = {
-  graphql_public: {
-    Tables: {
-      [_ in never]: never
-    }
-    Views: {
-      [_ in never]: never
-    }
-    Functions: {
-      graphql: {
-        Args: {
-          extensions?: Json
-          operationName?: string
-          query?: string
-          variables?: Json
-        }
-        Returns: Json
-      }
-    }
-    Enums: {
-      [_ in never]: never
-    }
-    CompositeTypes: {
-      [_ in never]: never
-    }
+  // Allows to automatically instantiate createClient with right options
+  // instead of createClient<Database, { PostgrestVersion: 'XX' }>(URL, KEY)
+  __InternalSupabase: {
+    PostgrestVersion: "14.1"
   }
   public: {
     Tables: {
@@ -3749,8 +3729,8 @@ export type Database = {
           is_default: boolean | null
           project_id: string
           provider: string
-          resend_domain_id: string | null
           resend_api_key_encrypted: string | null
+          resend_domain_id: string | null
           updated_at: string | null
         }
         Insert: {
@@ -3764,8 +3744,8 @@ export type Database = {
           is_default?: boolean | null
           project_id: string
           provider: string
-          resend_domain_id?: string | null
           resend_api_key_encrypted?: string | null
+          resend_domain_id?: string | null
           updated_at?: string | null
         }
         Update: {
@@ -3779,8 +3759,8 @@ export type Database = {
           is_default?: boolean | null
           project_id?: string
           provider?: string
-          resend_domain_id?: string | null
           resend_api_key_encrypted?: string | null
+          resend_domain_id?: string | null
           updated_at?: string | null
         }
         Relationships: [
@@ -13250,27 +13230,50 @@ export type Database = {
         }
         Returns: string
       }
-      create_invoice: {
-        Args: {
-          p_company_id: string
-          p_contact_id?: string
-          p_currency?: string
-          p_customer_address?: string
-          p_customer_email?: string
-          p_customer_name: string
-          p_customer_phone?: string
-          p_due_date: string
-          p_exchange_rate?: number
-          p_footer?: string
-          p_invoice_date: string
-          p_lines: Json
-          p_notes?: string
-          p_organization_id?: string
-          p_payment_terms?: number
-          p_project_id?: string
-        }
-        Returns: string
-      }
+      create_invoice:
+        | {
+            Args: {
+              p_company_id: string
+              p_contact_id?: string
+              p_currency?: string
+              p_customer_address?: string
+              p_customer_email?: string
+              p_customer_name: string
+              p_customer_phone?: string
+              p_due_date: string
+              p_exchange_rate?: number
+              p_footer?: string
+              p_invoice_date: string
+              p_lines: Json
+              p_notes?: string
+              p_organization_id?: string
+              p_payment_terms?: number
+              p_project_id?: string
+            }
+            Returns: string
+          }
+        | {
+            Args: {
+              p_company_id: string
+              p_contact_id?: string
+              p_created_by?: string
+              p_currency?: string
+              p_customer_address?: string
+              p_customer_email?: string
+              p_customer_name: string
+              p_customer_phone?: string
+              p_due_date: string
+              p_exchange_rate?: number
+              p_footer?: string
+              p_invoice_date: string
+              p_lines: Json
+              p_notes?: string
+              p_organization_id?: string
+              p_payment_terms?: number
+              p_project_id?: string
+            }
+            Returns: string
+          }
       create_invoice_with_links: {
         Args: {
           p_company_id: string
@@ -13933,7 +13936,12 @@ export type Database = {
       }
       void_bill: { Args: { p_bill_id: string }; Returns: string }
       void_invoice: { Args: { p_invoice_id: string }; Returns: string }
-      void_journal_entry: { Args: { p_entry_id: string }; Returns: string }
+      void_journal_entry:
+        | { Args: { p_entry_id: string }; Returns: string }
+        | {
+            Args: { p_calling_user?: string; p_entry_id: string }
+            Returns: string
+          }
     }
     Enums: {
       accounting_role: "owner" | "admin" | "member" | "viewer"
@@ -14110,9 +14118,6 @@ export type CompositeTypes<
     : never
 
 export const Constants = {
-  graphql_public: {
-    Enums: {},
-  },
   public: {
     Enums: {
       accounting_role: ["owner", "admin", "member", "viewer"],
