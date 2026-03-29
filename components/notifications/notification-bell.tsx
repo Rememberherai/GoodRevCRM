@@ -60,7 +60,7 @@ export function NotificationBell({
         </Button>
       </PopoverTrigger>
       <PopoverContent className="w-96 p-0 overflow-hidden" align="end">
-        <div className="flex flex-col max-h-[min(500px,80vh)] overflow-hidden">
+        <div className="flex flex-col h-[min(500px,80vh)] overflow-hidden">
           <NotificationList
             notifications={notifications.slice(0, 20)}
             onMarkAsRead={onMarkAsRead}
