@@ -74,10 +74,10 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
   const [canViewIntake, setCanViewIntake] = useState(false);
   const [showReferralDialog, setShowReferralDialog] = useState(false);
   const [showIncidentDialog, setShowIncidentDialog] = useState(false);
-  const defaultTab = searchParams.get('tab') ?? 'members';
+  const [activeTab, setActiveTab] = useState(searchParams.get('tab') ?? 'members');
 
-  const loadHousehold = useCallback(async () => {
-    setIsLoading(true);
+  const loadHousehold = useCallback(async (showSkeleton = true) => {
+    if (showSkeleton) setIsLoading(true);
     setError(null);
 
     try {
@@ -98,7 +98,7 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
   }, [householdId, slug]);
 
   useEffect(() => {
-    void loadHousehold();
+    void loadHousehold(true);
   }, [loadHousehold]);
 
   const address = useMemo(() => {
@@ -223,7 +223,7 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
         </Card>
       </div>
 
-      <Tabs defaultValue={defaultTab}>
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="programs">Programs</TabsTrigger>
@@ -238,7 +238,7 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
           <HouseholdMembersTab
             householdId={household.id}
             initialMembers={household.household_members}
-            onRefresh={loadHousehold}
+            onRefresh={() => loadHousehold(false)}
           />
         </TabsContent>
 
@@ -329,7 +329,7 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
               projectSlug={slug}
               householdId={household.id}
               activeCase={household.active_case}
-              onCaseChanged={loadHousehold}
+              onCaseChanged={() => loadHousehold(false)}
             />
           </TabsContent>
         )}

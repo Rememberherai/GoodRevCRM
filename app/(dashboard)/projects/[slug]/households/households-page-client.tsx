@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { Home, Plus, Search } from 'lucide-react';
+import { Plus, Search } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Input } from '@/components/ui/input';
@@ -135,17 +135,7 @@ export function HouseholdsPageClient() {
   return (
     <div className="space-y-6">
       <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <Home className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Households</h2>
-            <p className="text-sm text-muted-foreground">
-              Track families, living units, primary contacts, and intake.
-            </p>
-          </div>
-        </div>
+        <div />
         <Button onClick={() => setIsDialogOpen(true)}>
           <Plus className="mr-2 h-4 w-4" />
           New Household
@@ -178,14 +168,6 @@ export function HouseholdsPageClient() {
           </form>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="flex gap-2">
-            <Button asChild variant="default">
-              <Link href={`/projects/${slug}/households`}>Households</Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href={`/projects/${slug}/households/cases`}>Cases</Link>
-            </Button>
-          </div>
 
           {error && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">

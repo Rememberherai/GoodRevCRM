@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createClient } from '@/lib/supabase/server';
+import { createClient, createServiceClient } from '@/lib/supabase/server';
 import { getAuthenticatedUser, getProjectBySlug } from '@/lib/community/server';
 import { requireCommunityPermission, type CommunityAction } from '@/lib/projects/community-permissions';
 import { ProjectAccessError } from '@/lib/projects/permissions';
@@ -24,7 +24,10 @@ async function resolveContext(slug: string, action: CommunityAction) {
   }
 
   const role = await requireCommunityPermission(supabase, user.id, project.id, 'incidents', action);
-  return { supabase, user, project, role };
+  // Use service role client for DB operations — permissions are already verified above,
+  // and the user-session client's auth.uid() can be unreliable in RLS context via SSR.
+  const serviceClient = createServiceClient();
+  return { supabase: serviceClient, user, project, role };
 }
 
 export async function GET(request: Request, context: RouteContext) {

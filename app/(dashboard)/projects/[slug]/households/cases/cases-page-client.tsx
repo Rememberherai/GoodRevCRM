@@ -3,7 +3,6 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams } from 'next/navigation';
-import { ClipboardList } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@/components/ui/select';
@@ -52,23 +51,6 @@ export function CasesPageClient() {
 
   return (
     <div className="space-y-6">
-      <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-        <div className="flex items-center gap-3">
-          <div className="flex h-11 w-11 items-center justify-center rounded-xl bg-primary text-primary-foreground">
-            <ClipboardList className="h-5 w-5" />
-          </div>
-          <div>
-            <h2 className="text-3xl font-bold tracking-tight">Cases</h2>
-            <p className="text-sm text-muted-foreground">
-              Household case queue with follow-up and priority tracking.
-            </p>
-          </div>
-        </div>
-        <Button asChild variant="outline">
-          <Link href={`/projects/${slug}/households`}>Back to Households</Link>
-        </Button>
-      </div>
-
       <Card>
         <CardHeader>
           <CardTitle>Case Queue</CardTitle>
