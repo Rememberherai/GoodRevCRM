@@ -6096,6 +6096,244 @@ export type Database = {
           },
         ]
       }
+      household_case_events: {
+        Row: {
+          case_id: string
+          created_at: string
+          created_by: string | null
+          event_type: string
+          household_id: string
+          id: string
+          metadata: Json
+          project_id: string
+          summary: string
+        }
+        Insert: {
+          case_id: string
+          created_at?: string
+          created_by?: string | null
+          event_type: string
+          household_id: string
+          id?: string
+          metadata?: Json
+          project_id: string
+          summary: string
+        }
+        Update: {
+          case_id?: string
+          created_at?: string
+          created_by?: string | null
+          event_type?: string
+          household_id?: string
+          id?: string
+          metadata?: Json
+          project_id?: string
+          summary?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "household_case_events_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "household_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "household_case_events_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "household_case_events_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "household_case_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "household_case_events_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      household_case_goals: {
+        Row: {
+          case_id: string
+          completed_at: string | null
+          created_at: string
+          description: string | null
+          dimension_id: string | null
+          id: string
+          owner_user_id: string | null
+          sort_order: number
+          status: string
+          target_date: string | null
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          case_id: string
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          dimension_id?: string | null
+          id?: string
+          owner_user_id?: string | null
+          sort_order?: number
+          status?: string
+          target_date?: string | null
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          case_id?: string
+          completed_at?: string | null
+          created_at?: string
+          description?: string | null
+          dimension_id?: string | null
+          id?: string
+          owner_user_id?: string | null
+          sort_order?: number
+          status?: string
+          target_date?: string | null
+          title?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "household_case_goals_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "household_cases"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "household_case_goals_dimension_id_fkey"
+            columns: ["dimension_id"]
+            isOneToOne: false
+            referencedRelation: "impact_dimensions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "household_case_goals_owner_user_id_fkey"
+            columns: ["owner_user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      household_cases: {
+        Row: {
+          assigned_to: string | null
+          barriers: string | null
+          closed_at: string | null
+          closed_reason: string | null
+          consent_notes: string | null
+          created_at: string
+          created_by: string | null
+          household_id: string
+          id: string
+          last_contact_at: string | null
+          next_follow_up_at: string | null
+          opened_at: string
+          priority: string
+          project_id: string
+          status: string
+          strengths: string | null
+          summary: string | null
+          updated_at: string
+        }
+        Insert: {
+          assigned_to?: string | null
+          barriers?: string | null
+          closed_at?: string | null
+          closed_reason?: string | null
+          consent_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          household_id: string
+          id?: string
+          last_contact_at?: string | null
+          next_follow_up_at?: string | null
+          opened_at?: string
+          priority?: string
+          project_id: string
+          status?: string
+          strengths?: string | null
+          summary?: string | null
+          updated_at?: string
+        }
+        Update: {
+          assigned_to?: string | null
+          barriers?: string | null
+          closed_at?: string | null
+          closed_reason?: string | null
+          consent_notes?: string | null
+          created_at?: string
+          created_by?: string | null
+          household_id?: string
+          id?: string
+          last_contact_at?: string | null
+          next_follow_up_at?: string | null
+          opened_at?: string
+          priority?: string
+          project_id?: string
+          status?: string
+          strengths?: string | null
+          summary?: string | null
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "household_cases_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "household_cases_created_by_fkey"
+            columns: ["created_by"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "household_cases_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "household_cases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "household_cases_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       household_intake: {
         Row: {
           assessed_at: string
@@ -6470,6 +6708,167 @@ export type Database = {
           {
             foreignKeyName: "import_jobs_user_id_fkey"
             columns: ["user_id"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incident_people: {
+        Row: {
+          created_at: string
+          id: string
+          incident_id: string
+          notes: string | null
+          person_id: string
+          role: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          incident_id: string
+          notes?: string | null
+          person_id: string
+          role?: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          incident_id?: string
+          notes?: string | null
+          person_id?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incident_people_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incident_people_person_id_fkey"
+            columns: ["person_id"]
+            isOneToOne: false
+            referencedRelation: "people"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      incidents: {
+        Row: {
+          asset_id: string | null
+          assigned_to: string | null
+          category: string
+          created_at: string
+          details: string | null
+          event_id: string | null
+          follow_up_due_at: string | null
+          household_id: string | null
+          id: string
+          location_text: string | null
+          occurred_at: string
+          project_id: string
+          reported_at: string
+          reported_by: string | null
+          resolution_notes: string | null
+          severity: string
+          status: string
+          summary: string
+          updated_at: string
+          visibility: string
+        }
+        Insert: {
+          asset_id?: string | null
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          details?: string | null
+          event_id?: string | null
+          follow_up_due_at?: string | null
+          household_id?: string | null
+          id?: string
+          location_text?: string | null
+          occurred_at: string
+          project_id: string
+          reported_at?: string
+          reported_by?: string | null
+          resolution_notes?: string | null
+          severity?: string
+          status?: string
+          summary: string
+          updated_at?: string
+          visibility?: string
+        }
+        Update: {
+          asset_id?: string | null
+          assigned_to?: string | null
+          category?: string
+          created_at?: string
+          details?: string | null
+          event_id?: string | null
+          follow_up_due_at?: string | null
+          household_id?: string | null
+          id?: string
+          location_text?: string | null
+          occurred_at?: string
+          project_id?: string
+          reported_at?: string
+          reported_by?: string | null
+          resolution_notes?: string | null
+          severity?: string
+          status?: string
+          summary?: string
+          updated_at?: string
+          visibility?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "incidents_asset_id_fkey"
+            columns: ["asset_id"]
+            isOneToOne: false
+            referencedRelation: "community_assets"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_assigned_to_fkey"
+            columns: ["assigned_to"]
+            isOneToOne: false
+            referencedRelation: "users"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_event_id_fkey"
+            columns: ["event_id"]
+            isOneToOne: false
+            referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "incidents_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "incidents_reported_by_fkey"
+            columns: ["reported_by"]
             isOneToOne: false
             referencedRelation: "users"
             referencedColumns: ["id"]
@@ -7973,13 +8372,16 @@ export type Database = {
       }
       notes: {
         Row: {
+          case_id: string | null
           category: string | null
           content: string
           content_html: string | null
           created_at: string | null
           created_by: string
           event_id: string | null
+          household_id: string | null
           id: string
+          incident_id: string | null
           is_pinned: boolean
           opportunity_id: string | null
           organization_id: string | null
@@ -7989,13 +8391,16 @@ export type Database = {
           updated_at: string | null
         }
         Insert: {
+          case_id?: string | null
           category?: string | null
           content: string
           content_html?: string | null
           created_at?: string | null
           created_by: string
           event_id?: string | null
+          household_id?: string | null
           id?: string
+          incident_id?: string | null
           is_pinned?: boolean
           opportunity_id?: string | null
           organization_id?: string | null
@@ -8005,13 +8410,16 @@ export type Database = {
           updated_at?: string | null
         }
         Update: {
+          case_id?: string | null
           category?: string | null
           content?: string
           content_html?: string | null
           created_at?: string | null
           created_by?: string
           event_id?: string | null
+          household_id?: string | null
           id?: string
+          incident_id?: string | null
           is_pinned?: boolean
           opportunity_id?: string | null
           organization_id?: string | null
@@ -8021,6 +8429,13 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: [
+          {
+            foreignKeyName: "notes_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "household_cases"
+            referencedColumns: ["id"]
+          },
           {
             foreignKeyName: "notes_created_by_fkey"
             columns: ["created_by"]
@@ -8033,6 +8448,20 @@ export type Database = {
             columns: ["event_id"]
             isOneToOne: false
             referencedRelation: "events"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "notes_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
             referencedColumns: ["id"]
           },
           {
@@ -12034,13 +12463,16 @@ export type Database = {
       tasks: {
         Row: {
           assigned_to: string | null
+          case_id: string | null
           completed_at: string | null
           created_at: string | null
           created_by: string
           description: string | null
           due_date: string | null
           grant_id: string | null
+          household_id: string | null
           id: string
+          incident_id: string | null
           opportunity_id: string | null
           organization_id: string | null
           person_id: string | null
@@ -12054,13 +12486,16 @@ export type Database = {
         }
         Insert: {
           assigned_to?: string | null
+          case_id?: string | null
           completed_at?: string | null
           created_at?: string | null
           created_by: string
           description?: string | null
           due_date?: string | null
           grant_id?: string | null
+          household_id?: string | null
           id?: string
+          incident_id?: string | null
           opportunity_id?: string | null
           organization_id?: string | null
           person_id?: string | null
@@ -12074,13 +12509,16 @@ export type Database = {
         }
         Update: {
           assigned_to?: string | null
+          case_id?: string | null
           completed_at?: string | null
           created_at?: string | null
           created_by?: string
           description?: string | null
           due_date?: string | null
           grant_id?: string | null
+          household_id?: string | null
           id?: string
+          incident_id?: string | null
           opportunity_id?: string | null
           organization_id?: string | null
           person_id?: string | null
@@ -12101,6 +12539,13 @@ export type Database = {
             referencedColumns: ["id"]
           },
           {
+            foreignKeyName: "tasks_case_id_fkey"
+            columns: ["case_id"]
+            isOneToOne: false
+            referencedRelation: "household_cases"
+            referencedColumns: ["id"]
+          },
+          {
             foreignKeyName: "tasks_created_by_fkey"
             columns: ["created_by"]
             isOneToOne: false
@@ -12112,6 +12557,20 @@ export type Database = {
             columns: ["grant_id"]
             isOneToOne: false
             referencedRelation: "grants"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_household_id_fkey"
+            columns: ["household_id"]
+            isOneToOne: false
+            referencedRelation: "households"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "tasks_incident_id_fkey"
+            columns: ["incident_id"]
+            isOneToOne: false
+            referencedRelation: "incidents"
             referencedColumns: ["id"]
           },
           {
@@ -13184,6 +13643,14 @@ export type Database = {
       cleanup_old_notifications: {
         Args: { p_days_old?: number }
         Returns: number
+      }
+      community_can_access_case: {
+        Args: { p_action: string; p_case_id: string }
+        Returns: boolean
+      }
+      community_can_access_incident: {
+        Args: { p_action: string; p_incident_id: string }
+        Returns: boolean
       }
       community_can_access_shared_directory: {
         Args: { p_action: string; p_project_id: string }

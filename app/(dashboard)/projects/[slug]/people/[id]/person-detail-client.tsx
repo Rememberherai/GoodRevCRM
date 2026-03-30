@@ -71,6 +71,7 @@ import { NewScopeDialog } from '@/components/community/contractors/new-scope-dia
 import { PersonRelationshipsTab } from '@/components/community/people/person-relationships-tab';
 import { PersonApprovedForTab } from '@/components/community/people/person-approved-for-tab';
 import { PersonParticipationTab } from '@/components/community/people/person-participation-tab';
+import { ReportIncidentDialog } from '@/components/community/incidents/report-incident-dialog';
 
 interface PersonDetailClientProps {
   personId: string;
@@ -112,6 +113,7 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
   const [scopesLoading, setScopesLoading] = useState(false);
   const [showNewScope, setShowNewScope] = useState(false);
   const [isEmployeeToggling, setIsEmployeeToggling] = useState(false);
+  const [showReportIncident, setShowReportIncident] = useState(false);
   const { checkWithDisposition, GuardDialog } = useOutreachGuard(slug);
 
   const { person, isLoading, error, refresh, setPerson } = usePerson(personId);
@@ -487,6 +489,12 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
             <ListTodo className="mr-2 h-4 w-4" />
             Follow Up
           </Button>
+          {projectType === 'community' && (
+            <Button variant="outline" onClick={() => setShowReportIncident(true)}>
+              <AlertTriangle className="mr-2 h-4 w-4" />
+              Report Incident
+            </Button>
+          )}
           {person.email && (
             <Button variant="outline" onClick={handleGuardedSendEmail}>
               <Mail className="mr-2 h-4 w-4" />
@@ -1149,6 +1157,15 @@ export function PersonDetailClient({ personId, companyContext, currentUserId, pr
           projectSlug={slug}
           contractorId={personId}
           onCreated={() => void loadScopes()}
+        />
+      )}
+
+      {projectType === 'community' && (
+        <ReportIncidentDialog
+          open={showReportIncident}
+          onOpenChange={setShowReportIncident}
+          projectSlug={slug}
+          initialPersonId={personId}
         />
       )}
 

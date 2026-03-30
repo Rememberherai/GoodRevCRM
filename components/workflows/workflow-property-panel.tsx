@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { startTransition, useCallback, useEffect, useState } from 'react';
 import { useParams } from 'next/navigation';
 import { Check, ChevronsUpDown, Copy, Loader2, RefreshCw, X } from 'lucide-react';
 import { cn } from '@/lib/utils';
@@ -181,6 +181,16 @@ const TRIGGER_CONTEXT_FIELDS: Partial<Record<WorkflowTriggerType, string[]>> = {
   'referral.overdue': ['referral.id', 'referral.service_type', 'referral.status', 'referral.created_at', 'referral.household_id'],
   'broadcast.sent': ['broadcast.id', 'broadcast.subject', 'broadcast.channel', 'broadcast.recipient_count', 'broadcast.sent_at'],
   'risk_score.high': ['household.id', 'household.name', 'household.risk_score', 'household.primary_contact_id'],
+  'case.created': ['case.id', 'case.household_id', 'case.status', 'case.priority', 'case.assigned_to', 'case.next_follow_up_at'],
+  'case.status_changed': ['case.id', 'case.household_id', 'case.status', 'case.priority', 'case.closed_reason'],
+  'case.assigned': ['case.id', 'case.household_id', 'case.assigned_to', 'case.priority', 'case.next_follow_up_at'],
+  'case.follow_up_due': ['case.id', 'case.household_id', 'case.assigned_to', 'case.next_follow_up_at', 'case.priority'],
+  'case.goal_completed': ['case.id', 'case.household_id', 'goal.id', 'goal.title', 'goal.completed_at'],
+  'case.no_contact': ['case.id', 'case.household_id', 'case.last_contact_at', 'case.assigned_to', 'case.priority'],
+  'incident.created': ['incident.id', 'incident.household_id', 'incident.event_id', 'incident.asset_id', 'incident.severity', 'incident.category', 'incident.visibility'],
+  'incident.severity_changed': ['incident.id', 'incident.household_id', 'incident.severity', 'incident.category', 'incident.visibility'],
+  'incident.follow_up_due': ['incident.id', 'incident.household_id', 'incident.follow_up_due_at', 'incident.assigned_to', 'incident.severity'],
+  'incident.resolved': ['incident.id', 'incident.household_id', 'incident.severity', 'incident.category', 'incident.resolution_notes'],
   'event.created': ['event.id', 'event.title', 'event.start_at', 'event.end_at', 'event.location', 'event.capacity'],
   'event.published': ['event.id', 'event.title', 'event.start_at', 'event.registration_count'],
   'event.cancelled': ['event.id', 'event.title', 'event.start_at'],
@@ -204,6 +214,8 @@ const COMMUNITY_ENTITY_FIELD_SUGGESTIONS: Record<string, string[]> = {
   grant: ['status', 'amount_requested', 'amount_awarded', 'deadline', 'report_due_date', 'tier', 'urgency', 'category', 'mission_fit'],
   job: ['status', 'priority', 'service_address', 'contractor_id', 'assigned_at', 'completed_at'],
   referral: ['service_type', 'status', 'outcome', 'partner_organization_id', 'created_at'],
+  case: ['status', 'priority', 'assigned_to', 'opened_at', 'closed_at', 'last_contact_at', 'next_follow_up_at'],
+  incident: ['status', 'severity', 'category', 'visibility', 'assigned_to', 'occurred_at', 'follow_up_due_at'],
   registration: ['waiver_status', 'check_in_at', 'event_id', 'person_id'],
   access: ['status', 'start_time', 'end_time', 'approved_by', 'purpose'],
   broadcast: ['status', 'channel', 'recipient_count', 'sent_at'],
@@ -613,12 +625,12 @@ function CrmActionPanel({ config, updateConfig, batchUpdateConfig, slug }: CrmAc
 
   useEffect(() => {
     if (!slug) return;
-    setToolsLoading(true);
+    startTransition(() => setToolsLoading(true));
     fetch(`/api/projects/${slug}/workflows/tools`)
       .then((r) => r.json())
-      .then((d) => setGroups(d.groups ?? []))
-      .catch(() => setGroups([]))
-      .finally(() => setToolsLoading(false));
+      .then((d) => startTransition(() => setGroups(d.groups ?? [])))
+      .catch(() => startTransition(() => setGroups([])))
+      .finally(() => startTransition(() => setToolsLoading(false)));
   }, [slug]);
 
   const allTools = groups.flatMap((g) => g.tools);

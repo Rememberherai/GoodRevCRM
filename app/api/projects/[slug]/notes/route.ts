@@ -1,6 +1,8 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { createNoteSchema, noteQuerySchema } from '@/lib/validators/note';
+import { ensureProjectEntity } from '@/lib/community/ops';
+import { canAccessCommunityResource, getProjectMembershipRole } from '@/lib/community/server';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -31,12 +33,21 @@ export async function GET(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    const membershipRole = await getProjectMembershipRole(supabase, user.id, project.id);
+    if (!membershipRole) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
     const { searchParams } = new URL(request.url);
     const queryResult = noteQuerySchema.safeParse({
       person_id: searchParams.get('person_id') ?? undefined,
       organization_id: searchParams.get('organization_id') ?? undefined,
       opportunity_id: searchParams.get('opportunity_id') ?? undefined,
       rfp_id: searchParams.get('rfp_id') ?? undefined,
+      household_id: searchParams.get('household_id') ?? undefined,
+      case_id: searchParams.get('case_id') ?? undefined,
+      incident_id: searchParams.get('incident_id') ?? undefined,
+      category: searchParams.get('category') ?? undefined,
       limit: searchParams.get('limit') ?? undefined,
       offset: searchParams.get('offset') ?? undefined,
     });
@@ -48,10 +59,20 @@ export async function GET(request: Request, context: RouteContext) {
       );
     }
 
-    const { person_id, organization_id, opportunity_id, rfp_id, limit, offset } = queryResult.data;
+    const { person_id, organization_id, opportunity_id, rfp_id, household_id, case_id, incident_id, category, limit, offset } = queryResult.data;
 
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
+    const canViewCases = await canAccessCommunityResource(supabase, user.id, project.id, 'cases', 'view');
+    const canViewIncidents = await canAccessCommunityResource(supabase, user.id, project.id, 'incidents', 'view');
+
+    if (case_id && !canViewCases) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
+    if (incident_id && !canViewIncidents) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
 
     let query = supabaseAny
       .from('notes')
@@ -62,6 +83,12 @@ export async function GET(request: Request, context: RouteContext) {
     if (organization_id) query = query.eq('organization_id', organization_id);
     if (opportunity_id) query = query.eq('opportunity_id', opportunity_id);
     if (rfp_id) query = query.eq('rfp_id', rfp_id);
+    if (household_id) query = query.eq('household_id', household_id);
+    if (case_id) query = query.eq('case_id', case_id);
+    if (incident_id) query = query.eq('incident_id', incident_id);
+    if (category) query = query.eq('category', category);
+    if (!case_id && !canViewCases) query = query.is('case_id', null);
+    if (!incident_id && !canViewIncidents) query = query.is('incident_id', null);
 
     const { data: notes, error } = await query
       .order('is_pinned', { ascending: false })
@@ -108,6 +135,11 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    const membershipRole = await getProjectMembershipRole(supabase, user.id, project.id);
+    if (!membershipRole) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
     const body = await request.json();
     const validationResult = createNoteSchema.safeParse(body);
 
@@ -118,7 +150,7 @@ export async function POST(request: Request, context: RouteContext) {
       );
     }
 
-    const { person_id, organization_id, opportunity_id, rfp_id } = validationResult.data;
+    const { person_id, organization_id, opportunity_id, rfp_id, household_id, case_id, incident_id } = validationResult.data;
 
     // Validate that referenced entities belong to this project
     if (person_id) {
@@ -170,14 +202,73 @@ export async function POST(request: Request, context: RouteContext) {
       }
     }
 
+    if (household_id) {
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const exists = await ensureProjectEntity(supabase as any, 'households', household_id, project.id);
+      if (!exists) {
+        return NextResponse.json({ error: 'Household not found in this project' }, { status: 400 });
+      }
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
+
+    let inferredHouseholdId = household_id ?? null;
+
+    if (case_id) {
+      const canCreateCaseNotes = await canAccessCommunityResource(supabase, user.id, project.id, 'cases', 'create');
+      if (!canCreateCaseNotes) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
+
+      const { data: caseRecord } = await supabaseAny
+        .from('household_cases')
+        .select('id, household_id')
+        .eq('project_id', project.id)
+        .eq('id', case_id)
+        .single();
+      if (!caseRecord) {
+        return NextResponse.json({ error: 'Case not found in this project' }, { status: 400 });
+      }
+      if (inferredHouseholdId && caseRecord.household_id && inferredHouseholdId !== caseRecord.household_id) {
+        return NextResponse.json(
+          { error: 'household_id must match the household linked to case_id' },
+          { status: 400 }
+        );
+      }
+      inferredHouseholdId = inferredHouseholdId ?? caseRecord.household_id;
+    }
+
+    if (incident_id) {
+      const canCreateIncidentNotes = await canAccessCommunityResource(supabase, user.id, project.id, 'incidents', 'create');
+      if (!canCreateIncidentNotes) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
+
+      const { data: incidentRecord } = await supabaseAny
+        .from('incidents')
+        .select('id, household_id')
+        .eq('project_id', project.id)
+        .eq('id', incident_id)
+        .single();
+      if (!incidentRecord) {
+        return NextResponse.json({ error: 'Incident not found in this project' }, { status: 400 });
+      }
+      if (inferredHouseholdId && incidentRecord.household_id && inferredHouseholdId !== incidentRecord.household_id) {
+        return NextResponse.json(
+          { error: 'household_id must match the household linked to incident_id' },
+          { status: 400 }
+        );
+      }
+      inferredHouseholdId = inferredHouseholdId ?? incidentRecord.household_id ?? null;
+    }
 
     const { data: note, error } = await supabaseAny
       .from('notes')
       .insert({
         project_id: project.id,
         ...validationResult.data,
+        household_id: inferredHouseholdId,
         created_by: user.id,
       })
       .select('*, author:users!notes_created_by_fkey(id, full_name, email, avatar_url)')

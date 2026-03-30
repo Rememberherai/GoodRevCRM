@@ -8,10 +8,24 @@ export const createNoteSchema = z.object({
   organization_id: z.string().uuid().nullable().optional(),
   opportunity_id: z.string().uuid().nullable().optional(),
   rfp_id: z.string().uuid().nullable().optional(),
+  household_id: z.string().uuid().nullable().optional(),
+  case_id: z.string().uuid().nullable().optional(),
+  incident_id: z.string().uuid().nullable().optional(),
+  category: z.string().max(100).nullable().optional(),
   is_pinned: z.boolean().default(false),
 }).refine(
-  (data) => data.person_id || data.organization_id || data.opportunity_id || data.rfp_id,
+  (data) =>
+    data.person_id ||
+    data.organization_id ||
+    data.opportunity_id ||
+    data.rfp_id ||
+    data.household_id ||
+    data.case_id ||
+    data.incident_id,
   { message: 'At least one entity association is required' }
+).refine(
+  (data) => !(data.case_id && data.incident_id),
+  { message: 'A note cannot belong to both a case and an incident' }
 );
 
 export type CreateNoteInput = z.infer<typeof createNoteSchema>;
@@ -20,6 +34,7 @@ export type CreateNoteInput = z.infer<typeof createNoteSchema>;
 export const updateNoteSchema = z.object({
   content: z.string().min(1).max(50000).optional(),
   content_html: z.string().max(100000).nullable().optional(),
+  category: z.string().max(100).nullable().optional(),
   is_pinned: z.boolean().optional(),
 });
 
@@ -31,6 +46,10 @@ export const noteQuerySchema = z.object({
   organization_id: z.string().uuid().optional(),
   opportunity_id: z.string().uuid().optional(),
   rfp_id: z.string().uuid().optional(),
+  household_id: z.string().uuid().optional(),
+  case_id: z.string().uuid().optional(),
+  incident_id: z.string().uuid().optional(),
+  category: z.string().optional(),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
   offset: z.coerce.number().min(0).optional().default(0),
 });

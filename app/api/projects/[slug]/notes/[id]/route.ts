@@ -1,9 +1,30 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { updateNoteSchema } from '@/lib/validators/note';
+import { canAccessCommunityResource, getProjectMembershipRole } from '@/lib/community/server';
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
+}
+
+async function getNoteRecord(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  supabase: any,
+  projectId: string,
+  noteId: string
+) {
+  const { data, error } = await supabase
+    .from('notes')
+    .select('*, author:users!notes_created_by_fkey(id, full_name, email, avatar_url)')
+    .eq('id', noteId)
+    .eq('project_id', projectId)
+    .single();
+
+  if (error || !data) {
+    return null;
+  }
+
+  return data;
 }
 
 // GET /api/projects/[slug]/notes/[id] - Get single note
@@ -31,18 +52,31 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    const membershipRole = await getProjectMembershipRole(supabase, user.id, project.id);
+    if (!membershipRole) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
-    const { data: note, error } = await supabaseAny
-      .from('notes')
-      .select('*, author:users!notes_created_by_fkey(id, full_name, email, avatar_url)')
-      .eq('id', id)
-      .eq('project_id', project.id)
-      .single();
-
-    if (error || !note) {
+    const note = await getNoteRecord(supabaseAny, project.id, id);
+    if (!note) {
       return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+    }
+
+    if (note.case_id) {
+      const canViewCases = await canAccessCommunityResource(supabase, user.id, project.id, 'cases', 'view');
+      if (!canViewCases) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
+    }
+
+    if (note.incident_id) {
+      const canViewIncidents = await canAccessCommunityResource(supabase, user.id, project.id, 'incidents', 'view');
+      if (!canViewIncidents) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
     }
 
     return NextResponse.json(note);
@@ -77,6 +111,11 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    const membershipRole = await getProjectMembershipRole(supabase, user.id, project.id);
+    if (!membershipRole) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
     const body = await request.json();
     const validationResult = updateNoteSchema.safeParse(body);
 
@@ -90,6 +129,25 @@ export async function PATCH(request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
+    const existing = await getNoteRecord(supabaseAny, project.id, id);
+    if (!existing) {
+      return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+    }
+
+    if (existing.case_id) {
+      const canUpdateCases = await canAccessCommunityResource(supabase, user.id, project.id, 'cases', 'update');
+      if (!canUpdateCases) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
+    } else if (existing.incident_id) {
+      const canUpdateIncidents = await canAccessCommunityResource(supabase, user.id, project.id, 'incidents', 'update');
+      if (!canUpdateIncidents) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
+    } else if (existing.created_by !== user.id) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
     const { data: note, error } = await supabaseAny
       .from('notes')
       .update({
@@ -98,17 +156,12 @@ export async function PATCH(request: Request, context: RouteContext) {
       })
       .eq('id', id)
       .eq('project_id', project.id)
-      .eq('created_by', user.id)
       .select('*, author:users!notes_created_by_fkey(id, full_name, email, avatar_url)')
       .single();
 
     if (error) {
       console.error('Error updating note:', error);
       return NextResponse.json({ error: 'Failed to update note' }, { status: 500 });
-    }
-
-    if (!note) {
-      return NextResponse.json({ error: 'Note not found' }, { status: 404 });
     }
 
     return NextResponse.json(note);
@@ -143,15 +196,38 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    const membershipRole = await getProjectMembershipRole(supabase, user.id, project.id);
+    if (!membershipRole) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
+
+    const existing = await getNoteRecord(supabaseAny, project.id, id);
+    if (!existing) {
+      return NextResponse.json({ error: 'Note not found' }, { status: 404 });
+    }
+
+    if (existing.case_id) {
+      const canDeleteCases = await canAccessCommunityResource(supabase, user.id, project.id, 'cases', 'delete');
+      if (!canDeleteCases) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
+    } else if (existing.incident_id) {
+      const canDeleteIncidents = await canAccessCommunityResource(supabase, user.id, project.id, 'incidents', 'delete');
+      if (!canDeleteIncidents) {
+        return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+      }
+    } else if (existing.created_by !== user.id && !['owner', 'admin'].includes(membershipRole)) {
+      return NextResponse.json({ error: 'Access denied' }, { status: 403 });
+    }
 
     const { error } = await supabaseAny
       .from('notes')
       .delete()
       .eq('id', id)
-      .eq('project_id', project.id)
-      .eq('created_by', user.id);
+      .eq('project_id', project.id);
 
     if (error) {
       console.error('Error deleting note:', error);

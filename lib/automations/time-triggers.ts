@@ -37,6 +37,8 @@ const entityTableMap: Record<string, string> = {
   task: 'tasks',
   meeting: 'meetings',
   household: 'households',
+  case: 'household_cases',
+  incident: 'incidents',
   program: 'programs',
   program_enrollment: 'program_enrollments',
   program_attendance: 'program_attendance',
@@ -52,6 +54,14 @@ const entityTableMap: Record<string, string> = {
   grant: 'grants',
   grant_report_schedule: 'grant_report_schedules',
 };
+
+const ENTITY_TYPES_WITH_DELETED_AT = new Set<AutomationEntityType>([
+  'organization',
+  'person',
+  'opportunity',
+  'rfp',
+  'household',
+]);
 
 /**
  * Process all time-based automation triggers
@@ -153,6 +163,15 @@ async function processTimeAutomation(
     case 'job.inaction_warning':
       matchedEntityIds = await findInactionJobs(supabase, projectId, triggerConfig);
       break;
+    case 'case.follow_up_due':
+      matchedEntityIds = await findCasesWithFollowUpDue(supabase, projectId);
+      break;
+    case 'case.no_contact':
+      matchedEntityIds = await findCasesWithNoContact(supabase, projectId, triggerConfig);
+      break;
+    case 'incident.follow_up_due':
+      matchedEntityIds = await findIncidentsWithFollowUpDue(supabase, projectId);
+      break;
     default:
       return 0;
   }
@@ -226,6 +245,11 @@ function getEntityTypeForTrigger(triggerType: TriggerType, config: TriggerConfig
       return 'grant_report_schedule';
     case 'job.inaction_warning':
       return 'job';
+    case 'case.follow_up_due':
+    case 'case.no_contact':
+      return 'case';
+    case 'incident.follow_up_due':
+      return 'incident';
     default:
       return 'organization';
   }
@@ -244,13 +268,18 @@ async function findInactiveEntities(
 
   const cutoffDate = new Date(Date.now() - days * 86400000).toISOString();
 
-  const { data } = await supabase
+  let query = supabase
     .from(tableName)
     .select('id')
     .eq('project_id', projectId)
     .lt('updated_at', cutoffDate)
-    .is('deleted_at', null)
     .limit(100);
+
+  if (ENTITY_TYPES_WITH_DELETED_AT.has(entityType)) {
+    query = query.is('deleted_at', null);
+  }
+
+  const { data } = await query;
 
   return (data ?? []).map((r: { id: string }) => r.id);
 }
@@ -309,14 +338,19 @@ async function findCreatedAgo(
   const targetStart = new Date(Date.now() - days * 86400000);
   const targetEnd = new Date(Date.now() - (days - 1) * 86400000);
 
-  const { data } = await supabase
+  let query = supabase
     .from(tableName)
     .select('id')
     .eq('project_id', projectId)
     .gte('created_at', targetStart.toISOString())
     .lt('created_at', targetEnd.toISOString())
-    .is('deleted_at', null)
     .limit(100);
+
+  if (ENTITY_TYPES_WITH_DELETED_AT.has(entityType)) {
+    query = query.is('deleted_at', null);
+  }
+
+  const { data } = await query;
 
   return (data ?? []).map((r: { id: string }) => r.id);
 }
@@ -440,4 +474,59 @@ async function findInactionJobs(
 
   const jobsWithEntries = new Set((timeEntries ?? []).map((t: { job_id: string }) => t.job_id));
   return jobIds.filter((id: string) => !jobsWithEntries.has(id));
+}
+
+async function findCasesWithFollowUpDue(
+  supabase: ReturnType<typeof createAdminClient>,
+  projectId: string
+): Promise<string[]> {
+  const now = new Date().toISOString();
+  const { data } = await supabase
+    .from('household_cases')
+    .select('id')
+    .eq('project_id', projectId)
+    .lt('next_follow_up_at', now)
+    .neq('status', 'closed')
+    .limit(100);
+
+  return (data ?? []).map((row: { id: string }) => row.id);
+}
+
+async function findCasesWithNoContact(
+  supabase: ReturnType<typeof createAdminClient>,
+  projectId: string,
+  config: TriggerConfig
+): Promise<string[]> {
+  const rawDays = config.days ?? 14;
+  const days = Math.min(Math.max(Math.floor(rawDays), 1), 365);
+  const cutoffDate = new Date(Date.now() - days * 86400000).toISOString();
+  const { data } = await supabase
+    .from('household_cases')
+    .select('id, opened_at, last_contact_at')
+    .eq('project_id', projectId)
+    .neq('status', 'closed')
+    .limit(200);
+
+  return (data ?? [])
+    .filter((row: { id: string; opened_at: string; last_contact_at: string | null }) => {
+      const comparison = row.last_contact_at ?? row.opened_at;
+      return comparison < cutoffDate;
+    })
+    .map((row: { id: string }) => row.id);
+}
+
+async function findIncidentsWithFollowUpDue(
+  supabase: ReturnType<typeof createAdminClient>,
+  projectId: string
+): Promise<string[]> {
+  const now = new Date().toISOString();
+  const { data } = await supabase
+    .from('incidents')
+    .select('id')
+    .eq('project_id', projectId)
+    .lt('follow_up_due_at', now)
+    .not('status', 'in', '(resolved,closed)')
+    .limit(100);
+
+  return (data ?? []).map((row: { id: string }) => row.id);
 }

@@ -178,6 +178,15 @@ export function HouseholdsPageClient() {
           </form>
         </CardHeader>
         <CardContent className="space-y-4">
+          <div className="flex gap-2">
+            <Button asChild variant="default">
+              <Link href={`/projects/${slug}/households`}>Households</Link>
+            </Button>
+            <Button asChild variant="outline">
+              <Link href={`/projects/${slug}/households/cases`}>Cases</Link>
+            </Button>
+          </div>
+
           {error && (
             <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
               {error}

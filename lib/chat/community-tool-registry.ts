@@ -14,6 +14,13 @@ import { emitAutomationEvent } from '@/lib/automations/engine';
 import { deriveFieldsFromDesign } from '@/lib/email-builder/derive-fields';
 import { createHouseholdSchema, updateHouseholdSchema } from '@/lib/validators/community/households';
 import {
+  caseListQuerySchema,
+  createCaseGoalSchema,
+  createCaseSchema,
+  updateCaseGoalSchema,
+  updateCaseSchema,
+} from '@/lib/validators/case';
+import {
   batchAttendanceSchema,
   createProgramSchema,
   programEnrollmentBaseSchema,
@@ -50,6 +57,13 @@ import { bridgeCheckInToAttendance, promoteFromWaitlist } from '@/lib/events/ser
 import { matchParsedNames, parseSignInSheet } from '@/lib/events/scan-attendance';
 import { generateSeriesInstances, syncFutureSeriesInstances, updateFutureInstances } from '@/lib/events/series';
 import { sendEventCancellationConfirmation, sendWaitlistPromotionNotification } from '@/lib/events/notifications';
+import {
+  createIncidentSchema,
+  incidentListQuerySchema,
+  incidentPersonSchema,
+  updateIncidentSchema,
+} from '@/lib/validators/incident';
+import { createHouseholdCaseEvent, normalizeIncidentVisibility } from '@/lib/community/ops';
 import type { ProjectRole } from '@/types/user';
 import type { Database, Json } from '@/types/database';
 
@@ -170,6 +184,74 @@ const householdsUpdateToolSchema = updateHouseholdSchema.omit({
   intake: true,
 }).extend({
   id: z.string().uuid(),
+});
+const casesListSchema = caseListQuerySchema.extend({
+  page: z.number().int().min(1).default(1),
+}).omit({ offset: true });
+const casesCreateToolSchema = createCaseSchema;
+const casesUpdateToolSchema = updateCaseSchema.extend({
+  id: z.string().uuid(),
+});
+const casesCloseToolSchema = z.object({
+  id: z.string().uuid(),
+  closed_reason: z.string().max(2000).nullable().optional(),
+});
+const caseGoalsListSchema = z.object({
+  case_id: z.string().uuid(),
+});
+const caseGoalsCreateToolSchema = createCaseGoalSchema.extend({
+  case_id: z.string().uuid(),
+});
+const caseGoalsUpdateToolSchema = updateCaseGoalSchema.extend({
+  case_id: z.string().uuid(),
+  goal_id: z.string().uuid(),
+});
+const caseGoalsDeleteToolSchema = z.object({
+  case_id: z.string().uuid(),
+  goal_id: z.string().uuid(),
+});
+const caseNoteBaseSchema = z.object({
+  content: z.string().min(1).max(50000),
+  content_html: z.string().max(100000).nullable().optional(),
+  category: z.string().max(100).nullable().optional(),
+  is_pinned: z.boolean().default(false),
+});
+const caseNotesListSchema = z.object({
+  case_id: z.string().uuid(),
+});
+const caseNotesCreateToolSchema = caseNoteBaseSchema.extend({
+  case_id: z.string().uuid(),
+});
+const casesTimelineToolSchema = z.object({
+  household_id: z.string().uuid(),
+  cursor: z.string().datetime().optional(),
+  limit: z.number().int().min(1).max(200).default(50),
+  types: z.array(z.enum(['intake', 'referral', 'note', 'task', 'case_event', 'incident'])).optional(),
+});
+
+const incidentsListSchema = incidentListQuerySchema.extend({
+  page: z.number().int().min(1).default(1),
+}).omit({ offset: true });
+const incidentsCreateToolSchema = createIncidentSchema;
+const incidentsUpdateToolSchema = updateIncidentSchema.extend({
+  id: z.string().uuid(),
+});
+const incidentsResolveToolSchema = z.object({
+  id: z.string().uuid(),
+  resolution_notes: z.string().max(10000).nullable().optional(),
+});
+const incidentPeopleAddToolSchema = incidentPersonSchema.extend({
+  incident_id: z.string().uuid(),
+});
+const incidentPeopleRemoveToolSchema = z.object({
+  incident_id: z.string().uuid(),
+  link_id: z.string().uuid(),
+});
+const incidentNotesListSchema = z.object({
+  incident_id: z.string().uuid(),
+});
+const incidentNotesCreateToolSchema = caseNoteBaseSchema.extend({
+  incident_id: z.string().uuid(),
 });
 
 const programsListSchema = paginatedListSchema.extend({
@@ -367,6 +449,48 @@ function communityError(message: string) {
   return new Error(message);
 }
 
+async function getHouseholdCaseById(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  projectId: string,
+  caseId: string
+) {
+  const { data, error } = await admin
+    .from('household_cases')
+    .select(`
+      *,
+      household:households(id, name),
+      assignee:users!household_cases_assigned_to_fkey(id, full_name, email)
+    `)
+    .eq('project_id', projectId)
+    .eq('id', caseId)
+    .single();
+
+  if (error || !data) return null;
+  return data;
+}
+
+async function getIncidentById(
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
+  admin: any,
+  projectId: string,
+  incidentId: string
+) {
+  const { data, error } = await admin
+    .from('incidents')
+    .select(`
+      *,
+      household:households(id, name),
+      assignee:users!incidents_assigned_to_fkey(id, full_name, email)
+    `)
+    .eq('project_id', projectId)
+    .eq('id', incidentId)
+    .single();
+
+  if (error || !data) return null;
+  return data;
+}
+
 defineCommunityTool({
   name: 'households.list',
   description: 'List community households with optional search and pagination.',
@@ -496,6 +620,1052 @@ defineCommunityTool({
       data: data as Record<string, unknown>,
     });
     return JSON.stringify({ household: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'cases.list',
+  description: 'List household cases with filters for status, priority, assignee, and overdue follow-up.',
+  resource: 'cases',
+  action: 'view',
+  roles: ['owner', 'admin', 'case_manager'],
+  parameters: casesListSchema,
+  handler: async (params, ctx) => {
+    const parsed = casesListSchema.parse(params);
+    const admin = createAdminClient();
+    const { offset, to } = paginate(parsed.page, parsed.limit);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = (admin as any)
+      .from('household_cases')
+      .select(`
+        *,
+        household:households(id, name),
+        assignee:users!household_cases_assigned_to_fkey(id, full_name, email)
+      `, { count: 'exact' })
+      .eq('project_id', ctx.projectId);
+
+    if (parsed.status) query = query.eq('status', parsed.status);
+    if (parsed.priority) query = query.eq('priority', parsed.priority);
+    if (parsed.assigned_to) query = query.eq('assigned_to', parsed.assigned_to);
+    if (parsed.household_id) query = query.eq('household_id', parsed.household_id);
+    if (parsed.overdue) query = query.lt('next_follow_up_at', new Date().toISOString()).neq('status', 'closed');
+
+    const { data, error, count } = await query
+      .order('next_follow_up_at', { ascending: true, nullsFirst: false })
+      .order('priority', { ascending: false })
+      .range(offset, to);
+
+    if (error) throw communityError(`Failed to list cases: ${error.message}`);
+    return JSON.stringify({
+      cases: data ?? [],
+      pagination: {
+        page: parsed.page,
+        limit: parsed.limit,
+        total: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / parsed.limit),
+      },
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'cases.get',
+  description: 'Get a single case with goals, linked notes, and linked tasks.',
+  resource: 'cases',
+  action: 'view',
+  roles: ['owner', 'admin', 'case_manager'],
+  parameters: entityGetSchema,
+  handler: async (params, ctx) => {
+    const parsed = entityGetSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const caseRecord = await getHouseholdCaseById(adminAny, ctx.projectId, parsed.id);
+    if (!caseRecord) throw communityError('Case not found');
+
+    const [goalsResult, notesResult, tasksResult] = await Promise.all([
+      adminAny
+        .from('household_case_goals')
+        .select('*')
+        .eq('case_id', parsed.id)
+        .order('sort_order', { ascending: true })
+        .order('created_at', { ascending: true }),
+      adminAny
+        .from('notes')
+        .select('*, author:users!notes_created_by_fkey(id, full_name, email, avatar_url)')
+        .eq('project_id', ctx.projectId)
+        .eq('case_id', parsed.id)
+        .order('is_pinned', { ascending: false })
+        .order('created_at', { ascending: false }),
+      adminAny
+        .from('tasks')
+        .select('*, assigned_user:users!tasks_assigned_to_fkey(id, full_name, email)')
+        .eq('project_id', ctx.projectId)
+        .eq('case_id', parsed.id)
+        .order('due_date', { ascending: true, nullsFirst: false }),
+    ]);
+
+    return JSON.stringify({
+      case: caseRecord,
+      goals: goalsResult.data ?? [],
+      notes: notesResult.data ?? [],
+      tasks: tasksResult.data ?? [],
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'cases.create',
+  description: 'Open a new household case.',
+  resource: 'cases',
+  action: 'create',
+  roles: ['owner', 'admin', 'case_manager'],
+  parameters: casesCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = casesCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+
+    const { data: household } = await adminAny
+      .from('households')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.household_id)
+      .is('deleted_at', null)
+      .single();
+    if (!household) throw communityError('Household not found in this project');
+
+    if (parsed.assigned_to) {
+      const { data: membership } = await adminAny
+        .from('project_memberships')
+        .select('id')
+        .eq('project_id', ctx.projectId)
+        .eq('user_id', parsed.assigned_to)
+        .single();
+      if (!membership) throw communityError('assigned_to must be a member of this project');
+    }
+
+    const { data: existing } = await adminAny
+      .from('household_cases')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('household_id', parsed.household_id)
+      .neq('status', 'closed')
+      .maybeSingle();
+    if (existing) throw communityError('This household already has an active case');
+
+    const { data, error } = await adminAny
+      .from('household_cases')
+      .insert({
+        ...parsed,
+        project_id: ctx.projectId,
+        created_by: ctx.userId,
+      })
+      .select(`
+        *,
+        household:households(id, name),
+        assignee:users!household_cases_assigned_to_fkey(id, full_name, email)
+      `)
+      .single();
+    if (error || !data) throw communityError(`Failed to create case: ${error?.message ?? 'unknown error'}`);
+
+    await createHouseholdCaseEvent(adminAny, {
+      caseId: data.id,
+      householdId: data.household_id,
+      projectId: ctx.projectId,
+      eventType: 'opened',
+      summary: 'Case opened',
+      createdBy: ctx.userId,
+    });
+
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'case.created' as never,
+      entityType: 'case' as never,
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+
+    return JSON.stringify({ case: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'cases.update',
+  description: 'Update a household case.',
+  resource: 'cases',
+  action: 'update',
+  roles: ['owner', 'admin', 'case_manager'],
+  parameters: casesUpdateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = casesUpdateToolSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const existing = await getHouseholdCaseById(adminAny, ctx.projectId, parsed.id);
+    if (!existing) throw communityError('Case not found');
+
+    if (parsed.assigned_to) {
+      const { data: membership } = await adminAny
+        .from('project_memberships')
+        .select('id')
+        .eq('project_id', ctx.projectId)
+        .eq('user_id', parsed.assigned_to)
+        .single();
+      if (!membership) throw communityError('assigned_to must be a member of this project');
+    }
+
+    const { id, ...updates } = parsed;
+    const payload: Record<string, unknown> = {
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+
+    if (payload.status === 'closed') {
+      payload.closed_at = new Date().toISOString();
+    } else if (payload.status && payload.status !== 'closed') {
+      payload.closed_at = null;
+    }
+
+    const { data, error } = await adminAny
+      .from('household_cases')
+      .update(payload)
+      .eq('project_id', ctx.projectId)
+      .eq('id', id)
+      .select(`
+        *,
+        household:households(id, name),
+        assignee:users!household_cases_assigned_to_fkey(id, full_name, email)
+      `)
+      .single();
+    if (error || !data) throw communityError(`Failed to update case: ${error?.message ?? 'unknown error'}`);
+
+    if (parsed.status && parsed.status !== existing.status) {
+      await createHouseholdCaseEvent(adminAny, {
+        caseId: data.id,
+        householdId: data.household_id,
+        projectId: ctx.projectId,
+        eventType: parsed.status === 'closed' ? 'closed' : 'status_changed',
+        summary: parsed.status === 'closed' ? 'Case closed' : `Case status changed to ${parsed.status}`,
+        createdBy: ctx.userId,
+        metadata: { from: existing.status, to: parsed.status },
+      });
+      emitAutomationEvent({
+        projectId: ctx.projectId,
+        triggerType: 'case.status_changed' as never,
+        entityType: 'case' as never,
+        entityId: data.id,
+        data: data as Record<string, unknown>,
+        previousData: { status: existing.status },
+      });
+    }
+
+    if (Object.prototype.hasOwnProperty.call(parsed, 'assigned_to') && parsed.assigned_to !== existing.assigned_to) {
+      await createHouseholdCaseEvent(adminAny, {
+        caseId: data.id,
+        householdId: data.household_id,
+        projectId: ctx.projectId,
+        eventType: 'assigned',
+        summary: data.assignee?.full_name ? `Assigned to ${data.assignee.full_name}` : 'Case assignment updated',
+        createdBy: ctx.userId,
+        metadata: { from: existing.assigned_to, to: parsed.assigned_to },
+      });
+      emitAutomationEvent({
+        projectId: ctx.projectId,
+        triggerType: 'case.assigned' as never,
+        entityType: 'case' as never,
+        entityId: data.id,
+        data: data as Record<string, unknown>,
+      });
+    }
+
+    if (Object.prototype.hasOwnProperty.call(parsed, 'next_follow_up_at') && parsed.next_follow_up_at !== existing.next_follow_up_at) {
+      await createHouseholdCaseEvent(adminAny, {
+        caseId: data.id,
+        householdId: data.household_id,
+        projectId: ctx.projectId,
+        eventType: 'follow_up_scheduled',
+        summary: data.next_follow_up_at ? 'Follow-up scheduled' : 'Follow-up cleared',
+        createdBy: ctx.userId,
+        metadata: { from: existing.next_follow_up_at, to: data.next_follow_up_at },
+      });
+    }
+
+    if (parsed.last_contact_at && parsed.last_contact_at !== existing.last_contact_at) {
+      await createHouseholdCaseEvent(adminAny, {
+        caseId: data.id,
+        householdId: data.household_id,
+        projectId: ctx.projectId,
+        eventType: 'contact_logged',
+        summary: 'Contact recorded',
+        createdBy: ctx.userId,
+      });
+    }
+
+    return JSON.stringify({ case: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'cases.close',
+  description: 'Close a household case.',
+  resource: 'cases',
+  action: 'update',
+  roles: ['owner', 'admin', 'case_manager'],
+  parameters: casesCloseToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = casesCloseToolSchema.parse(params);
+    return executeCommunityTool('cases.update', {
+      id: parsed.id,
+      status: 'closed',
+      closed_reason: parsed.closed_reason ?? null,
+    }, ctx);
+  },
+});
+
+defineCommunityTool({
+  name: 'cases.goals.list',
+  description: 'List goals for a case.',
+  resource: 'cases',
+  action: 'view',
+  roles: ['owner', 'admin', 'case_manager'],
+  parameters: caseGoalsListSchema,
+  handler: async (params, ctx) => {
+    const parsed = caseGoalsListSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const caseRecord = await getHouseholdCaseById(adminAny, ctx.projectId, parsed.case_id);
+    if (!caseRecord) throw communityError('Case not found');
+    const { data, error } = await adminAny
+      .from('household_case_goals')
+      .select('*')
+      .eq('case_id', parsed.case_id)
+      .order('sort_order', { ascending: true })
+      .order('created_at', { ascending: true });
+    if (error) throw communityError(`Failed to list case goals: ${error.message}`);
+    return JSON.stringify({ goals: data ?? [] });
+  },
+});
+
+defineCommunityTool({
+  name: 'cases.goals.create',
+  description: 'Create a new goal on a case.',
+  resource: 'cases',
+  action: 'create',
+  roles: ['owner', 'admin', 'case_manager'],
+  parameters: caseGoalsCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = caseGoalsCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const caseRecord = await getHouseholdCaseById(adminAny, ctx.projectId, parsed.case_id);
+    if (!caseRecord) throw communityError('Case not found');
+
+    if (parsed.owner_user_id) {
+      const { data: membership } = await adminAny
+        .from('project_memberships')
+        .select('id')
+        .eq('project_id', ctx.projectId)
+        .eq('user_id', parsed.owner_user_id)
+        .single();
+      if (!membership) throw communityError('owner_user_id must be a member of this project');
+    }
+
+    const { case_id, ...goalValues } = parsed;
+    const { data, error } = await adminAny
+      .from('household_case_goals')
+      .insert({
+        ...goalValues,
+        case_id,
+      })
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to create case goal: ${error?.message ?? 'unknown error'}`);
+
+    await createHouseholdCaseEvent(adminAny, {
+      caseId: case_id,
+      householdId: caseRecord.household_id,
+      projectId: ctx.projectId,
+      eventType: 'status_changed',
+      summary: `Goal created: ${data.title}`,
+      createdBy: ctx.userId,
+      metadata: { goal_id: data.id },
+    });
+
+    return JSON.stringify({ goal: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'cases.goals.update',
+  description: 'Update a case goal.',
+  resource: 'cases',
+  action: 'update',
+  roles: ['owner', 'admin', 'case_manager'],
+  parameters: caseGoalsUpdateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = caseGoalsUpdateToolSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const caseRecord = await getHouseholdCaseById(adminAny, ctx.projectId, parsed.case_id);
+    if (!caseRecord) throw communityError('Case not found');
+
+    const { data: existing } = await adminAny
+      .from('household_case_goals')
+      .select('*')
+      .eq('case_id', parsed.case_id)
+      .eq('id', parsed.goal_id)
+      .single();
+    if (!existing) throw communityError('Case goal not found');
+
+    if (parsed.owner_user_id) {
+      const { data: membership } = await adminAny
+        .from('project_memberships')
+        .select('id')
+        .eq('project_id', ctx.projectId)
+        .eq('user_id', parsed.owner_user_id)
+        .single();
+      if (!membership) throw communityError('owner_user_id must be a member of this project');
+    }
+
+    const { case_id, goal_id, ...goalUpdates } = parsed;
+    const payload: Record<string, unknown> = {
+      ...goalUpdates,
+      updated_at: new Date().toISOString(),
+    };
+    if (goalUpdates.status === 'completed' && !goalUpdates.completed_at) {
+      payload.completed_at = new Date().toISOString();
+    }
+
+    const { data, error } = await adminAny
+      .from('household_case_goals')
+      .update(payload)
+      .eq('case_id', case_id)
+      .eq('id', goal_id)
+      .select('*')
+      .single();
+    if (error || !data) throw communityError(`Failed to update case goal: ${error?.message ?? 'unknown error'}`);
+
+    if (goalUpdates.status === 'completed' && existing.status !== 'completed') {
+      await createHouseholdCaseEvent(adminAny, {
+        caseId: case_id,
+        householdId: caseRecord.household_id,
+        projectId: ctx.projectId,
+        eventType: 'goal_completed',
+        summary: `Goal completed: ${data.title}`,
+        createdBy: ctx.userId,
+        metadata: { goal_id: data.id },
+      });
+      emitAutomationEvent({
+        projectId: ctx.projectId,
+        triggerType: 'case.goal_completed' as never,
+        entityType: 'case' as never,
+        entityId: case_id,
+        data: {
+          case_id,
+          goal: data,
+        },
+      });
+    }
+
+    return JSON.stringify({ goal: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'cases.goals.delete',
+  description: 'Delete a case goal.',
+  resource: 'cases',
+  action: 'delete',
+  roles: ['owner', 'admin', 'case_manager'],
+  parameters: caseGoalsDeleteToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = caseGoalsDeleteToolSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const caseRecord = await getHouseholdCaseById(adminAny, ctx.projectId, parsed.case_id);
+    if (!caseRecord) throw communityError('Case not found');
+
+    const { data: existingGoal } = await adminAny
+      .from('household_case_goals')
+      .select('id')
+      .eq('case_id', parsed.case_id)
+      .eq('id', parsed.goal_id)
+      .single();
+    if (!existingGoal) throw communityError('Case goal not found');
+
+    const { error } = await adminAny
+      .from('household_case_goals')
+      .delete()
+      .eq('case_id', parsed.case_id)
+      .eq('id', parsed.goal_id);
+    if (error) throw communityError(`Failed to delete case goal: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+defineCommunityTool({
+  name: 'cases.notes.list',
+  description: 'List notes linked to a case.',
+  resource: 'cases',
+  action: 'view',
+  roles: ['owner', 'admin', 'case_manager'],
+  parameters: caseNotesListSchema,
+  handler: async (params, ctx) => {
+    const parsed = caseNotesListSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const caseRecord = await getHouseholdCaseById(adminAny, ctx.projectId, parsed.case_id);
+    if (!caseRecord) throw communityError('Case not found');
+    const { data, error } = await adminAny
+      .from('notes')
+      .select('*, author:users!notes_created_by_fkey(id, full_name, email, avatar_url)')
+      .eq('project_id', ctx.projectId)
+      .eq('case_id', parsed.case_id)
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error) throw communityError(`Failed to load case notes: ${error.message}`);
+    return JSON.stringify({ notes: data ?? [] });
+  },
+});
+
+defineCommunityTool({
+  name: 'cases.notes.create',
+  description: 'Create a note linked to a case.',
+  resource: 'cases',
+  action: 'create',
+  roles: ['owner', 'admin', 'case_manager'],
+  parameters: caseNotesCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = caseNotesCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const caseRecord = await getHouseholdCaseById(adminAny, ctx.projectId, parsed.case_id);
+    if (!caseRecord) throw communityError('Case not found');
+
+    const { data, error } = await adminAny
+      .from('notes')
+      .insert({
+        project_id: ctx.projectId,
+        content: parsed.content,
+        content_html: parsed.content_html ?? null,
+        category: parsed.category ?? null,
+        is_pinned: parsed.is_pinned,
+        household_id: caseRecord.household_id,
+        case_id: parsed.case_id,
+        incident_id: null,
+        created_by: ctx.userId,
+      })
+      .select('*, author:users!notes_created_by_fkey(id, full_name, email, avatar_url)')
+      .single();
+    if (error || !data) throw communityError(`Failed to create case note: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify({ note: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'cases.timeline',
+  description: 'Get a household timeline including intake, referrals, notes, tasks, case events, and incidents.',
+  resource: 'cases',
+  action: 'view',
+  roles: ['owner', 'admin', 'case_manager'],
+  parameters: casesTimelineToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = casesTimelineToolSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+
+    const { data: household } = await adminAny
+      .from('households')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.household_id)
+      .is('deleted_at', null)
+      .single();
+    if (!household) throw communityError('Household not found in this project');
+
+    const cutoff = parsed.cursor ?? new Date().toISOString();
+    const allowed = new Set(parsed.types ?? ['intake', 'referral', 'note', 'task', 'case_event', 'incident']);
+
+    const [intakeResult, referralResult, noteResult, taskResult, caseEventResult, incidentResult] = await Promise.all([
+      allowed.has('intake')
+        ? adminAny.from('household_intake').select('*').eq('household_id', parsed.household_id).lte('assessed_at', cutoff).order('assessed_at', { ascending: false }).limit(parsed.limit)
+        : Promise.resolve({ data: [] }),
+      allowed.has('referral')
+        ? adminAny.from('referrals').select('*').eq('project_id', ctx.projectId).eq('household_id', parsed.household_id).lte('created_at', cutoff).order('created_at', { ascending: false }).limit(parsed.limit)
+        : Promise.resolve({ data: [] }),
+      allowed.has('note')
+        ? adminAny.from('notes').select('*, author:users!notes_created_by_fkey(id, full_name)').eq('project_id', ctx.projectId).eq('household_id', parsed.household_id).lte('created_at', cutoff).order('created_at', { ascending: false }).limit(parsed.limit)
+        : Promise.resolve({ data: [] }),
+      allowed.has('task')
+        ? adminAny.from('tasks').select('*, assigned_user:users!tasks_assigned_to_fkey(id, full_name)').eq('project_id', ctx.projectId).eq('household_id', parsed.household_id).lte('updated_at', cutoff).order('updated_at', { ascending: false }).limit(parsed.limit)
+        : Promise.resolve({ data: [] }),
+      allowed.has('case_event')
+        ? adminAny.from('household_case_events').select('*, author:users!household_case_events_created_by_fkey(id, full_name)').eq('project_id', ctx.projectId).eq('household_id', parsed.household_id).lte('created_at', cutoff).order('created_at', { ascending: false }).limit(parsed.limit)
+        : Promise.resolve({ data: [] }),
+      allowed.has('incident')
+        ? adminAny.from('incidents').select('*, reporter:users!incidents_reported_by_fkey(id, full_name)').eq('project_id', ctx.projectId).eq('household_id', parsed.household_id).lte('occurred_at', cutoff).order('occurred_at', { ascending: false }).limit(parsed.limit)
+        : Promise.resolve({ data: [] }),
+    ]);
+
+    const items = [
+      ...(intakeResult.data ?? []).map((record: Record<string, unknown>) => ({
+        id: record.id,
+        type: 'intake',
+        timestamp: record.assessed_at,
+        summary: `Intake ${record.status ?? 'recorded'}`,
+        actor: null,
+        metadata: record,
+      })),
+      ...(referralResult.data ?? []).map((record: Record<string, unknown>) => ({
+        id: record.id,
+        type: 'referral',
+        timestamp: record.created_at,
+        summary: record.notes ? `Referral created: ${String(record.notes).slice(0, 120)}` : `Referral ${record.status ?? 'created'}`,
+        actor: null,
+        metadata: record,
+      })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(noteResult.data ?? []).map((record: Record<string, any>) => ({
+        id: record.id,
+        type: 'note',
+        timestamp: record.created_at,
+        summary: String(record.content ?? '').slice(0, 140),
+        actor: record.author ? { id: record.author.id, name: record.author.full_name ?? 'Unknown' } : null,
+        metadata: record,
+      })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(taskResult.data ?? []).map((record: Record<string, any>) => ({
+        id: record.id,
+        type: 'task',
+        timestamp: record.updated_at ?? record.created_at,
+        summary: `Task: ${record.title}`,
+        actor: record.assigned_user ? { id: record.assigned_user.id, name: record.assigned_user.full_name ?? 'Unknown' } : null,
+        metadata: record,
+      })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(caseEventResult.data ?? []).map((record: Record<string, any>) => ({
+        id: record.id,
+        type: 'case_event',
+        timestamp: record.created_at,
+        summary: record.summary,
+        actor: record.author ? { id: record.author.id, name: record.author.full_name ?? 'Unknown' } : null,
+        metadata: record.metadata ?? {},
+      })),
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      ...(incidentResult.data ?? []).map((record: Record<string, any>) => ({
+        id: record.id,
+        type: 'incident',
+        timestamp: record.occurred_at,
+        summary: `${record.severity} incident: ${record.summary}`,
+        actor: record.reporter ? { id: record.reporter.id, name: record.reporter.full_name ?? 'Unknown' } : null,
+        metadata: record,
+      })),
+    ].sort((a, b) => String(b.timestamp).localeCompare(String(a.timestamp)));
+
+    const sliced = items.slice(0, parsed.limit);
+    return JSON.stringify({
+      items: sliced,
+      next_cursor: sliced.length === parsed.limit ? sliced[sliced.length - 1]?.timestamp ?? null : null,
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'incidents.list',
+  description: 'List incidents with filters for status, severity, category, assignee, and overdue follow-up.',
+  resource: 'incidents',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: incidentsListSchema,
+  handler: async (params, ctx) => {
+    const parsed = incidentsListSchema.parse(params);
+    const admin = createAdminClient();
+    const { offset, to } = paginate(parsed.page, parsed.limit);
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    let query = (admin as any)
+      .from('incidents')
+      .select(`
+        *,
+        household:households(id, name),
+        assignee:users!incidents_assigned_to_fkey(id, full_name, email)
+      `, { count: 'exact' })
+      .eq('project_id', ctx.projectId);
+
+    if (parsed.status) query = query.eq('status', parsed.status);
+    if (parsed.severity) query = query.eq('severity', parsed.severity);
+    if (parsed.category) query = query.eq('category', parsed.category);
+    if (parsed.assigned_to) query = query.eq('assigned_to', parsed.assigned_to);
+    if (parsed.household_id) query = query.eq('household_id', parsed.household_id);
+    if (parsed.event_id) query = query.eq('event_id', parsed.event_id);
+    if (parsed.asset_id) query = query.eq('asset_id', parsed.asset_id);
+    if (parsed.overdue) query = query.lt('follow_up_due_at', new Date().toISOString()).not('status', 'in', '(resolved,closed)');
+
+    const { data, error, count } = await query
+      .order('occurred_at', { ascending: false })
+      .range(offset, to);
+
+    if (error) throw communityError(`Failed to list incidents: ${error.message}`);
+    return JSON.stringify({
+      incidents: data ?? [],
+      pagination: {
+        page: parsed.page,
+        limit: parsed.limit,
+        total: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / parsed.limit),
+      },
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'incidents.get',
+  description: 'Get an incident with linked people, notes, and tasks.',
+  resource: 'incidents',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: entityGetSchema,
+  handler: async (params, ctx) => {
+    const parsed = entityGetSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const incident = await getIncidentById(adminAny, ctx.projectId, parsed.id);
+    if (!incident) throw communityError('Incident not found');
+
+    const [peopleResult, notesResult, tasksResult] = await Promise.all([
+      adminAny
+        .from('incident_people')
+        .select('*, person:people(id, first_name, last_name, email)')
+        .eq('incident_id', parsed.id)
+        .order('created_at', { ascending: true }),
+      adminAny
+        .from('notes')
+        .select('*, author:users!notes_created_by_fkey(id, full_name, email, avatar_url)')
+        .eq('project_id', ctx.projectId)
+        .eq('incident_id', parsed.id)
+        .order('is_pinned', { ascending: false })
+        .order('created_at', { ascending: false }),
+      adminAny
+        .from('tasks')
+        .select('*, assigned_user:users!tasks_assigned_to_fkey(id, full_name, email)')
+        .eq('project_id', ctx.projectId)
+        .eq('incident_id', parsed.id)
+        .order('due_date', { ascending: true, nullsFirst: false }),
+    ]);
+
+    return JSON.stringify({
+      incident,
+      people: peopleResult.data ?? [],
+      notes: notesResult.data ?? [],
+      tasks: tasksResult.data ?? [],
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'incidents.create',
+  description: 'Report a new incident.',
+  resource: 'incidents',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: incidentsCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = incidentsCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+
+    if (parsed.assigned_to) {
+      const { data: membership } = await adminAny
+        .from('project_memberships')
+        .select('id')
+        .eq('project_id', ctx.projectId)
+        .eq('user_id', parsed.assigned_to)
+        .single();
+      if (!membership) throw communityError('assigned_to must be a member of this project');
+    }
+
+    if (parsed.household_id) {
+      const { data } = await adminAny.from('households').select('id').eq('project_id', ctx.projectId).eq('id', parsed.household_id).is('deleted_at', null).single();
+      if (!data) throw communityError('household_id not found in this project');
+    }
+    if (parsed.event_id) {
+      const { data } = await adminAny.from('events').select('id').eq('project_id', ctx.projectId).eq('id', parsed.event_id).single();
+      if (!data) throw communityError('event_id not found in this project');
+    }
+    if (parsed.asset_id) {
+      const { data } = await adminAny.from('community_assets').select('id').eq('project_id', ctx.projectId).eq('id', parsed.asset_id).single();
+      if (!data) throw communityError('asset_id not found in this project');
+    }
+
+    const visibility = normalizeIncidentVisibility(parsed.visibility, ctx.role, 'create');
+    const { data, error } = await adminAny
+      .from('incidents')
+      .insert({
+        ...parsed,
+        visibility,
+        project_id: ctx.projectId,
+        reported_by: ctx.userId,
+      })
+      .select(`
+        *,
+        household:households(id, name),
+        assignee:users!incidents_assigned_to_fkey(id, full_name, email)
+      `)
+      .single();
+    if (error || !data) throw communityError(`Failed to create incident: ${error?.message ?? 'unknown error'}`);
+
+    emitAutomationEvent({
+      projectId: ctx.projectId,
+      triggerType: 'incident.created' as never,
+      entityType: 'incident' as never,
+      entityId: data.id,
+      data: data as Record<string, unknown>,
+    });
+
+    return JSON.stringify({ incident: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'incidents.update',
+  description: 'Update an incident.',
+  resource: 'incidents',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: incidentsUpdateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = incidentsUpdateToolSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const existing = await getIncidentById(adminAny, ctx.projectId, parsed.id);
+    if (!existing) throw communityError('Incident not found');
+
+    if (parsed.assigned_to) {
+      const { data: membership } = await adminAny
+        .from('project_memberships')
+        .select('id')
+        .eq('project_id', ctx.projectId)
+        .eq('user_id', parsed.assigned_to)
+        .single();
+      if (!membership) throw communityError('assigned_to must be a member of this project');
+    }
+
+    if (parsed.household_id) {
+      const { data } = await adminAny.from('households').select('id').eq('project_id', ctx.projectId).eq('id', parsed.household_id).is('deleted_at', null).single();
+      if (!data) throw communityError('household_id not found in this project');
+    }
+    if (parsed.event_id) {
+      const { data } = await adminAny.from('events').select('id').eq('project_id', ctx.projectId).eq('id', parsed.event_id).single();
+      if (!data) throw communityError('event_id not found in this project');
+    }
+    if (parsed.asset_id) {
+      const { data } = await adminAny.from('community_assets').select('id').eq('project_id', ctx.projectId).eq('id', parsed.asset_id).single();
+      if (!data) throw communityError('asset_id not found in this project');
+    }
+
+    const { id, ...updates } = parsed;
+    const payload: Record<string, unknown> = {
+      ...updates,
+      updated_at: new Date().toISOString(),
+    };
+    if (Object.prototype.hasOwnProperty.call(updates, 'visibility')) {
+      payload.visibility = normalizeIncidentVisibility(updates.visibility, ctx.role, 'update');
+    }
+
+    const { data, error } = await adminAny
+      .from('incidents')
+      .update(payload)
+      .eq('project_id', ctx.projectId)
+      .eq('id', id)
+      .select(`
+        *,
+        household:households(id, name),
+        assignee:users!incidents_assigned_to_fkey(id, full_name, email)
+      `)
+      .single();
+    if (error || !data) throw communityError(`Failed to update incident: ${error?.message ?? 'unknown error'}`);
+
+    if (parsed.severity && parsed.severity !== existing.severity) {
+      emitAutomationEvent({
+        projectId: ctx.projectId,
+        triggerType: 'incident.severity_changed' as never,
+        entityType: 'incident' as never,
+        entityId: id,
+        data: data as Record<string, unknown>,
+        previousData: { severity: existing.severity },
+      });
+    }
+
+    if (parsed.status === 'resolved' && existing.status !== 'resolved') {
+      emitAutomationEvent({
+        projectId: ctx.projectId,
+        triggerType: 'incident.resolved' as never,
+        entityType: 'incident' as never,
+        entityId: id,
+        data: data as Record<string, unknown>,
+      });
+    }
+
+    return JSON.stringify({ incident: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'incidents.resolve',
+  description: 'Resolve an incident.',
+  resource: 'incidents',
+  action: 'update',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: incidentsResolveToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = incidentsResolveToolSchema.parse(params);
+    return executeCommunityTool('incidents.update', {
+      id: parsed.id,
+      status: 'resolved',
+      resolution_notes: parsed.resolution_notes ?? null,
+    }, ctx);
+  },
+});
+
+defineCommunityTool({
+  name: 'incidents.people.add',
+  description: 'Link a person to an incident with a role.',
+  resource: 'incidents',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: incidentPeopleAddToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = incidentPeopleAddToolSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const incident = await getIncidentById(adminAny, ctx.projectId, parsed.incident_id);
+    if (!incident) throw communityError('Incident not found');
+    const { data: person } = await adminAny
+      .from('people')
+      .select('id')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.person_id)
+      .is('deleted_at', null)
+      .single();
+    if (!person) throw communityError('person_id not found in this project');
+
+    const { incident_id, ...linkValues } = parsed;
+    const { data, error } = await adminAny
+      .from('incident_people')
+      .insert({
+        incident_id,
+        ...linkValues,
+      })
+      .select('*, person:people(id, first_name, last_name, email)')
+      .single();
+    if (error || !data) throw communityError(`Failed to add person to incident: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify({ link: data });
+  },
+});
+
+defineCommunityTool({
+  name: 'incidents.people.remove',
+  description: 'Remove a linked person from an incident.',
+  resource: 'incidents',
+  action: 'delete',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: incidentPeopleRemoveToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = incidentPeopleRemoveToolSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const incident = await getIncidentById(adminAny, ctx.projectId, parsed.incident_id);
+    if (!incident) throw communityError('Incident not found');
+
+    const { data: existingLink } = await adminAny
+      .from('incident_people')
+      .select('id')
+      .eq('incident_id', parsed.incident_id)
+      .eq('id', parsed.link_id)
+      .single();
+    if (!existingLink) throw communityError('Incident person link not found');
+
+    const { error } = await adminAny
+      .from('incident_people')
+      .delete()
+      .eq('incident_id', parsed.incident_id)
+      .eq('id', parsed.link_id);
+    if (error) throw communityError(`Failed to remove person from incident: ${error.message}`);
+    return JSON.stringify({ success: true });
+  },
+});
+
+defineCommunityTool({
+  name: 'incidents.notes.list',
+  description: 'List notes linked to an incident.',
+  resource: 'incidents',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: incidentNotesListSchema,
+  handler: async (params, ctx) => {
+    const parsed = incidentNotesListSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const incident = await getIncidentById(adminAny, ctx.projectId, parsed.incident_id);
+    if (!incident) throw communityError('Incident not found');
+    const { data, error } = await adminAny
+      .from('notes')
+      .select('*, author:users!notes_created_by_fkey(id, full_name, email, avatar_url)')
+      .eq('project_id', ctx.projectId)
+      .eq('incident_id', parsed.incident_id)
+      .order('is_pinned', { ascending: false })
+      .order('created_at', { ascending: false });
+    if (error) throw communityError(`Failed to load incident notes: ${error.message}`);
+    return JSON.stringify({ notes: data ?? [] });
+  },
+});
+
+defineCommunityTool({
+  name: 'incidents.notes.create',
+  description: 'Create a note linked to an incident.',
+  resource: 'incidents',
+  action: 'create',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: incidentNotesCreateToolSchema,
+  handler: async (params, ctx) => {
+    const parsed = incidentNotesCreateToolSchema.parse(params);
+    const admin = createAdminClient();
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const adminAny = admin as any;
+    const incident = await getIncidentById(adminAny, ctx.projectId, parsed.incident_id);
+    if (!incident) throw communityError('Incident not found');
+
+    const { data, error } = await adminAny
+      .from('notes')
+      .insert({
+        project_id: ctx.projectId,
+        content: parsed.content,
+        content_html: parsed.content_html ?? null,
+        category: parsed.category ?? null,
+        is_pinned: parsed.is_pinned,
+        household_id: incident.household_id ?? null,
+        case_id: null,
+        incident_id: parsed.incident_id,
+        created_by: ctx.userId,
+      })
+      .select('*, author:users!notes_created_by_fkey(id, full_name, email, avatar_url)')
+      .single();
+    if (error || !data) throw communityError(`Failed to create incident note: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify({ note: data });
   },
 });
 
@@ -2350,7 +3520,7 @@ defineCommunityTool({
   action: 'update',
   roles: ['owner', 'admin', 'staff', 'case_manager'],
   parameters: calendarSyncProgramSchema,
-  handler: async (params, _ctx) => {
+  handler: async (params) => {
     const parsed = calendarSyncProgramSchema.parse(params);
     const result = await syncProgramSession(parsed.program_id);
     return JSON.stringify(result);
@@ -2364,7 +3534,7 @@ defineCommunityTool({
   action: 'update',
   roles: ['owner', 'admin', 'staff'],
   parameters: calendarSyncJobSchema,
-  handler: async (params, _ctx) => {
+  handler: async (params) => {
     const parsed = calendarSyncJobSchema.parse(params);
     const result = await syncJobAssignment(parsed.job_id);
     return JSON.stringify(result);

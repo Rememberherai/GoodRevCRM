@@ -2,14 +2,17 @@
 
 import { useCallback, useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
-import { ArrowLeft, Home, MapPin, Users } from 'lucide-react';
+import { useParams, useSearchParams } from 'next/navigation';
+import { AlertTriangle, ArrowLeft, Home, MapPin, Users } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { HouseholdMembersTab } from '@/components/community/households/household-members-tab';
 import { NewReferralDialog } from '@/components/community/referrals/new-referral-dialog';
+import { CasePlanTab } from '@/components/community/cases/case-plan-tab';
+import { HouseholdTimelineTab } from '@/components/community/cases/household-timeline-tab';
+import { ReportIncidentDialog } from '@/components/community/incidents/report-incident-dialog';
 
 interface HouseholdMemberRecord {
   id: string;
@@ -45,18 +48,33 @@ interface HouseholdDetail {
   household_members: HouseholdMemberRecord[];
   intake_records: HouseholdIntakeRecord[];
   can_view_intake: boolean;
+  can_manage_cases: boolean;
+  can_manage_incidents: boolean;
   program_enrollments_count: number;
   contributions_count: number;
+  active_case: {
+    id: string;
+    status: string;
+    priority: string;
+    assigned_to: string | null;
+    opened_at: string;
+    last_contact_at: string | null;
+    next_follow_up_at: string | null;
+    summary: string | null;
+  } | null;
 }
 
 export function HouseholdDetailClient({ householdId }: { householdId: string }) {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
   const [household, setHousehold] = useState<HouseholdDetail | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [canViewIntake, setCanViewIntake] = useState(false);
   const [showReferralDialog, setShowReferralDialog] = useState(false);
+  const [showIncidentDialog, setShowIncidentDialog] = useState(false);
+  const defaultTab = searchParams.get('tab') ?? 'members';
 
   const loadHousehold = useCallback(async () => {
     setIsLoading(true);
@@ -123,6 +141,12 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
         <div className="rounded-lg border border-destructive/50 bg-destructive/10 p-4 text-sm text-destructive">
           {error ?? 'Household not found'}
         </div>
+        {household?.can_manage_incidents && (
+          <Button variant="outline" onClick={() => setShowIncidentDialog(true)}>
+            <AlertTriangle className="mr-2 h-4 w-4" />
+            Report Incident
+          </Button>
+        )}
       </div>
     );
   }
@@ -159,6 +183,12 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
             )}
           </div>
         </div>
+        {household.can_manage_incidents ? (
+          <Button variant="outline" onClick={() => setShowIncidentDialog(true)}>
+            <AlertTriangle className="mr-2 h-4 w-4" />
+            Report Incident
+          </Button>
+        ) : null}
       </div>
 
       <div className="grid gap-4 md:grid-cols-3">
@@ -193,13 +223,15 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
         </Card>
       </div>
 
-      <Tabs defaultValue="members">
+      <Tabs defaultValue={defaultTab}>
         <TabsList>
           <TabsTrigger value="members">Members</TabsTrigger>
           <TabsTrigger value="programs">Programs</TabsTrigger>
           <TabsTrigger value="contributions">Contributions</TabsTrigger>
           <TabsTrigger value="referrals">Referrals</TabsTrigger>
           {canViewIntake && <TabsTrigger value="intake">Intake</TabsTrigger>}
+          {household.can_manage_cases && <TabsTrigger value="case-plan">Case Plan</TabsTrigger>}
+          {household.can_manage_cases && <TabsTrigger value="timeline">Timeline</TabsTrigger>}
         </TabsList>
 
         <TabsContent value="members" className="pt-4">
@@ -290,6 +322,23 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
             </Card>
           </TabsContent>
         )}
+
+        {household.can_manage_cases && (
+          <TabsContent value="case-plan" className="pt-4">
+            <CasePlanTab
+              projectSlug={slug}
+              householdId={household.id}
+              activeCase={household.active_case}
+              onCaseChanged={loadHousehold}
+            />
+          </TabsContent>
+        )}
+
+        {household.can_manage_cases && (
+          <TabsContent value="timeline" className="pt-4">
+            <HouseholdTimelineTab projectSlug={slug} householdId={household.id} />
+          </TabsContent>
+        )}
       </Tabs>
 
       <NewReferralDialog
@@ -297,6 +346,14 @@ export function HouseholdDetailClient({ householdId }: { householdId: string }) 
         onOpenChange={setShowReferralDialog}
         initialHouseholdId={household.id}
         onCreated={() => setShowReferralDialog(false)}
+      />
+
+      <ReportIncidentDialog
+        open={showIncidentDialog}
+        onOpenChange={setShowIncidentDialog}
+        projectSlug={slug}
+        initialHouseholdId={household.id}
+        showVisibilitySelector={household.can_manage_cases}
       />
     </div>
   );

@@ -50,6 +50,8 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 
 ## Available capabilities in this phase
 - **Households**: List, inspect, create, and update household records
+- **Cases**: Open, review, update, and close household case files. Manage case goals, case notes, and household timelines.
+- **Incidents**: Report, review, update, and resolve incidents. Link people involved and capture incident notes.
 - **Programs**: List, inspect, create, update, enroll participants, record batch attendance, and manage waiver requirements (list, add, remove waiver templates per program)
 - **Contributions**: List, inspect, create, and update money, in-kind, volunteer, grant, and service contributions
 - **Community Assets**: List, inspect, create, and update community assets and facilities
@@ -104,6 +106,7 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 
 ## Community data rules
 - Use household, program, contribution, grant, asset, referral, relationship, and broadcast tools when the user is asking about live project data.
+- Treat case and incident records as more sensitive than general household data. Do not broaden visibility or expose private details unless the tool result already allows it.
 - Do not create intake data unless the current role already has intake permission and the user explicitly asks for that sensitive workflow.
 - For broadcasts, create the draft first, then send it only after explicit user approval.
 - When recording attendance or contributions, preserve the exact date and status values the user provides instead of normalizing them silently.

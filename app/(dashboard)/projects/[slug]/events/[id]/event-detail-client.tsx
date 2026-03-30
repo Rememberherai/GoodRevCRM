@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { ArrowLeft, CalendarDays, Copy, Download, ExternalLink, MapPin, Monitor, Trash2, Users } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, CalendarDays, Copy, Download, ExternalLink, MapPin, Monitor, Trash2, Users } from 'lucide-react';
 import Link from 'next/link';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
@@ -18,6 +18,7 @@ import { EventAttendanceTab } from '@/components/community/events/tabs/event-att
 import { EventNotesTab } from '@/components/community/events/tabs/event-notes-tab';
 import { EventWaiversTab } from '@/components/community/events/tabs/event-waivers-tab';
 import { EventDetailReportView } from '@/components/community/reports/event-detail-report';
+import { ReportIncidentDialog } from '@/components/community/incidents/report-incident-dialog';
 import type { IndividualEventReport } from '@/lib/community/reports';
 
 interface EventDetail {
@@ -77,6 +78,7 @@ export function EventDetailClient() {
   const [reportLoading, setReportLoading] = useState(false);
   const [reportLoaded, setReportLoaded] = useState(false);
   const [activeTab, setActiveTab] = useState('details');
+  const [reportIncidentOpen, setReportIncidentOpen] = useState(false);
 
   const loadEvent = useCallback(async () => {
     try {
@@ -217,6 +219,9 @@ export function EventDetailClient() {
           <Button variant="outline" size="sm" onClick={handleDuplicate}>
             <Copy className="mr-1 h-3 w-3" />Duplicate
           </Button>
+          <Button variant="outline" size="sm" onClick={() => setReportIncidentOpen(true)}>
+            <AlertTriangle className="mr-1 h-3 w-3" />Report Incident
+          </Button>
           <Button variant="outline" size="sm" asChild>
             <a href={`/api/projects/${slug}/events/${eventId}/export`} download>
               <Download className="mr-1 h-3 w-3" />Export CSV
@@ -348,6 +353,14 @@ export function EventDetailClient() {
           )}
         </TabsContent>
       </Tabs>
+
+      <ReportIncidentDialog
+        open={reportIncidentOpen}
+        onOpenChange={setReportIncidentOpen}
+        projectSlug={slug}
+        initialEventId={eventId}
+        onCreated={(incidentId) => router.push(`/projects/${slug}/incidents/${incidentId}`)}
+      />
     </div>
   );
 }

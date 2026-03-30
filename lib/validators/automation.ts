@@ -91,6 +91,16 @@ export const triggerTypes = [
   'grant.deadline_approaching',
   'job.inaction_warning',
   'risk_score.high',
+  'case.created',
+  'case.status_changed',
+  'case.assigned',
+  'case.follow_up_due',
+  'case.goal_completed',
+  'case.no_contact',
+  'incident.created',
+  'incident.severity_changed',
+  'incident.follow_up_due',
+  'incident.resolved',
 ] as const;
 
 export const actionTypes = [
@@ -152,6 +162,8 @@ export const automationEntityTypes = [
   'broadcast',
   'intake',
   'household_member',
+  'case',
+  'incident',
   'job',
   'contractor_scope',
   'receipt_confirmation',

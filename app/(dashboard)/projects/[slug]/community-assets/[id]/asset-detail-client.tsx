@@ -3,7 +3,7 @@
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useParams, useSearchParams } from 'next/navigation';
-import { ArrowLeft, Building2, MapPin, Pencil, Power } from 'lucide-react';
+import { AlertTriangle, ArrowLeft, Building2, MapPin, Pencil, Power } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Badge } from '@/components/ui/badge';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -14,6 +14,7 @@ import { ApprovedPeopleTab } from '@/components/community/assets/approved-people
 import { AssetRequestsTab } from '@/components/community/assets/asset-requests-tab';
 import { BookingPresetsTab } from '@/components/community/assets/booking-presets-tab';
 import { EditAssetDialog } from '@/components/community/assets/edit-asset-dialog';
+import { ReportIncidentDialog } from '@/components/community/incidents/report-incident-dialog';
 import { toast } from 'sonner';
 
 interface AssetDetail {
@@ -50,6 +51,7 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
   const searchParams = useSearchParams();
   const [activeTab, setActiveTab] = useState(searchParams.get('tab') || 'details');
   const [togglingAccess, setTogglingAccess] = useState(false);
+  const [reportIncidentOpen, setReportIncidentOpen] = useState(false);
 
   const loadAsset = useCallback(async () => {
     setIsLoading(true);
@@ -177,6 +179,10 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
               <Pencil className="mr-2 h-4 w-4" />
               Edit
             </Button>
+            <Button variant="outline" onClick={() => setReportIncidentOpen(true)}>
+              <AlertTriangle className="mr-2 h-4 w-4" />
+              Report Incident
+            </Button>
           </div>
         </div>
         <div className="flex flex-wrap gap-2">
@@ -269,6 +275,13 @@ export function AssetDetailClient({ assetId }: { assetId: string }) {
         onOpenChange={setEditOpen}
         asset={asset}
         onUpdated={() => void loadAsset()}
+      />
+
+      <ReportIncidentDialog
+        open={reportIncidentOpen}
+        onOpenChange={setReportIncidentOpen}
+        projectSlug={slug}
+        initialAssetId={assetId}
       />
     </div>
   );

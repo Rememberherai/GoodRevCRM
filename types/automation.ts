@@ -98,6 +98,16 @@ export type TriggerType =
   | 'grant.report_overdue'
   | 'job.inaction_warning'
   | 'risk_score.high'
+  | 'case.created'
+  | 'case.status_changed'
+  | 'case.assigned'
+  | 'case.follow_up_due'
+  | 'case.goal_completed'
+  | 'case.no_contact'
+  | 'incident.created'
+  | 'incident.severity_changed'
+  | 'incident.follow_up_due'
+  | 'incident.resolved'
   // Event calendar events
   | 'event.created'
   | 'event.published'
@@ -187,6 +197,8 @@ export type AutomationEntityType =
   | 'broadcast'
   | 'intake'
   | 'household_member'
+  | 'case'
+  | 'incident'
   | 'job'
   | 'contractor_scope'
   | 'receipt_confirmation'
@@ -436,6 +448,16 @@ export const triggerTypeGroups = {
       { type: 'grant.report_overdue' as TriggerType, label: 'Grant Report Overdue', description: 'When a grant report is past its due date' },
       { type: 'job.inaction_warning' as TriggerType, label: 'Job Inaction Warning', description: 'When an accepted job has no time entries after configured days' },
       { type: 'risk_score.high' as TriggerType, label: 'High Risk Score', description: 'When a household is flagged as high risk during recomputation' },
+      { type: 'case.created' as TriggerType, label: 'Case Created', description: 'When a new household case is opened' },
+      { type: 'case.status_changed' as TriggerType, label: 'Case Status Changed', description: 'When a case status changes' },
+      { type: 'case.assigned' as TriggerType, label: 'Case Assigned', description: 'When a case is assigned to a staff member' },
+      { type: 'case.follow_up_due' as TriggerType, label: 'Case Follow-Up Due', description: 'When a case follow-up date is due or overdue' },
+      { type: 'case.goal_completed' as TriggerType, label: 'Case Goal Completed', description: 'When a case goal is marked completed' },
+      { type: 'case.no_contact' as TriggerType, label: 'Case No Contact', description: 'When a case has not had contact within configured days' },
+      { type: 'incident.created' as TriggerType, label: 'Incident Created', description: 'When a new incident is reported' },
+      { type: 'incident.severity_changed' as TriggerType, label: 'Incident Severity Changed', description: 'When an incident severity level changes' },
+      { type: 'incident.follow_up_due' as TriggerType, label: 'Incident Follow-Up Due', description: 'When an incident follow-up date is due or overdue' },
+      { type: 'incident.resolved' as TriggerType, label: 'Incident Resolved', description: 'When an incident is marked resolved' },
     ],
   },
   events: {
@@ -479,6 +501,9 @@ export const timeTriggerTypes: TriggerType[] = [
   'grant.report_due_soon',
   'grant.report_overdue',
   'job.inaction_warning',
+  'case.follow_up_due',
+  'case.no_contact',
+  'incident.follow_up_due',
 ];
 
 // Action type metadata for UI

@@ -70,6 +70,8 @@ export async function GET(_request: Request, context: RouteContext) {
     // Check permission
     const role = await requireCommunityPermission(supabase, user.id, project.id, 'households', 'view');
     const canViewIntake = checkCommunityPermission(role, 'intake', 'view');
+    const canManageCases = checkCommunityPermission(role, 'cases', 'view');
+    const canManageIncidents = checkCommunityPermission(role, 'incidents', 'view');
 
     // Fetch household with members joined
     const { data: household, error } = await supabase
@@ -85,7 +87,7 @@ export async function GET(_request: Request, context: RouteContext) {
     }
 
     // Get related counts and intake records in parallel.
-    const [intakeResult, programsResult, contributionsResult] = await Promise.all([
+    const [intakeResult, programsResult, contributionsResult, caseResult] = await Promise.all([
       canViewIntake
         ? supabase
             .from('household_intake')
@@ -102,6 +104,15 @@ export async function GET(_request: Request, context: RouteContext) {
         .select('id', { count: 'exact', head: true })
         .eq('project_id', project.id)
         .or(`donor_household_id.eq.${id},recipient_household_id.eq.${id}`),
+      canManageCases
+        ? (supabase as any)
+            .from('household_cases')
+            .select('id, status, priority, assigned_to, opened_at, last_contact_at, next_follow_up_at, summary')
+            .eq('project_id', project.id)
+            .eq('household_id', id)
+            .neq('status', 'closed')
+            .maybeSingle()
+        : Promise.resolve({ data: null, error: null }),
     ]);
 
     return NextResponse.json({
@@ -109,8 +120,11 @@ export async function GET(_request: Request, context: RouteContext) {
         ...household,
         intake_records: intakeResult.data ?? [],
         can_view_intake: canViewIntake,
+        can_manage_cases: canManageCases,
+        can_manage_incidents: canManageIncidents,
         program_enrollments_count: programsResult.count ?? 0,
         contributions_count: contributionsResult.count ?? 0,
+        active_case: caseResult.data ?? null,
       },
     });
   } catch (error) {

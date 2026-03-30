@@ -88,6 +88,8 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
             ) : isCommunity ? (
               <>
                 <ToolGroup name="Households" tools={['list', 'get', 'create', 'update']} />
+                <ToolGroup name="Cases" tools={['list', 'get', 'create', 'update', 'close', 'timeline', 'goals.list', 'goals.create', 'goals.update', 'goals.delete', 'notes.list', 'notes.create']} />
+                <ToolGroup name="Incidents" tools={['list', 'get', 'create', 'update', 'resolve', 'people.add', 'people.remove', 'notes.list', 'notes.create']} />
                 <ToolGroup name="Programs" tools={['list', 'get', 'create', 'update', 'enroll', 'record_attendance', 'list_waivers', 'add_waiver', 'remove_waiver']} />
                 <ToolGroup name="Contributions" tools={['list', 'get', 'create', 'update']} />
                 <ToolGroup name="Assets" tools={['list', 'get', 'create', 'update']} />
@@ -165,7 +167,7 @@ export function ChatSettings({ onBack, projectType }: ChatSettingsProps) {
             {isGrants
               ? 'The assistant can manage your grant pipeline, discover funding opportunities, draft narratives and budgets, manage documents and reports, and track compliance.'
               : isCommunity
-              ? 'The assistant can manage community records, process receipts, coordinate contractor onboarding, manage jobs, send broadcasts, and push calendar events for community workflows in this phase.'
+              ? 'The assistant can manage households, cases, incidents, community records, receipts, contractors, jobs, broadcasts, and calendar-linked community workflows in this phase.'
               : 'The AI can use these tools to read and modify your CRM data across all entity types.'}
           </p>
         </div>

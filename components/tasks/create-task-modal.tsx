@@ -51,6 +51,9 @@ interface CreateTaskModalProps {
   opportunityId?: string;
   rfpId?: string;
   grantId?: string;
+  householdId?: string;
+  caseId?: string;
+  incidentId?: string;
   defaultTitle?: string;
   onSuccess?: () => void;
 }
@@ -64,6 +67,9 @@ export function CreateTaskModal({
   opportunityId,
   rfpId,
   grantId,
+  householdId,
+  caseId,
+  incidentId,
   defaultTitle,
   onSuccess,
 }: CreateTaskModalProps) {
@@ -106,6 +112,9 @@ export function CreateTaskModal({
           opportunity_id: opportunityId,
           rfp_id: rfpId,
           grant_id: grantId,
+          household_id: householdId,
+          case_id: caseId,
+          incident_id: incidentId,
         }),
       });
 

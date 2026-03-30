@@ -12,9 +12,15 @@ export const createTaskSchema = z.object({
   opportunity_id: z.string().uuid().nullable().optional(),
   rfp_id: z.string().uuid().nullable().optional(),
   grant_id: z.string().uuid().nullable().optional(),
+  household_id: z.string().uuid().nullable().optional(),
+  case_id: z.string().uuid().nullable().optional(),
+  incident_id: z.string().uuid().nullable().optional(),
   assigned_to: z.string().uuid().nullable().optional(),
   source_activity_id: z.string().uuid().nullable().optional(),
-});
+}).refine(
+  (data) => !(data.case_id && data.incident_id),
+  { message: 'A task cannot belong to both a case and an incident' }
+);
 
 export type CreateTaskInput = z.infer<typeof createTaskSchema>;
 
@@ -30,9 +36,15 @@ export const updateTaskSchema = z.object({
   opportunity_id: z.string().uuid().nullable().optional(),
   rfp_id: z.string().uuid().nullable().optional(),
   grant_id: z.string().uuid().nullable().optional(),
+  household_id: z.string().uuid().nullable().optional(),
+  case_id: z.string().uuid().nullable().optional(),
+  incident_id: z.string().uuid().nullable().optional(),
   assigned_to: z.string().uuid().nullable().optional(),
   source_activity_id: z.string().uuid().nullable().optional(),
-});
+}).refine(
+  (data) => !(data.case_id && data.incident_id),
+  { message: 'A task cannot belong to both a case and an incident' }
+);
 
 export type UpdateTaskInput = z.infer<typeof updateTaskSchema>;
 
@@ -46,6 +58,9 @@ export const taskQuerySchema = z.object({
   opportunity_id: z.string().uuid().optional(),
   rfp_id: z.string().uuid().optional(),
   grant_id: z.string().uuid().optional(),
+  household_id: z.string().uuid().optional(),
+  case_id: z.string().uuid().optional(),
+  incident_id: z.string().uuid().optional(),
   due_before: z.string().datetime().optional(),
   due_after: z.string().datetime().optional(),
   limit: z.coerce.number().min(1).max(100).optional().default(50),
