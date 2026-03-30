@@ -55,6 +55,7 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     const { supabase, project } = resolved;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
     const { status, severity, category, assigned_to, household_id, event_id, asset_id, overdue, limit, offset } = queryResult.data;
 
@@ -110,6 +111,7 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Validation failed', details: validationResult.error.flatten() }, { status: 400 });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = resolved.supabase as any;
     const payload = { ...validationResult.data };
 

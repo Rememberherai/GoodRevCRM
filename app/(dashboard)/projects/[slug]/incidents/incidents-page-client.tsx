@@ -2,7 +2,7 @@
 
 import { useCallback, useEffect, useState } from 'react';
 import Link from 'next/link';
-import { useParams } from 'next/navigation';
+import { useParams, useSearchParams } from 'next/navigation';
 import { AlertTriangle } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -22,12 +22,26 @@ interface IncidentRecord {
 
 export function IncidentsPageClient() {
   const params = useParams();
+  const searchParams = useSearchParams();
   const slug = params.slug as string;
   const [incidents, setIncidents] = useState<IncidentRecord[]>([]);
   const [loading, setLoading] = useState(true);
-  const [status, setStatus] = useState('all');
+  const statusParam = searchParams.get('status');
+  const [status, setStatus] = useState(
+    statusParam === 'open' || statusParam === 'under_review' || statusParam === 'resolved' || statusParam === 'closed'
+      ? statusParam
+      : 'all'
+  );
   const [severity, setSeverity] = useState('all');
   const [showReportDialog, setShowReportDialog] = useState(false);
+
+  useEffect(() => {
+    setStatus(
+      statusParam === 'open' || statusParam === 'under_review' || statusParam === 'resolved' || statusParam === 'closed'
+        ? statusParam
+        : 'all'
+    );
+  }, [statusParam]);
 
   const loadIncidents = useCallback(async () => {
     setLoading(true);

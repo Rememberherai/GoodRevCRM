@@ -24,6 +24,7 @@ async function resolveContext(slug: string, action: CommunityAction) {
 }
 
 async function getIncidentRecord(supabase: Awaited<ReturnType<typeof createClient>>, projectId: string, incidentId: string) {
+  // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const supabaseAny = supabase as any;
   const { data, error } = await supabaseAny
     .from('incidents')
@@ -46,6 +47,7 @@ export async function GET(_request: Request, context: RouteContext) {
     const resolved = await resolveContext(slug, 'view');
     if ('error' in resolved) return resolved.error;
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = resolved.supabase as any;
     const incident = await getIncidentRecord(resolved.supabase, resolved.project.id, id);
     if (!incident) {
@@ -106,6 +108,7 @@ export async function PATCH(request: Request, context: RouteContext) {
     }
 
     const updates = { ...validationResult.data } as Record<string, unknown>;
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = resolved.supabase as any;
 
     if (updates.assigned_to) {
@@ -193,6 +196,7 @@ export async function DELETE(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Incident not found' }, { status: 404 });
     }
 
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { error } = await (resolved.supabase as any)
       .from('incidents')
       .delete()
