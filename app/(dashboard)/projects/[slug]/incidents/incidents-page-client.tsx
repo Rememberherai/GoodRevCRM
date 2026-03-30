@@ -33,6 +33,8 @@ export function IncidentsPageClient() {
       : 'all'
   );
   const [severity, setSeverity] = useState('all');
+  const unassignedParam = searchParams.get('unassigned');
+  const [unassignedOnly, setUnassignedOnly] = useState(unassignedParam === 'true');
   const [showReportDialog, setShowReportDialog] = useState(false);
 
   useEffect(() => {
@@ -43,12 +45,17 @@ export function IncidentsPageClient() {
     );
   }, [statusParam]);
 
+  useEffect(() => {
+    setUnassignedOnly(unassignedParam === 'true');
+  }, [unassignedParam]);
+
   const loadIncidents = useCallback(async () => {
     setLoading(true);
     try {
       const searchParams = new URLSearchParams({ limit: '100', offset: '0' });
       if (status !== 'all') searchParams.set('status', status);
       if (severity !== 'all') searchParams.set('severity', severity);
+      if (unassignedOnly) searchParams.set('unassigned', 'true');
       const response = await fetch(`/api/projects/${slug}/incidents?${searchParams.toString()}`);
       const data = await response.json() as { incidents?: IncidentRecord[] };
       if (response.ok) {
@@ -57,7 +64,7 @@ export function IncidentsPageClient() {
     } finally {
       setLoading(false);
     }
-  }, [severity, slug, status]);
+  }, [severity, slug, status, unassignedOnly]);
 
   useEffect(() => {
     void loadIncidents();
@@ -88,7 +95,7 @@ export function IncidentsPageClient() {
           </CardDescription>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 md:grid-cols-2">
+          <div className="grid gap-3 md:grid-cols-3">
             <Select value={status} onValueChange={setStatus}>
               <SelectTrigger><SelectValue placeholder="Status" /></SelectTrigger>
               <SelectContent>
@@ -109,6 +116,9 @@ export function IncidentsPageClient() {
                 <SelectItem value="critical">Critical</SelectItem>
               </SelectContent>
             </Select>
+            <Button variant={unassignedOnly ? 'default' : 'outline'} onClick={() => setUnassignedOnly((current) => !current)}>
+              {unassignedOnly ? 'Needs Assignment Only' : 'Show All Assignment States'}
+            </Button>
           </div>
 
           {loading ? (

@@ -48,6 +48,7 @@ export const incidentListQuerySchema = z.object({
   severity: incidentSeveritySchema.optional(),
   category: incidentCategorySchema.optional(),
   assigned_to: z.string().uuid().optional(),
+  unassigned: z.coerce.boolean().optional(),
   household_id: z.string().uuid().optional(),
   event_id: z.string().uuid().optional(),
   asset_id: z.string().uuid().optional(),

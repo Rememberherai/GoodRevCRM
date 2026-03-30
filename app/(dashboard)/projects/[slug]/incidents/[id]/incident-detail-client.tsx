@@ -13,6 +13,8 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from '@
 import { Tabs, TabsContent, TabsList, TabsTrigger } from '@/components/ui/tabs';
 import { Textarea } from '@/components/ui/textarea';
 import { CreateTaskModal } from '@/components/tasks/create-task-modal';
+import { MemberCombobox } from '@/components/ui/member-combobox';
+import { PersonCombobox } from '@/components/ui/person-combobox';
 
 interface IncidentDetailResponse {
   incident: {
@@ -27,6 +29,8 @@ interface IncidentDetailResponse {
     follow_up_due_at: string | null;
     resolution_notes: string | null;
     household_id: string | null;
+    assigned_to: string | null;
+    assignee?: { id: string; full_name: string | null; email: string } | null;
   };
   people: Array<{
     id: string;
@@ -95,6 +99,7 @@ export function IncidentDetailClient() {
         throw new Error(payload.error ?? 'Failed to update incident');
       }
       await loadIncident(false);
+      window.dispatchEvent(new Event('incident-queue-updated'));
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update incident');
     } finally {
@@ -202,6 +207,18 @@ export function IncidentDetailClient() {
             <CardContent className="grid gap-4 md:grid-cols-2">
               <div className="space-y-3">
                 <div className="space-y-2">
+                  <Label>Assigned To</Label>
+                  <MemberCombobox
+                    value={data.incident.assigned_to}
+                    onValueChange={(value) => void handleUpdate({ assigned_to: value })}
+                    placeholder="Assign this incident..."
+                    disabled={saving}
+                  />
+                  <div className="text-xs text-muted-foreground">
+                    Assigning an incident marks who owns next steps and removes it from the unassigned alert badge.
+                  </div>
+                </div>
+                <div className="space-y-2">
                   <Label>Status</Label>
                   <Select value={data.incident.status} onValueChange={(value) => void handleUpdate({ status: value })}>
                     <SelectTrigger><SelectValue /></SelectTrigger>
@@ -299,15 +316,18 @@ export function IncidentDetailClient() {
             <CardHeader>
               <CardTitle>People</CardTitle>
               <CardDescription>
-                Link involved people by role. Use a CRM person UUID for now.
+                Link involved people by role without leaving the incident.
               </CardDescription>
             </CardHeader>
             <CardContent className="space-y-4">
               <div className="grid gap-3 md:grid-cols-[1fr_180px_auto]">
-                <Input
-                  value={newPersonId}
-                  onChange={(event) => setNewPersonId(event.target.value)}
-                  placeholder="Person ID"
+                <PersonCombobox
+                  value={newPersonId || null}
+                  onValueChange={(value) => setNewPersonId(value ?? '')}
+                  placeholder="Search people..."
+                  disabled={saving}
+                  allowCreate
+                  excludeIds={new Set(data.people.map((person) => person.person?.id).filter(Boolean) as string[])}
                 />
                 <Select value={newPersonRole} onValueChange={setNewPersonRole}>
                   <SelectTrigger><SelectValue /></SelectTrigger>

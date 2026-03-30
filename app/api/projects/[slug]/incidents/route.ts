@@ -42,6 +42,7 @@ export async function GET(request: Request, context: RouteContext) {
       severity: searchParams.get('severity') ?? undefined,
       category: searchParams.get('category') ?? undefined,
       assigned_to: searchParams.get('assigned_to') ?? undefined,
+      unassigned: searchParams.get('unassigned') ?? undefined,
       household_id: searchParams.get('household_id') ?? undefined,
       event_id: searchParams.get('event_id') ?? undefined,
       asset_id: searchParams.get('asset_id') ?? undefined,
@@ -57,7 +58,7 @@ export async function GET(request: Request, context: RouteContext) {
     const { supabase, project } = resolved;
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
-    const { status, severity, category, assigned_to, household_id, event_id, asset_id, overdue, limit, offset } = queryResult.data;
+    const { status, severity, category, assigned_to, unassigned, household_id, event_id, asset_id, overdue, limit, offset } = queryResult.data;
 
     let query = supabaseAny
       .from('incidents')
@@ -72,6 +73,7 @@ export async function GET(request: Request, context: RouteContext) {
     if (severity) query = query.eq('severity', severity);
     if (category) query = query.eq('category', category);
     if (assigned_to) query = query.eq('assigned_to', assigned_to);
+    if (unassigned) query = query.is('assigned_to', null);
     if (household_id) query = query.eq('household_id', household_id);
     if (event_id) query = query.eq('event_id', event_id);
     if (asset_id) query = query.eq('asset_id', asset_id);

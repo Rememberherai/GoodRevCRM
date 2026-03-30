@@ -20,55 +20,62 @@ interface IncidentQueueButtonProps {
 
 export function IncidentQueueButton({ projectSlug, projectType }: IncidentQueueButtonProps) {
   const pathname = usePathname();
-  const [openCount, setOpenCount] = useState<number | null>(null);
+  const [attentionCount, setAttentionCount] = useState<number | null>(null);
 
-  const fetchOpenCount = useCallback(async () => {
+  const fetchAttentionCount = useCallback(async () => {
     if (projectType !== 'community') return;
 
     try {
       const response = await fetch(
-        `/api/projects/${projectSlug}/incidents?status=open&limit=1&offset=0`,
+        `/api/projects/${projectSlug}/incidents?status=open&unassigned=true&limit=1&offset=0`,
         { cache: 'no-store' }
       );
 
       if (!response.ok) {
-        setOpenCount(0);
+        setAttentionCount(0);
         return;
       }
 
       const data = await response.json() as { pagination?: { total?: number } };
-      setOpenCount(data.pagination?.total ?? 0);
+      setAttentionCount(data.pagination?.total ?? 0);
     } catch {
-      setOpenCount(0);
+      setAttentionCount(0);
     }
   }, [projectSlug, projectType]);
 
   useEffect(() => {
     const timeoutId = window.setTimeout(() => {
-      void fetchOpenCount();
+      void fetchAttentionCount();
     }, 0);
 
     return () => window.clearTimeout(timeoutId);
-  }, [fetchOpenCount, pathname]);
+  }, [fetchAttentionCount, pathname]);
 
   useEffect(() => {
     if (projectType !== 'community') return;
 
     const handleFocus = () => {
-      void fetchOpenCount();
+      void fetchAttentionCount();
+    };
+    const handleIncidentQueueUpdated = () => {
+      void fetchAttentionCount();
     };
 
     window.addEventListener('focus', handleFocus);
-    return () => window.removeEventListener('focus', handleFocus);
-  }, [fetchOpenCount, projectType]);
+    window.addEventListener('incident-queue-updated', handleIncidentQueueUpdated);
+    return () => {
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('incident-queue-updated', handleIncidentQueueUpdated);
+    };
+  }, [fetchAttentionCount, projectType]);
 
   if (projectType !== 'community') {
     return null;
   }
 
-  const badgeLabel = openCount && openCount > 99 ? '99+' : String(openCount ?? 0);
-  const href = openCount && openCount > 0
-    ? `/projects/${projectSlug}/incidents?status=open`
+  const badgeLabel = attentionCount && attentionCount > 99 ? '99+' : String(attentionCount ?? 0);
+  const href = attentionCount && attentionCount > 0
+    ? `/projects/${projectSlug}/incidents?status=open&unassigned=true`
     : `/projects/${projectSlug}/incidents`;
 
   return (
@@ -77,8 +84,8 @@ export function IncidentQueueButton({ projectSlug, projectType }: IncidentQueueB
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon" asChild className="relative">
             <Link href={href}>
-              <AlertTriangle className={`h-5 w-5 ${openCount ? 'text-amber-600' : 'text-muted-foreground'}`} />
-              {openCount ? (
+              <AlertTriangle className={`h-5 w-5 ${attentionCount ? 'text-amber-600' : 'text-muted-foreground'}`} />
+              {attentionCount ? (
                 <Badge
                   variant="destructive"
                   className="absolute -right-1 -top-1 min-w-5 justify-center px-1 text-[10px] leading-none"
@@ -91,8 +98,8 @@ export function IncidentQueueButton({ projectSlug, projectType }: IncidentQueueB
         </TooltipTrigger>
         <TooltipContent>
           <p>
-            {openCount
-              ? `${openCount} open incident${openCount === 1 ? '' : 's'}`
+            {attentionCount
+              ? `${attentionCount} unassigned incident${attentionCount === 1 ? '' : 's'} need attention`
               : 'Incident queue'}
           </p>
         </TooltipContent>
