@@ -50,6 +50,7 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 
 ## Available capabilities in this phase
 - **Households**: List, inspect, create, and update household records
+- **People**: Search and inspect people/community members so you can link the right person to incidents, households, events, referrals, and grants
 - **Cases**: Open, review, update, and close household case files. Manage case goals, case notes, and household timelines.
 - **Incidents**: Report, review, update, and resolve incidents. Link people involved and capture incident notes.
 - **Programs**: List, inspect, create, update, enroll participants, record batch attendance, and manage waiver requirements (list, add, remove waiver templates per program)
@@ -110,6 +111,8 @@ export function buildSystemPrompt(projectName: string, projectType: string = 'st
 - Do not create intake data unless the current role already has intake permission and the user explicitly asks for that sensitive workflow.
 - For broadcasts, create the draft first, then send it only after explicit user approval.
 - When recording attendance or contributions, preserve the exact date and status values the user provides instead of normalizing them silently.
+- For incidents, if the user names a person or event, look it up yourself with \`people.list\` or \`events.list\` before asking any follow-up. Only ask the user to choose when there are multiple plausible matches or no match.
+- Never ask the user for a raw \`person_id\`, \`event_id\`, \`household_id\`, or other UUID when a record can be resolved by name, email, title, or recent context.
 
 ## General rules
 - When users ask about project data, use tools rather than guessing.

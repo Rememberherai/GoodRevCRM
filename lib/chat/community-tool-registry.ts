@@ -173,6 +173,9 @@ const entityGetSchema = z.object({
 });
 
 const householdsListSchema = paginatedListSchema;
+const peopleListSchema = paginatedListSchema.extend({
+  household_id: z.string().uuid().optional(),
+});
 const householdsCreateToolSchema = createHouseholdSchema.omit({
   project_id: true,
   members: true,
@@ -490,6 +493,93 @@ async function getIncidentById(
   if (error || !data) return null;
   return data;
 }
+
+defineCommunityTool({
+  name: 'people.list',
+  description: 'List and search people/community members by name, email, phone, or job title. Use this to resolve people mentioned in incidents, cases, events, referrals, or grants before calling a tool that needs person_id.',
+  resource: 'people',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: peopleListSchema,
+  handler: async (params, ctx) => {
+    const parsed = peopleListSchema.parse(params);
+    const admin = createAdminClient();
+    const { offset, to } = paginate(parsed.page, parsed.limit);
+
+    let query = admin
+      .from('people')
+      .select('id, first_name, last_name, email, phone, mobile_phone, job_title, updated_at', { count: 'exact' })
+      .eq('project_id', ctx.projectId)
+      .is('deleted_at', null)
+      .order('updated_at', { ascending: false })
+      .range(offset, to);
+
+    if (parsed.search) {
+      const sanitized = parsed.search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""');
+      query = query.or(
+        `first_name.ilike."%${sanitized}%",last_name.ilike."%${sanitized}%",email.ilike."%${sanitized}%",phone.ilike."%${sanitized}%",mobile_phone.ilike."%${sanitized}%",job_title.ilike."%${sanitized}%"`
+      );
+    }
+
+    if (parsed.household_id) {
+      const { data: memberRows, error: membersError } = await admin
+        .from('household_members')
+        .select('person_id')
+        .eq('household_id', parsed.household_id);
+      if (membersError) throw communityError(`Failed to look up household members: ${membersError.message}`);
+
+      const personIds = (memberRows ?? []).map((row) => row.person_id).filter(Boolean);
+      if (personIds.length === 0) {
+        return JSON.stringify({
+          people: [],
+          pagination: {
+            page: parsed.page,
+            limit: parsed.limit,
+            total: 0,
+            totalPages: 0,
+          },
+        });
+      }
+
+      query = query.in('id', personIds);
+    }
+
+    const { data, error, count } = await query;
+    if (error) throw communityError(`Failed to list people: ${error.message}`);
+
+    return JSON.stringify({
+      people: data ?? [],
+      pagination: {
+        page: parsed.page,
+        limit: parsed.limit,
+        total: count ?? 0,
+        totalPages: Math.ceil((count ?? 0) / parsed.limit),
+      },
+    });
+  },
+});
+
+defineCommunityTool({
+  name: 'people.get',
+  description: 'Get a single person/community member by ID. Use this after people.list when you need to confirm a specific match before linking the person to an incident or another record.',
+  resource: 'people',
+  action: 'view',
+  roles: ['owner', 'admin', 'staff', 'case_manager'],
+  parameters: entityGetSchema,
+  handler: async (params, ctx) => {
+    const parsed = entityGetSchema.parse(params);
+    const admin = createAdminClient();
+    const { data, error } = await admin
+      .from('people')
+      .select('id, first_name, last_name, email, phone, mobile_phone, job_title, updated_at')
+      .eq('project_id', ctx.projectId)
+      .eq('id', parsed.id)
+      .is('deleted_at', null)
+      .single();
+    if (error || !data) throw communityError(`Person not found: ${error?.message ?? 'unknown error'}`);
+    return JSON.stringify({ person: data });
+  },
+});
 
 defineCommunityTool({
   name: 'households.list',
@@ -1373,7 +1463,7 @@ defineCommunityTool({
 
 defineCommunityTool({
   name: 'incidents.create',
-  description: 'Report a new incident.',
+  description: 'Report a new incident. If the user mentions a person, household, event, or asset by name, resolve it with the matching list tool first instead of asking for a raw ID.',
   resource: 'incidents',
   action: 'create',
   roles: ['owner', 'admin', 'staff', 'case_manager'],
@@ -1540,7 +1630,7 @@ defineCommunityTool({
 
 defineCommunityTool({
   name: 'incidents.people.add',
-  description: 'Link a person to an incident with a role.',
+  description: 'Link a person to an incident with a role. If the user names the person, use people.list to find the correct person_id before calling this tool.',
   resource: 'incidents',
   action: 'create',
   roles: ['owner', 'admin', 'staff', 'case_manager'],
@@ -4519,7 +4609,7 @@ function validateEventToolTimeRange(data: {
 // ── Event tool definitions ──────────────────────────────────────────────────
 defineCommunityTool({
   name: 'events.list',
-  description: 'List events with optional status/category filtering and pagination.',
+  description: 'List events with optional search, status/category filtering, and pagination. Use this to resolve an event name before calling a tool that needs event_id.',
   resource: 'events',
   action: 'view',
   roles: ['owner', 'admin', 'staff', 'case_manager'],

@@ -5,6 +5,7 @@ import { ProjectAccessError, getOverride } from './permissions';
 
 export type CommunityResource =
   | 'households'
+  | 'people'
   | 'intake'
   | 'programs'
   | 'contributions'
@@ -33,6 +34,7 @@ const NO_ACTIONS: readonly CommunityAction[] = [];
 const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource, readonly CommunityAction[]>> = {
   owner: {
     households: ['view', 'create', 'update', 'delete'],
+    people: ['view'],
     intake: ['view', 'create', 'update', 'delete'],
     programs: ['view', 'create', 'update', 'delete'],
     contributions: ['view', 'create', 'update', 'delete'],
@@ -56,6 +58,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
   },
   admin: {
     households: ['view', 'create', 'update', 'delete'],
+    people: ['view'],
     intake: ['view', 'create', 'update', 'delete'],
     programs: ['view', 'create', 'update', 'delete'],
     contributions: ['view', 'create', 'update', 'delete'],
@@ -79,6 +82,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
   },
   staff: {
     households: ['view', 'create', 'update', 'delete'],
+    people: ['view'],
     intake: NO_ACTIONS,
     programs: ['view', 'create', 'update', 'delete'],
     contributions: ['view', 'create', 'update', 'delete'],
@@ -102,6 +106,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
   },
   case_manager: {
     households: ['view', 'create', 'update', 'delete'],
+    people: ['view'],
     intake: ['view', 'create', 'update', 'delete'],
     programs: ['view', 'create', 'update', 'delete'],
     contributions: ['view', 'create', 'update', 'delete'],
@@ -125,6 +130,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
   },
   contractor: {
     households: NO_ACTIONS,
+    people: NO_ACTIONS,
     intake: NO_ACTIONS,
     programs: NO_ACTIONS,
     contributions: NO_ACTIONS,
@@ -148,6 +154,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
   },
   board_viewer: {
     households: NO_ACTIONS,
+    people: NO_ACTIONS,
     intake: NO_ACTIONS,
     programs: NO_ACTIONS,
     contributions: NO_ACTIONS,
@@ -171,6 +178,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
   },
   member: {
     households: NO_ACTIONS,
+    people: NO_ACTIONS,
     intake: NO_ACTIONS,
     programs: NO_ACTIONS,
     contributions: NO_ACTIONS,
@@ -194,6 +202,7 @@ const COMMUNITY_PERMISSION_MATRIX: Record<ProjectRole, Record<CommunityResource,
   },
   viewer: {
     households: NO_ACTIONS,
+    people: NO_ACTIONS,
     intake: NO_ACTIONS,
     programs: NO_ACTIONS,
     contributions: NO_ACTIONS,

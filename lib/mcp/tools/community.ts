@@ -5,6 +5,7 @@ import type { CommunityChatTool } from '@/lib/chat/community-tool-registry';
 
 const CORE_PREFIXES = new Set([
   'households',
+  'people',
   'cases',
   'incidents',
   'programs',
