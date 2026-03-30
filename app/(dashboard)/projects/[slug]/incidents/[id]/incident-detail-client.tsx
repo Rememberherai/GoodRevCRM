@@ -60,9 +60,10 @@ export function IncidentDetailClient() {
   const [newPersonRole, setNewPersonRole] = useState('subject');
   const [newNote, setNewNote] = useState('');
   const [showCreateTask, setShowCreateTask] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
 
-  const loadIncident = useCallback(async () => {
-    setLoading(true);
+  const loadIncident = useCallback(async (showSkeleton = true) => {
+    if (showSkeleton) setLoading(true);
     try {
       const response = await fetch(`/api/projects/${slug}/incidents/${incidentId}`);
       const payload = await response.json() as IncidentDetailResponse | { error: string };
@@ -93,7 +94,7 @@ export function IncidentDetailClient() {
       if (!response.ok) {
         throw new Error(payload.error ?? 'Failed to update incident');
       }
-      await loadIncident();
+      await loadIncident(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to update incident');
     } finally {
@@ -118,7 +119,7 @@ export function IncidentDetailClient() {
         throw new Error(payload.error ?? 'Failed to link person');
       }
       setNewPersonId('');
-      await loadIncident();
+      await loadIncident(false);
       toast.success('Person linked');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to link person');
@@ -144,7 +145,7 @@ export function IncidentDetailClient() {
         throw new Error(payload.error ?? 'Failed to add note');
       }
       setNewNote('');
-      await loadIncident();
+      await loadIncident(false);
       toast.success('Note added');
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to add note');
@@ -182,7 +183,7 @@ export function IncidentDetailClient() {
         </div>
       </div>
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="people">People</TabsTrigger>
@@ -424,7 +425,7 @@ export function IncidentDetailClient() {
         householdId={data.incident.household_id ?? undefined}
         incidentId={data.incident.id}
         defaultTitle="Incident follow-up"
-        onSuccess={() => void loadIncident()}
+        onSuccess={() => void loadIncident(false)}
       />
     </div>
   );

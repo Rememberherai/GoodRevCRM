@@ -126,6 +126,7 @@ export function DocumentDetailClient() {
   const [showVoidDialog, setShowVoidDialog] = useState(false);
   const [showSendDialog, setShowSendDialog] = useState(false);
   const [showAddRecipient, setShowAddRecipient] = useState(false);
+  const [activeTab, setActiveTab] = useState('overview');
   const [gmailConnections, setGmailConnections] = useState<Array<{ id: string; email: string }>>([]);
   const [selectedConnection, setSelectedConnection] = useState('');
   const [sendMessage, setSendMessage] = useState('');
@@ -155,7 +156,8 @@ export function DocumentDetailClient() {
   const [newRecipientRole, setNewRecipientRole] = useState<'signer'>('signer');
   const [newRecipientOrder, setNewRecipientOrder] = useState(1);
 
-  const loadDocument = useCallback(async () => {
+  const loadDocument = useCallback(async (showSkeleton = true) => {
+    if (showSkeleton) setIsLoading(true);
     try {
       const res = await fetch(`/api/documents/${id}`);
       if (!res.ok) throw new Error('Failed to fetch document');
@@ -222,7 +224,7 @@ export function DocumentDetailClient() {
       setShowSendDialog(false);
       setSendMessage('');
       sendMessageEditor?.commands.setContent('');
-      loadDocument();
+      loadDocument(false);
       loadAuditTrail();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Send failed');
@@ -263,7 +265,7 @@ export function DocumentDetailClient() {
         throw new Error(err?.error ?? 'Operation failed');
       }
       setShowVoidDialog(false);
-      loadDocument();
+      loadDocument(false);
       loadAuditTrail();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Void failed');
@@ -282,7 +284,7 @@ export function DocumentDetailClient() {
         const err = await res.json().catch(() => null);
         throw new Error(err?.error ?? 'Operation failed');
       }
-      loadDocument();
+      loadDocument(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Remind failed');
     } finally {
@@ -317,7 +319,7 @@ export function DocumentDetailClient() {
       setNewRecipientEmail('');
       setNewRecipientRole('signer');
       setNewRecipientOrder(1);
-      loadDocument();
+      loadDocument(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add recipient');
     } finally {
@@ -335,7 +337,7 @@ export function DocumentDetailClient() {
         const err = await res.json().catch(() => null);
         throw new Error(err?.error ?? 'Failed to remove recipient');
       }
-      await loadDocument();
+      await loadDocument(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove recipient');
     } finally {
@@ -481,7 +483,7 @@ export function DocumentDetailClient() {
         </div>
       )}
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="recipients">Recipients ({document.recipients.length})</TabsTrigger>

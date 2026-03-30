@@ -159,8 +159,10 @@ export function ContractDetailClient() {
   const [newRecipientRole, setNewRecipientRole] = useState<'signer'>('signer');
   const [newRecipientOrder, setNewRecipientOrder] = useState(1);
   const [recipientSearchMode, setRecipientSearchMode] = useState(true);
+  const [activeTab, setActiveTab] = useState('overview');
 
-  const loadContract = useCallback(async () => {
+  const loadContract = useCallback(async (showSkeleton = true) => {
+    if (showSkeleton) setIsLoading(true);
     try {
       const res = await fetch(`/api/projects/${slug}/contracts/${id}`);
       if (!res.ok) throw new Error('Failed to fetch contract');
@@ -227,7 +229,7 @@ export function ContractDetailClient() {
       setShowSendDialog(false);
       setSendMessage('');
       sendMessageEditor?.commands.setContent('');
-      loadContract();
+      loadContract(false);
       loadAuditTrail();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Send failed');
@@ -268,7 +270,7 @@ export function ContractDetailClient() {
         throw new Error(err?.error ?? 'Operation failed');
       }
       setShowVoidDialog(false);
-      loadContract();
+      loadContract(false);
       loadAuditTrail();
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Void failed');
@@ -287,7 +289,7 @@ export function ContractDetailClient() {
         const err = await res.json().catch(() => null);
         throw new Error(err?.error ?? 'Operation failed');
       }
-      loadContract();
+      loadContract(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Remind failed');
     } finally {
@@ -322,7 +324,7 @@ export function ContractDetailClient() {
       setNewRecipientEmail('');
       setNewRecipientRole('signer');
       setNewRecipientOrder(1);
-      loadContract();
+      loadContract(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to add recipient');
     } finally {
@@ -340,7 +342,7 @@ export function ContractDetailClient() {
         const err = await res.json().catch(() => null);
         throw new Error(err?.error ?? 'Failed to remove recipient');
       }
-      await loadContract();
+      await loadContract(false);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to remove recipient');
     } finally {
@@ -495,7 +497,7 @@ export function ContractDetailClient() {
         </div>
       )}
 
-      <Tabs defaultValue="overview">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="overview">Overview</TabsTrigger>
           <TabsTrigger value="recipients">Recipients ({contract.recipients.length})</TabsTrigger>

@@ -93,12 +93,13 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
   const [selectedTemplateId, setSelectedTemplateId] = useState<string>('');
   const [isAddingWaiver, setIsAddingWaiver] = useState(false);
   const [showCreateWaiver, setShowCreateWaiver] = useState(false);
+  const [activeTab, setActiveTab] = useState('info');
 
   // Linked events
   const [linkedEvents, setLinkedEvents] = useState<{ id: string; title: string; status: string; starts_at: string; timezone: string }[]>([]);
 
-  const loadProgram = useCallback(async () => {
-    setIsLoading(true);
+  const loadProgram = useCallback(async (showSkeleton = true) => {
+    if (showSkeleton) setIsLoading(true);
     setError(null);
     try {
       const [programResponse, enrollmentResponse, waiversResponse] = await Promise.all([
@@ -171,7 +172,7 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
       }
       toast.success('Waiver template added');
       setSelectedTemplateId('');
-      await loadProgram();
+      await loadProgram(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to add waiver');
     } finally {
@@ -189,7 +190,7 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
         throw new Error(data.error ?? 'Failed to remove waiver');
       }
       toast.success('Waiver template removed');
-      await loadProgram();
+      await loadProgram(false);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to remove waiver');
     }
@@ -219,7 +220,7 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
       toast.success(data.waiver_message ?? 'Participant enrolled');
       setPersonId(null);
       setNotes('');
-      await loadProgram();
+      await loadProgram(false);
     } catch (error) {
       toast.error(error instanceof Error ? error.message : 'Failed to enroll participant');
     } finally {
@@ -311,7 +312,7 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
         </Card>
       </div>
 
-      <Tabs defaultValue="info">
+      <Tabs value={activeTab} onValueChange={setActiveTab}>
         <TabsList>
           <TabsTrigger value="info">Info</TabsTrigger>
           <TabsTrigger value="enrollments">Enrollments</TabsTrigger>
@@ -423,7 +424,7 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
                 open={showCreateWaiver}
                 onOpenChange={setShowCreateWaiver}
                 onCreated={() => {
-                  void loadProgram();
+                  void loadProgram(false);
                   void loadTemplates();
                 }}
                 programId={programId}
@@ -493,7 +494,7 @@ export function ProgramDetailClient({ programId }: { programId: string }) {
           <BatchAttendance
             programId={program.id}
             enrollments={enrollments}
-            onSaved={() => void loadProgram()}
+            onSaved={() => void loadProgram(false)}
           />
         </TabsContent>
 
