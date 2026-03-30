@@ -38,12 +38,14 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
         <SearchTrigger projectSlug={project.slug} />
       </div>
       <div className="flex items-center gap-2 md:gap-4">
-        <span className="hidden md:inline-flex"><ApiKeysRequiredButton projectSlug={project.slug} /></span>
-        <span className="hidden md:inline-flex"><PublicLinksButton projectSlug={project.slug} projectType={project.project_type} /></span>
-        <span className="hidden md:inline-flex"><IncidentQueueButton projectSlug={project.slug} projectType={project.project_type} /></span>
-        <span className="hidden md:inline-flex"><BugReportButton /></span>
-        <span className="hidden md:inline-flex"><ProcessQueueButton /></span>
-        <span className="hidden md:inline-flex"><ThemeToggle /></span>
+        <div className="hidden md:flex items-center gap-2">
+          <ApiKeysRequiredButton projectSlug={project.slug} />
+          <PublicLinksButton projectSlug={project.slug} projectType={project.project_type} />
+          <IncidentQueueButton projectSlug={project.slug} projectType={project.project_type} />
+          <BugReportButton />
+          <ProcessQueueButton />
+          <ThemeToggle />
+        </div>
         <NotificationBell
           notifications={notifications}
           onMarkAsRead={onMarkAsRead}

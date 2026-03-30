@@ -62,30 +62,39 @@ export function IncidentQueueButton({ projectSlug, projectType }: IncidentQueueB
     return () => window.removeEventListener('focus', handleFocus);
   }, [fetchOpenCount, projectType]);
 
-  if (projectType !== 'community' || !openCount) {
+  if (projectType !== 'community') {
     return null;
   }
 
-  const badgeLabel = openCount > 99 ? '99+' : String(openCount);
+  const badgeLabel = openCount && openCount > 99 ? '99+' : String(openCount ?? 0);
+  const href = openCount && openCount > 0
+    ? `/projects/${projectSlug}/incidents?status=open`
+    : `/projects/${projectSlug}/incidents`;
 
   return (
     <TooltipProvider>
       <Tooltip>
         <TooltipTrigger asChild>
           <Button variant="ghost" size="icon" asChild className="relative">
-            <Link href={`/projects/${projectSlug}/incidents?status=open`}>
-              <AlertTriangle className="h-5 w-5 text-amber-600" />
-              <Badge
-                variant="destructive"
-                className="absolute -right-1 -top-1 min-w-5 justify-center px-1 text-[10px] leading-none"
-              >
-                {badgeLabel}
-              </Badge>
+            <Link href={href}>
+              <AlertTriangle className={`h-5 w-5 ${openCount ? 'text-amber-600' : 'text-muted-foreground'}`} />
+              {openCount ? (
+                <Badge
+                  variant="destructive"
+                  className="absolute -right-1 -top-1 min-w-5 justify-center px-1 text-[10px] leading-none"
+                >
+                  {badgeLabel}
+                </Badge>
+              ) : null}
             </Link>
           </Button>
         </TooltipTrigger>
         <TooltipContent>
-          <p>{openCount} open incident{openCount === 1 ? '' : 's'}</p>
+          <p>
+            {openCount
+              ? `${openCount} open incident${openCount === 1 ? '' : 's'}`
+              : 'Incident queue'}
+          </p>
         </TooltipContent>
       </Tooltip>
     </TooltipProvider>
