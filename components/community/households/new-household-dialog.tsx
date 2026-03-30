@@ -360,7 +360,7 @@ export function NewHouseholdDialog({
                 </div>
               ) : members.map((member) => {
                 const person = people.find((entry) => entry.id === member.person_id);
-                const label = [person?.first_name, person?.last_name].filter(Boolean).join(' ') || person?.email || member.person_id;
+                const label = [person?.first_name, person?.last_name].filter(Boolean).join(' ') || person?.email || '(Unknown person)';
                 return (
                   <div key={member.person_id} className="flex items-center justify-between gap-4 rounded-lg border p-3">
                     <div>

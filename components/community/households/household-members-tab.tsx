@@ -214,7 +214,7 @@ export function HouseholdMembersTab({
               const fullName = [
                 member.person?.first_name,
                 member.person?.last_name,
-              ].filter(Boolean).join(' ') || member.person?.email || member.person_id;
+              ].filter(Boolean).join(' ') || member.person?.email || '(Deleted person)';
 
               return (
                 <div key={member.id} className="flex items-center justify-between gap-4 rounded-lg border p-4">
