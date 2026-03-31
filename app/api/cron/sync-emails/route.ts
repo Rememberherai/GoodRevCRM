@@ -45,61 +45,83 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, message: 'No active connections', synced: 0 });
     }
 
-    const results: Array<{
+    type SyncResult = {
       connection_id: string;
       email: string;
       status: 'synced' | 'skipped' | 'error';
       messages_fetched?: number;
       messages_stored?: number;
       error?: string;
-    }> = [];
+    };
+
+    // Split into skipped vs needs-sync, then process needs-sync in parallel batches of 3
+    const skipped: SyncResult[] = [];
+    const toSync: typeof connections = [];
+    const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
 
     for (const conn of connections) {
-      // Skip if synced very recently (within last 2 minutes) to avoid redundant work
-      if (conn.last_sync_at) {
-        const lastSync = new Date(conn.last_sync_at);
-        const twoMinAgo = new Date(Date.now() - 2 * 60 * 1000);
-        if (lastSync > twoMinAgo) {
-          results.push({
-            connection_id: conn.id,
-            email: conn.email.replace(/^(.{3}).*@/, '$1***@'),
-            status: 'skipped',
-          });
-          continue;
-        }
-      }
-
-      try {
-        const syncResult = await syncEmailsForConnection(conn.id);
-        results.push({
+      if (conn.last_sync_at && new Date(conn.last_sync_at) > twoMinAgo) {
+        skipped.push({
           connection_id: conn.id,
           email: conn.email.replace(/^(.{3}).*@/, '$1***@'),
-          status: 'synced',
-          messages_fetched: syncResult.messages_fetched,
-          messages_stored: syncResult.messages_stored,
-          error: syncResult.error,
+          status: 'skipped',
         });
-      } catch (err) {
-        console.error(`[SyncCron] Sync failed for ${conn.id}:`, err);
-        results.push({
-          connection_id: conn.id,
-          email: conn.email.replace(/^(.{3}).*@/, '$1***@'),
+      } else {
+        toSync.push(conn);
+      }
+    }
+
+    const synced: SyncResult[] = [];
+
+    // Process in parallel batches of 3 to reduce total wall-clock time
+    for (let i = 0; i < toSync.length; i += 3) {
+      const batch = toSync.slice(i, i + 3);
+      const batchResults = await Promise.allSettled(
+        batch.map(async (conn): Promise<SyncResult> => {
+          try {
+            const syncResult = await syncEmailsForConnection(conn.id);
+            return {
+              connection_id: conn.id,
+              email: conn.email.replace(/^(.{3}).*@/, '$1***@'),
+              status: 'synced',
+              messages_fetched: syncResult.messages_fetched,
+              messages_stored: syncResult.messages_stored,
+              error: syncResult.error,
+            };
+          } catch (err) {
+            console.error(`[SyncCron] Sync failed for ${conn.id}:`, err);
+            return {
+              connection_id: conn.id,
+              email: conn.email.replace(/^(.{3}).*@/, '$1***@'),
+              status: 'error',
+              error: err instanceof Error ? err.message : 'Unknown error',
+            };
+          }
+        })
+      );
+
+      for (const r of batchResults) {
+        synced.push(r.status === 'fulfilled' ? r.value : {
+          connection_id: 'unknown',
+          email: 'unknown',
           status: 'error',
-          error: err instanceof Error ? err.message : 'Unknown error',
+          error: 'Promise rejected',
         });
       }
     }
 
-    const synced = results.filter(r => r.status === 'synced').length;
+    const results = [...skipped, ...synced];
+
+    const syncedCount = results.filter(r => r.status === 'synced').length;
     const totalFetched = results.reduce((sum, r) => sum + (r.messages_fetched ?? 0), 0);
     const totalStored = results.reduce((sum, r) => sum + (r.messages_stored ?? 0), 0);
 
-    console.log(`[SyncCron] Complete: ${synced}/${connections.length} connections synced, ${totalFetched} fetched, ${totalStored} stored`);
+    console.log(`[SyncCron] Complete: ${syncedCount}/${connections.length} connections synced, ${totalFetched} fetched, ${totalStored} stored`);
 
     return NextResponse.json({
       ok: true,
       connections_total: connections.length,
-      connections_synced: synced,
+      connections_synced: syncedCount,
       messages_fetched: totalFetched,
       messages_stored: totalStored,
       results,

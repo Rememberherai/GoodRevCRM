@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
 import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
+import { scanConnectionForBounces } from '@/lib/gmail/bounce-scan';
 
 export const maxDuration = 60;
 
@@ -14,9 +15,7 @@ function createAdminClient() {
 /**
  * GET /api/cron/bounce-scan
  * Cron-triggered bounce scan for all active Gmail connections.
- * Searches Gmail for NDR/DSN messages and creates bounce email_events.
- *
- * Auth: per-project cron_secret or CRON_SECRET env var
+ * Calls scan logic directly (no self-fetch) to avoid spawning extra function instances.
  */
 export async function GET(request: Request) {
   const isAuthorized = await verifyCronAuth(request);
@@ -37,37 +36,31 @@ export async function GET(request: Request) {
       return NextResponse.json({ ok: true, message: 'No active connections', scanned: 0 });
     }
 
-    // Forward auth header + project_id so bounce-scan endpoint accepts the request
-    const authHeader = request.headers.get('authorization') ?? '';
-    const url = new URL(request.url);
-    const baseUrl = url.origin;
-    const projectId = url.searchParams.get('project_id') ?? '';
+    // Process connections with concurrency limit of 2 to stay within maxDuration
     const results = [];
+    for (let i = 0; i < connections.length; i += 2) {
+      const batch = connections.slice(i, i + 2);
+      const batchResults = await Promise.allSettled(
+        batch.map(async (conn) => {
+          try {
+            const scanResult = await scanConnectionForBounces(conn.id);
+            return {
+              connection_id: conn.id,
+              email: conn.email.replace(/^(.{3}).*@/, '$1***@'),
+              ...scanResult,
+            };
+          } catch (err) {
+            return {
+              connection_id: conn.id,
+              email: conn.email.replace(/^(.{3}).*@/, '$1***@'),
+              error: err instanceof Error ? err.message : 'Unknown error',
+            };
+          }
+        })
+      );
 
-    for (const conn of connections) {
-      try {
-        const scanUrl = `${baseUrl}/api/gmail/bounce-scan${projectId ? `?project_id=${projectId}` : ''}`;
-        const response = await fetch(scanUrl, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': authHeader,
-          },
-          body: JSON.stringify({ connection_id: conn.id }),
-        });
-
-        const data = await response.json();
-        results.push({
-          connection_id: conn.id,
-          email: conn.email.replace(/^(.{3}).*@/, '$1***@'),
-          ...data,
-        });
-      } catch (err) {
-        results.push({
-          connection_id: conn.id,
-          email: conn.email.replace(/^(.{3}).*@/, '$1***@'),
-          error: err instanceof Error ? err.message : 'Unknown error',
-        });
+      for (const r of batchResults) {
+        results.push(r.status === 'fulfilled' ? r.value : { error: 'Promise rejected' });
       }
     }
 

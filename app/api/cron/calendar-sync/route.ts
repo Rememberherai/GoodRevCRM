@@ -28,28 +28,35 @@ export async function POST(request: Request) {
       return NextResponse.json({ message: 'No integrations to sync', synced: 0 });
     }
 
-    const results: Array<{ id: string; success: boolean; error?: string }> = [];
-
-    for (const integration of integrations) {
-      // Skip if synced within last 5 minutes
+    // Filter to only integrations that need syncing
+    const toSync = integrations.filter((integration) => {
       if (integration.last_synced_at) {
         const lastSync = new Date(integration.last_synced_at).getTime();
-        if (Date.now() - lastSync < 5 * 60 * 1000) {
-          continue;
+        if (Date.now() - lastSync < 5 * 60 * 1000) return false;
+      }
+      if ((integration.sync_errors_count ?? 0) >= 10) return false;
+      return true;
+    });
+
+    // Process in parallel batches of 3 to reduce total wall-clock time
+    const results: Array<{ id: string; success: boolean; error?: string }> = [];
+
+    for (let i = 0; i < toSync.length; i += 3) {
+      const batch = toSync.slice(i, i + 3);
+      const batchResults = await Promise.allSettled(
+        batch.map(async (integration) => {
+          const result = await syncCalendarEvents(integration.id);
+          return { id: integration.id, success: result.success, error: result.error };
+        })
+      );
+
+      for (const r of batchResults) {
+        if (r.status === 'fulfilled') {
+          results.push(r.value);
+        } else {
+          results.push({ id: 'unknown', success: false, error: 'Promise rejected' });
         }
       }
-
-      // Skip integrations with too many consecutive errors (back off)
-      if ((integration.sync_errors_count ?? 0) >= 10) {
-        continue;
-      }
-
-      const result = await syncCalendarEvents(integration.id);
-      results.push({
-        id: integration.id,
-        success: result.success,
-        error: result.error,
-      });
     }
 
     return NextResponse.json({

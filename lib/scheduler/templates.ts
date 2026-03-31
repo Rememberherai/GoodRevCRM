@@ -46,7 +46,7 @@ export const CRON_TEMPLATES: CronTemplate[] = [
     defaultSchedule: {
       timezone: 'America/New_York',
       hours: [-1],
-      minutes: [0, 5, 10, 15, 20, 25, 30, 35, 40, 45, 50, 55],
+      minutes: [0, 10, 20, 30, 40, 50],
       mdays: [-1],
       months: [-1],
       wdays: [-1],
