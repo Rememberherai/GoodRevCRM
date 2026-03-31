@@ -57,6 +57,8 @@ export function useOpportunities() {
       setOpportunities(result.opportunities, result.pagination);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch opportunities');
+    } finally {
+      setLoading(false);
     }
   }, [
     projectSlug,
@@ -85,6 +87,8 @@ export function useOpportunities() {
         const message = err instanceof Error ? err.message : 'Failed to create opportunity';
         setError(message);
         throw err;
+      } finally {
+        setLoading(false);
       }
     },
     [projectSlug, addOpportunity, setLoading, setError]
@@ -103,6 +107,8 @@ export function useOpportunities() {
         const message = err instanceof Error ? err.message : 'Failed to update opportunity';
         setError(message);
         throw err;
+      } finally {
+        setLoading(false);
       }
     },
     [projectSlug, updateOpportunity, setLoading, setError]
@@ -120,6 +126,8 @@ export function useOpportunities() {
         const message = err instanceof Error ? err.message : 'Failed to delete opportunity';
         setError(message);
         throw err;
+      } finally {
+        setLoading(false);
       }
     },
     [projectSlug, removeOpportunity, setLoading, setError]
@@ -209,6 +217,8 @@ export function useOpportunity(opportunityId: string) {
       setCurrentOpportunity(opportunity);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch opportunity');
+    } finally {
+      setLoading(false);
     }
   }, [projectSlug, opportunityId, setCurrentOpportunity, setLoading, setError]);
 
@@ -225,6 +235,8 @@ export function useOpportunity(opportunityId: string) {
         const message = err instanceof Error ? err.message : 'Failed to update opportunity';
         setError(message);
         throw err;
+      } finally {
+        setLoading(false);
       }
     },
     [projectSlug, opportunityId, setCurrentOpportunity, setLoading, setError]

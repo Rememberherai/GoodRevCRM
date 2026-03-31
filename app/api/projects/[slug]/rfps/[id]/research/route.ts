@@ -198,6 +198,28 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Failed to create research job' }, { status: 500 });
     }
 
+    // Re-check for concurrent running jobs (race window between check and insert).
+    // If another job was inserted concurrently, clean up our duplicate and return 409.
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    const { data: allRunning } = await (adminClient as any)
+      .from('rfp_research_results')
+      .select('id')
+      .eq('rfp_id', rfpId)
+      .eq('status', 'running')
+      .order('created_at', { ascending: true });
+
+    if (allRunning && allRunning.length > 1 && allRunning[0].id !== job.id) {
+      // Another job won the race — clean up ours
+      await (adminClient as any)
+        .from('rfp_research_results')
+        .delete()
+        .eq('id', job.id);
+      return NextResponse.json(
+        { error: 'Research is already running for this RFP', jobId: allRunning[0].id },
+        { status: 409 }
+      );
+    }
+
     // Build research context
     const org = rfp.organization;
     const researchContext: RfpResearchContext = {

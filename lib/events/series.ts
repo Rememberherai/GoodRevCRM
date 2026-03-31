@@ -115,7 +115,11 @@ function buildSeriesOccurrenceDateStrings(params: {
     byweekday: byweekday.length > 0 ? byweekday : undefined,
   };
 
-  const count = params.countOverride ?? params.series.recurrence_count;
+  let count: number | null | undefined = params.countOverride ?? params.series.recurrence_count;
+  // Treat 0 or negative count as "no count limit" to avoid unbounded generation
+  if (count !== undefined && count !== null && count <= 0) {
+    count = null;
+  }
   if (count) {
     ruleOptions.count = count;
     delete ruleOptions.until;

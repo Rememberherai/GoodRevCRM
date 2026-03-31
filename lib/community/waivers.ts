@@ -508,12 +508,12 @@ export async function syncEnrollmentFromCompletedWaiver(params: {
       .is('signed_at', null);
 
     // Check if ALL enrollment_waivers for this enrollment are now signed
-    const { count: totalCount } = await params.supabase
+    const { count: totalCount, error: totalCountError } = await params.supabase
       .from('enrollment_waivers')
       .select('id', { count: 'exact', head: true })
       .eq('enrollment_id', enrollmentId);
 
-    const { count: unsignedCount } = await params.supabase
+    const { count: unsignedCount, error: unsignedCountError } = await params.supabase
       .from('enrollment_waivers')
       .select('id', { count: 'exact', head: true })
       .eq('enrollment_id', enrollmentId)
@@ -527,9 +527,14 @@ export async function syncEnrollmentFromCompletedWaiver(params: {
 
     if (!enrollment) return false;
 
-    // Only promote if there are actual enrollment_waiver rows (guards against
-    // cascade-deleted rows making unsignedCount appear as 0)
-    if (totalCount && totalCount > 0 && unsignedCount === 0) {
+    if (totalCountError || unsignedCountError || totalCount === null || unsignedCount === null) {
+      console.error('Failed to verify waiver completion state:', totalCountError ?? unsignedCountError);
+      return false;
+    }
+
+    // If totalCount is 0 (e.g. waivers cascade-deleted), treat as satisfied
+    // to avoid leaving enrollment stuck in pending forever.
+    if (totalCount === 0 || (totalCount > 0 && unsignedCount === 0)) {
       // All waivers signed — promote enrollment
       const nextStatus = enrollment.status === 'waitlisted' ? 'active' : enrollment.status;
       await params.supabase

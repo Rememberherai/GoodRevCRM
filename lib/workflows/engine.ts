@@ -289,7 +289,12 @@ async function traverseNode(
           const items = collection.slice(0, maxIterations);
           const wasInsideLoop = ctx.insideLoop;
           ctx.insideLoop = true;
+          const loopStartTime = Date.now();
           for (const item of items) {
+            if (Date.now() - loopStartTime > 5 * 60 * 1000) {
+              console.warn(`[Workflow] Loop timeout (5 min) reached for node ${node.id}`);
+              break;
+            }
             ctx.contextData[itemKey] = item;
             // Execute the loop body (next nodes)
             const outEdges = edges.filter((e) => e.source === node.id);

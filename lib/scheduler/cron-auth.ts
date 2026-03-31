@@ -23,6 +23,9 @@ function safeCompare(a: string, b: string): boolean {
   return crypto.timingSafeEqual(hmacA, hmacB);
 }
 
+// UUID v4 format validation
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
 export async function verifyCronAuth(request: Request): Promise<boolean> {
   const authHeader = request.headers.get('authorization');
   if (!authHeader?.startsWith('Bearer ')) return false;
@@ -35,6 +38,9 @@ export async function verifyCronAuth(request: Request): Promise<boolean> {
   const projectId = url.searchParams.get('project_id');
 
   if (projectId) {
+    // Validate project_id is a proper UUID before using it
+    if (!UUID_RE.test(projectId)) return false;
+
     try {
       const projectSecret = await getProjectSecret(projectId, 'cron_secret');
       if (projectSecret && safeCompare(projectSecret, token)) return true;
@@ -43,9 +49,10 @@ export async function verifyCronAuth(request: Request): Promise<boolean> {
     }
   }
 
-  // Global fallback
+  // Global fallback — reject if CRON_SECRET is not set or empty
   const globalSecret = process.env.CRON_SECRET;
-  if (globalSecret && safeCompare(globalSecret, token)) return true;
+  if (!globalSecret) return false;
+  if (safeCompare(globalSecret, token)) return true;
 
   return false;
 }

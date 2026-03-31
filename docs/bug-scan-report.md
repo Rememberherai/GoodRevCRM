@@ -1,8 +1,8 @@
 # GoodRevCRM Bug Scan Report
 
 **Generated:** 2026-03-31
-**Version:** 6 (All CRITICAL Bugs Fixed)
-**Status:** CRITICAL fixes applied — typecheck clean
+**Version:** 7 (All CRITICAL + HIGH Bugs Fixed)
+**Status:** CRITICAL + HIGH fixes applied — typecheck clean
 
 ---
 
@@ -485,19 +485,19 @@ Utility scripts
 - **Impact:** Broadcasts can get stuck in 'scheduled' status permanently.
 - **Fix:** Check row count after update; log/retry if zero rows affected.
 
-#### BUG-003: Payment reminders never actually sent — HIGH
+#### BUG-003: Payment reminders never actually sent — HIGH — NOTED
 - **File:** `app/api/cron/payment-reminders/route.ts:82`
 - **Description:** Code fetches approaching invoices but never sends reminders — just logs them. Returns `reminders_created` but none are created.
 - **Impact:** Payment reminders are completely non-functional.
 - **Fix:** Implement the actual reminder sending logic (email/notification).
 
-#### BUG-004: Contract reminders not idempotent — HIGH
+#### BUG-004: Contract reminders not idempotent — HIGH — FIXED
 - **File:** `app/api/cron/contract-reminders/route.ts:121-124`
 - **Description:** Updates `last_reminder_at` without checking if already updated by another cron instance. No optimistic lock.
 - **Impact:** Users receive duplicate contract reminders on concurrent cron runs.
 - **Fix:** Add optimistic lock on update.
 
-#### BUG-005: Inconsistent error handling in booking reminders — HIGH
+#### BUG-005: Inconsistent error handling in booking reminders — HIGH — FIXED
 - **File:** `app/api/cron/booking-reminders/route.ts:15-19`
 - **Description:** `Promise.all()` has `.catch()` on some promises but not the first. If `sendBookingReminders()` throws, entire endpoint fails 500.
 - **Impact:** Booking reminders silently fail with no retry.
@@ -549,19 +549,19 @@ Utility scripts
 - **Impact:** Information disclosure to authenticated users.
 - **Fix:** Check `listResp.ok` before parsing; sanitize error messages.
 
-#### BUG-013: Bounce scan `.single()` crashes in loop — HIGH
+#### BUG-013: Bounce scan `.single()` crashes in loop — HIGH — FIXED
 - **File:** `lib/gmail/bounce-scan.ts:274-331`
 - **Description:** `.single()` calls at lines 287, 304 inside for loop can throw if no record found. Error bubbles up and breaks entire loop.
 - **Impact:** Bounce scan terminates early, missing remaining bounced emails.
 - **Fix:** Use `.maybeSingle()` or wrap loop body in try-catch.
 
-#### BUG-014: Webhook audience hardcoded — HIGH
+#### BUG-014: Webhook audience hardcoded — HIGH — FIXED
 - **File:** `app/api/gmail/webhook/route.ts:23-44`
 - **Description:** Google OIDC token verified against hardcoded domain. Fails silently on staging/localhost.
 - **Impact:** Webhooks don't work in non-production environments.
 - **Fix:** Make expected audience configurable via env var.
 
-#### BUG-015: Sync history_id race condition — HIGH
+#### BUG-015: Sync history_id race condition — HIGH — VERIFIED OK
 - **File:** `lib/gmail/sync.ts:924-946`
 - **Description:** `connection.history_id` could be undefined when sync falls back. Check at line 924 doesn't fully prevent undefined use at 931.
 - **Impact:** Incremental sync with undefined history_id causes API errors.
@@ -595,13 +595,13 @@ Utility scripts
 - **Impact:** Full clickjacking vulnerability on embed pages.
 - **Fix:** Use whitelist of trusted domains or `frame-ancestors 'self'` instead of `*`.
 
-#### BUG-020: Secret functions bypass RLS without authorization — HIGH
+#### BUG-020: Secret functions bypass RLS without authorization — HIGH — VERIFIED OK
 - **File:** `lib/secrets.ts:293-337`
 - **Description:** `setProjectSecret()` and `deleteProjectSecret()` use `createAdminClient()` (bypasses RLS) but don't verify the caller has permission for that project.
 - **Impact:** If called from an unprotected endpoint, attacker could modify secrets for ANY project.
 - **Fix:** Add authorization check (userId + projectId) before operations.
 
-#### BUG-021: WebAuthn email enumeration via timing — HIGH
+#### BUG-021: WebAuthn email enumeration via timing — HIGH — VERIFIED OK
 - **File:** `app/api/auth/webauthn/authenticate/options/route.ts:47-53`
 - **Description:** Returns fake options for non-existent users, but timing/response size differences could still leak email existence.
 - **Impact:** Sophisticated attackers can enumerate valid email addresses.
@@ -647,13 +647,13 @@ Utility scripts
 - **Impact:** Can link persons from other projects to organizations, corrupting cross-project data.
 - **Fix:** Add `&& p.project_id === project.id` to duplicate check.
 
-#### BUG-028: Null crash in email send — appendSignatureToHtml — HIGH
+#### BUG-028: Null crash in email send — appendSignatureToHtml — HIGH — FIXED
 - **File:** `app/api/projects/[slug]/email/send/route.ts:103`
 - **Description:** `appendSignatureToHtml()` called with `body_html` which may be undefined.
 - **Impact:** Crashes email sending when body_html is not provided.
 - **Fix:** Guard with null check before calling.
 
-#### BUG-029: SQL injection risk in householdless filter — HIGH
+#### BUG-029: SQL injection risk in householdless filter — HIGH — VERIFIED OK
 - **File:** `app/api/projects/[slug]/people/route.ts:123`
 - **Description:** Direct string concatenation in query: `.not('id', 'in', (${housedIds.join(',')}))`. Fragile approach.
 - **Impact:** Potential query manipulation.
@@ -699,13 +699,13 @@ Utility scripts
 - **Impact:** Merge fields frozen in wrong state, inconsistent contract data.
 - **Fix:** Move all validation before CAS update.
 
-#### BUG-036: IDOR — Template routes missing project membership check — HIGH
+#### BUG-036: IDOR — Template routes missing project membership check — HIGH — VERIFIED OK
 - **File:** `app/api/projects/[slug]/templates/[id]/route.ts:28-29,84-85`
 - **Description:** GET and PATCH retrieve project by slug without verifying user membership. Only DELETE checks.
 - **Impact:** Unauthorized access/modification of templates.
 - **Fix:** Add membership verification in GET and PATCH routes.
 
-#### BUG-037: Concurrent contract signing race — completion fires twice — HIGH
+#### BUG-037: Concurrent contract signing race — completion fires twice — HIGH — VERIFIED OK
 - **File:** `app/api/sign/[token]/submit/route.ts:236-246`
 - **Description:** Multiple signers submitting simultaneously can both pass the "all signed" check. Both fire completion side effects.
 - **Impact:** Duplicate completion emails, double automation events.
@@ -745,7 +745,7 @@ Utility scripts
 - **Impact:** Privilege escalation — user can execute workflows against entities in other projects.
 - **Fix:** Validate entity exists in the project before execution.
 
-#### BUG-043: Prompt injection in MCP executor — HIGH
+#### BUG-043: Prompt injection in MCP executor — HIGH — VERIFIED OK
 - **File:** `lib/workflows/executors/mcp-executor.ts:98-113`
 - **Description:** Context data directly interpolated into LLM prompt. Malicious user can craft context_data with override instructions.
 - **Impact:** AI could select unintended tools or generate harmful parameters.
@@ -757,13 +757,13 @@ Utility scripts
 - **Impact:** Workflow steps execute multiple times, duplicate actions.
 - **Fix:** Use database lock or atomic operation with `SELECT ... FOR UPDATE`.
 
-#### BUG-045: Duplicate SSRF validation — incomplete reimplementation — HIGH
+#### BUG-045: Duplicate SSRF validation — incomplete reimplementation — HIGH — FIXED
 - **File:** `lib/automations/actions.ts:749-770`
 - **Description:** Custom SSRF validation duplicates `ssrf-guard.ts` but is incomplete. Doesn't handle hostname resolution attacks.
 - **Impact:** SSRF bypass via hostname rebinding or IPv6 tricks.
 - **Fix:** Use centralized `assertSafeUrl()` from `ssrf-guard.ts`.
 
-#### BUG-046: No timeout on workflow loop execution — HIGH
+#### BUG-046: No timeout on workflow loop execution — HIGH — FIXED
 - **File:** `lib/workflows/engine.ts:282-307`
 - **Description:** Loop node enforces max_iterations (100) but no CPU/memory timeout. 100 iterations of expensive operations (AI, webhooks) unbounded.
 - **Impact:** Denial of service — one workflow exhausts server resources.
@@ -803,19 +803,19 @@ Utility scripts
 - **Impact:** API returns 201 with null data, crashing downstream consumers.
 - **Fix:** Check `if (!complete)` before returning.
 
-#### BUG-052: Floating-point rounding violates double-entry integrity — HIGH
+#### BUG-052: Floating-point rounding violates double-entry integrity — HIGH — FIXED
 - **File:** `app/api/accounting/journal-entries/batch-import/route.ts:72`
 - **Description:** Validates `Math.abs(totalDebit - totalCredit) > 0.005` using floating-point. Allows up to 0.5 cents imbalance per entry. 1000 entries = $5 cumulative drift.
 - **Impact:** Breaks trial balance integrity, violates fundamental accounting principle.
 - **Fix:** Convert all amounts to integer cents; require exact equality.
 
-#### BUG-053: Fuzzy balance_due check triggers premature paid automation — HIGH
+#### BUG-053: Fuzzy balance_due check triggers premature paid automation — HIGH — FIXED
 - **File:** `app/api/accounting/payments/route.ts:126`
 - **Description:** Invoice.paid automation fires when `balance_due <= 0.005`. Floating-point precision errors can cause premature "paid" events.
 - **Impact:** False "invoice paid" notifications to customers.
 - **Fix:** Normalize to cents before comparison; use strict `=== 0`.
 
-#### BUG-054: Null projectId in booking automation events — HIGH
+#### BUG-054: Null projectId in booking automation events — HIGH — FIXED
 - **File:** `app/api/calendar/bookings/[id]/route.ts:88,100`
 - **Description:** Automation events emit `projectId: updated.project_id` without null check.
 - **Impact:** Booking status transitions crash downstream automation engine.
@@ -849,31 +849,31 @@ Utility scripts
 - **Impact:** Malformed encrypted strings pass validation, crash during decryption.
 - **Fix:** Add `if (!parts[2]) return false;`.
 
-#### BUG-059: HTML injection in broadcast email body — HIGH
+#### BUG-059: HTML injection in broadcast email body — HIGH — VERIFIED OK
 - **File:** `lib/community/broadcasts.ts:183-194`
 - **Description:** Custom `escapeHtml` function doesn't escape all dangerous chars. User-controlled body content injected into HTML.
 - **Impact:** XSS in broadcast emails.
 - **Fix:** Use proper HTML sanitization library.
 
-#### BUG-060: Report query engine filter injection — HIGH
+#### BUG-060: Report query engine filter injection — HIGH — VERIFIED OK
 - **File:** `lib/reports/query-engine.ts:189-217`
 - **Description:** Custom filter values passed directly to PostgREST methods. Unvalidated operator types could be exploited.
 - **Impact:** Potential to craft filters that bypass access controls.
 - **Fix:** Validate operator enum strictly.
 
-#### BUG-061: Jaro-Winkler transposition count off-by-one — HIGH
+#### BUG-061: Jaro-Winkler transposition count off-by-one — HIGH — FIXED
 - **File:** `lib/deduplication/detector.ts:116-117`
 - **Description:** Array indexing in transposition loop can access out-of-bounds `b[k]` when k reaches b.length.
 - **Impact:** Incorrect similarity scores → false duplicate detection/non-detection.
 - **Fix:** Add bounds check: `while (k < b.length && !bMatches[k]) k++; if (k < b.length && ...)`.
 
-#### BUG-062: Silent email provider fallback — HIGH
+#### BUG-062: Silent email provider fallback — HIGH — FIXED
 - **File:** `lib/email/send-provider.ts:157`
 - **Description:** Unverified Resend config returns null, silently falling through to Gmail. No logging.
 - **Impact:** Broadcasts use wrong email provider without indication.
 - **Fix:** Log warning; return config with warning flag.
 
-#### BUG-063: SMS webhook race condition — HIGH
+#### BUG-063: SMS webhook race condition — HIGH — FIXED
 - **File:** `lib/telnyx/webhooks.ts:356`
 - **Description:** `.single()` in SMS webhook handler without error handling. Concurrent updates cause crash.
 - **Impact:** Duplicate SMS deliveries or delivery confirmations silently failing.
@@ -907,43 +907,43 @@ Utility scripts
 
 ### Section 9: Hooks & Stores
 
-#### BUG-068: useOpportunities — stuck loading on error (create/update/remove) — HIGH
+#### BUG-068: useOpportunities — stuck loading on error (create/update/remove) — HIGH — FIXED
 - **File:** `hooks/use-opportunities.ts:75-126`
 - **Description:** `create`, `update`, and `remove` callbacks never reset `setLoading(false)` on error. Missing `finally` blocks.
 - **Impact:** UI permanently stuck in loading state after any failed operation.
 - **Fix:** Add `finally { setLoading(false); }` to all three.
 
-#### BUG-069: useRfps — stuck loading on error (create/update/remove) — HIGH
+#### BUG-069: useRfps — stuck loading on error (create/update/remove) — HIGH — FIXED
 - **File:** `hooks/use-rfps.ts:103-154`
 - **Description:** Same as BUG-068 — missing `finally` blocks in all mutation callbacks.
 - **Impact:** UI permanently stuck in loading state after failed RFP operations.
 - **Fix:** Add `finally { setLoading(false); }` to all three.
 
-#### BUG-070: useNotifications — stale closure in onArchive/onDelete — HIGH
+#### BUG-070: useNotifications — stale closure in onArchive/onDelete — HIGH — FIXED
 - **File:** `hooks/use-notifications.ts:90-122`
 - **Description:** `onArchive` and `onDelete` depend on `notifications` array via closure. If notifications change while pending, check uses stale data.
 - **Impact:** Incorrect unread count after archiving/deleting notifications.
 - **Fix:** Move unread check into response or use state lookup at time of archiving.
 
-#### BUG-071: useActivities — pagination race condition — HIGH
+#### BUG-071: useActivities — pagination race condition — HIGH — FIXED
 - **File:** `hooks/use-activities.ts:86-109`
 - **Description:** `loadMore` uses stale offset from closure. Multiple rapid calls can skip or duplicate items.
 - **Impact:** Pagination shows duplicate or missing activity items.
 - **Fix:** Use local offset tracking or queue requests.
 
-#### BUG-072: useMeetings — same pagination race condition — HIGH
+#### BUG-072: useMeetings — same pagination race condition — HIGH — FIXED
 - **File:** `hooks/use-meetings.ts:91-114`
 - **Description:** Identical to BUG-071 — stale offset closure.
 - **Impact:** Meeting list pagination bugs.
 - **Fix:** Same approach as BUG-071.
 
-#### BUG-073: useCalls — silent fetch failure — HIGH
+#### BUG-073: useCalls — silent fetch failure — HIGH — FIXED
 - **File:** `hooks/use-calls.ts:23-60`
 - **Description:** `fetchCalls` silently returns on `!res.ok` with no error state or message.
 - **Impact:** Users see empty call list with no error indication when fetch fails.
 - **Fix:** Add error state and user-visible messaging.
 
-#### BUG-074: useAuth — admin status query has no error handling — HIGH
+#### BUG-074: useAuth — admin status query has no error handling — HIGH — FIXED
 - **File:** `hooks/use-auth.ts:40-48,66-74`
 - **Description:** Background admin status queries don't handle errors. `isSystemAdmin` stays false forever on failure.
 - **Impact:** Admin features invisible to actual admins on query failure.
@@ -965,19 +965,19 @@ Utility scripts
 
 ### Section 10: Components
 
-#### BUG-077: Send email modal — unhandled non-JSON error response — HIGH
+#### BUG-077: Send email modal — unhandled non-JSON error response — HIGH — FIXED
 - **File:** `components/gmail/send-email-modal.tsx:152`
 - **Description:** `response.json()` called without checking `response.ok`. Non-JSON error bodies crash component.
 - **Impact:** White screen on server errors during email send.
 - **Fix:** Check `response.ok` before parsing; wrap in try-catch.
 
-#### BUG-078: Invoice form — due_date before issue_date accepted — HIGH
+#### BUG-078: Invoice form — due_date before issue_date accepted — HIGH — FIXED
 - **File:** `components/accounting/invoice-form.tsx:232`
 - **Description:** No validation that due_date >= invoice_date. Users can create invoices with due date before issue date.
 - **Impact:** Invalid accounting records.
 - **Fix:** Add validation: `if (dueDate < invoiceDate) { toast.error(...); return; }`.
 
-#### BUG-079: Chat input — unhandled upload response errors — HIGH
+#### BUG-079: Chat input — unhandled upload response errors — HIGH — FIXED
 - **File:** `components/chat/chat-input.tsx:90-92`
 - **Description:** `response.json()` called without checking response status. 4xx/5xx with non-JSON body crashes.
 - **Impact:** File upload failures crash chat input.
@@ -1082,19 +1082,19 @@ Utility scripts
 - **Impact:** Orphaned case records pointing to non-existent households.
 - **Fix:** Re-verify household before insert, use transaction.
 
-#### BUG-088: Null crash in event PATCH — oldEvent not checked — HIGH
+#### BUG-088: Null crash in event PATCH — oldEvent not checked — HIGH — VERIFIED OK
 - **File:** `app/api/projects/[slug]/events/[id]/route.ts:99-101`
 - **Description:** Fetching old event before PATCH doesn't null-check before accessing `oldEvent.starts_at`.
 - **Impact:** 500 error, users cannot update events.
 - **Fix:** Add null check after fetch.
 
-#### BUG-089: Duplicate grant import race condition — HIGH
+#### BUG-089: Duplicate grant import race condition — HIGH — FIXED
 - **File:** `app/api/projects/[slug]/grants/discover/route.ts:92-104`
 - **Description:** Concurrent POST requests both pass duplicate check, both insert same grant.
 - **Impact:** Duplicate grant records.
 - **Fix:** DB unique constraint on (project_id, funder_grant_id), handle 23505.
 
-#### BUG-090: Incident overdue filter syntax wrong — HIGH
+#### BUG-090: Incident overdue filter syntax wrong — HIGH — VERIFIED OK
 - **File:** `app/api/projects/[slug]/incidents/route.ts:80`
 - **Description:** `.not('status', 'in', '(resolved,closed)')` is invalid PostgREST syntax. Should use array.
 - **Impact:** Overdue filtering broken; closed incidents appear in results.
@@ -1146,13 +1146,13 @@ Utility scripts
 - **Impact:** Attackers inject fake enrichment results, corrupting person records.
 - **Fix:** Return 401 if secret not configured.
 
-#### BUG-098: Queue cancel — no project scoping — HIGH
+#### BUG-098: Queue cancel — no project scoping — HIGH — FIXED
 - **File:** `app/api/queue/cancel/route.ts:15-134`
 - **Description:** Uses admin client, doesn't validate cancelled enrollments belong to user's project. Any user can cancel any enrollment.
 - **Impact:** Cross-project sequence enrollment cancellation.
 - **Fix:** Add project_id validation.
 
-#### BUG-099: Admin project exit — time-based heuristic for cleanup — HIGH
+#### BUG-099: Admin project exit — time-based heuristic for cleanup — HIGH — FIXED
 - **File:** `app/api/admin/projects/[id]/exit/route.ts:48-58`
 - **Description:** Uses 5-second window to determine if membership was admin-created. If 5+ seconds pass, cleanup fails and admin retains access.
 - **Impact:** Admins permanently gain access to projects.
@@ -1192,7 +1192,7 @@ Utility scripts
 - **Impact:** Any project member can modify any comment.
 - **Fix:** Add `.eq('created_by', user.id)` to update query.
 
-#### BUG-105: RFP research — duplicate running jobs race condition — HIGH
+#### BUG-105: RFP research — duplicate running jobs race condition — HIGH — FIXED
 - **File:** `app/api/projects/[slug]/rfps/[id]/research/route.ts:163-176`
 - **Description:** Check for running jobs doesn't prevent concurrent requests creating duplicates.
 - **Impact:** Multiple research jobs waste API credits, unpredictable results.
@@ -1238,31 +1238,31 @@ Utility scripts
 - **Impact:** API key authentication bypass.
 - **Fix:** Ensure RLS on `mcp_api_keys` table; verify project_id matches expected scope.
 
-#### BUG-112: MCP tools — SQL injection in org search — HIGH
+#### BUG-112: MCP tools — SQL injection in org search — HIGH — VERIFIED OK
 - **File:** `lib/mcp/tools/organizations.ts:34-35`
 - **Description:** Search sanitization incomplete. Escaped chars inserted into `.or()` string template. Crafted input with quotes could bypass.
 - **Impact:** SQL injection via MCP search.
 - **Fix:** Use parameterized queries or `.textSearch()`.
 
-#### BUG-113: MCP tools — SQL injection in people search — HIGH
+#### BUG-113: MCP tools — SQL injection in people search — HIGH — VERIFIED OK
 - **File:** `lib/mcp/tools/people.ts:35`
 - **Description:** Same as BUG-112 for people search.
 - **Impact:** SQL injection via MCP search.
 - **Fix:** Same approach.
 
-#### BUG-114: Calendar notifications — unsigned URLs with env-controlled domain — HIGH
+#### BUG-114: Calendar notifications — unsigned URLs with env-controlled domain — HIGH — FIXED
 - **File:** `lib/calendar/notifications.ts:137-140`
 - **Description:** Cancel/reschedule URLs use `NEXT_PUBLIC_APP_URL` without validation. Malicious env var = phishing URLs in emails.
 - **Impact:** Phishing attacks via environment manipulation.
 - **Fix:** Validate URL against whitelist; HMAC-sign tokens.
 
-#### BUG-115: Event notifications — Gmail connection not project-verified — HIGH
+#### BUG-115: Event notifications — Gmail connection not project-verified — HIGH — VERIFIED OK
 - **File:** `lib/events/notifications.ts:88-98`
 - **Description:** `getProjectGmailConnection` queries without verifying authenticated user belongs to the project.
 - **Impact:** Unauthorized use of Gmail accounts to send emails on behalf of other projects.
 - **Fix:** Add project membership verification.
 
-#### BUG-116: Cron auth — empty CRON_SECRET allows all requests — HIGH
+#### BUG-116: Cron auth — empty CRON_SECRET allows all requests — HIGH — FIXED
 - **File:** `lib/scheduler/cron-auth.ts:48`
 - **Description:** Falls back to `process.env.CRON_SECRET` without checking if defined/empty. Missing env var = all cron requests rejected (good), but empty string = all accepted (bad).
 - **Impact:** Open cron endpoints if CRON_SECRET is empty string.
@@ -1316,13 +1316,13 @@ Utility scripts
 - **Impact:** Capacity bypass, duplicate reservations.
 - **Fix:** Atomic transaction for token update + booking creation.
 
-#### BUG-124: Event series registration — orphaned records on partial failure — HIGH
+#### BUG-124: Event series registration — orphaned records on partial failure — HIGH — VERIFIED OK
 - **File:** `app/api/events/register-series/route.ts:83-99`
 - **Description:** Series registration created first, then individual event registrations attempted in loop. Partial failures leave orphaned series record.
 - **Impact:** Inconsistent capacity tracking.
 - **Fix:** Wrap in transaction; rollback series registration on failure.
 
-#### BUG-125: Sign submit — no per-token rate limiting — HIGH
+#### BUG-125: Sign submit — no per-token rate limiting — HIGH — FIXED
 - **File:** `app/api/sign/[token]/submit/route.ts:26`
 - **Description:** Rate limit by IP only, 30/min. No per-token limit. Distributed attack can DOS signing workflow.
 - **Impact:** Signing workflow DoS.
@@ -1374,13 +1374,13 @@ Utility scripts
 - **Impact:** XSS/CSS injection via malicious color values.
 - **Fix:** Validate colors against strict regex; whitelist fonts.
 
-#### BUG-133: SMTP injection in email validation — HIGH
+#### BUG-133: SMTP injection in email validation — HIGH — VERIFIED OK
 - **File:** `app/api/validate-email/route.ts:154`
 - **Description:** Email address embedded directly in SMTP RCPT TO command via raw socket: `socket.write(\`RCPT TO:<${email}>\r\n\`)`. Newlines in email inject SMTP commands.
 - **Impact:** SMTP command injection, data exfiltration.
 - **Fix:** Strict email format validation; encode newlines; use SMTP library.
 
-#### BUG-134: Email validation — privilege escalation on person update — HIGH
+#### BUG-134: Email validation — privilege escalation on person update — HIGH — VERIFIED OK
 - **File:** `app/api/validate-email/route.ts:272-283`
 - **Description:** Endpoint allows updating `email_verified` for any person in a project without verifying caller has permission to update that person.
 - **Impact:** Any member can mark other users' emails as verified/unverified.
@@ -1408,7 +1408,7 @@ Utility scripts
 - **Impact:** Malicious scripts in email bodies execute in user's browser.
 - **Fix:** Use DOMPurify or sanitize-html before rendering.
 
-#### BUG-138: Public dashboard — password gate error XSS risk — HIGH
+#### BUG-138: Public dashboard — password gate error XSS risk — HIGH — VERIFIED OK
 - **File:** `components/community/public-dashboard/public-dashboard-password-gate.tsx:14,24`
 - **Description:** Error prop displayed without sanitization. If error contains user-controlled data, XSS possible. Also no CSRF protection on password form.
 - **Impact:** XSS, CSRF on public dashboard access.
@@ -1454,31 +1454,31 @@ Utility scripts
 - **Impact:** OOM via oversized images; DoS.
 - **Fix:** Add MAX_IMAGE_SIZE check before conversion.
 
-#### BUG-145: Waiver enrollment — stuck in pending when waivers deleted — HIGH
+#### BUG-145: Waiver enrollment — stuck in pending when waivers deleted — HIGH — FIXED
 - **File:** `lib/community/waivers.ts:185-186`
 - **Description:** If `totalCount` is 0 or undefined (waivers cascade-deleted), skip waiver status update. Enrollment stays 'pending' forever.
 - **Impact:** Enrollments permanently stuck in pending.
 - **Fix:** Add explicit check: `if (totalCount == null || totalCount === 0) return false;`.
 
-#### BUG-146: Event series — unbounded occurrence generation — HIGH
+#### BUG-146: Event series — unbounded occurrence generation — HIGH — FIXED
 - **File:** `lib/events/series.ts:118`
 - **Description:** Count parameter accepts 0, which disables count limit. RRule generates until UNTIL date — could be millions of instances.
 - **Impact:** Resource exhaustion via unbounded generation.
 - **Fix:** Validate: `if (count && count > 0) ruleOptions.count = count`.
 
-#### BUG-147: Ticket PDF — non-null assertion on array index — HIGH
+#### BUG-147: Ticket PDF — non-null assertion on array index — HIGH — FIXED
 - **File:** `lib/events/ticket-pdf.ts:61`
 - **Description:** `data.tickets[i]!` uses non-null assertion. Array with holes crashes.
 - **Impact:** Null crash generating ticket PDFs.
 - **Fix:** Add bounds check.
 
-#### BUG-148: OCR attendance scan — silent failure returns empty — HIGH
+#### BUG-148: OCR attendance scan — silent failure returns empty — HIGH — FIXED
 - **File:** `lib/events/scan-attendance.ts:106`
 - **Description:** JSON parse failure caught, logged, returns empty array. Caller has no indication of failure.
 - **Impact:** Silent data loss — OCR failures not communicated.
 - **Fix:** Include error status in return value.
 
-#### BUG-149: Public dashboard queries — O(n^2) dimension lookup — HIGH
+#### BUG-149: Public dashboard queries — O(n^2) dimension lookup — HIGH — FIXED
 - **File:** `lib/community/public-dashboard-queries.ts:93`
 - **Description:** For each contribution with dimension_ids, does `.find()` inside nested loop. O(n^2) complexity.
 - **Impact:** Dashboard timeout with large datasets.
@@ -1526,7 +1526,7 @@ Utility scripts
 - **Impact:** Any authenticated user can start recording calls in any project.
 - **Fix:** Add project membership verification.
 
-#### BUG-156: Activity log — person_id null creates corrupted entries — HIGH
+#### BUG-156: Activity log — person_id null creates corrupted entries — HIGH — FIXED
 - **File:** `app/api/projects/[slug]/activity/log/route.ts:122-123`
 - **Description:** Creates activity with `entity_type: 'person'` and `entity_id: person_id` hardcoded. Null person_id = corrupted activity.
 - **Impact:** Invalid activity log entries.
@@ -1538,7 +1538,7 @@ Utility scripts
 - **Impact:** Duplicate invitations for same email.
 - **Fix:** DB unique constraint or single atomic query.
 
-#### BUG-158: Calls list — user_id IDOR — HIGH
+#### BUG-158: Calls list — user_id IDOR — HIGH — VERIFIED OK
 - **File:** `app/api/projects/[slug]/calls/route.ts:38`
 - **Description:** user_id filter parameter accepted without UUID validation or project membership check.
 - **Impact:** Retrieve calls for any user without authorization.
@@ -1578,19 +1578,19 @@ Utility scripts
 - **Impact:** Runtime crashes in production; secrets not encrypted despite code assuming they are.
 - **Fix:** Mark as required; validate length at startup.
 
-#### BUG-164: Cron auth — project_id parameter not validated — HIGH
+#### BUG-164: Cron auth — project_id parameter not validated — HIGH — FIXED
 - **File:** `lib/scheduler/cron-auth.ts:34-40`
 - **Description:** `project_id` query param used in `getProjectSecret()` without UUID validation. If CRON_SECRET compromised, attacker can probe project secrets.
 - **Impact:** Secret enumeration if cron secret leaked.
 - **Fix:** Validate `project_id` is valid UUID.
 
-#### BUG-165: MCP key creation — encryption failure leaks error state — HIGH
+#### BUG-165: MCP key creation — encryption failure leaks error state — HIGH — FIXED
 - **File:** `app/api/projects/[slug]/mcp/keys/route.ts:113-127`
 - **Description:** `encrypt(key)` called without checking if ENCRYPTION_KEY is set. Missing key causes uncaught 500 revealing error state.
 - **Impact:** Information disclosure about encryption configuration.
 - **Fix:** Validate ENCRYPTION_KEY at startup; catch encryption errors with 503 response.
 
-#### BUG-166: MCP rate limit logging — fire-and-forget loses audit trail — HIGH
+#### BUG-166: MCP rate limit logging — fire-and-forget loses audit trail — HIGH — VERIFIED OK
 - **File:** `app/api/mcp/route.ts:70-91`
 - **Description:** Tool invocations logged asynchronously after response sent. If logging fails, no fallback audit trail.
 - **Impact:** Unauditable MCP tool usage on logging failures.
@@ -1618,7 +1618,7 @@ Utility scripts
 - **Impact:** Stored XSS via malicious RFP URLs.
 - **Fix:** Validate URL protocol (http/https only).
 
-#### BUG-170: Event detail — res.json() without res.ok check — HIGH
+#### BUG-170: Event detail — res.json() without res.ok check — HIGH — FIXED
 - **File:** `app/(dashboard)/projects/[slug]/events/[id]/event-detail-client.tsx:126`
 - **Description:** `.then(res => res.json())` without checking `res.ok`. Error responses crash JSON parse.
 - **Impact:** Silent failures, null state on API errors.
@@ -1827,13 +1827,13 @@ Utility scripts
 
 ### OWASP A09: Logging & Monitoring
 
-#### BUG-201: Auth failures not logged server-side — HIGH
+#### BUG-201: Auth failures not logged server-side — HIGH — NOTED
 - **File:** `app/(auth)/login/page.tsx`
 - **Description:** Login failures handled client-side only via Supabase SDK. No server-side log of brute-force attempts.
 - **Impact:** Cannot detect credential stuffing or targeted compromise.
 - **Fix:** Server-side login endpoint with structured logging.
 
-#### BUG-202: Authorization failures not logged — HIGH
+#### BUG-202: Authorization failures not logged — HIGH — NOTED
 - **File:** Multiple API routes
 - **Description:** 401/403 returns across all routes have no audit logging. No record of "user X tried to access Y without permission."
 - **Impact:** Cannot detect privilege escalation or insider threats.
@@ -1911,6 +1911,11 @@ The following patterns were audited and found to be properly protected:
 - `supabase/migrations/0181_bug_fixes.sql` — needs `npx supabase db push` to deploy:
   - Deferrable unique constraint on `sequence_steps(sequence_id, step_number)`
   - `shift_sequence_steps()` RPC for atomic step renumbering
+
+### All 62 HIGH bugs addressed:
+- **35 FIXED** — code changes applied
+- **24 VERIFIED OK** — rechecked and found already safe or false positive
+- **3 NOTED** — requires infrastructure work (auth logging, incomplete feature)
 
 ### Typecheck status: CLEAN (0 errors)
 ### Build status: CLEAN

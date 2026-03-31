@@ -16,13 +16,15 @@ export function useCalls(params: {
 }) {
   const [calls, setCalls] = useState<CallWithRelations[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
   const [hasMore, setHasMore] = useState(false);
   const [offset, setOffset] = useState(0);
   const limit = params.limit ?? 20;
 
   const fetchCalls = useCallback(
-    async (currentOffset: number, append = false) => {
+    async (currentOffset: number, append = false): Promise<boolean> => {
       setIsLoading(true);
+      setError(null);
       try {
         const searchParams = new URLSearchParams();
         searchParams.set('limit', String(limit));
@@ -39,15 +41,23 @@ export function useCalls(params: {
         const res = await fetch(
           `/api/projects/${params.projectSlug}/calls?${searchParams.toString()}`
         );
-        if (!res.ok) return;
+        if (!res.ok) {
+          const errMsg = `Failed to fetch calls (${res.status})`;
+          setError(errMsg);
+          return false;
+        }
 
         const data = await res.json();
         const newCalls = data.calls ?? [];
 
         setCalls((prev) => (append ? [...prev, ...newCalls] : newCalls));
         setHasMore(newCalls.length === limit);
+        return true;
       } catch (err) {
+        const errMsg = err instanceof Error ? err.message : 'Error fetching calls';
+        setError(errMsg);
         console.error('Error fetching calls:', err);
+        return false;
       } finally {
         setIsLoading(false);
       }
@@ -66,8 +76,11 @@ export function useCalls(params: {
 
   const loadMore = useCallback(() => {
     const newOffset = offset + limit;
-    setOffset(newOffset);
-    fetchCalls(newOffset, true);
+    void fetchCalls(newOffset, true).then((ok) => {
+      if (ok) {
+        setOffset(newOffset);
+      }
+    });
   }, [offset, limit, fetchCalls]);
 
   const refresh = useCallback(() => {
@@ -75,7 +88,7 @@ export function useCalls(params: {
     fetchCalls(0);
   }, [fetchCalls]);
 
-  return { calls, isLoading, hasMore, loadMore, refresh };
+  return { calls, isLoading, error, hasMore, loadMore, refresh };
 }
 
 // Hook for fetching call metrics

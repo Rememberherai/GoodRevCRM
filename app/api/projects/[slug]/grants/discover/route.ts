@@ -113,7 +113,23 @@ export async function POST(request: Request, context: RouteContext) {
       .select()
       .single();
 
-    if (error || !data) throw error ?? new Error('Failed to create grant');
+    if (error) {
+      // Handle duplicate insert race condition (unique constraint violation)
+      if (error.code === '23505') {
+        const { data: existingGrant } = await supabase
+          .from('grants')
+          .select('id, name')
+          .eq('project_id', project.id)
+          .eq('funder_grant_id', grantData.funder_grant_id)
+          .maybeSingle();
+        return NextResponse.json(
+          { error: `This opportunity has already been imported${existingGrant ? ` as "${existingGrant.name}"` : ''}`, existing_grant_id: existingGrant?.id },
+          { status: 409 },
+        );
+      }
+      throw error;
+    }
+    if (!data) throw new Error('Failed to create grant');
 
     emitAutomationEvent({
       projectId: project.id,

@@ -55,7 +55,9 @@ export async function GET(request: Request) {
     const receivedSig = stateParam.slice(dotIndex + 1);
     const expectedSig = signOAuthState(payload);
 
-    if (!crypto.timingSafeEqual(Buffer.from(receivedSig), Buffer.from(expectedSig))) {
+    const receivedBuf = Buffer.from(receivedSig);
+    const expectedBuf = Buffer.from(expectedSig);
+    if (receivedBuf.length !== expectedBuf.length || !crypto.timingSafeEqual(receivedBuf, expectedBuf)) {
       return NextResponse.redirect(`${appUrl}${redirectPath}?gmail_error=invalid_state`);
     }
 

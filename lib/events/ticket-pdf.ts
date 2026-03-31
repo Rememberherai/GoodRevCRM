@@ -58,7 +58,8 @@ export async function generateTicketPdf(data: TicketPdfData): Promise<Uint8Array
   const qrSize = 150;
 
   for (let i = 0; i < data.tickets.length; i++) {
-    const ticket = data.tickets[i]!;
+    const ticket = data.tickets[i];
+    if (!ticket) continue;
 
     // Start a new page for each ticket (clean layout)
     const page = doc.addPage([pageWidth, pageHeight]);

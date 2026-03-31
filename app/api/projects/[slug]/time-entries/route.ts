@@ -56,6 +56,9 @@ export async function GET(request: Request, context: RouteContext) {
       query = query.or(`contractor_id.eq.${workerFilter},person_id.eq.${workerFilter}`);
     }
     if (jobId) {
+      if (!UUID_RE.test(jobId)) {
+        return NextResponse.json({ error: 'Invalid job_id format' }, { status: 400 });
+      }
       query = query.eq('job_id', jobId);
     }
     if (from) {

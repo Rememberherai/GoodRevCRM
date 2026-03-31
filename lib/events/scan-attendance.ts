@@ -100,7 +100,9 @@ export async function parseSignInSheet(
 
   // Extract JSON array from response
   const jsonMatch = content.match(/\[[\s\S]*\]/);
-  if (!jsonMatch) return [];
+  if (!jsonMatch) {
+    throw new Error('OCR response did not contain a parseable attendance list');
+  }
 
   try {
     const parsed = JSON.parse(jsonMatch[0]) as unknown[];
@@ -123,9 +125,9 @@ export async function parseSignInSheet(
     }
 
     return entries;
-  } catch {
+  } catch (parseError) {
     console.error('Failed to parse OCR response:', content);
-    return [];
+    throw new Error(`OCR response JSON parse failed: ${parseError instanceof Error ? parseError.message : 'Unknown error'}`);
   }
 }
 

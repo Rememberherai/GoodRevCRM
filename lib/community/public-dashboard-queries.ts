@@ -86,11 +86,12 @@ export async function getPublicDashboardAggregateData(
     }
   }
 
+  const dimensionMap = new Map(dimensions.map((d) => [d.id, d]));
   const dimensionGroups = new Map<string, { label: string; count: number; totalValue: number; color: string | null }>();
   for (const contribution of contributions) {
     if (!contribution.dimension_ids || contribution.dimension_ids.length === 0) continue;
     for (const dimId of contribution.dimension_ids) {
-      const dimension = dimensions.find((item) => item.id === dimId);
+      const dimension = dimensionMap.get(dimId);
       if (!dimension) continue;
       const existing = dimensionGroups.get(dimension.id);
       if (existing) {

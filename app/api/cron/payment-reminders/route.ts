@@ -74,14 +74,14 @@ export async function GET(request: Request) {
       return NextResponse.json({ success: true, ...results });
     }
 
-    // For approaching invoices, we could create notification records or tasks.
-    // For now, we just log them. A full implementation would:
+    // TODO: INCOMPLETE FEATURE — reminder sending is not implemented yet.
+    // Currently only logs approaching invoices. A full implementation would:
     // - Check if a reminder was already sent for this invoice
     // - Send email via Gmail service or create an in-app notification
+    // - Only then increment reminders_created
     if (approachingInvoices && approachingInvoices.length > 0) {
-      results.reminders_created = approachingInvoices.length;
       console.log(
-        `[PAYMENT_REMINDERS] ${approachingInvoices.length} invoices approaching due date`,
+        `[PAYMENT_REMINDERS] ${approachingInvoices.length} invoices approaching due date (reminders not yet implemented)`,
       );
     }
   } catch (err) {

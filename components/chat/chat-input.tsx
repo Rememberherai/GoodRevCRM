@@ -87,10 +87,17 @@ export function ChatInput({ onSend, onStop, isStreaming, projectSlug, projectTyp
         body: formData,
       });
 
-      const data = await response.json() as UploadResponse;
       if (!response.ok) {
-        throw new Error(data.error ?? 'Failed to upload receipt');
+        let errorMessage = 'Failed to upload receipt';
+        try {
+          const errData = await response.json() as UploadResponse;
+          errorMessage = errData.error ?? errorMessage;
+        } catch {
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
+      const data = await response.json() as UploadResponse;
 
       if (data.message_text) {
         appendUploadMessage(data.message_text);

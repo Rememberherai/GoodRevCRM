@@ -13,7 +13,7 @@ export async function POST(request: Request) {
 
   try {
     const [bookingResult] = await Promise.all([
-      sendBookingReminders(),
+      sendBookingReminders().catch(err => { console.error('Booking reminders error:', err); return { sent24h: 0, sent1h: 0 }; }),
       sendEventReminders().catch(err => console.error('Event reminders error:', err)),
       generateUpcomingSeriesInstances().catch(err => console.error('Series generation error:', err)),
     ]);

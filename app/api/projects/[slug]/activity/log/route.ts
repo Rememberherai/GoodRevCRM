@@ -113,14 +113,26 @@ export async function POST(request: Request, context: RouteContext) {
     const ipAddress = request.headers.get('x-forwarded-for') ?? null;
     const userAgent = request.headers.get('user-agent') ?? null;
 
+    // Determine entity context — prefer the most specific non-null entity
+    const entityType = person_id
+      ? 'person'
+      : organization_id
+        ? 'organization'
+        : opportunity_id
+          ? 'opportunity'
+          : rfp_id
+            ? 'rfp'
+            : 'project';
+    const entityId = person_id ?? organization_id ?? opportunity_id ?? rfp_id ?? project.id;
+
     // Insert the activity log entry
     const { data: activity, error: activityError } = await supabaseAny
       .from('activity_log')
       .insert({
         project_id: project.id,
         user_id: user.id,
-        entity_type: 'person',
-        entity_id: person_id,
+        entity_type: entityType,
+        entity_id: entityId,
         action: 'logged',
         activity_type,
         person_id,

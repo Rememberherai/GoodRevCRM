@@ -200,6 +200,11 @@ export function InvoiceForm({ invoiceId }: InvoiceFormProps) {
       return;
     }
 
+    if (dueDate && invoiceDate && dueDate < invoiceDate) {
+      toast.error('Due date cannot be before invoice date');
+      return;
+    }
+
     if (!hasValidLines) {
       toast.error('At least one line item with description, account, and price is required');
       return;

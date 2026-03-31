@@ -51,6 +51,6 @@ export function maskApiKey(key: string): string {
 export function isEncrypted(text: string): boolean {
   if (!text) return false;
   const parts = text.split(':');
-  if (parts.length < 3 || !parts[2]) return false;
+  if (parts.length !== 3 || !parts[2]) return false;
   return (parts[0]?.length ?? 0) === 32 && (parts[1]?.length ?? 0) === 32;
 }

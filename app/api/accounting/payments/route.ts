@@ -123,7 +123,7 @@ export async function POST(request: Request) {
           data: { amount: payment.amount, invoice_id: linkedInvoiceId },
         });
 
-        if (Number(inv.balance_due ?? 0) <= 0.005 && inv.status === 'paid') {
+        if (Math.round(Number(inv.balance_due ?? 0) * 100) === 0 && inv.status === 'paid') {
           emitAutomationEvent({
             projectId: inv.project_id,
             triggerType: 'invoice.paid' as never,

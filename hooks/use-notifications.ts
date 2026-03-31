@@ -94,15 +94,17 @@ export function useNotifications(): UseNotificationsReturn {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'archive', notification_ids: [id] }),
       });
-      const wasUnread = notifications.find((n) => n.id === id && !n.read_at);
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-      if (wasUnread) {
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      }
+      setNotifications((prev) => {
+        const wasUnread = prev.find((n) => n.id === id && !n.read_at);
+        if (wasUnread) {
+          setUnreadCount((c) => Math.max(0, c - 1));
+        }
+        return prev.filter((n) => n.id !== id);
+      });
     } catch (error) {
       console.error('Error archiving notification:', error);
     }
-  }, [notifications]);
+  }, []);
 
   const onDelete = useCallback(async (id: string) => {
     try {
@@ -111,15 +113,17 @@ export function useNotifications(): UseNotificationsReturn {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ action: 'delete', notification_ids: [id] }),
       });
-      const wasUnread = notifications.find((n) => n.id === id && !n.read_at);
-      setNotifications((prev) => prev.filter((n) => n.id !== id));
-      if (wasUnread) {
-        setUnreadCount((prev) => Math.max(0, prev - 1));
-      }
+      setNotifications((prev) => {
+        const wasUnread = prev.find((n) => n.id === id && !n.read_at);
+        if (wasUnread) {
+          setUnreadCount((c) => Math.max(0, c - 1));
+        }
+        return prev.filter((n) => n.id !== id);
+      });
     } catch (error) {
       console.error('Error deleting notification:', error);
     }
-  }, [notifications]);
+  }, []);
 
   const onActionClick = useCallback((notification: Notification) => {
     if (notification.action_url) {

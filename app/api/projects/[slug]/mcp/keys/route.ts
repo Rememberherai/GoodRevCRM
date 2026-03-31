@@ -106,6 +106,16 @@ export async function POST(request: Request, context: RouteContext) {
     const { name, role, expires_in_days } = validation.data;
     const { key, prefix, hash } = generateApiKey();
 
+    let keyEncrypted: string;
+    try {
+      keyEncrypted = encrypt(key);
+    } catch {
+      return NextResponse.json(
+        { error: 'Encryption service unavailable. Please contact an administrator.' },
+        { status: 503 }
+      );
+    }
+
     const expiresAt = expires_in_days
       ? new Date(Date.now() + expires_in_days * 86_400_000).toISOString()
       : null;
@@ -119,7 +129,7 @@ export async function POST(request: Request, context: RouteContext) {
         name,
         key_hash: hash,
         key_prefix: prefix,
-        key_encrypted: encrypt(key),
+        key_encrypted: keyEncrypted,
         role,
         created_by: user.id,
         expires_at: expiresAt,

@@ -149,8 +149,14 @@ export function SendEmailModal({
       });
 
       if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.error ?? 'Failed to send email');
+        let errorMessage = 'Failed to send email';
+        try {
+          const error = await response.json();
+          errorMessage = error.error ?? errorMessage;
+        } catch {
+          errorMessage = response.statusText || errorMessage;
+        }
+        throw new Error(errorMessage);
       }
 
       toast.success('Email sent successfully');

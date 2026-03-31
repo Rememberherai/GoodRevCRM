@@ -84,25 +84,29 @@ export async function PATCH(request: Request, context: RouteContext) {
     // Emit automation events based on status transition (fire-and-forget)
     const newStatus = result.data.status;
     if (newStatus === 'completed') {
-      emitAutomationEvent({
-        projectId: updated.project_id,
-        triggerType: 'booking.completed',
-        entityType: 'booking',
-        entityId: updated.id,
-        data: { booking_id: updated.id },
-      }).catch((err) => console.error('Failed to emit booking.completed event:', err));
+      if (updated.project_id) {
+        emitAutomationEvent({
+          projectId: updated.project_id,
+          triggerType: 'booking.completed',
+          entityType: 'booking',
+          entityId: updated.id,
+          data: { booking_id: updated.id },
+        }).catch((err) => console.error('Failed to emit booking.completed event:', err));
+      }
 
       syncBookingStatusToMeeting(updated.id, 'completed').catch((e: unknown) =>
         console.error('Failed to sync booking completed status to meeting:', e)
       );
     } else if (newStatus === 'no_show') {
-      emitAutomationEvent({
-        projectId: updated.project_id,
-        triggerType: 'booking.no_show',
-        entityType: 'booking',
-        entityId: updated.id,
-        data: { booking_id: updated.id },
-      }).catch((err) => console.error('Failed to emit booking.no_show event:', err));
+      if (updated.project_id) {
+        emitAutomationEvent({
+          projectId: updated.project_id,
+          triggerType: 'booking.no_show',
+          entityType: 'booking',
+          entityId: updated.id,
+          data: { booking_id: updated.id },
+        }).catch((err) => console.error('Failed to emit booking.no_show event:', err));
+      }
 
       syncBookingStatusToMeeting(updated.id, 'no_show').catch((e: unknown) =>
         console.error('Failed to sync booking no_show status to meeting:', e)

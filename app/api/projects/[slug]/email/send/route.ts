@@ -98,7 +98,7 @@ export async function POST(request: Request, context: RouteContext) {
     // Append default signature if one exists
     const signature = await getDefaultSignature(supabase, user.id, project.id);
     const finalEmailData = { ...validationResult.data };
-    if (signature) {
+    if (signature && finalEmailData.body_html) {
       console.log('[EMAIL_SEND] appending signature:', signature.name);
       finalEmailData.body_html = appendSignatureToHtml(finalEmailData.body_html, signature.content_html);
     }

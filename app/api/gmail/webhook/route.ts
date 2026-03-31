@@ -17,7 +17,17 @@ export async function POST(request: Request) {
     }
 
     const token = authHeader.slice(7);
-    const expectedAudience = 'https://good-rev-crm.vercel.app/api/gmail/webhook';
+    let expectedAudience = 'https://good-rev-crm.vercel.app/api/gmail/webhook';
+    const appUrl = process.env.NEXT_PUBLIC_APP_URL?.trim();
+    if (appUrl) {
+      try {
+        expectedAudience = new URL('/api/gmail/webhook', appUrl).toString();
+      } catch {
+        console.warn('[Gmail Webhook] NEXT_PUBLIC_APP_URL is invalid, falling back to hardcoded audience');
+      }
+    } else {
+      console.warn('[Gmail Webhook] NEXT_PUBLIC_APP_URL not set, falling back to hardcoded audience');
+    }
 
     // Verify the token with Google
     const verifyResponse = await fetch(

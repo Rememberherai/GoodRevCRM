@@ -69,7 +69,7 @@ export async function POST(request: Request) {
       const totalDebit = entry.lines.reduce((sum, l) => sum + l.debit, 0);
       const totalCredit = entry.lines.reduce((sum, l) => sum + l.credit, 0);
 
-      if (Math.abs(totalDebit - totalCredit) > 0.005) {
+      if (Math.round(totalDebit * 100) !== Math.round(totalCredit * 100)) {
         results.push({
           index: i,
           error: `Entry ${i + 1}: debits (${totalDebit.toFixed(2)}) != credits (${totalCredit.toFixed(2)})`,

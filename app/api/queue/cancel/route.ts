@@ -42,6 +42,18 @@ export async function POST(req: NextRequest) {
     );
   }
 
+  // Resolve the user's project memberships to scope cancellations
+  const { data: userProjects } = await supabase
+    .from('project_memberships')
+    .select('project_id')
+    .eq('user_id', user.id);
+
+  if (!userProjects || userProjects.length === 0) {
+    return NextResponse.json({ error: 'No project access' }, { status: 403 });
+  }
+
+  const userProjectIds = userProjects.map((p: { project_id: string }) => p.project_id);
+
   const admin = createAdminClient();
   // eslint-disable-next-line @typescript-eslint/no-explicit-any
   const adminAny = admin as any;
@@ -56,14 +68,30 @@ export async function POST(req: NextRequest) {
   const now = new Date().toISOString();
 
   // First, fetch the enrollments we're about to cancel (for activity logging)
+  // Fetch sequences that belong to the user's projects for scoping
+  const { data: userSequences } = await adminAny
+    .from('sequences')
+    .select('id')
+    .in('project_id', userProjectIds);
+
+  const userSequenceIds = (userSequences || []).map((s: { id: string }) => s.id);
+
+  if (userSequenceIds.length === 0) {
+    return NextResponse.json({ cancelled: 0 });
+  }
+
   let query = adminAny
     .from('sequence_enrollments')
     .select('id, person_id, sequence_id, sequence:sequences(id, name, project_id)')
     .eq('status', 'active')
-    .lte('next_send_at', now);
+    .in('sequence_id', userSequenceIds);
 
   if (!all && ids) {
+    // Explicit ID selection — don't filter by next_send_at
     query = query.in('id', ids);
+  } else {
+    // Bulk "cancel all" — cancel due items and those with null next_send_at
+    query = query.or(`next_send_at.lte.${now},next_send_at.is.null`);
   }
 
   const { data: enrollments, error: fetchError } = await query;

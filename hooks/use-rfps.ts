@@ -78,6 +78,8 @@ export function useRfps() {
       setRfps(result.rfps, result.pagination);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch RFPs');
+    } finally {
+      setLoading(false);
     }
   }, [
     projectSlug,
@@ -113,6 +115,8 @@ export function useRfps() {
         const message = err instanceof Error ? err.message : 'Failed to create RFP';
         setError(message);
         throw err;
+      } finally {
+        setLoading(false);
       }
     },
     [projectSlug, addRfp, setLoading, setError]
@@ -131,6 +135,8 @@ export function useRfps() {
         const message = err instanceof Error ? err.message : 'Failed to update RFP';
         setError(message);
         throw err;
+      } finally {
+        setLoading(false);
       }
     },
     [projectSlug, updateRfp, setLoading, setError]
@@ -148,6 +154,8 @@ export function useRfps() {
         const message = err instanceof Error ? err.message : 'Failed to delete RFP';
         setError(message);
         throw err;
+      } finally {
+        setLoading(false);
       }
     },
     [projectSlug, removeRfp, setLoading, setError]
@@ -300,6 +308,8 @@ export function useRfp(rfpId: string) {
       setCurrentRfp(rfp);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch RFP');
+    } finally {
+      setLoading(false);
     }
   }, [projectSlug, rfpId, setCurrentRfp, setLoading, setError]);
 
@@ -316,6 +326,8 @@ export function useRfp(rfpId: string) {
         const message = err instanceof Error ? err.message : 'Failed to update RFP';
         setError(message);
         throw err;
+      } finally {
+        setLoading(false);
       }
     },
     [projectSlug, rfpId, setCurrentRfp, setLoading, setError]

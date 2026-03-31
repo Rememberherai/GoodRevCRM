@@ -22,6 +22,29 @@ export function useAuth() {
   const [supabase] = useState(() => createClient());
 
   useEffect(() => {
+    const fetchAdminStatus = (userId: string) => {
+      Promise.resolve(
+        supabase
+          .from('users')
+          .select('is_system_admin')
+          .eq('id', userId)
+          .single()
+      ).then(({ data }) => {
+        setState((prev) => (
+          prev.user?.id === userId
+            ? { ...prev, isSystemAdmin: data?.is_system_admin ?? false }
+            : prev
+        ));
+      }).catch(() => {
+        console.error('Failed to fetch admin status');
+        setState((prev) => (
+          prev.user?.id === userId
+            ? { ...prev, isSystemAdmin: false }
+            : prev
+        ));
+      });
+    };
+
     // Get initial session — set auth state immediately, fetch admin status in background
     const getInitialSession = async () => {
       const {
@@ -37,14 +60,7 @@ export function useAuth() {
 
       // Fetch admin status in background without blocking auth
       if (session?.user) {
-        supabase
-          .from('users')
-          .select('is_system_admin')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data }) => {
-            setState((prev) => ({ ...prev, isSystemAdmin: data?.is_system_admin ?? false }));
-          });
+        fetchAdminStatus(session.user.id);
       }
     };
 
@@ -58,19 +74,12 @@ export function useAuth() {
         user: session?.user ?? null,
         session,
         isLoading: false,
-        isSystemAdmin: session?.user ? prev.isSystemAdmin : false,
+        isSystemAdmin: session?.user && prev.user?.id === session.user.id ? prev.isSystemAdmin : false,
       }));
 
       // Fetch admin status in background without blocking auth flow
       if (session?.user) {
-        supabase
-          .from('users')
-          .select('is_system_admin')
-          .eq('id', session.user.id)
-          .single()
-          .then(({ data }) => {
-            setState((prev) => ({ ...prev, isSystemAdmin: data?.is_system_admin ?? false }));
-          });
+        fetchAdminStatus(session.user.id);
       }
     });
 

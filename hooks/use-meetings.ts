@@ -42,8 +42,8 @@ export function useMeetings(options: UseMeetingsOptions): UseMeetingsReturn {
   const [meetings, setMeetings] = useState<MeetingWithRelations[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [offset, setOffset] = useState(0);
   const [hasMore, setHasMore] = useState(false);
+  const offsetRef = useRef(0);
   const isLoadingMore = useRef(false);
 
   const buildQueryParams = useCallback(
@@ -79,7 +79,7 @@ export function useMeetings(options: UseMeetingsOptions): UseMeetingsReturn {
       const data = await response.json();
       const items: MeetingWithRelations[] = data.data ?? data.meetings ?? data ?? [];
       setMeetings(items);
-      setOffset(items.length);
+      offsetRef.current = items.length;
       setHasMore(items.length === limit);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch meetings');
@@ -94,7 +94,8 @@ export function useMeetings(options: UseMeetingsOptions): UseMeetingsReturn {
     isLoadingMore.current = true;
     setError(null);
     try {
-      const query = buildQueryParams(offset);
+      const currentOffset = offsetRef.current;
+      const query = buildQueryParams(currentOffset);
       const response = await fetch(
         `/api/projects/${projectSlug}/meetings?${query}`
       );
@@ -104,17 +105,17 @@ export function useMeetings(options: UseMeetingsOptions): UseMeetingsReturn {
       const data = await response.json();
       const items: MeetingWithRelations[] = data.data ?? data.meetings ?? data ?? [];
       setMeetings((prev) => [...prev, ...items]);
-      setOffset((prev) => prev + items.length);
+      offsetRef.current = currentOffset + items.length;
       setHasMore(items.length === limit);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Failed to fetch more meetings');
     } finally {
       isLoadingMore.current = false;
     }
-  }, [projectSlug, buildQueryParams, offset, hasMore, limit]);
+  }, [projectSlug, buildQueryParams, hasMore, limit]);
 
   const refresh = useCallback(async () => {
-    setOffset(0);
+    offsetRef.current = 0;
     await loadMeetings();
   }, [loadMeetings]);
 

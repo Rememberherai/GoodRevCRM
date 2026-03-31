@@ -155,6 +155,7 @@ export async function resolveEmailSendConfig(
     .eq('is_default', true)
     .maybeSingle();
   if (data?.provider === 'resend' && data.domain_verified !== true) {
+    console.warn('[EMAIL] Resend domain not verified for project default send config, falling back to Gmail');
     return null;
   }
   return data;

@@ -83,8 +83,12 @@ export function EventDetailClient() {
   const loadEvent = useCallback(async () => {
     try {
       const res = await fetch(`/api/projects/${slug}/events/${eventId}`);
+      if (!res.ok) {
+        let msg = 'Failed to load event';
+        try { const errData = await res.json(); msg = errData.error ?? msg; } catch {}
+        throw new Error(msg);
+      }
       const data = await res.json();
-      if (!res.ok) throw new Error(data.error);
       setEvent(data.event);
       setReportData(null);
       setReportLoaded(false); // Reset so report re-fetches on next tab click
@@ -123,7 +127,7 @@ export function EventDetailClient() {
   // Load calendar slug for public link
   useEffect(() => {
     fetch(`/api/projects/${slug}/events/calendar-settings`)
-      .then(res => res.json())
+      .then(res => { if (!res.ok) throw new Error('Failed'); return res.json(); })
       .then(data => { if (data.settings?.slug) setCalendarSlug(data.settings.slug); })
       .catch(() => {});
   }, [slug]);

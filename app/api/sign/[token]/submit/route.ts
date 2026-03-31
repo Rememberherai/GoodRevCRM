@@ -23,7 +23,7 @@ export async function POST(request: Request, context: RouteContext) {
   const ip = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim() ?? 'unknown';
   const ua = request.headers.get('user-agent') ?? '';
 
-  const { allowed } = checkRateLimit(ip);
+  const { allowed } = checkRateLimit(`${ip}:${token}`);
   if (!allowed) {
     return NextResponse.json({ error: 'Too many requests' }, { status: 429 });
   }

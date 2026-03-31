@@ -284,7 +284,7 @@ export async function scanConnectionForBounces(
           .eq('sequence_enrollment_id', coEnrollment.id)
           .order('sent_at', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         if (sentEmail) {
           await admin.from('email_events').insert({
@@ -305,7 +305,7 @@ export async function scanConnectionForBounces(
           .from('sequences')
           .select('project_id, created_by')
           .eq('id', coEnrollment.sequence_id)
-          .single();
+          .maybeSingle();
 
         if (seq) {
           await admin.from('activity_log').insert({
@@ -375,7 +375,7 @@ export async function scanConnectionForBounces(
           .eq('sequence_enrollment_id', enrollment.id)
           .order('sent_at', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         if (sentEmail) {
           await admin.from('email_events').insert({
@@ -395,7 +395,7 @@ export async function scanConnectionForBounces(
           .from('sequences')
           .select('project_id, created_by')
           .eq('id', enrollment.sequence_id)
-          .single();
+          .maybeSingle();
 
         if (seq) {
           await admin.from('activity_log').insert({

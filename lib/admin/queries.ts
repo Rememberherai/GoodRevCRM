@@ -436,7 +436,8 @@ export async function listProjects(params: {
     .select('id, name, slug, project_type, owner_id, created_at, deleted_at, users!projects_owner_id_fkey(full_name, email)', { count: 'exact' });
 
   if (search) {
-    query = query.ilike('name', `%${search}%`);
+    const sanitized = search.replace(/[%_\\]/g, '\\$&');
+    query = query.ilike('name', `%${sanitized}%`);
   }
   if (filter_type) {
     query = query.eq('project_type', filter_type);
@@ -668,7 +669,8 @@ export async function listBugReports(params: {
     .select('*, users!bug_reports_user_id_fkey(id, full_name, email), projects(id, name, slug), assigned_user:users!bug_reports_assigned_to_fkey(id, full_name, email)', { count: 'exact' });
 
   if (search) {
-    query = query.ilike('description', `%${search}%`);
+    const sanitized = search.replace(/[%_\\]/g, '\\$&');
+    query = query.ilike('description', `%${sanitized}%`);
   }
   if (filter_status) {
     query = query.eq('status', filter_status);

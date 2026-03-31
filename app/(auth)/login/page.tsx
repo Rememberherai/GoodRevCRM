@@ -13,6 +13,10 @@ import { Skeleton } from '@/components/ui/skeleton';
 import Link from 'next/link';
 import { isWebAuthnSupported } from '@/lib/webauthn';
 
+// TODO: BUG-201 — Login failures are handled client-side only with no server-side logging.
+// Needs a server-side login wrapper API route or middleware to audit auth failures.
+// This requires infrastructure work (e.g., a POST /api/auth/login route that proxies
+// Supabase auth and logs failures server-side before returning the result).
 function LoginForm() {
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');

@@ -1,6 +1,7 @@
 import { createClient } from '@supabase/supabase-js';
 import type { AutomationAction, AutomationEntityType, TriggerType } from '@/types/automation';
 import { sendOutboundSms } from '@/lib/telnyx/sms-service';
+import { assertSafeUrl } from '@/lib/workflows/ssrf-guard';
 
 interface ActionContext {
   projectId: string;
@@ -745,37 +746,11 @@ async function executeFireWebhook(
   const url = String(config.webhook_url || '');
   if (!url) return { action_type: action.type, success: false, error: 'No webhook_url specified' };
 
-  // SSRF protection: validate URL
+  // SSRF protection: validate URL using shared guard
   try {
-    const parsed = new URL(url);
-    if (!['https:', 'http:'].includes(parsed.protocol)) {
-      return { action_type: action.type, success: false, error: 'Webhook URL must use HTTP or HTTPS' };
-    }
-    const hostname = parsed.hostname.toLowerCase();
-    const bare = hostname.replace(/^\[|\]$/g, '');
-    if (
-      hostname === 'localhost' ||
-      hostname === '127.0.0.1' ||
-      hostname === '0.0.0.0' ||
-      bare === '::1' ||
-      bare === '::' ||
-      bare.startsWith('::ffff:') ||
-      bare.startsWith('fe80:') ||
-      bare.startsWith('fc00:') ||
-      (bare.startsWith('fd') && bare.includes(':')) ||
-      hostname.startsWith('10.') ||
-      hostname.startsWith('192.168.') ||
-      hostname.startsWith('169.254.') ||
-      /^172\.(1[6-9]|2\d|3[01])\./.test(hostname) ||
-      /^0x/i.test(hostname) ||
-      /^0\d/.test(hostname) ||
-      hostname.endsWith('.internal') ||
-      hostname.endsWith('.local')
-    ) {
-      return { action_type: action.type, success: false, error: 'Webhook URL cannot target private/internal addresses' };
-    }
+    assertSafeUrl(url);
   } catch {
-    return { action_type: action.type, success: false, error: 'Invalid webhook URL' };
+    return { action_type: action.type, success: false, error: 'Webhook URL cannot target private/internal addresses' };
   }
 
   const payload = {
@@ -797,6 +772,7 @@ async function executeFireWebhook(
       headers: { 'Content-Type': 'application/json' },
       body: JSON.stringify(payload),
       signal: controller.signal,
+      redirect: 'manual',
     });
 
     clearTimeout(timeout);

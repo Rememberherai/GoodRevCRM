@@ -135,6 +135,9 @@ export async function sendBookingConfirmation(bookingId: string): Promise<void> 
     const status = booking.status === 'pending' ? 'Pending Confirmation' : 'Confirmed';
 
     const baseUrl = process.env.NEXT_PUBLIC_APP_URL || 'http://localhost:3000';
+    if (!baseUrl.startsWith('http://') && !baseUrl.startsWith('https://')) {
+      console.warn('[Calendar Notifications] NEXT_PUBLIC_APP_URL is malformed (missing protocol):', baseUrl);
+    }
     const cancelUrl = booking.cancel_token ? `${baseUrl}/book/cancel/${booking.cancel_token}` : null;
     const rescheduleUrl = booking.reschedule_token ? `${baseUrl}/book/reschedule/${booking.reschedule_token}` : null;
 

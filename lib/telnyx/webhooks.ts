@@ -356,7 +356,7 @@ async function handleRecordingSaved(
       })
       .eq('telnyx_call_control_id', payload.call_control_id)
       .select('id, project_id, person_id, organization_id, direction')
-      .single();
+      .maybeSingle();
     call = result.data;
     error = result.error;
   }
@@ -372,7 +372,7 @@ async function handleRecordingSaved(
       })
       .eq('telnyx_call_session_id', payload.call_session_id)
       .select('id, project_id, person_id, organization_id, direction')
-      .single();
+      .maybeSingle();
     call = result.data;
     error = result.error;
   }
@@ -412,7 +412,7 @@ async function handleRecordingSaved(
       .order('started_at', { ascending: false })
       .limit(1)
       .select('id, project_id, person_id, organization_id, direction')
-      .single();
+      .maybeSingle();
     call = result.data;
     error = result.error;
   }
@@ -528,10 +528,15 @@ async function handleSmsDelivered(payload: TelnyxSmsWebhookPayload): Promise<voi
     })
     .eq('telnyx_message_id', payload.id)
     .select('id, project_id, person_id, organization_id')
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('[SMS Webhook] Error updating SMS on delivered:', error);
+    return;
+  }
+
+  if (!sms) {
+    console.warn('[SMS Webhook] No SMS record found for delivered event:', payload.id);
     return;
   }
 
@@ -563,10 +568,15 @@ async function handleSmsFailed(payload: TelnyxSmsWebhookPayload): Promise<void> 
     })
     .eq('telnyx_message_id', payload.id)
     .select('id, project_id, person_id, organization_id')
-    .single();
+    .maybeSingle();
 
   if (error) {
     console.error('[SMS Webhook] Error updating SMS on failed:', error);
+    return;
+  }
+
+  if (!sms) {
+    console.warn('[SMS Webhook] No SMS record found for failed event:', payload.id);
     return;
   }
 

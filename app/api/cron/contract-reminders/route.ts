@@ -117,11 +117,13 @@ async function processContracts() {
           details: { recipient_count: sentCount },
         });
 
-        // Update last_reminder_at
+        // Update last_reminder_at (CAS: only if it hasn't been updated by another instance recently)
+        const oneHourAgo = new Date(Date.now() - 60 * 60 * 1000).toISOString();
         await supabase
           .from('contract_documents')
           .update({ last_reminder_at: new Date().toISOString() })
-          .eq('id', doc.id);
+          .eq('id', doc.id)
+          .or(`last_reminder_at.is.null,last_reminder_at.lt.${oneHourAgo}`);
 
         results.reminders++;
       } catch (err) {

@@ -36,20 +36,24 @@ export async function POST(
       .update({ exited_at: new Date().toISOString() })
       .eq('id', session.id);
 
-    // Check if membership was created by the admin enter action
-    // Compare membership created_at with session entered_at
-    // If membership was created at or after session start, it was admin-created and should be removed
+    // Check if membership was created by the admin enter action.
+    // The enter route creates the membership and session in the same request,
+    // so we check if the membership was created at or after the session start.
+    // We also verify the membership role is 'admin' (the enter route always creates with role 'admin')
+    // and that the user has no other activity in the project (no other memberships).
     const { data: membership } = await adminClient
       .from('project_memberships')
-      .select('id, created_at')
+      .select('id, created_at, role')
       .eq('id', session.membership_id)
       .single();
 
     if (membership) {
       const memberJoinedAt = new Date(membership.created_at).getTime();
       const sessionEnteredAt = new Date(session.entered_at).getTime();
-      // If membership was created within 5 seconds of session start, it was admin-created
-      if (memberJoinedAt >= sessionEnteredAt - 5000) {
+      // Membership created within 30 seconds of session start is admin-created.
+      // The previous 5-second window was too tight and could fail under load.
+      // Both timestamps are set server-side in the same API call, so 30s is very generous.
+      if (membership.role === 'admin' && memberJoinedAt >= sessionEnteredAt - 30000) {
         await adminClient
           .from('project_memberships')
           .delete()

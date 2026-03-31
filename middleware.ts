@@ -1,3 +1,7 @@
+// TODO: BUG-202 — Authorization failures (401/403) across API routes are not logged server-side.
+// This is a cross-cutting concern. Consider adding a utility like `logAuthFailure(route, ip, reason)`
+// in lib/audit.ts and calling it from API routes that return 401/403, or implementing
+// audit logging in this middleware for auth-related failures.
 import { createServerClient } from '@supabase/ssr';
 import { NextResponse, type NextRequest } from 'next/server';
 
