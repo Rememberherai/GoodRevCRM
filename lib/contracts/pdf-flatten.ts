@@ -147,10 +147,14 @@ export async function flattenPdf(options: FlattenOptions): Promise<{
         } else if (sigData.type === 'draw' || sigData.type === 'upload') {
           // Try to embed image
           try {
+            const MAX_SIG_IMAGE_SIZE = 2 * 1024 * 1024; // 2MB
             const formatMatch = sigData.data.match(/^data:image\/(\w+);base64,/);
             const format = formatMatch?.[1]?.toLowerCase();
             const base64Data = sigData.data.replace(/^data:image\/\w+;base64,/, '');
             const imageBytes = Buffer.from(base64Data, 'base64');
+            if (imageBytes.length > MAX_SIG_IMAGE_SIZE) {
+              throw new Error('Signature image exceeds maximum size (2MB)');
+            }
             const image = format === 'jpeg' || format === 'jpg'
               ? await pdfDoc.embedJpg(imageBytes)
               : await pdfDoc.embedPng(imageBytes);

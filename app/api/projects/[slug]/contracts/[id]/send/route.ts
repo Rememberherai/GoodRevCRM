@@ -177,32 +177,8 @@ export async function POST(request: Request, context: RouteContext) {
   const adminClient = createServiceClient();
   const gmailConn = connection as GmailConnection;
 
-  // Resolve merge field values (read-only) BEFORE CAS so we don't write side effects on failure
-  let resolvedMergeValues: Record<string, string> = {};
-  const { data: allFields, error: allFieldsError } = await adminClient
-    .from('contract_fields')
-    .select('id, auto_populate_from, value')
-    .eq('document_id', id)
-    .eq('project_id', project.id)
-    .not('auto_populate_from', 'is', null);
-
-  if (allFieldsError) {
-    console.error('[CONTRACT_SEND] Failed to load merge fields:', allFieldsError);
-    return NextResponse.json({ error: 'Failed to prepare merge fields before sending' }, { status: 500 });
-  }
-
-  const mergeFields = (allFields ?? []).filter((f) => f.auto_populate_from && !f.value);
-  if (mergeFields.length > 0) {
-    const keys = [...new Set(mergeFields.map((f) => f.auto_populate_from!))];
-    resolvedMergeValues = await resolveMergeFields(keys, {
-      projectId: project.id,
-      personId: document.person_id,
-      organizationId: document.organization_id,
-      opportunityId: document.opportunity_id,
-    });
-  }
-
-  // Update document status to sent (CAS: only if still draft)
+  // CAS: Update document status to sent BEFORE merge field resolution.
+  // If merge field resolution fails afterward, we revert the status.
   const { data: updatedDoc, error: updateError } = await adminClient
     .from('contract_documents')
     .update({
@@ -222,8 +198,50 @@ export async function POST(request: Request, context: RouteContext) {
     return NextResponse.json({ error: 'Failed to send contract — it may have already been sent' }, { status: 409 });
   }
 
-  // Freeze merge field values now that CAS succeeded
+  // Resolve merge field values after CAS succeeded
+  let resolvedMergeValues: Record<string, string> = {};
+  const { data: allFields, error: allFieldsError } = await adminClient
+    .from('contract_fields')
+    .select('id, auto_populate_from, value')
+    .eq('document_id', id)
+    .eq('project_id', project.id)
+    .not('auto_populate_from', 'is', null);
+
+  if (allFieldsError) {
+    console.error('[CONTRACT_SEND] Failed to load merge fields, reverting status:', allFieldsError);
+    // Revert CAS — set status back to draft
+    await adminClient.from('contract_documents').update({ status: 'draft', sent_at: null, gmail_connection_id: null, sender_email: null }).eq('id', id);
+    return NextResponse.json({ error: 'Failed to prepare merge fields before sending' }, { status: 500 });
+  }
+
+  const mergeFields = (allFields ?? []).filter((f) => f.auto_populate_from && !f.value);
   if (mergeFields.length > 0) {
+    let resolveFailed = false;
+    try {
+      const keys = [...new Set(mergeFields.map((f) => f.auto_populate_from!))];
+      resolvedMergeValues = await resolveMergeFields(keys, {
+        projectId: project.id,
+        personId: document.person_id,
+        organizationId: document.organization_id,
+        opportunityId: document.opportunity_id,
+      });
+    } catch (err) {
+      resolveFailed = true;
+      console.error('[CONTRACT_SEND] Merge field resolution failed, reverting status:', err);
+    }
+
+    if (resolveFailed) {
+      // Revert CAS — set status back to draft
+      await adminClient.from('contract_documents').update({ status: 'draft', sent_at: null, gmail_connection_id: null, sender_email: null }).eq('id', id);
+      return NextResponse.json({ error: 'Failed to prepare merge fields before sending' }, { status: 500 });
+    }
+  }
+
+  // Freeze merge field values now that CAS succeeded and resolution completed
+  if (mergeFields.length > 0) {
+    const frozenFieldIds: string[] = [];
+    let freezeFailed = false;
+
     for (const field of mergeFields) {
       const val = resolvedMergeValues[field.auto_populate_from!];
       if (val) {
@@ -232,10 +250,25 @@ export async function POST(request: Request, context: RouteContext) {
           .update({ value: val, filled_at: new Date().toISOString() })
           .eq('id', field.id);
         if (mergeUpdateError) {
-          console.error('[CONTRACT_SEND] Failed to freeze merge field value:', mergeUpdateError);
-          return NextResponse.json({ error: 'Failed to prepare merge fields before sending' }, { status: 500 });
+          console.error('[CONTRACT_SEND] Failed to freeze merge field value, reverting:', mergeUpdateError);
+          freezeFailed = true;
+          break;
         }
+        frozenFieldIds.push(field.id);
       }
+    }
+
+    if (freezeFailed) {
+      // Revert already-frozen fields back to their original state
+      if (frozenFieldIds.length > 0) {
+        await adminClient
+          .from('contract_fields')
+          .update({ value: null, filled_at: null })
+          .in('id', frozenFieldIds);
+      }
+      // Revert document status back to draft
+      await adminClient.from('contract_documents').update({ status: 'draft', sent_at: null, gmail_connection_id: null, sender_email: null }).eq('id', id);
+      return NextResponse.json({ error: 'Failed to prepare merge fields before sending' }, { status: 500 });
     }
   }
 

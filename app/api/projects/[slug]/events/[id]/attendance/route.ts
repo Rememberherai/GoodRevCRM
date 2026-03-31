@@ -107,6 +107,7 @@ export async function POST(request: Request, context: RouteContext) {
             .from('event_registrations')
             .select('person_id')
             .eq('id', attendee.registration_id)
+            .eq('event_id', id)
             .single();
 
           if (regErr) {

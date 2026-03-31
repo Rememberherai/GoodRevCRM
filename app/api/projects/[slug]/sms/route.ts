@@ -62,10 +62,30 @@ export async function GET(
       .eq('project_id', project.id)
       .order('created_at', { ascending: true });
 
-    // Filter by person or organization
+    // Filter by person or organization, verifying entity belongs to project
     if (personId) {
+      const { data: person } = await supabase
+        .from('people')
+        .select('id')
+        .eq('id', personId)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!person) {
+        return NextResponse.json({ error: 'Person not found in project' }, { status: 404 });
+      }
       query = query.eq('person_id', personId);
     } else if (organizationId) {
+      const { data: org } = await supabase
+        .from('organizations')
+        .select('id')
+        .eq('id', organizationId)
+        .eq('project_id', project.id)
+        .is('deleted_at', null)
+        .single();
+      if (!org) {
+        return NextResponse.json({ error: 'Organization not found in project' }, { status: 404 });
+      }
       query = query.eq('organization_id', organizationId);
     }
 

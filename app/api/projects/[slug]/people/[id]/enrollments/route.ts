@@ -33,13 +33,15 @@ export async function GET(_request: Request, context: RouteContext) {
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
 
+    // Join through sequences to scope enrollments to this project
     const { data: enrollments, error } = await supabaseAny
       .from('sequence_enrollments')
       .select(`
         *,
-        sequence:sequences(id, name, status, description)
+        sequence:sequences!inner(id, name, status, description, project_id)
       `)
       .eq('person_id', personId)
+      .eq('sequence.project_id', project.id)
       .order('created_at', { ascending: false });
 
     if (error) {

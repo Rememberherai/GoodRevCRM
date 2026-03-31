@@ -132,6 +132,9 @@ export async function GET(request: NextRequest) {
 }
 
 export async function DELETE(request: NextRequest) {
+  const authResult = await authenticate(request);
+  if (authResult instanceof Response) return authResult;
+
   const sessionId = request.headers.get('mcp-session-id');
   if (sessionId && transports.has(sessionId)) {
     const { transport } = transports.get(sessionId)!;

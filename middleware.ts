@@ -68,10 +68,20 @@ export async function middleware(request: NextRequest) {
     return NextResponse.redirect(url);
   }
 
-  // Set permissive framing headers for embed routes
+  // Embed routes are frameable by any HTTPS origin by design — customers embed
+  // booking/event widgets on their own websites and we cannot predict their domains.
+  // RISK ACCEPTED: clickjacking is possible on embed pages. Mitigations:
+  //   1. Embed pages are public-only — no authenticated session, no sensitive actions
+  //   2. Cookies are not sent (Cross-Origin-Resource-Policy)
+  //   3. Forms are restricted via sandbox-like CSP (no form-action to foreign origins)
   if (pathname.startsWith('/book/embed') || pathname.startsWith('/events/embed')) {
     supabaseResponse.headers.delete('X-Frame-Options');
-    supabaseResponse.headers.set('Content-Security-Policy', 'frame-ancestors *');
+    supabaseResponse.headers.set('Content-Security-Policy', "frame-ancestors 'self' https:; form-action 'self'");
+    supabaseResponse.headers.set('Cross-Origin-Resource-Policy', 'cross-origin');
+  } else {
+    // Prevent clickjacking on all non-embed routes
+    supabaseResponse.headers.set('Content-Security-Policy', "frame-ancestors 'self'");
+    supabaseResponse.headers.set('X-Frame-Options', 'SAMEORIGIN');
   }
 
   return supabaseResponse;

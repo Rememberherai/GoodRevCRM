@@ -50,13 +50,21 @@ export function generateApiKey(): { key: string; prefix: string; hash: string } 
 export async function authenticateApiKey(
   bearerToken: string
 ): Promise<McpContext | null> {
-  if (!bearerToken.startsWith('grv_')) {
+  // Validate key format: must start with 'grv_' and be a hex string of expected length
+  if (!bearerToken.startsWith('grv_') || bearerToken.length !== 68) {
+    return null;
+  }
+  const keyBody = bearerToken.slice(4);
+  if (!/^[a-f0-9]{64}$/.test(keyBody)) {
     return null;
   }
 
   const keyHash = hashApiKey(bearerToken);
   const supabase = createAdminClient();
 
+  // Admin client is required here because there is no user session for MCP
+  // API key authentication. RLS cannot be used, so we validate the key hash
+  // and verify the project exists and is active below.
   // eslint-disable-next-line @typescript-eslint/no-explicit-any -- MCP tables not yet in generated types
   const db = supabase as any;
 
@@ -79,10 +87,18 @@ export async function authenticateApiKey(
     return null;
   }
 
+  // Validate project_id is a valid UUID to prevent injection
+  const uuidRegex = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+  if (!apiKey.project_id || !uuidRegex.test(apiKey.project_id)) {
+    return null;
+  }
+
+  // Verify project exists and is not deleted
   const { data: project } = await supabase
     .from('projects')
     .select('project_type')
     .eq('id', apiKey.project_id)
+    .is('deleted_at', null)
     .single();
 
   if (!project) {

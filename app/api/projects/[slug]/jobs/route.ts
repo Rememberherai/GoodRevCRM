@@ -45,7 +45,11 @@ export async function GET(request: Request, context: RouteContext) {
       .eq('project_id', project.id)
       .order('created_at', { ascending: false });
 
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (status) query = query.eq('status', status);
+    if (contractorId && !UUID_RE.test(contractorId)) {
+      return NextResponse.json({ error: 'Invalid contractorId format' }, { status: 400 });
+    }
     if (contractorId && includeUnassigned) {
       query = query.or(`contractor_id.eq.${contractorId},contractor_id.is.null`);
     } else if (contractorId) {

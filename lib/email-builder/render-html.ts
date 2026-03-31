@@ -19,10 +19,16 @@ function esc(s: string): string {
     .replace(/"/g, '&quot;');
 }
 
+/** Strip characters that could break out of a CSS value context */
+function sanitizeCssValue(val: string | number | undefined): string {
+  if (val === undefined) return '';
+  return String(val).replace(/[;{}()<>'"\\]/g, '');
+}
+
 function inlineStyle(props: Record<string, string | number | undefined>): string {
   return Object.entries(props)
     .filter(([, v]) => v !== undefined && v !== '')
-    .map(([k, v]) => `${k}:${v}`)
+    .map(([k, v]) => `${k}:${sanitizeCssValue(v)}`)
     .join(';');
 }
 
@@ -106,11 +112,11 @@ function renderButtonBlock(block: ButtonBlock, globals: EmailGlobalStyles): stri
     ? 'width:100%;'
     : `margin:0 ${align === 'center' ? 'auto' : align === 'right' ? '0 0 auto' : '0'};`;
 
-  return `<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="${block.fullWidth ? '100%' : ''}" style="${tableStyle}"><tr><td align="${align}" style="border-radius:${block.borderRadius}px;background-color:${block.buttonColor};"><a href="${esc(block.url || '#')}" target="_blank" rel="noopener noreferrer" style="${btnStyle}"><!--[if mso]><i style="letter-spacing:24px;mso-font-width:-100%;mso-text-raise:18pt">&nbsp;</i><![endif]--><span style="mso-text-raise:9pt;">${esc(block.text)}</span><!--[if mso]><i style="letter-spacing:24px;mso-font-width:-100%">&nbsp;</i><![endif]--></a></td></tr></table>`;
+  return `<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="${block.fullWidth ? '100%' : ''}" style="${tableStyle}"><tr><td align="${align}" style="border-radius:${sanitizeCssValue(block.borderRadius)}px;background-color:${sanitizeCssValue(block.buttonColor)};"><a href="${esc(block.url || '#')}" target="_blank" rel="noopener noreferrer" style="${btnStyle}"><!--[if mso]><i style="letter-spacing:24px;mso-font-width:-100%;mso-text-raise:18pt">&nbsp;</i><![endif]--><span style="mso-text-raise:9pt;">${esc(block.text)}</span><!--[if mso]><i style="letter-spacing:24px;mso-font-width:-100%">&nbsp;</i><![endif]--></a></td></tr></table>`;
 }
 
 function renderDividerBlock(block: DividerBlock): string {
-  return `<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="padding:0;"><hr style="border:none;border-top:${block.thickness}px ${block.style} ${block.color};margin:0;" /></td></tr></table>`;
+  return `<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%"><tr><td style="padding:0;"><hr style="border:none;border-top:${sanitizeCssValue(block.thickness)}px ${sanitizeCssValue(block.style)} ${sanitizeCssValue(block.color)};margin:0;" /></td></tr></table>`;
 }
 
 function renderSpacerBlock(block: SpacerBlock): string {
@@ -120,7 +126,7 @@ function renderSpacerBlock(block: SpacerBlock): string {
 // ── Main block dispatcher ─────────────────────────────────────────────────
 
 function renderBlock(block: EmailBlock, globals: EmailGlobalStyles): string {
-  const bg = block.backgroundColor ? `background-color:${block.backgroundColor};` : '';
+  const bg = block.backgroundColor ? `background-color:${sanitizeCssValue(block.backgroundColor)};` : '';
   const padding = paddingStyle(block);
 
   let inner: string;
@@ -188,7 +194,7 @@ export function renderDesignToInnerHtml(design: EmailDesign): string {
       }
 
       // Apply block-level padding and backgroundColor (mirroring renderBlock's wrapper)
-      const bg = b.backgroundColor ? `background-color:${b.backgroundColor};` : '';
+      const bg = b.backgroundColor ? `background-color:${sanitizeCssValue(b.backgroundColor)};` : '';
       const padding = paddingStyle(b);
       const wrapperStyle = `${bg}${padding}`.trim();
       return wrapperStyle ? `<div style="${wrapperStyle}">${inner}</div>` : inner;
@@ -217,8 +223,8 @@ export function renderDesignToHtml(design: EmailDesign): string {
 <![endif]-->
 <title></title>
 </head>
-<body style="margin:0;padding:0;background-color:${g.backgroundColor};font-family:${g.fontFamily};font-size:${g.fontSize}px;line-height:${g.lineHeight};color:${g.textColor};">
-<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:${g.backgroundColor};">
+<body style="margin:0;padding:0;background-color:${sanitizeCssValue(g.backgroundColor)};font-family:${sanitizeCssValue(g.fontFamily)};font-size:${sanitizeCssValue(g.fontSize)}px;line-height:${sanitizeCssValue(g.lineHeight)};color:${sanitizeCssValue(g.textColor)};">
+<table role="presentation" cellspacing="0" cellpadding="0" border="0" width="100%" style="background-color:${sanitizeCssValue(g.backgroundColor)};">
 <tr>
 <td align="center" style="padding:0;">
 <!--[if mso]><table role="presentation" cellspacing="0" cellpadding="0" border="0" width="${g.contentWidth}"><tr><td><![endif]-->

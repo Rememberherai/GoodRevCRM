@@ -19,6 +19,9 @@ export class GmailServiceError extends Error {
   }
 }
 
+// Module-level mutex map: tracks in-flight token refreshes per connection ID
+const refreshLocks = new Map<string, Promise<string>>();
+
 // Create admin client for service operations
 export function createAdminClient() {
   const supabaseUrl = process.env.NEXT_PUBLIC_SUPABASE_URL;
@@ -39,38 +42,51 @@ export async function getValidAccessToken(connection: GmailConnection): Promise<
     return connection.access_token;
   }
 
-  // Token is expired, refresh it
-  const supabase = createAdminClient();
-
-  try {
-    const tokens = await refreshAccessToken(connection.refresh_token);
-
-    // Update connection with new tokens
-    await supabase
-      .from('gmail_connections')
-      .update({
-        access_token: tokens.access_token,
-        refresh_token: tokens.refresh_token,
-        token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
-        status: 'connected',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', connection.id);
-
-    return tokens.access_token;
-  } catch (error) {
-    // Mark connection as expired/error
-    await supabase
-      .from('gmail_connections')
-      .update({
-        status: 'expired',
-        error_message: error instanceof Error ? error.message : 'Token refresh failed',
-        updated_at: new Date().toISOString(),
-      })
-      .eq('id', connection.id);
-
-    throw new GmailServiceError('Failed to refresh access token', 'token_refresh_failed');
+  // If a refresh is already in progress for this connection, wait for it
+  const existingRefresh = refreshLocks.get(connection.id);
+  if (existingRefresh) {
+    return existingRefresh;
   }
+
+  // Token is expired, refresh it — use mutex to prevent concurrent refreshes
+  const refreshPromise = (async () => {
+    const supabase = createAdminClient();
+
+    try {
+      const tokens = await refreshAccessToken(connection.refresh_token);
+
+      // Update connection with new tokens
+      await supabase
+        .from('gmail_connections')
+        .update({
+          access_token: tokens.access_token,
+          refresh_token: tokens.refresh_token,
+          token_expires_at: new Date(Date.now() + tokens.expires_in * 1000).toISOString(),
+          status: 'connected',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', connection.id);
+
+      return tokens.access_token;
+    } catch (error) {
+      // Mark connection as expired/error
+      await supabase
+        .from('gmail_connections')
+        .update({
+          status: 'expired',
+          error_message: error instanceof Error ? error.message : 'Token refresh failed',
+          updated_at: new Date().toISOString(),
+        })
+        .eq('id', connection.id);
+
+      throw new GmailServiceError('Failed to refresh access token', 'token_refresh_failed');
+    } finally {
+      refreshLocks.delete(connection.id);
+    }
+  })();
+
+  refreshLocks.set(connection.id, refreshPromise);
+  return refreshPromise;
 }
 
 /**

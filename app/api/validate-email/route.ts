@@ -7,8 +7,33 @@ import { promisify } from 'util';
 
 const resolveMx = promisify(dns.resolveMx);
 
+// Rate limiting: max 3 requests per minute per user
+const rateLimitMap = new Map<string, { count: number; resetAt: number }>();
+const RATE_LIMIT_WINDOW_MS = 60_000;
+const RATE_LIMIT_MAX = 3;
+
+function checkRateLimit(userId: string): boolean {
+  const now = Date.now();
+  const entry = rateLimitMap.get(userId);
+  if (!entry || now > entry.resetAt) {
+    rateLimitMap.set(userId, { count: 1, resetAt: now + RATE_LIMIT_WINDOW_MS });
+    return true;
+  }
+  if (entry.count >= RATE_LIMIT_MAX) return false;
+  entry.count++;
+  return true;
+}
+
+// Periodic cleanup
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of rateLimitMap) {
+    if (now > entry.resetAt) rateLimitMap.delete(key);
+  }
+}, 60_000).unref();
+
 const requestSchema = z.object({
-  emails: z.array(z.string()).min(1).max(500),
+  emails: z.array(z.string()).min(1).max(50),
   // Optional: persist verification status for these person IDs
   personIds: z.array(z.string()).optional(),
   projectSlug: z.string().optional(),
@@ -29,6 +54,8 @@ const DISPOSABLE_DOMAINS = new Set([
 ]);
 
 function validateFormat(email: string): string | null {
+  // Reject emails containing SMTP injection characters (CR/LF)
+  if (/[\r\n]/.test(email)) return 'Invalid email format';
   const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
   if (!emailRegex.test(email)) return 'Invalid email format';
   if (email.length > 254) return 'Email too long';
@@ -151,7 +178,9 @@ async function smtpVerify(
           // MAIL FROM response
           if (code === 250) {
             step = 3;
-            socket.write(`RCPT TO:<${email}>\r\n`);
+            // Sanitize email to prevent SMTP injection (defense-in-depth)
+            const safeEmail = email.replace(/[\r\n]/g, '');
+            socket.write(`RCPT TO:<${safeEmail}>\r\n`);
           } else {
             done({ exists: true, reason: 'MAIL FROM rejected — assuming valid' });
           }
@@ -189,6 +218,20 @@ async function isCatchAll(mxHost: string, domain: string): Promise<boolean> {
 
 export async function POST(request: Request) {
   try {
+    // Require authentication — this endpoint makes SMTP connections on behalf of the user
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
+
+    if (!checkRateLimit(user.id)) {
+      return NextResponse.json(
+        { error: 'Rate limit exceeded. Max 3 validation requests per minute.' },
+        { status: 429 }
+      );
+    }
+
     const body = await request.json();
     const parsed = requestSchema.safeParse(body);
 
@@ -271,10 +314,6 @@ export async function POST(request: Request) {
     // Persist verification status if person context is provided
     if (personIds?.length && projectSlug) {
       try {
-        const supabase = await createClient();
-        const { data: { user } } = await supabase.auth.getUser();
-
-        if (user) {
           const { data: project } = await supabase
             .from('projects')
             .select('id')
@@ -312,7 +351,6 @@ export async function POST(request: Request) {
                 .in('email', Array.from(invalidEmails));
             }
           }
-        }
       } catch (dbErr) {
         // Don't fail the validation response if DB update fails
         console.error('Failed to persist email verification status:', dbErr);

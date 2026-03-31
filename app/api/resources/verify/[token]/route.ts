@@ -184,6 +184,7 @@ export async function POST(_request: Request, context: RouteContext) {
     );
 
     if (!slotStillAvailable) {
+      await resetVerificationToPending(supabase, verification.id);
       return NextResponse.json({ outcome: 'slot_taken' });
     }
 
@@ -203,6 +204,7 @@ export async function POST(_request: Request, context: RouteContext) {
 
     if (!result.success) {
       if (result.errorCode === 'CAPACITY_EXHAUSTED') {
+        await resetVerificationToPending(supabase, verification.id);
         return NextResponse.json({ outcome: 'slot_taken' });
       }
       await resetVerificationToPending(supabase, verification.id);

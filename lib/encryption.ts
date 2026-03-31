@@ -7,6 +7,9 @@ function getEncryptionKey(): Buffer {
   if (!key) {
     throw new Error('ENCRYPTION_KEY environment variable is not set');
   }
+  if (key.length !== 64) {
+    throw new Error('ENCRYPTION_KEY must be 64 hex characters (32 bytes for AES-256-GCM)');
+  }
   return Buffer.from(key, 'hex');
 }
 
@@ -48,5 +51,6 @@ export function maskApiKey(key: string): string {
 export function isEncrypted(text: string): boolean {
   if (!text) return false;
   const parts = text.split(':');
-  return parts.length === 3 && (parts[0]?.length ?? 0) === 32 && (parts[1]?.length ?? 0) === 32;
+  if (parts.length < 3 || !parts[2]) return false;
+  return (parts[0]?.length ?? 0) === 32 && (parts[1]?.length ?? 0) === 32;
 }

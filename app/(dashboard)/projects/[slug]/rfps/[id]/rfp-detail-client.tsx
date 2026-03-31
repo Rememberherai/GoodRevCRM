@@ -62,6 +62,18 @@ const STATUS_COLORS: Record<RfpStatus, string> = {
   no_bid: 'bg-slate-100 text-slate-800 dark:bg-slate-800 dark:text-slate-300',
 };
 
+/** Validate URL protocol to prevent javascript: / data: URI XSS */
+function safeHref(url: string | null | undefined): string | undefined {
+  if (!url) return undefined;
+  try {
+    const parsed = new URL(url);
+    if (['http:', 'https:'].includes(parsed.protocol)) return url;
+    return undefined;
+  } catch {
+    return undefined;
+  }
+}
+
 export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
   const params = useParams();
   const router = useRouter();
@@ -345,11 +357,11 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
                     <p className="font-medium capitalize">{rfp.submission_method}</p>
                   </div>
                 )}
-                {rfp.submission_portal_url && (
+                {safeHref(rfp.submission_portal_url) && (
                   <div>
                     <p className="text-sm text-muted-foreground">Portal</p>
                     <a
-                      href={rfp.submission_portal_url}
+                      href={safeHref(rfp.submission_portal_url)!}
                       target="_blank"
                       rel="noopener noreferrer"
                       className="flex items-center gap-1 text-primary hover:underline"
@@ -490,10 +502,10 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
                         : [];
                       const meetingDate = meetingDates[idx];
 
-                      return (
+                      return safeHref(url) ? (
                         <a
                           key={idx}
-                          href={url}
+                          href={safeHref(url)!}
                           target="_blank"
                           rel="noopener noreferrer"
                           className="flex items-center gap-2 text-sm hover:underline text-blue-600 dark:text-blue-400"
@@ -505,7 +517,7 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
                               : `Meeting ${idx + 1}`}
                           </span>
                         </a>
-                      );
+                      ) : null;
                     })}
                   </div>
                   {rfp.custom_fields.calendar_url && (
@@ -515,15 +527,17 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
                         <p className="text-sm text-muted-foreground mb-2">
                           View all council meetings:
                         </p>
-                        <a
-                          href={rfp.custom_fields.calendar_url as string}
-                          target="_blank"
-                          rel="noopener noreferrer"
-                          className="flex items-center gap-2 text-sm hover:underline text-blue-600 dark:text-blue-400"
-                        >
-                          <ExternalLink className="h-3.5 w-3.5 flex-shrink-0" />
-                          <span>Council Calendar</span>
-                        </a>
+                        {safeHref(rfp.custom_fields.calendar_url as string) && (
+                          <a
+                            href={safeHref(rfp.custom_fields.calendar_url as string)!}
+                            target="_blank"
+                            rel="noopener noreferrer"
+                            className="flex items-center gap-2 text-sm hover:underline text-blue-600 dark:text-blue-400"
+                          >
+                            <ExternalLink className="h-3.5 w-3.5 flex-shrink-0" />
+                            <span>Council Calendar</span>
+                          </a>
+                        )}
                       </div>
                     </>
                   )}
@@ -605,9 +619,9 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
               <CardTitle>Documents</CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              {rfp.rfp_document_url ? (
+              {safeHref(rfp.rfp_document_url) ? (
                 <a
-                  href={rfp.rfp_document_url}
+                  href={safeHref(rfp.rfp_document_url)!}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-primary hover:underline"
@@ -619,9 +633,9 @@ export function RfpDetailClient({ rfpId }: RfpDetailClientProps) {
               ) : (
                 <p className="text-sm text-muted-foreground">No RFP document linked</p>
               )}
-              {rfp.response_document_url && (
+              {safeHref(rfp.response_document_url) && (
                 <a
-                  href={rfp.response_document_url}
+                  href={safeHref(rfp.response_document_url)!}
                   target="_blank"
                   rel="noopener noreferrer"
                   className="flex items-center gap-2 text-primary hover:underline"

@@ -1,33 +1,12 @@
 import { createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { testWebhookSchema } from '@/lib/validators/webhook';
+import { assertSafeUrl } from '@/lib/workflows/ssrf-guard';
 
 const BLOCKED_HEADER_NAMES = new Set([
   'host', 'transfer-encoding', 'content-length', 'connection',
   'cookie', 'set-cookie', 'te', 'trailer', 'upgrade',
 ]);
-
-function isPrivateUrl(urlString: string): boolean {
-  try {
-    const parsed = new URL(urlString);
-    const hostname = parsed.hostname;
-    if (hostname === 'localhost' || hostname === '::1') return true;
-    if (hostname.endsWith('.local') || hostname.endsWith('.internal')) return true;
-    const parts = hostname.split('.').map(Number);
-    if (parts.length === 4 && parts.every((p) => !isNaN(p))) {
-      const [a, b] = parts as [number, number, number, number];
-      if (a === 127) return true;
-      if (a === 10) return true;
-      if (a === 172 && b >= 16 && b <= 31) return true;
-      if (a === 192 && b === 168) return true;
-      if (a === 169 && b === 254) return true;
-      if (a === 0) return true;
-    }
-    return false;
-  } catch {
-    return true;
-  }
-}
 
 interface RouteContext {
   params: Promise<{ slug: string; id: string }>;
@@ -96,7 +75,9 @@ export async function POST(request: Request, context: RouteContext) {
       },
     };
 
-    if (isPrivateUrl(webhook.url)) {
+    try {
+      assertSafeUrl(webhook.url);
+    } catch {
       return NextResponse.json(
         { error: 'Webhook URL must not point to a private or internal address' },
         { status: 400 }
@@ -155,6 +136,7 @@ export async function POST(request: Request, context: RouteContext) {
         method: 'POST',
         headers,
         body: JSON.stringify(testPayload),
+        redirect: 'manual',
         signal: controller.signal,
       });
 

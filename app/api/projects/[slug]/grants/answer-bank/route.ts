@@ -68,7 +68,8 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     if (q) {
-      query = query.or(`title.ilike.%${q}%,content.ilike.%${q}%`);
+      const sanitized = q.replace(/[%_\\]/g, '\\$&');
+      query = query.or(`title.ilike."%${sanitized}%",content.ilike."%${sanitized}%"`);
     }
 
     const { data: entries, error } = await query;

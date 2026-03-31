@@ -29,8 +29,20 @@ export async function POST(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // Verify user is a member of this project
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabaseAny = supabase as any;
+
+    const { data: membership } = await supabaseAny
+      .from('project_memberships')
+      .select('role')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membership) {
+      return NextResponse.json({ error: 'Forbidden' }, { status: 403 });
+    }
 
     // Get the call with its connection
     const { data: call, error: callError } = await supabaseAny

@@ -34,7 +34,11 @@ export async function GET(request: Request, context: RouteContext) {
       .eq('project_id', project.id)
       .order('updated_at', { ascending: false });
 
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     if (personId) {
+      if (!UUID_RE.test(personId)) {
+        return NextResponse.json({ error: 'Invalid person_id format' }, { status: 400 });
+      }
       query = query.or(`person_a_id.eq.${personId},person_b_id.eq.${personId}`);
     }
 

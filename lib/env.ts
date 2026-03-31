@@ -7,7 +7,10 @@ const envSchema = z.object({
   // Optional — can now be stored per-project in DB instead
   OPENROUTER_API_KEY: z.string().startsWith('sk-or-').optional(),
   NEXT_PUBLIC_APP_URL: z.string().url().default('http://localhost:3000'),
-  // Encryption key for project secrets (AES-256-GCM, 64-char hex = 32 bytes)
+  // Encryption key for project secrets (AES-256-GCM, 64-char hex = 32 bytes).
+  // Optional: only required if using features that encrypt secrets (Telnyx API keys,
+  // project-level credentials). getEncryptionKey() throws a clear error at call time
+  // if the key is missing, so deployments without encrypted secrets can omit it.
   ENCRYPTION_KEY: z.string().length(64).optional(),
   // Security-critical secrets (optional but recommended)
   CRON_SECRET: z.string().min(16).optional(),

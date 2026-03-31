@@ -156,7 +156,8 @@ export async function listUsers(params: {
     .select('id, email, full_name, avatar_url, is_system_admin, created_at, updated_at', { count: 'exact' });
 
   if (search) {
-    query = query.or(`full_name.ilike.%${search}%,email.ilike.%${search}%`);
+    const sanitized = search.replace(/[%_\\]/g, '\\$&');
+    query = query.or(`full_name.ilike."%${sanitized}%",email.ilike."%${sanitized}%"`);
   }
   if (filter_admin !== undefined) {
     query = query.eq('is_system_admin', filter_admin);

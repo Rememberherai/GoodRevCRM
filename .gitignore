@@ -52,3 +52,6 @@ Thumbs.db
 
 # Scanner logs
 logs/
+
+# Claude Code local config (may contain credential references)
+.claude/

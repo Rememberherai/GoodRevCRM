@@ -67,7 +67,8 @@ export async function GET(
     }
 
     if (search) {
-      query = query.or(`name.ilike.%${search}%,subject.ilike.%${search}%`);
+      const sanitized = search.replace(/[%_\\]/g, '\\$&');
+      query = query.or(`name.ilike."%${sanitized}%",subject.ilike."%${sanitized}%"`);
     }
 
     const { data: templates, error, count } = await query;

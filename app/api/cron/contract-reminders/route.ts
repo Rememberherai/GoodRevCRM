@@ -40,7 +40,7 @@ async function processContracts() {
           .in('action', ['sent', 'reminder_sent'])
           .order('created_at', { ascending: false })
           .limit(1)
-          .single();
+          .maybeSingle();
 
         if (lastReminder) {
           const lastDate = new Date(lastReminder.created_at);

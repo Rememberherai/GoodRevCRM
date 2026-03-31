@@ -9,8 +9,56 @@ interface RouteContext {
 }
 
 function computePinHmac(projectId: string, pin: string): string {
-  const secret = process.env.KIOSK_PIN_SECRET ?? 'dev-kiosk-secret';
+  const secret = process.env.KIOSK_PIN_SECRET;
+  if (!secret) {
+    throw new Error('KIOSK_PIN_SECRET environment variable is not set');
+  }
   return createHmac('sha256', secret).update(`${projectId}:${pin}`).digest('hex');
+}
+
+// In-memory rate limiter for failed PIN attempts (per IP)
+const FAILED_PIN_WINDOW_MS = 5 * 60_000; // 5 minutes
+const MAX_FAILED_PIN_ATTEMPTS = 5;
+
+interface FailedPinEntry {
+  count: number;
+  resetAt: number;
+}
+
+const failedPinStore = new Map<string, FailedPinEntry>();
+
+// Periodic cleanup to prevent unbounded memory growth
+setInterval(() => {
+  const now = Date.now();
+  for (const [key, entry] of failedPinStore) {
+    if (entry.resetAt <= now) {
+      failedPinStore.delete(key);
+    }
+  }
+}, 60_000).unref();
+
+function recordFailedPinAttempt(ip: string): { blocked: boolean } {
+  const now = Date.now();
+  const entry = failedPinStore.get(ip);
+
+  if (!entry || entry.resetAt <= now) {
+    failedPinStore.set(ip, { count: 1, resetAt: now + FAILED_PIN_WINDOW_MS });
+    return { blocked: false };
+  }
+
+  entry.count++;
+  return { blocked: entry.count > MAX_FAILED_PIN_ATTEMPTS };
+}
+
+function isIpBlocked(ip: string): boolean {
+  const now = Date.now();
+  const entry = failedPinStore.get(ip);
+  if (!entry || entry.resetAt <= now) return false;
+  return entry.count >= MAX_FAILED_PIN_ATTEMPTS;
+}
+
+function clearFailedAttempts(ip: string): void {
+  failedPinStore.delete(ip);
 }
 
 // POST /api/kiosk/[slug]/punch — public PIN-based clock in/out, no auth required
@@ -29,10 +77,20 @@ export async function POST(request: Request, context: RouteContext) {
     if (!project) return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     if (project.project_type !== 'community') return NextResponse.json({ error: 'Not a community project' }, { status: 400 });
 
+    // Brute-force protection: block IPs with too many failed PIN attempts
+    const clientIp = request.headers.get('x-forwarded-for')?.split(',')[0]?.trim()
+      ?? request.headers.get('x-real-ip')
+      ?? 'unknown';
+
+    if (isIpBlocked(clientIp)) {
+      return NextResponse.json({ error: 'Too many failed attempts. Try again later.' }, { status: 429 });
+    }
+
     const body = await request.json() as Record<string, unknown>;
     const pin = typeof body.pin === 'string' ? body.pin.trim() : null;
 
     if (!pin || !/^\d{4}$/.test(pin)) {
+      recordFailedPinAttempt(clientIp);
       return NextResponse.json({ error: 'PIN not recognized' }, { status: 401 });
     }
 
@@ -49,8 +107,12 @@ export async function POST(request: Request, context: RouteContext) {
 
     if (!person) {
       // Same error for wrong PIN or no PIN set — no hints
+      recordFailedPinAttempt(clientIp);
       return NextResponse.json({ error: 'PIN not recognized' }, { status: 401 });
     }
+
+    // Successful PIN match — clear failed attempts for this IP
+    clearFailedAttempts(clientIp);
 
     // Rate limit: reject if same person punched within last 60 seconds
     const sixtySecondsAgo = new Date(Date.now() - 60_000).toISOString();
@@ -79,7 +141,7 @@ export async function POST(request: Request, context: RouteContext) {
       .limit(1)
       .maybeSingle();
 
-    const ipAddress = request.headers.get('x-forwarded-for') ?? request.headers.get('x-real-ip') ?? null;
+    const ipAddress = clientIp !== 'unknown' ? clientIp : null;
 
     let timeEntryId: string;
     let action: 'in' | 'out';

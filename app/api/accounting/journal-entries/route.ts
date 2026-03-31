@@ -111,6 +111,10 @@ export async function POST(request: Request) {
       .eq('company_id', ctx.companyId)
       .single();
 
+    if (!complete) {
+      return NextResponse.json({ error: 'Failed to fetch created entry' }, { status: 500 });
+    }
+
     return NextResponse.json({ data: complete }, { status: 201 });
   } catch (error) {
     if (error instanceof z.ZodError) {

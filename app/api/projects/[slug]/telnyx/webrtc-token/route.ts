@@ -27,6 +27,18 @@ export async function GET(_request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // Check membership role — viewers cannot access SIP credentials
+    const { data: membership } = await supabase
+      .from('project_memberships')
+      .select('role')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membership || membership.role === 'viewer') {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const { data: connection } = await (supabase as any)
       .from('telnyx_connections')

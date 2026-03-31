@@ -147,9 +147,20 @@ export async function POST(request: Request) {
     });
   }
 
+  // Sanitize samples — strip raw API content that could leak sensitive details
+  const sanitizedSamples = samples.map((s) => ({
+    id: s.id,
+    subject: s.subject,
+    from: s.from,
+    to: s.to,
+    has_delivery_status_part: s.has_delivery_status_part,
+    all_emails_found: s.all_emails_found,
+    mime_structure: s.mime_structure,
+  }));
+
   return NextResponse.json({
     total_messages: listData.resultSizeEstimate,
-    samples_count: samples.length,
-    samples,
+    samples_count: sanitizedSamples.length,
+    samples: sanitizedSamples,
   });
 }

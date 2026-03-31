@@ -42,6 +42,39 @@ export async function POST(request: Request, context: RouteContext) {
 
     const { entity_type, entity_id, context_data } = validationResult.data;
 
+    // Validate that entity belongs to this project
+    if (entity_type && entity_id) {
+      const entityTableMap: Record<string, string> = {
+        person: 'people',
+        organization: 'organizations',
+        opportunity: 'opportunities',
+        household: 'households',
+        case: 'household_cases',
+        sequence: 'sequences',
+        broadcast: 'broadcasts',
+        contract: 'contracts',
+        document: 'contract_documents',
+        incident: 'incidents',
+      };
+      const tableName = entityTableMap[entity_type];
+      if (tableName) {
+        const { data: entityRow, error: entityError } = await supabaseAny
+          .from(tableName)
+          .select('id')
+          .eq('id', entity_id)
+          .eq('project_id', project.id)
+          .maybeSingle();
+
+        if (entityError) {
+          console.error('Error validating entity:', entityError.message);
+          return NextResponse.json({ error: 'Failed to validate entity' }, { status: 500 });
+        }
+        if (!entityRow) {
+          return NextResponse.json({ error: 'Entity not found in this project' }, { status: 404 });
+        }
+      }
+    }
+
     // Use RPC for atomic execution creation + count increment
     const { data: executionId, error: rpcError } = await supabaseAny.rpc('log_workflow_execution', {
       p_workflow_id: id,

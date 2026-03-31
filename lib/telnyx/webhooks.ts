@@ -89,10 +89,13 @@ export function verifyWebhookSignature(
     return false;
   }
 
-  // If no public key configured, skip verification but log a warning
+  // If no public key configured, reject in production, warn in dev
   const publicKeyPem = getTelnyxPublicKey();
   if (!publicKeyPem) {
-    console.warn('[Telnyx Webhook] No TELNYX_PUBLIC_KEY env var configured, skipping signature verification');
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('TELNYX_PUBLIC_KEY required for webhook verification in production');
+    }
+    console.warn('[Telnyx Webhook] TELNYX_PUBLIC_KEY not set — skipping webhook verification (dev only)');
     return true;
   }
 

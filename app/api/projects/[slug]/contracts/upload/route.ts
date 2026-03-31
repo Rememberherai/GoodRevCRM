@@ -59,7 +59,10 @@ export async function POST(request: Request, context: RouteContext) {
 
   // Upload to storage
   const fileId = crypto.randomUUID();
-  const storagePath = `${project.id}/documents/${fileId}/${file.name}`;
+  // Sanitize filename to prevent path traversal (e.g. ../../admin/secrets.pdf)
+  const ext = (file.name.match(/\.[a-zA-Z0-9]+$/) || ['.pdf'])[0];
+  const safeName = `${fileId}${ext}`;
+  const storagePath = `${project.id}/documents/${fileId}/${safeName}`;
 
   const { error: uploadError } = await supabase.storage
     .from('contracts')

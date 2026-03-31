@@ -7,6 +7,8 @@ import {
   GmailOAuthError,
 } from '@/lib/gmail/oauth';
 import { getPublicAppUrl } from '@/lib/url/get-public-url';
+import crypto from 'crypto';
+import { signOAuthState } from '@/app/api/gmail/connect/route';
 
 interface OAuthState {
   user_id: string;
@@ -44,10 +46,23 @@ export async function GET(request: Request) {
       return NextResponse.redirect(`${appUrl}${redirectPath}?gmail_error=missing_params`);
     }
 
+    // Verify HMAC signature on state parameter
+    const dotIndex = stateParam.lastIndexOf('.');
+    if (dotIndex === -1) {
+      return NextResponse.redirect(`${appUrl}${redirectPath}?gmail_error=invalid_state`);
+    }
+    const payload = stateParam.slice(0, dotIndex);
+    const receivedSig = stateParam.slice(dotIndex + 1);
+    const expectedSig = signOAuthState(payload);
+
+    if (!crypto.timingSafeEqual(Buffer.from(receivedSig), Buffer.from(expectedSig))) {
+      return NextResponse.redirect(`${appUrl}${redirectPath}?gmail_error=invalid_state`);
+    }
+
     // Decode and validate state
     let state: OAuthState;
     try {
-      state = JSON.parse(Buffer.from(stateParam, 'base64url').toString());
+      state = JSON.parse(Buffer.from(payload, 'base64url').toString());
     } catch {
       return NextResponse.redirect(`${appUrl}${redirectPath}?gmail_error=invalid_state`);
     }

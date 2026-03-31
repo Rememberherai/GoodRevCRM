@@ -136,22 +136,15 @@ export async function POST(request: Request, context: RouteContext) {
       stepNumber = (lastStep?.step_number ?? 0) + 1;
     } else {
       // If inserting at a specific position, shift all steps at or after this position
-      // First, get all steps that need to be shifted
-      const { data: stepsToShift } = await supabaseAny
-        .from('sequence_steps')
-        .select('id, step_number')
-        .eq('sequence_id', id)
-        .gte('step_number', stepNumber)
-        .order('step_number', { ascending: false });
+      // Use RPC to atomically increment step_number in a single query
+      const { error: shiftError } = await supabaseAny.rpc('shift_sequence_steps', {
+        p_sequence_id: id,
+        p_from_step_number: stepNumber,
+      });
 
-      // Shift them in reverse order to avoid conflicts (highest first)
-      if (stepsToShift && stepsToShift.length > 0) {
-        for (const s of stepsToShift) {
-          await supabaseAny
-            .from('sequence_steps')
-            .update({ step_number: s.step_number + 1 })
-            .eq('id', s.id);
-        }
+      if (shiftError) {
+        console.error('Error shifting steps:', shiftError);
+        return NextResponse.json({ error: 'Failed to shift existing steps' }, { status: 500 });
       }
     }
 

@@ -47,8 +47,12 @@ export async function GET(request: Request, context: RouteContext) {
       .select('*, jobs(id, title, project_id, contractor_id), contractor:people!job_time_entries_contractor_id_fkey(id, first_name, last_name, project_id), person:people!job_time_entries_person_id_fkey(id, first_name, last_name, project_id)');
 
     // person_id and contractor_id filters are treated equivalently (dual-write transition)
+    const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
     const workerFilter = personId ?? contractorId;
     if (workerFilter) {
+      if (!UUID_RE.test(workerFilter)) {
+        return NextResponse.json({ error: 'Invalid ID format' }, { status: 400 });
+      }
       query = query.or(`contractor_id.eq.${workerFilter},person_id.eq.${workerFilter}`);
     }
     if (jobId) {

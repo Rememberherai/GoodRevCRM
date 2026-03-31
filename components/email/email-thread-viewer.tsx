@@ -40,6 +40,17 @@ function formatDate(dateString: string): string {
   return date.toLocaleDateString([], { month: 'short', day: 'numeric', year: date.getFullYear() !== now.getFullYear() ? 'numeric' : undefined });
 }
 
+import DOMPurify from 'isomorphic-dompurify';
+
+/** Sanitize untrusted email HTML — strips scripts, event handlers, javascript: links, etc. */
+function sanitizeHtml(html: string): string {
+  return DOMPurify.sanitize(html, {
+    ADD_TAGS: ['style'],
+    FORBID_TAGS: ['script', 'iframe', 'object', 'embed', 'form'],
+    FORBID_ATTR: ['onerror', 'onload', 'onclick', 'onmouseover'],
+  });
+}
+
 function formatFullDate(dateString: string): string {
   return new Date(dateString).toLocaleString([], {
     weekday: 'short',
@@ -141,7 +152,7 @@ function EmailMessageItem({ message, defaultExpanded }: { message: EmailMessage;
           {message.body_html ? (
             <div
               className="prose prose-sm dark:prose-invert max-w-none overflow-auto"
-              dangerouslySetInnerHTML={{ __html: message.body_html }}
+              dangerouslySetInnerHTML={{ __html: sanitizeHtml(message.body_html) }}
             />
           ) : message.body_text ? (
             <pre className="text-sm whitespace-pre-wrap font-sans">{message.body_text}</pre>

@@ -62,8 +62,14 @@ function validateFieldReference(
   fieldName: string,
   allowedColumns: Map<string, Set<string>>
 ): void {
-  // Custom fields are accessed via JSONB and validated separately
-  if (fieldName.startsWith('custom_fields.')) return;
+  // Custom fields are accessed via JSONB — validate the field name to prevent injection
+  if (fieldName.startsWith('custom_fields.')) {
+    const cfName = fieldName.slice('custom_fields.'.length);
+    if (!/^[a-zA-Z_][a-zA-Z0-9_]*$/.test(cfName)) {
+      throw new ReportQueryError(`Invalid custom field name: ${cfName}`);
+    }
+    return;
+  }
 
   const cols = allowedColumns.get(objectName);
   if (!cols) {

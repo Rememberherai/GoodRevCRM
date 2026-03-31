@@ -75,16 +75,6 @@ export async function handleCompletion(documentId: string, projectId: string | n
 
   // 3. Send receipt emails (CAS-reserve receipt_sent_at first)
   const shouldSendReceipts = document.send_completed_copy_to_sender !== false || document.send_completed_copy_to_recipients !== false;
-  if (!document.receipt_sent_at && !shouldSendReceipts) {
-    // No receipts needed — mark as sent to prevent cron retry
-    await supabase
-      .from('contract_documents')
-      .update({ receipt_sent_at: new Date().toISOString() })
-      .eq('id', documentId)
-      .is('receipt_sent_at', null);
-    console.log(`[COMPLETION] Receipts disabled for ${documentId}, marking as sent`);
-    return;
-  }
   if (!document.receipt_sent_at && shouldSendReceipts) {
     // CAS: reserve
     const { data: reserved } = await supabase
@@ -114,6 +104,14 @@ export async function handleCompletion(documentId: string, projectId: string | n
         .update({ receipt_sent_at: null })
         .eq('id', documentId);
     }
+  } else if (!document.receipt_sent_at && !shouldSendReceipts) {
+    // No receipts needed — mark as sent to prevent cron retry
+    await supabase
+      .from('contract_documents')
+      .update({ receipt_sent_at: new Date().toISOString() })
+      .eq('id', documentId)
+      .is('receipt_sent_at', null);
+    console.log(`[COMPLETION] Receipts disabled for ${documentId}, marking as sent`);
   }
 }
 

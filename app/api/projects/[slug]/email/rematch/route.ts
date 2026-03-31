@@ -67,7 +67,7 @@ export async function POST(_request: Request, context: RouteContext) {
       .select('id, email')
       .eq('project_id', project.id)
       .is('deleted_at', null)
-      .or(uniqueEmails.map(e => `email.ilike.${e}`).join(','));
+      .or(uniqueEmails.map(e => `email.ilike."${e!.replace(/[%_\\]/g, '\\$&')}"`).join(','));
 
     if (!people || people.length === 0) {
       return NextResponse.json({ matched: 0, still_unmatched: uniqueEmails.length });

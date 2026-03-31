@@ -210,6 +210,11 @@ async function executeUpdateField(
 
   if (!fieldName) return { action_type: action.type, success: false, error: 'No field_name specified' };
 
+  // Strict field name validation to prevent injection
+  if (!/^[a-zA-Z_][a-zA-Z0-9_]*(\.[a-zA-Z_][a-zA-Z0-9_]*)?$/.test(fieldName)) {
+    return { action_type: action.type, success: false, error: 'Invalid field name' };
+  }
+
   const tableName = entityTableMap[context.entityType];
   if (!tableName) return { action_type: action.type, success: false, error: `Unknown entity type: ${context.entityType}` };
 

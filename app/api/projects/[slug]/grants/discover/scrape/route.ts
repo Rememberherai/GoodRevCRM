@@ -4,6 +4,7 @@ import { ProjectAccessError } from '@/lib/projects/permissions';
 import { requireCommunityPermission } from '@/lib/projects/community-permissions';
 import { getProjectOpenRouterClient } from '@/lib/openrouter/client';
 import { isApiKeyMissingError, apiKeyMissingResponse } from '@/lib/secrets';
+import { assertSafeUrl } from '@/lib/workflows/ssrf-guard';
 
 interface RouteContext {
   params: Promise<{ slug: string }>;
@@ -37,34 +38,9 @@ export async function POST(request: Request, context: RouteContext) {
     }
 
     // Validate URL and block SSRF (private/internal addresses)
-    let parsedUrl: URL;
     try {
-      parsedUrl = new URL(url);
+      assertSafeUrl(url);
     } catch {
-      return NextResponse.json({ error: 'Invalid URL' }, { status: 400 });
-    }
-
-    if (!['http:', 'https:'].includes(parsedUrl.protocol)) {
-      return NextResponse.json({ error: 'Only HTTP/HTTPS URLs are allowed' }, { status: 400 });
-    }
-
-    const hostname = parsedUrl.hostname.toLowerCase();
-    const blockedPatterns = [
-      /^localhost$/i,
-      /^127\.\d+\.\d+\.\d+$/,
-      /^10\.\d+\.\d+\.\d+$/,
-      /^172\.(1[6-9]|2\d|3[01])\.\d+\.\d+$/,
-      /^192\.168\.\d+\.\d+$/,
-      /^0\.0\.0\.0$/,
-      /^169\.254\.\d+\.\d+$/, // link-local
-      /^\[?::1?\]?$/,
-      /^\[?::ffff:/i, // IPv4-mapped IPv6
-      /^\[?fd[0-9a-f]{2}:/i, // unique local
-      /^\[?fe80:/i, // link-local IPv6
-      /\.local$/,
-      /\.internal$/,
-    ];
-    if (blockedPatterns.some(p => p.test(hostname))) {
       return NextResponse.json({ error: 'URL targets a restricted address' }, { status: 400 });
     }
 
@@ -76,22 +52,57 @@ export async function POST(request: Request, context: RouteContext) {
           'User-Agent': 'Mozilla/5.0 (compatible; GoodRevCRM/1.0; grant-discovery)',
           'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
         },
+        redirect: 'manual',
         signal: AbortSignal.timeout(15000),
       });
 
-      if (!response.ok) {
-        return NextResponse.json({ error: `Failed to fetch URL: ${response.status}` }, { status: 422 });
-      }
+      // If the server redirects, validate the redirect target before following
+      if ([301, 302, 303, 307, 308].includes(response.status)) {
+        const redirectUrl = response.headers.get('location');
+        if (!redirectUrl) {
+          return NextResponse.json({ error: 'Redirect with no location header' }, { status: 422 });
+        }
+        const absoluteRedirect = new URL(redirectUrl, url).toString();
+        try {
+          assertSafeUrl(absoluteRedirect);
+        } catch {
+          return NextResponse.json({ error: 'Redirect URL targets a restricted address' }, { status: 400 });
+        }
+        // Follow the validated redirect manually
+        const redirectResponse = await fetch(absoluteRedirect, {
+          headers: {
+            'User-Agent': 'Mozilla/5.0 (compatible; GoodRevCRM/1.0; grant-discovery)',
+            'Accept': 'text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8',
+          },
+          redirect: 'manual',
+          signal: AbortSignal.timeout(15000),
+        });
+        if (!redirectResponse.ok) {
+          return NextResponse.json({ error: `Failed to fetch URL: ${redirectResponse.status}` }, { status: 422 });
+        }
+        const html = await redirectResponse.text();
+        pageContent = html
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 15000);
+      } else {
+        if (!response.ok) {
+          return NextResponse.json({ error: `Failed to fetch URL: ${response.status}` }, { status: 422 });
+        }
 
-      const html = await response.text();
-      // Strip HTML tags for cleaner AI input, keep text content
-      pageContent = html
-        .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
-        .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
-        .replace(/<[^>]+>/g, ' ')
-        .replace(/\s+/g, ' ')
-        .trim()
-        .slice(0, 15000); // Limit to 15K chars
+        const html = await response.text();
+        // Strip HTML tags for cleaner AI input, keep text content
+        pageContent = html
+          .replace(/<script[^>]*>[\s\S]*?<\/script>/gi, '')
+          .replace(/<style[^>]*>[\s\S]*?<\/style>/gi, '')
+          .replace(/<[^>]+>/g, ' ')
+          .replace(/\s+/g, ' ')
+          .trim()
+          .slice(0, 15000); // Limit to 15K chars
+      }
     } catch (err) {
       return NextResponse.json(
         { error: `Could not fetch page: ${err instanceof Error ? err.message : 'Unknown error'}` },

@@ -45,13 +45,14 @@ export async function PATCH(request: Request, context: RouteContext) {
 
     const { content, mentions } = validationResult.data;
 
-    // Update comment (RLS ensures own-comment only)
+    // Update comment — enforce ownership so only the author can edit
     const supabaseAny = supabase as any;
     const { data: comment, error: updateError } = await supabaseAny
       .from('entity_comments')
       .update({ content, mentions })
       .eq('id', commentId)
       .eq('project_id', project.id)
+      .eq('created_by', user.id)
       .is('deleted_at', null)
       .select(`
         *,

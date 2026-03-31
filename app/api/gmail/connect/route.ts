@@ -4,6 +4,18 @@ import { getAuthorizationUrl } from '@/lib/gmail/oauth';
 import { getPublicAppUrl } from '@/lib/url/get-public-url';
 import crypto from 'crypto';
 
+export function getOAuthStateSecret(): string {
+  const secret = process.env.OAUTH_STATE_SECRET || process.env.NEXTAUTH_SECRET;
+  if (!secret) {
+    throw new Error('OAUTH_STATE_SECRET or NEXTAUTH_SECRET must be set for Gmail OAuth');
+  }
+  return secret;
+}
+
+export function signOAuthState(payload: string): string {
+  return crypto.createHmac('sha256', getOAuthStateSecret()).update(payload).digest('base64url');
+}
+
 // GET /api/gmail/connect - Initiate Gmail OAuth flow
 export async function GET(request: Request) {
   try {
@@ -24,11 +36,10 @@ export async function GET(request: Request) {
       timestamp: Date.now(),
     };
 
-    // Encode state as base64 for URL safety
-    const state = Buffer.from(JSON.stringify(stateData)).toString('base64url');
-
-    // Store state in a short-lived manner (could use Redis in production)
-    // For now, we'll verify the timestamp on callback
+    // Encode state as base64 and sign with HMAC to prevent tampering
+    const payload = Buffer.from(JSON.stringify(stateData)).toString('base64url');
+    const sig = signOAuthState(payload);
+    const state = `${payload}.${sig}`;
 
     // Generate authorization URL
     const appUrl = getPublicAppUrl(request);

@@ -79,7 +79,8 @@ export async function GET(request: Request, context: RouteContext) {
     }
 
     if (search) {
-      query = query.or(`title.ilike.%${search}%,description.ilike.%${search}%`);
+      const sanitized = search.replace(/[%_\\]/g, '\\$&');
+      query = query.or(`title.ilike."%${sanitized}%",description.ilike."%${sanitized}%"`);
     }
 
     const { data: articles, count, error } = await query;

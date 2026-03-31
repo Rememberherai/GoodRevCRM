@@ -76,6 +76,18 @@ export async function PATCH(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // Check membership role — only admins can change dedup settings
+    const { data: membership } = await supabase
+      .from('project_memberships')
+      .select('role')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membership || !['admin', 'owner'].includes(membership.role)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
     const body = await request.json();
     const validation = updateSettingsSchema.safeParse(body);
     if (!validation.success) {

@@ -45,6 +45,18 @@ export async function POST(request: Request, context: RouteContext) {
       return NextResponse.json({ error: 'Project not found' }, { status: 404 });
     }
 
+    // Check membership role — only admins can test provider connections
+    const { data: membership } = await supabase
+      .from('project_memberships')
+      .select('role')
+      .eq('project_id', project.id)
+      .eq('user_id', user.id)
+      .single();
+
+    if (!membership || !['admin', 'owner'].includes(membership.role)) {
+      return NextResponse.json({ error: 'Insufficient permissions' }, { status: 403 });
+    }
+
     // Check if API key was provided in request body (for testing unsaved keys)
     let apiKey: string | null = null;
     try {

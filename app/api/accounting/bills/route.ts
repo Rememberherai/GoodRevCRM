@@ -40,7 +40,8 @@ export async function GET(request: Request) {
       query = query.eq('status', status);
     }
     if (search) {
-      query = query.or(`vendor_name.ilike.%${search}%,bill_number.ilike.%${search}%`);
+      const sanitized = search.replace(/[%_\\]/g, '\\$&');
+      query = query.or(`vendor_name.ilike."%${sanitized}%",bill_number.ilike."%${sanitized}%"`);
     }
     if (startDate) {
       query = query.gte('bill_date', startDate);

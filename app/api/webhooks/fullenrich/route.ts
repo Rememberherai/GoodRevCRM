@@ -8,9 +8,10 @@ function verifySignature(payload: string, signature: string | null): boolean {
   const webhookSecret = process.env.FULLENRICH_WEBHOOK_SECRET;
 
   if (!webhookSecret) {
-    // Allow webhooks without verification if secret not configured
-    // This is for development/testing - in production, configure the secret!
-    console.warn('FULLENRICH_WEBHOOK_SECRET not configured - accepting webhook without verification');
+    if (process.env.NODE_ENV === 'production') {
+      throw new Error('FULLENRICH_WEBHOOK_SECRET required for webhook verification in production');
+    }
+    console.warn('FULLENRICH_WEBHOOK_SECRET not set — skipping webhook verification (dev only)');
     return true;
   }
 

@@ -80,6 +80,24 @@ export async function POST(request: Request, context: RouteContext) {
         // If high-confidence match, link existing person to org instead
         if (dupes.length > 0 && dupes[0]!.score >= 0.9) {
           const existingPersonId = dupes[0]!.target_id;
+
+          // Verify matched person actually belongs to this project
+          const { data: existingPerson } = await supabase
+            .from('people')
+            .select('id')
+            .eq('id', existingPersonId)
+            .eq('project_id', project.id)
+            .is('deleted_at', null)
+            .single();
+
+          if (!existingPerson) {
+            // Matched person is from another project — skip linking, create new instead
+            dupes.length = 0;
+          }
+        }
+
+        if (dupes.length > 0 && dupes[0]!.score >= 0.9) {
+          const existingPersonId = dupes[0]!.target_id;
           // Link existing person to this org if not already linked
           await supabase.from('person_organizations').upsert(
             {
