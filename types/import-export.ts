@@ -108,11 +108,18 @@ export const personFields: FieldDefinition[] = [
 export const organizationFields: FieldDefinition[] = [
   { name: 'name', label: 'Name', type: 'string', required: true },
   { name: 'domain', label: 'Domain', type: 'string', required: false },
-  { name: 'industry', label: 'Industry', type: 'string', required: false },
-  { name: 'size', label: 'Size', type: 'string', required: false },
   { name: 'website', label: 'Website', type: 'url', required: false },
+  { name: 'industry', label: 'Industry', type: 'string', required: false },
+  { name: 'description', label: 'Description', type: 'string', required: false },
+  { name: 'phone', label: 'Phone', type: 'string', required: false },
+  { name: 'employee_count', label: 'Employee Count', type: 'number', required: false },
+  { name: 'annual_revenue', label: 'Annual Revenue', type: 'number', required: false },
   { name: 'linkedin_url', label: 'LinkedIn URL', type: 'url', required: false },
-  { name: 'status', label: 'Status', type: 'string', required: false },
+  { name: 'address_street', label: 'Street Address', type: 'string', required: false },
+  { name: 'address_city', label: 'City', type: 'string', required: false },
+  { name: 'address_state', label: 'State', type: 'string', required: false },
+  { name: 'address_postal_code', label: 'Postal Code', type: 'string', required: false },
+  { name: 'address_country', label: 'Country', type: 'string', required: false },
 ];
 
 export const opportunityFields: FieldDefinition[] = [

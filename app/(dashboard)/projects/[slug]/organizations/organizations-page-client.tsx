@@ -38,7 +38,7 @@ import { Badge } from '@/components/ui/badge';
 import { Checkbox } from '@/components/ui/checkbox';
 import { NewOrganizationDialog } from '@/components/organizations/new-organization-dialog';
 import { BulkAddDialog } from '@/components/organizations/bulk-add-dialog';
-import { ImportWizard } from '@/components/import-export';
+import { OrgImportDialog } from '@/components/organizations/org-import-dialog';
 import { BulkResearchDialog } from '@/components/research/bulk-research-dialog';
 import { BulkContactDiscoveryDialog } from '@/components/organizations/bulk-contact-discovery-dialog';
 import { BulkGenericEmailDialog } from '@/components/organizations/bulk-generic-email-dialog';
@@ -48,12 +48,6 @@ import { renderCellValue } from '@/lib/table-columns/renderers';
 import { DispositionCell } from '@/components/dispositions/disposition-cell';
 import { useDispositions } from '@/hooks/use-dispositions';
 import { useOrganizationStore, updateOrganizationApi } from '@/stores/organization';
-import {
-  Dialog,
-  DialogContent,
-  DialogHeader,
-  DialogTitle,
-} from '@/components/ui/dialog';
 
 export function OrganizationsPageClient() {
   const params = useParams();
@@ -488,21 +482,14 @@ export function OrganizationsPageClient() {
         />
       )}
 
-      <Dialog open={showImportDialog} onOpenChange={setShowImportDialog}>
-        <DialogContent className="sm:max-w-[600px]">
-          <DialogHeader>
-            <DialogTitle>Import Organizations</DialogTitle>
-          </DialogHeader>
-          <ImportWizard
-            projectSlug={slug}
-            onComplete={() => {
-              setShowImportDialog(false);
-              refresh();
-            }}
-            onCancel={() => setShowImportDialog(false)}
-          />
-        </DialogContent>
-      </Dialog>
+      <OrgImportDialog
+        open={showImportDialog}
+        onOpenChange={setShowImportDialog}
+        onImported={() => {
+          setShowImportDialog(false);
+          refresh();
+        }}
+      />
 
       <AlertDialog open={!!deleteId} onOpenChange={() => setDeleteId(null)}>
         <AlertDialogContent>
