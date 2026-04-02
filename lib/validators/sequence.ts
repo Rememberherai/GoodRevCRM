@@ -16,7 +16,7 @@ const sequenceSettingsSchema = z.object({
 // Create sequence schema
 export const createSequenceSchema = z.object({
   name: z.string().min(1, 'Name is required').max(200),
-  description: z.string().max(1000).optional(),
+  description: z.string().max(1000).nullable().optional(),
   settings: sequenceSettingsSchema.optional(),
   organization_id: z.string().uuid('Invalid organization ID').nullable().optional(),
   person_id: z.string().uuid('Invalid person ID').nullable().optional(),
