@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { enrichmentWebhookSchema, type EnrichmentRecord } from '@/lib/validators/enrichment';
+import { enrichmentWebhookSchema } from '@/lib/validators/enrichment';
 import type { EnrichmentPerson } from '@/lib/fullenrich/client';
 import { createAdminClient } from '@/lib/supabase/admin';
 
@@ -40,6 +40,76 @@ function verifySignature(payload: string, signature: string | null): boolean {
   return isValid;
 }
 
+/**
+ * Transform a v2 enrichment record into our internal EnrichmentPerson format.
+ * Shared between webhook handler and polling logic.
+ */
+function transformV2RecordToEnrichmentPerson(record: {
+  contact_info?: {
+    most_probable_work_email?: { email: string; status?: string } | null;
+    most_probable_personal_email?: { email: string; status?: string } | null;
+    most_probable_phone?: { number: string; region?: string } | null;
+    work_emails?: { email: string; status?: string }[];
+    personal_emails?: { email: string; status?: string }[];
+    phones?: { number: string; region?: string }[];
+  } | null;
+  profile?: {
+    full_name?: string | null;
+    first_name?: string | null;
+    last_name?: string | null;
+    location?: { country?: string | null; city?: string | null; region?: string | null } | null;
+    social_profiles?: { linkedin?: { url?: string } | null } | null;
+    employment?: { current?: { title?: string; company?: { name?: string; domain?: string } | null } | null } | null;
+  } | null;
+  custom?: Record<string, unknown>;
+}): EnrichmentPerson {
+  const contactInfo = record.contact_info;
+  const profile = record.profile;
+
+  const allPhones = contactInfo?.phones?.map((p) => ({
+    phone: p.number,
+    type: 'mobile' as string,
+    status: undefined as string | undefined,
+    region: p.region,
+  })) ?? [];
+
+  const workEmails = (contactInfo?.work_emails ?? []).map((e) => ({
+    email: e.email,
+    status: e.status,
+    type: 'work' as string,
+  }));
+  const personalEmails = (contactInfo?.personal_emails ?? []).map((e) => ({
+    email: e.email,
+    status: e.status,
+    type: 'personal' as string,
+  }));
+  const allEmails = [...workEmails, ...personalEmails];
+
+  return {
+    email: contactInfo?.most_probable_work_email?.email ?? allEmails[0]?.email ?? null,
+    first_name: profile?.first_name ?? null,
+    last_name: profile?.last_name ?? null,
+    full_name: profile?.full_name ?? null,
+    job_title: profile?.employment?.current?.title ?? null,
+    company_name: profile?.employment?.current?.company?.name ?? null,
+    company_domain: profile?.employment?.current?.company?.domain ?? null,
+    linkedin_url: profile?.social_profiles?.linkedin?.url ?? null,
+    phone: contactInfo?.most_probable_phone?.number ?? allPhones[0]?.phone ?? null,
+    location: profile?.location ? {
+      city: profile.location.city ?? null,
+      state: profile.location.region ?? null,
+      country: profile.location.country ?? null,
+    } : null,
+    work_email: contactInfo?.most_probable_work_email?.email ?? workEmails[0]?.email ?? null,
+    personal_email: contactInfo?.most_probable_personal_email?.email ?? personalEmails[0]?.email ?? null,
+    mobile_phone: allPhones[0]?.phone ?? null,
+    work_phone: null,
+    confidence_score: null,
+    all_emails: allEmails,
+    all_phones: allPhones,
+  };
+}
+
 // POST /api/webhooks/fullenrich - Handle enrichment completion webhook
 export async function POST(request: Request) {
   try {
@@ -71,24 +141,20 @@ export async function POST(request: Request) {
     }
 
     const webhookData = validationResult.data;
-    // Handle both v1 (enrichment_id/id) and simplified (job_id) webhook formats
-    const enrichmentId = 'enrichment_id' in webhookData
-      ? (webhookData.enrichment_id ?? webhookData.id ?? '')
-      : ('job_id' in webhookData ? webhookData.job_id : '');
+    const enrichmentId = webhookData.enrichment_id ?? webhookData.id ?? '';
     if (!enrichmentId || enrichmentId.length > 255) {
       return NextResponse.json({ error: 'Missing or invalid enrichment ID' }, { status: 400 });
     }
-    // Extract fields based on webhook format (v1 vs simplified)
+
     const status = webhookData.status;
-    const results = 'datas' in webhookData ? webhookData.datas : undefined;
-    const cost = 'cost' in webhookData ? webhookData.cost : undefined;
+    const results = webhookData.data; // v2 uses "data" not "datas"
+    const cost = webhookData.cost;
     const error = webhookData.error;
     const credits_used = cost?.credits ?? 0;
 
-    console.log('FullEnrich webhook received:', { enrichmentId, status, resultsCount: results?.length });
+    console.log('FullEnrich v2 webhook received:', { enrichmentId, status, resultsCount: results?.length });
 
     // Create admin client (bypasses RLS for webhook processing)
-    // Use type assertion for enrichment_jobs (not yet in Database type)
     // eslint-disable-next-line @typescript-eslint/no-explicit-any
     const supabase = createAdminClient() as any;
 
@@ -168,10 +234,9 @@ export async function POST(request: Request) {
 
     for (let i = 0; i < jobs.length; i++) {
       const job = jobs[i]!;
-      const record = results[i] as EnrichmentRecord | undefined;
+      const record = results[i];
 
       if (!record) {
-        // No result for this job
         await supabase
           .from('enrichment_jobs')
           .update({
@@ -196,45 +261,8 @@ export async function POST(request: Request) {
         continue;
       }
 
-      // Extract data from FullEnrich v1 format (contact object with phones/emails)
-      const contact = record.contact;
-      const profile = contact?.profile;
-
-      // Map phones from v1 format (number field) to our format (phone field)
-      const allPhones = contact?.phones?.map((p: { number: string; type?: string; status?: string }) => ({
-        phone: p.number,
-        type: p.type ?? 'mobile',
-        status: p.status,
-      })) ?? [];
-
-      const allEmails = contact?.emails ?? [];
-
-      // Convert result to EnrichmentPerson format
-      const enrichmentResult: EnrichmentPerson = {
-        email: contact?.most_probable_email ?? allEmails[0]?.email ?? null,
-        first_name: profile?.first_name ?? null,
-        last_name: profile?.last_name ?? null,
-        full_name: profile?.full_name ?? null,
-        job_title: profile?.job_title ?? null,
-        company_name: profile?.company ?? null,
-        company_domain: null,
-        linkedin_url: profile?.linkedin_url ?? null,
-        phone: contact?.most_probable_phone ?? allPhones[0]?.phone ?? null,
-        location: profile?.location ? {
-          city: profile.location.city ?? null,
-          state: profile.location.state ?? null,
-          country: profile.location.country ?? null,
-        } : null,
-        work_email: allEmails.find((e: { type?: string }) => e.type === 'work')?.email ?? null,
-        personal_email: contact?.most_probable_personal_email ??
-                        allEmails.find((e: { type?: string }) => e.type === 'personal')?.email ?? null,
-        mobile_phone: allPhones.find((p: { type?: string }) => p.type === 'mobile')?.phone ?? null,
-        work_phone: allPhones.find((p: { type?: string }) => p.type === 'work')?.phone ?? null,
-        confidence_score: null,
-        // Include raw arrays for user selection in review modal
-        all_emails: allEmails,
-        all_phones: allPhones,
-      };
+      // Transform v2 record to our EnrichmentPerson format
+      const enrichmentResult = transformV2RecordToEnrichmentPerson(record);
 
       // Update job with results (user will review and apply via modal)
       await supabase
@@ -248,7 +276,8 @@ export async function POST(request: Request) {
         .eq('id', job.id);
 
       // Create notification for the user
-      const hasData = !!(enrichmentResult.email || enrichmentResult.phone || allEmails.length > 0 || allPhones.length > 0);
+      const hasData = !!(enrichmentResult.email || enrichmentResult.phone ||
+        (enrichmentResult.all_emails?.length ?? 0) > 0 || (enrichmentResult.all_phones?.length ?? 0) > 0);
       const pName = personNameMap.get(job.person_id) ?? 'Unknown';
       try {
         await supabase.from('notifications').insert({
