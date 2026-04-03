@@ -568,7 +568,8 @@ export async function POST(request: Request, context: RouteContext) {
         // Include job_id and person_id for reliable result matching
         const enrichRequest = await client.enrichPerson(
           { ...inputData, job_id: job.id, person_id: person.id },
-          webhookUrl
+          webhookUrl,
+          singleResult.data!.enrich_fields
         );
 
         // Update job with external job ID
@@ -676,6 +677,7 @@ export async function POST(request: Request, context: RouteContext) {
       const bulkRequest = await client.startBulkEnrich({
         people: enrichmentPeople,
         webhook_url: webhookUrl,
+        enrich_fields: bulkResult.data!.enrich_fields,
       });
 
       // Update all jobs with external job ID

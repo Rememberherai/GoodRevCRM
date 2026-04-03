@@ -84,6 +84,8 @@ export function BulkEnrichWithReviewModal({
   onComplete,
 }: BulkEnrichWithReviewModalProps) {
   const [phase, setPhase] = useState<Phase>('confirming');
+  const [enrichEmails, setEnrichEmails] = useState(true);
+  const [enrichPhones, setEnrichPhones] = useState(true);
   const [jobs, setJobs] = useState<JobState[]>([]);
   const [currentReviewIndex, setCurrentReviewIndex] = useState(0);
   const [appliedCount, setAppliedCount] = useState(0);
@@ -105,6 +107,8 @@ export function BulkEnrichWithReviewModal({
       setAppliedCount(0);
       setSkippedCount(0);
       setSelectedFields({});
+      setEnrichEmails(true);
+      setEnrichPhones(true);
       personIdsRef.current = [];
       pollCountRef.current = 0;
     }
@@ -251,11 +255,16 @@ export function BulkEnrichWithReviewModal({
     phaseRef.current = 'processing';
 
     try {
+      const enrichFields: string[] = [];
+      if (enrichEmails) enrichFields.push('contact.emails');
+      if (enrichPhones) enrichFields.push('contact.phones');
+
       const response = await fetch(`/api/projects/${projectSlug}/enrich`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           person_ids: selectedPeople.map((p) => p.id),
+          enrich_fields: enrichFields.length < 2 ? enrichFields : undefined,
         }),
       });
 
@@ -682,6 +691,27 @@ export function BulkEnrichWithReviewModal({
                   </p>
                 </div>
               </div>
+              <div className="space-y-3">
+                <p className="text-sm font-medium">What to enrich:</p>
+                <div className="flex items-center gap-4">
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={enrichEmails}
+                      onCheckedChange={(checked) => setEnrichEmails(!!checked)}
+                    />
+                    <Mail className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Emails</span>
+                  </label>
+                  <label className="flex items-center gap-2 cursor-pointer">
+                    <Checkbox
+                      checked={enrichPhones}
+                      onCheckedChange={(checked) => setEnrichPhones(!!checked)}
+                    />
+                    <Phone className="h-4 w-4 text-muted-foreground" />
+                    <span className="text-sm">Phones</span>
+                  </label>
+                </div>
+              </div>
               <p className="text-sm text-muted-foreground">
                 After enrichment completes, you&apos;ll review each person&apos;s
                 results and select which fields to apply.
@@ -843,7 +873,7 @@ export function BulkEnrichWithReviewModal({
               <Button variant="outline" onClick={onClose}>
                 Cancel
               </Button>
-              <Button onClick={startEnrichment}>
+              <Button onClick={startEnrichment} disabled={!enrichEmails && !enrichPhones}>
                 <Sparkles className="mr-2 h-4 w-4" />
                 Start Enrichment
               </Button>

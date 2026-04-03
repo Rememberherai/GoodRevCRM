@@ -215,6 +215,7 @@ export interface EnrichPersonInput {
 export interface BulkEnrichInput {
   people: EnrichPersonInput[];
   webhook_url?: string;
+  enrich_fields?: string[];
 }
 
 // Client class
@@ -286,6 +287,7 @@ export class FullEnrichClient {
    * NOTE: v1 API uses "datas" array (not "data")
    */
   async startBulkEnrich(input: BulkEnrichInput): Promise<EnrichmentRequest> {
+    const fields = input.enrich_fields ?? ['contact.emails', 'contact.phones'];
     const payload = {
       name: `enrichment-${Date.now()}`,
       webhook_url: input.webhook_url,
@@ -296,7 +298,7 @@ export class FullEnrichClient {
         company_name: p.company_name,
         linkedin_url: p.linkedin_url,
         email: p.email, // Optional hint
-        enrich_fields: ['contact.emails', 'contact.phones'],
+        enrich_fields: fields,
         // Pass person_id and job_id through custom field for reliable result matching
         custom: {
           person_id: p.person_id,
@@ -326,10 +328,11 @@ export class FullEnrichClient {
    * Enrich a single person (uses bulk endpoint with one person)
    * Note: This is async - results come via webhook
    */
-  async enrichPerson(input: EnrichPersonInput, webhookUrl?: string): Promise<EnrichmentRequest> {
+  async enrichPerson(input: EnrichPersonInput, webhookUrl?: string, enrichFields?: string[]): Promise<EnrichmentRequest> {
     return this.startBulkEnrich({
       people: [input],
       webhook_url: webhookUrl,
+      enrich_fields: enrichFields,
     });
   }
 

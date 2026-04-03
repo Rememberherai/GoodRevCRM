@@ -132,7 +132,7 @@ export class ApolloProvider extends BaseContactProvider {
       first_name: firstName,
       last_name: lastName,
       domain,
-      reveal_personal_emails: 'false',
+      reveal_personal_emails: 'true',
     });
 
     const response = await fetch(`${APOLLO_BASE_URL}/people/match?${queryParams}`, {

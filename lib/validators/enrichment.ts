@@ -1,8 +1,13 @@
 import { z } from 'zod';
 
+// Valid FullEnrich enrich_fields values
+const ENRICH_FIELD_OPTIONS = ['contact.emails', 'contact.phones'] as const;
+export type EnrichFieldOption = typeof ENRICH_FIELD_OPTIONS[number];
+
 // Schema for enriching a single person
 export const enrichPersonSchema = z.object({
   person_id: z.string().uuid('Invalid person ID'),
+  enrich_fields: z.array(z.enum(ENRICH_FIELD_OPTIONS)).min(1).optional(),
 });
 
 export type EnrichPersonInput = z.infer<typeof enrichPersonSchema>;
@@ -13,6 +18,7 @@ export const bulkEnrichSchema = z.object({
     .array(z.string().uuid('Invalid person ID'))
     .min(1, 'At least one person is required')
     .max(100, 'Maximum 100 people per batch'),
+  enrich_fields: z.array(z.enum(ENRICH_FIELD_OPTIONS)).min(1).optional(),
 });
 
 export type BulkEnrichInput = z.infer<typeof bulkEnrichSchema>;

@@ -2,8 +2,14 @@
 
 import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
-import { Sparkles, Loader2, Check, AlertCircle } from 'lucide-react';
+import { Sparkles, Loader2, Check, AlertCircle, ChevronDown, Mail, Phone } from 'lucide-react';
 import { Button } from '@/components/ui/button';
+import {
+  DropdownMenu,
+  DropdownMenuContent,
+  DropdownMenuItem,
+  DropdownMenuTrigger,
+} from '@/components/ui/dropdown-menu';
 import {
   Tooltip,
   TooltipContent,
@@ -73,17 +79,20 @@ export function EnrichButton({
   const isEnrichingFromStore = isEnrichingGlobal(personId);
   const isEnrichingState = isEnriching || isEnrichingFromStore;
 
-  const handleEnrich = async () => {
+  const handleEnrich = async (enrichFields?: string[]) => {
     if (!slug || isEnrichingState) return;
 
     setIsEnriching(true);
     setLastResult(null);
 
     try {
+      const body: Record<string, unknown> = { person_id: personId };
+      if (enrichFields) body.enrich_fields = enrichFields;
+
       const response = await fetch(`/api/projects/${slug}/enrich`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ person_id: personId }),
+        body: JSON.stringify(body),
       });
 
       const data = await response.json();
@@ -174,12 +183,13 @@ export function EnrichButton({
     return <Sparkles className="h-4 w-4" />;
   };
 
-  const button = (
+  const mainButton = (
     <Button
       variant={variant}
       size={size}
-      onClick={handleEnrich}
+      onClick={() => handleEnrich()}
       disabled={isEnrichingState}
+      className={size !== 'icon' && showLabel ? 'rounded-r-none' : undefined}
     >
       {getIcon()}
       {showLabel && size !== 'icon' && (
@@ -190,40 +200,69 @@ export function EnrichButton({
     </Button>
   );
 
+  const enrichOptions = (
+    <DropdownMenu>
+      <DropdownMenuTrigger asChild>
+        <Button
+          variant={variant}
+          size={size}
+          disabled={isEnrichingState}
+          className="rounded-l-none border-l-0 px-1.5"
+        >
+          <ChevronDown className="h-3.5 w-3.5" />
+        </Button>
+      </DropdownMenuTrigger>
+      <DropdownMenuContent align="end">
+        <DropdownMenuItem onClick={() => handleEnrich()}>
+          <Sparkles className="mr-2 h-4 w-4" />
+          Emails + Phones
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleEnrich(['contact.emails'])}>
+          <Mail className="mr-2 h-4 w-4" />
+          Emails only
+        </DropdownMenuItem>
+        <DropdownMenuItem onClick={() => handleEnrich(['contact.phones'])}>
+          <Phone className="mr-2 h-4 w-4" />
+          Phones only
+        </DropdownMenuItem>
+      </DropdownMenuContent>
+    </DropdownMenu>
+  );
+
+  const reviewModal = (
+    <EnrichmentReviewModal
+      open={showReviewModal}
+      onClose={handleCloseModal}
+      enrichmentData={enrichmentData}
+      currentPerson={currentPerson}
+      onApply={handleApplyEnrichment}
+      isApplying={isApplying}
+    />
+  );
+
   if (size === 'icon' || !showLabel) {
     return (
       <>
         <TooltipProvider>
           <Tooltip>
-            <TooltipTrigger asChild>{button}</TooltipTrigger>
+            <TooltipTrigger asChild>{mainButton}</TooltipTrigger>
             <TooltipContent>
               <p>Enrich {personName}</p>
             </TooltipContent>
           </Tooltip>
         </TooltipProvider>
-        <EnrichmentReviewModal
-          open={showReviewModal}
-          onClose={handleCloseModal}
-          enrichmentData={enrichmentData}
-          currentPerson={currentPerson}
-          onApply={handleApplyEnrichment}
-          isApplying={isApplying}
-        />
+        {reviewModal}
       </>
     );
   }
 
   return (
     <>
-      {button}
-      <EnrichmentReviewModal
-        open={showReviewModal}
-        onClose={handleCloseModal}
-        enrichmentData={enrichmentData}
-        currentPerson={currentPerson}
-        onApply={handleApplyEnrichment}
-        isApplying={isApplying}
-      />
+      <div className="flex">
+        {mainButton}
+        {enrichOptions}
+      </div>
+      {reviewModal}
     </>
   );
 }
