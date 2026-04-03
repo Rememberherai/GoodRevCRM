@@ -86,7 +86,7 @@ export function DialerWidget() {
     return (
       <button
         onClick={toggleDialer}
-        className="fixed bottom-6 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
+        className="fixed bottom-20 right-6 z-50 flex h-14 w-14 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-lg hover:bg-primary/90 transition-colors"
         title="Open dialer"
       >
         <Phone className="h-6 w-6" />
@@ -101,7 +101,7 @@ export function DialerWidget() {
   if (isInCall && isMinimized) {
     return (
       <div
-        className="fixed bottom-6 right-6 z-50 flex items-center gap-3 rounded-full bg-green-600 text-white px-4 py-2.5 shadow-lg cursor-pointer hover:bg-green-700 transition-colors"
+        className="fixed bottom-20 right-6 z-50 flex items-center gap-3 rounded-full bg-green-600 text-white px-4 py-2.5 shadow-lg cursor-pointer hover:bg-green-700 transition-colors"
         onClick={() => setIsMinimized(false)}
       >
         <Circle className="h-3 w-3 animate-pulse fill-current" />
@@ -112,7 +112,7 @@ export function DialerWidget() {
   }
 
   return (
-    <div className="fixed bottom-6 right-6 z-50 w-72 rounded-lg border bg-card shadow-xl">
+    <div className="fixed bottom-20 right-6 z-50 w-72 rounded-lg border bg-card shadow-xl">
       {/* Header */}
       <div className="flex items-center justify-between border-b px-4 py-2.5">
         <div className="flex items-center gap-2">
