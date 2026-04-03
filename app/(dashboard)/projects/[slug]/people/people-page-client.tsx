@@ -1,11 +1,13 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Search, Users, MoreHorizontal, Pencil, Trash2, Send, CheckCircle2, AlertTriangle, Plus, Home, UserX } from 'lucide-react';
 import { usePeople } from '@/hooks/use-people';
 import { useColumnPreferences } from '@/hooks/use-column-preferences';
+import { AdvancedFilterBar } from '@/components/filters/advanced-filter-bar';
+import { getPeopleFilterDefinitions } from '@/types/filters';
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Checkbox } from '@/components/ui/checkbox';
@@ -78,12 +80,21 @@ export function PeoplePageClient() {
     goToPage,
     refresh,
     householdlessFilter,
+    filters,
+    setFilters,
     filterByHouseholdless,
   } = usePeople();
 
   const { dispositions } = useDispositions('person');
   const { checkWithDisposition, GuardDialog } = useOutreachGuard(slug);
   const updatePersonInStore = usePersonStore((s) => s.updatePerson);
+
+  const filterDefinitions = useMemo(
+    () => getPeopleFilterDefinitions(
+      dispositions.map((d) => ({ label: d.name, value: d.id }))
+    ),
+    [dispositions]
+  );
 
   const {
     columns,
@@ -121,6 +132,7 @@ export function PeoplePageClient() {
     try {
       const params = new URLSearchParams({ limit: '10000' });
       if (searchInput) params.set('search', searchInput);
+      if (filters.length > 0) params.set('filters', JSON.stringify(filters));
       const response = await fetch(`/api/projects/${slug}/people?${params}&fields=id`);
       if (response.ok) {
         const data = await response.json();
@@ -357,6 +369,12 @@ export function PeoplePageClient() {
           isSaving={isSaving}
         />
       </div>
+
+      <AdvancedFilterBar
+        filterDefinitions={filterDefinitions}
+        activeFilters={filters}
+        onFiltersChange={setFilters}
+      />
 
       {error && (
         <div className="rounded-md bg-destructive/15 p-4 text-destructive">

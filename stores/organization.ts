@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Organization, OrganizationWithRelations } from '@/types/organization';
 import type { CreateOrganizationInput, UpdateOrganizationInput } from '@/lib/validators/organization';
 import type { DetectionMatch } from '@/types/deduplication';
+import type { FilterCondition } from '@/types/filters';
 
 export class DuplicateDetectedError extends Error {
   matches: DetectionMatch[];
@@ -30,6 +31,7 @@ interface OrganizationState {
   searchQuery: string;
   sortBy: string;
   sortOrder: 'asc' | 'desc';
+  filters: FilterCondition[];
 
   // Actions
   setOrganizations: (organizations: Organization[], pagination: PaginationState) => void;
@@ -41,6 +43,7 @@ interface OrganizationState {
   setError: (error: string | null) => void;
   setSearchQuery: (query: string) => void;
   setSorting: (sortBy: string, sortOrder: 'asc' | 'desc') => void;
+  setFilters: (filters: FilterCondition[]) => void;
   setPage: (page: number) => void;
   reset: () => void;
 }
@@ -59,6 +62,7 @@ const initialState = {
   searchQuery: '',
   sortBy: 'created_at',
   sortOrder: 'desc' as const,
+  filters: [] as FilterCondition[],
 };
 
 export const useOrganizationStore = create<OrganizationState>((set) => ({
@@ -111,6 +115,9 @@ export const useOrganizationStore = create<OrganizationState>((set) => ({
   setSorting: (sortBy, sortOrder) =>
     set({ sortBy, sortOrder, pagination: { ...initialState.pagination } }),
 
+  setFilters: (filters) =>
+    set({ filters, pagination: { ...initialState.pagination } }),
+
   setPage: (page) =>
     set((state) => ({ pagination: { ...state.pagination, page } })),
 
@@ -126,6 +133,7 @@ export async function fetchOrganizations(
     search?: string;
     sortBy?: string;
     sortOrder?: string;
+    filters?: FilterCondition[];
   } = {}
 ): Promise<{
   organizations: Organization[];
@@ -137,6 +145,9 @@ export async function fetchOrganizations(
   if (options.search) params.set('search', options.search);
   if (options.sortBy) params.set('sortBy', options.sortBy);
   if (options.sortOrder) params.set('sortOrder', options.sortOrder);
+  if (options.filters && options.filters.length > 0) {
+    params.set('filters', JSON.stringify(options.filters));
+  }
 
   const response = await fetch(
     `/api/projects/${projectSlug}/organizations?${params.toString()}`

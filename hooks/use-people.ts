@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   usePersonStore,
@@ -27,6 +27,7 @@ export function usePeople() {
     sortOrder,
     organizationFilter,
     householdlessFilter,
+    filters,
     setPeople,
     addPerson,
     updatePerson,
@@ -37,14 +38,19 @@ export function usePeople() {
     setSorting,
     setOrganizationFilter,
     setHouseholdlessFilter,
+    setFilters,
     setPage,
   } = usePersonStore();
+
+  // Stabilize filters reference for dependency tracking
+  const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
 
   const loadPeople = useCallback(async () => {
     if (!projectSlug) return;
 
     setLoading(true);
     try {
+      const parsedFilters = filtersKey ? JSON.parse(filtersKey) : [];
       const result = await fetchPeople(projectSlug, {
         page: pagination.page,
         limit: pagination.limit,
@@ -53,6 +59,7 @@ export function usePeople() {
         sortOrder,
         organizationId: organizationFilter ?? undefined,
         householdless: householdlessFilter,
+        filters: parsedFilters.length > 0 ? parsedFilters : undefined,
       });
       setPeople(result.people, result.pagination);
     } catch (err) {
@@ -67,6 +74,7 @@ export function usePeople() {
     sortOrder,
     organizationFilter,
     householdlessFilter,
+    filtersKey,
     setPeople,
     setLoading,
     setError,
@@ -195,6 +203,8 @@ export function usePeople() {
     search,
     sort,
     filterByOrganization,
+    filters,
+    setFilters,
     filterByHouseholdless,
     goToPage,
   };

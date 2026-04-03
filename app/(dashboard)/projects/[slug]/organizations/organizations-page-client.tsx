@@ -1,6 +1,6 @@
 'use client';
 
-import { useState } from 'react';
+import { useState, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Plus, Search, Building2, MoreHorizontal, Pencil, Trash2, Upload, ClipboardPaste, Sparkles, Droplets, UserSearch, Mail } from 'lucide-react';
@@ -48,6 +48,8 @@ import { renderCellValue } from '@/lib/table-columns/renderers';
 import { DispositionCell } from '@/components/dispositions/disposition-cell';
 import { useDispositions } from '@/hooks/use-dispositions';
 import { useOrganizationStore, updateOrganizationApi } from '@/stores/organization';
+import { AdvancedFilterBar } from '@/components/filters/advanced-filter-bar';
+import { getOrganizationFilterDefinitions } from '@/types/filters';
 
 export function OrganizationsPageClient() {
   const params = useParams();
@@ -92,6 +94,7 @@ export function OrganizationsPageClient() {
     try {
       const params = new URLSearchParams({ limit: '10000' });
       if (searchInput) params.set('search', searchInput);
+      if (filters.length > 0) params.set('filters', JSON.stringify(filters));
       const response = await fetch(`/api/projects/${slug}/organizations?${params}&fields=id`);
       if (response.ok) {
         const data = await response.json();
@@ -120,11 +123,20 @@ export function OrganizationsPageClient() {
     remove,
     goToPage,
     refresh,
+    filters,
+    setFilters,
   } = useOrganizations();
 
   const { fields: customFields } = useEntityCustomFields('organization');
   const { dispositions } = useDispositions('organization');
   const updateOrgInStore = useOrganizationStore((s) => s.updateOrganization);
+
+  const filterDefinitions = useMemo(
+    () => getOrganizationFilterDefinitions(
+      dispositions.map((d) => ({ label: d.name, value: d.id }))
+    ),
+    [dispositions]
+  );
 
   const {
     columns,
@@ -288,6 +300,12 @@ export function OrganizationsPageClient() {
           isSaving={isSaving}
         />
       </div>
+
+      <AdvancedFilterBar
+        filterDefinitions={filterDefinitions}
+        activeFilters={filters}
+        onFiltersChange={setFilters}
+      />
 
       {error && (
         <div className="rounded-md bg-destructive/15 p-4 text-destructive">

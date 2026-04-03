@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import type { Person, PersonWithRelations } from '@/types/person';
 import type { CreatePersonInput, UpdatePersonInput } from '@/lib/validators/person';
 import type { DetectionMatch } from '@/types/deduplication';
+import type { FilterCondition } from '@/types/filters';
 
 export class DuplicateDetectedError extends Error {
   matches: DetectionMatch[];
@@ -32,6 +33,7 @@ interface PersonState {
   sortOrder: 'asc' | 'desc';
   organizationFilter: string | null;
   householdlessFilter: boolean;
+  filters: FilterCondition[];
 
   // Actions
   setPeople: (people: Person[], pagination: PaginationState) => void;
@@ -45,6 +47,7 @@ interface PersonState {
   setSorting: (sortBy: string, sortOrder: 'asc' | 'desc') => void;
   setOrganizationFilter: (organizationId: string | null) => void;
   setHouseholdlessFilter: (enabled: boolean) => void;
+  setFilters: (filters: FilterCondition[]) => void;
   setPage: (page: number) => void;
   reset: () => void;
 }
@@ -65,6 +68,7 @@ const initialState = {
   sortOrder: 'desc' as const,
   organizationFilter: null,
   householdlessFilter: false,
+  filters: [] as FilterCondition[],
 };
 
 export const usePersonStore = create<PersonState>((set) => ({
@@ -123,6 +127,9 @@ export const usePersonStore = create<PersonState>((set) => ({
   setHouseholdlessFilter: (householdlessFilter) =>
     set({ householdlessFilter, pagination: { ...initialState.pagination } }),
 
+  setFilters: (filters) =>
+    set({ filters, pagination: { ...initialState.pagination } }),
+
   setPage: (page) =>
     set((state) => ({ pagination: { ...state.pagination, page } })),
 
@@ -140,6 +147,7 @@ export async function fetchPeople(
     sortOrder?: string;
     organizationId?: string;
     householdless?: boolean;
+    filters?: FilterCondition[];
   } = {}
 ): Promise<{
   people: Person[];
@@ -153,6 +161,9 @@ export async function fetchPeople(
   if (options.sortOrder) params.set('sortOrder', options.sortOrder);
   if (options.organizationId) params.set('organizationId', options.organizationId);
   if (options.householdless) params.set('householdless', 'true');
+  if (options.filters && options.filters.length > 0) {
+    params.set('filters', JSON.stringify(options.filters));
+  }
 
   const response = await fetch(
     `/api/projects/${projectSlug}/people?${params.toString()}`

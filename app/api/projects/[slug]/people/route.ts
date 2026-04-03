@@ -4,6 +4,7 @@ import { createPersonSchema } from '@/lib/validators/person';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { detectDuplicates } from '@/lib/deduplication';
 import { getDefaultDisposition } from '@/lib/dispositions/service';
+import { parseFiltersParam, applyDirectFilters, resolveOrgRelationFilters, ALLOWED_PEOPLE_FIELDS } from '@/lib/filters/apply-filters';
 import type { Database } from '@/types/database';
 
 type PersonInsert = Database['public']['Tables']['people']['Insert'];
@@ -62,6 +63,7 @@ export async function GET(request: Request, context: RouteContext) {
     const isContractor = searchParams.get('is_contractor');
     const isEmployee = searchParams.get('is_employee');
     const householdless = searchParams.get('householdless');
+    const advancedFilters = parseFiltersParam(searchParams.get('filters'));
 
     const offset = (page - 1) * limit;
 
@@ -136,6 +138,23 @@ export async function GET(request: Request, context: RouteContext) {
       query = query.eq('is_employee', true);
     } else if (isEmployee === 'false') {
       query = query.eq('is_employee', false);
+    }
+
+    // Apply advanced filters
+    if (advancedFilters.length > 0) {
+      query = applyDirectFilters(query, advancedFilters, ALLOWED_PEOPLE_FIELDS);
+
+      // Handle cross-entity org filters
+      const personIdsFromOrg = await resolveOrgRelationFilters(supabase, project.id, advancedFilters);
+      if (personIdsFromOrg !== null) {
+        if (personIdsFromOrg.length === 0) {
+          return NextResponse.json({
+            people: [],
+            pagination: { page, limit, total: 0, totalPages: 0 },
+          });
+        }
+        query = query.in('id', personIdsFromOrg);
+      }
     }
 
     // Apply sorting

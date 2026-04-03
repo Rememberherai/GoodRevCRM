@@ -4,6 +4,7 @@ import { createOrganizationSchema } from '@/lib/validators/organization';
 import { emitAutomationEvent } from '@/lib/automations/engine';
 import { detectDuplicates } from '@/lib/deduplication';
 import { getDefaultDisposition } from '@/lib/dispositions/service';
+import { parseFiltersParam, applyDirectFilters, ALLOWED_ORG_FIELDS } from '@/lib/filters/apply-filters';
 import type { Database } from '@/types/database';
 
 type OrganizationInsert = Database['public']['Tables']['organizations']['Insert'];
@@ -50,6 +51,7 @@ export async function GET(request: Request, context: RouteContext) {
     const search = searchParams.get('search') ?? '';
     const sortBy = searchParams.get('sortBy') ?? 'created_at';
     const sortOrder = searchParams.get('sortOrder') ?? 'desc';
+    const advancedFilters = parseFiltersParam(searchParams.get('filters'));
 
     const offset = (page - 1) * limit;
 
@@ -64,6 +66,11 @@ export async function GET(request: Request, context: RouteContext) {
     if (search) {
       const sanitized = search.replace(/[%_\\]/g, '\\$&').replace(/"/g, '""');
       query = query.or(`name.ilike."%${sanitized}%",domain.ilike."%${sanitized}%",industry.ilike."%${sanitized}%"`);
+    }
+
+    // Apply advanced filters
+    if (advancedFilters.length > 0) {
+      query = applyDirectFilters(query, advancedFilters, ALLOWED_ORG_FIELDS);
     }
 
     // Apply sorting

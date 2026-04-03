@@ -1,6 +1,6 @@
 'use client';
 
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { useParams } from 'next/navigation';
 import {
   useOrganizationStore,
@@ -33,10 +33,15 @@ export function useOrganizations() {
     removeOrganization,
     setLoading,
     setError,
+    filters,
     setSearchQuery,
     setSorting,
+    setFilters,
     setPage,
   } = useOrganizationStore();
+
+  // Stabilize filters reference for dependency tracking
+  const filtersKey = useMemo(() => JSON.stringify(filters), [filters]);
 
   const loadOrganizations = useCallback(async () => {
     log.log('loadOrganizations called', { projectSlug, page: pagination.page });
@@ -49,12 +54,14 @@ export function useOrganizations() {
     log.log('setLoading(true)');
     try {
       log.log('Fetching organizations...');
+      const parsedFilters = filtersKey ? JSON.parse(filtersKey) : [];
       const result = await fetchOrganizations(projectSlug, {
         page: pagination.page,
         limit: pagination.limit,
         search: searchQuery,
         sortBy,
         sortOrder,
+        filters: parsedFilters.length > 0 ? parsedFilters : undefined,
       });
       log.log('Fetched organizations', { count: result.organizations.length, pagination: result.pagination });
       setOrganizations(result.organizations, result.pagination);
@@ -72,6 +79,7 @@ export function useOrganizations() {
     searchQuery,
     sortBy,
     sortOrder,
+    filtersKey,
     setOrganizations,
     setLoading,
     setError,
@@ -182,6 +190,8 @@ export function useOrganizations() {
     remove,
     search,
     sort,
+    filters,
+    setFilters,
     goToPage,
   };
 }
