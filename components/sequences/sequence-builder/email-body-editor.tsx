@@ -183,7 +183,7 @@ export function EmailBodyEditor({ value, onChange, showVariablePicker = true }: 
             </ToolbarButton>
           </div>
 
-          <div className="border rounded-md bg-white text-black [&_.ProseMirror]:min-h-[250px] [&_.ProseMirror]:text-black [&_.ProseMirror_a]:text-blue-600 [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-gray-400 [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none">
+          <div className="border rounded-md bg-white text-black [&_.ProseMirror]:min-h-[250px] [&_.ProseMirror]:text-black [&_.ProseMirror_a]:text-blue-600 [&_.ProseMirror_ul]:list-disc [&_.ProseMirror_ul]:pl-6 [&_.ProseMirror_ol]:list-decimal [&_.ProseMirror_ol]:pl-6 [&_.ProseMirror_li]:my-1 [&_.ProseMirror_p.is-editor-empty:first-child::before]:text-gray-400 [&_.ProseMirror_p.is-editor-empty:first-child::before]:content-[attr(data-placeholder)] [&_.ProseMirror_p.is-editor-empty:first-child::before]:float-left [&_.ProseMirror_p.is-editor-empty:first-child::before]:h-0 [&_.ProseMirror_p.is-editor-empty:first-child::before]:pointer-events-none">
             <EditorContent editor={editor} />
           </div>
         </TabsContent>

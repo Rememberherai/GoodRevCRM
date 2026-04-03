@@ -286,6 +286,9 @@ async function processEnrollment(
       context
     );
 
+    // Clean up empty trailing <li> elements (TipTap editor artifact)
+    bodyHtml = bodyHtml.replace(/(<li>\s*(<p>\s*(<br\s*\/?>|&nbsp;)?\s*<\/p>\s*)?<\/li>\s*)+(<\/[uo]l>)/gi, '$4');
+
     try {
       // Fetch attachments from Supabase Storage if this step has any
       let emailAttachments: { filename: string; mimeType: string; content: string }[] | undefined;

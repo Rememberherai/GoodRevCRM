@@ -32,10 +32,11 @@ export async function getDefaultSignature(
  * Inserts before any quoted reply block if present.
  */
 export function appendSignatureToHtml(bodyHtml: string, signatureHtml: string): string {
-  const cleanedBodyHtml = bodyHtml.replace(
-    /(\s*<p>\s*(<br\s*\/?>|&nbsp;)?\s*<\/p>\s*)+$/i,
-    ''
-  );
+  let cleanedBodyHtml = bodyHtml
+    // Remove empty trailing <li> elements (TipTap artifact)
+    .replace(/(<li>\s*(<p>\s*(<br\s*\/?>|&nbsp;)?\s*<\/p>\s*)?<\/li>\s*)+(<\/[uo]l>)/gi, '$4')
+    // Remove trailing empty paragraphs
+    .replace(/(\s*<p>\s*(<br\s*\/?>|&nbsp;)?\s*<\/p>\s*)+$/i, '');
   const cleanedSignatureHtml = signatureHtml
     .replace(/^\s*(<p>\s*(<br\s*\/?>|&nbsp;)\s*<\/p>\s*)*/i, '')
     .replace(/^\s*<hr\b[^>]*>\s*/i, '');
