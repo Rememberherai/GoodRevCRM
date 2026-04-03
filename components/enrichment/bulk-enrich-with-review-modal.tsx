@@ -259,13 +259,18 @@ export function BulkEnrichWithReviewModal({
       if (enrichEmails) enrichFields.push('contact.emails');
       if (enrichPhones) enrichFields.push('contact.phones');
 
+      const body: Record<string, unknown> = {
+        person_ids: selectedPeople.map((p) => p.id),
+      };
+      // Only send enrich_fields if not requesting both (both is the default)
+      if (!enrichEmails || !enrichPhones) {
+        body.enrich_fields = enrichFields;
+      }
+
       const response = await fetch(`/api/projects/${projectSlug}/enrich`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          person_ids: selectedPeople.map((p) => p.id),
-          enrich_fields: enrichFields.length < 2 ? enrichFields : undefined,
-        }),
+        body: JSON.stringify(body),
       });
 
       const data = await response.json();

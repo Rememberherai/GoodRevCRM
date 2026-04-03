@@ -61,7 +61,7 @@ export function ClickablePhone({
     <span className={cn("inline-flex flex-wrap items-center gap-x-1 gap-y-0.5", className)}>
       {showIcon && <Phone className="h-4 w-4 shrink-0" />}
       {numbers.map((num, i) => (
-        <span key={num} className="inline-flex items-center">
+        <span key={`${num}-${i}`} className="inline-flex items-center">
           <SinglePhone
             number={num}
             personId={personId}
