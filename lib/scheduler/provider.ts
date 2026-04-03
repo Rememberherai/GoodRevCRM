@@ -11,7 +11,7 @@ import { getProjectSecrets } from '@/lib/secrets';
 
 // ---------- Types ----------
 
-export type SchedulerProviderType = 'cronjob_org' | 'supabase_pgcron';
+export type SchedulerProviderType = 'cronjob_org' | 'supabase_pgcron' | 'browser';
 
 export interface NormalizedJob {
   jobId: string;
@@ -75,7 +75,9 @@ export async function getSchedulerProvider(projectId: string): Promise<{
   // Determine provider type
   let providerType: SchedulerProviderType | null = null;
 
-  if (providerChoice === 'supabase_pgcron') {
+  if (providerChoice === 'browser') {
+    providerType = 'browser';
+  } else if (providerChoice === 'supabase_pgcron') {
     providerType = 'supabase_pgcron';
   } else if (providerChoice === 'cronjob_org' || secrets.cronjob_org_api_key) {
     providerType = 'cronjob_org';
@@ -83,6 +85,15 @@ export async function getSchedulerProvider(projectId: string): Promise<{
 
   if (!providerType) {
     return { provider: null, providerType: null, configured: false };
+  }
+
+  if (providerType === 'browser') {
+    const { BrowserSchedulerProvider } = await import('./providers/browser-provider');
+    return {
+      provider: new BrowserSchedulerProvider(projectId),
+      providerType,
+      configured: true,
+    };
   }
 
   if (providerType === 'cronjob_org') {

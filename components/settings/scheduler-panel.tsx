@@ -18,6 +18,7 @@ import {
   Info,
   Database,
   Globe,
+  Monitor,
 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from '@/components/ui/card';
@@ -52,6 +53,7 @@ import { toast } from 'sonner';
 import { type CronTemplate, type CronJobSchedule, SCHEDULE_PRESETS, describeSchedule } from '@/lib/scheduler/templates';
 import { isJobStatusOk } from '@/lib/scheduler/cronjob-org';
 import type { SchedulerProviderType } from '@/lib/scheduler/provider';
+import { notifySchedulerProviderChanged, notifySchedulerJobsChanged } from '@/providers/browser-scheduler-provider';
 
 // ---------- Types ----------
 
@@ -95,6 +97,12 @@ const PROVIDER_OPTIONS: { value: SchedulerProviderType; label: string; descripti
     label: 'Supabase pg_cron',
     description: 'Built-in database scheduler, no external service needed',
     icon: Database,
+  },
+  {
+    value: 'browser',
+    label: 'Browser Scheduler',
+    description: 'Runs in your browser tab — no external service needed',
+    icon: Monitor,
   },
 ];
 
@@ -218,6 +226,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
 
       await Promise.all(saves);
       toast.success('Scheduler configuration saved');
+      notifySchedulerProviderChanged();
       setApiKey('');
       setCronSecret('');
       setBaseUrl('');
@@ -265,6 +274,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
         throw new Error(data.error || 'Failed to create job');
       }
       toast.success('Cron job created');
+      notifySchedulerJobsChanged();
       await fetchJobs(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create job');
@@ -286,6 +296,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
         throw new Error(data.error || 'Failed to update job');
       }
       toast.success(enabled ? 'Job enabled' : 'Job paused');
+      notifySchedulerJobsChanged();
       await fetchJobs(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update job');
@@ -305,6 +316,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
         throw new Error(data.error || 'Failed to delete job');
       }
       toast.success('Cron job deleted');
+      notifySchedulerJobsChanged();
       setHistory((prev) => {
         const next = { ...prev };
         delete next[jobId];
@@ -339,6 +351,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
         throw new Error(data.error || 'Failed to update schedule');
       }
       toast.success(`Schedule updated to ${presetLabel}`);
+      notifySchedulerJobsChanged();
       await fetchJobs(true);
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to update schedule');
@@ -385,7 +398,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
   }
 
   const isLocalhost = baseUrl.includes('localhost') || baseUrl.includes('127.0.0.1');
-  const providerLabel = activeProvider === 'supabase_pgcron' ? 'pg_cron' : 'cron-job.org';
+  const providerLabel = activeProvider === 'supabase_pgcron' ? 'pg_cron' : activeProvider === 'browser' ? 'Browser' : 'cron-job.org';
 
   return (
     <div className="space-y-6">
@@ -430,7 +443,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
               {/* Provider Selector */}
               <div className="space-y-3">
                 <Label>Cron Provider</Label>
-                <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
                   {PROVIDER_OPTIONS.map((option) => {
                     const Icon = option.icon;
                     const isSelected = selectedProvider === option.value;
@@ -492,7 +505,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
                           Free tier: 100 management API calls/day. Actual cron executions are <strong>unlimited</strong>.
                         </p>
                       </>
-                    ) : (
+                    ) : selectedProvider === 'supabase_pgcron' ? (
                       <>
                         <p className="font-medium text-foreground">How to set up with Supabase pg_cron:</p>
                         <ol className="list-decimal list-inside space-y-1.5">
@@ -514,6 +527,22 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
                         <p className="text-xs mt-2">
                           pg_cron runs inside your database. No external service or API key required.
                           Jobs execute SQL that calls your endpoints via pg_net HTTP requests.
+                        </p>
+                      </>
+                    ) : (
+                      <>
+                        <p className="font-medium text-foreground">Browser Scheduler</p>
+                        <p>
+                          Jobs run via <strong>setInterval</strong> in your browser tab using your login session for authentication.
+                          No external service, API key, or cron secret needed.
+                        </p>
+                        <ul className="list-disc list-inside space-y-1.5 mt-2">
+                          <li>The browser tab must remain <strong>open</strong> for jobs to execute</li>
+                          <li>If multiple tabs are open, only <strong>one</strong> will run jobs (automatic leader election)</li>
+                          <li>Configure per-job schedules below after saving</li>
+                        </ul>
+                        <p className="text-xs mt-2">
+                          Ideal for development, local testing, or single-user deployments where an external cron service isn&apos;t needed.
                         </p>
                       </>
                     )}
@@ -541,7 +570,8 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
                 </div>
               )}
 
-              {/* Cron Secret */}
+              {/* Cron Secret — not needed for browser scheduler */}
+              {selectedProvider !== 'browser' && (
               <div className="space-y-2">
                 <Label htmlFor="cron-secret">Cron Secret</Label>
                 <div className="flex gap-2">
@@ -574,8 +604,10 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
                   This token is sent as a Bearer token when the cron provider calls your endpoints to verify authenticity.
                 </p>
               </div>
+              )}
 
-              {/* Base URL */}
+              {/* Base URL — not needed for browser scheduler */}
+              {selectedProvider !== 'browser' && (
               <div className="space-y-2">
                 <Label htmlFor="base-url">Base URL</Label>
                 <Input
@@ -602,6 +634,7 @@ export function SchedulerPanel({ slug }: SchedulerPanelProps) {
                   </p>
                 )}
               </div>
+              )}
 
               {/* Save */}
               <Button
@@ -703,7 +736,7 @@ function JobCard({
   onChangeSchedule,
   onToggleHistory,
 }: JobCardProps) {
-  const providerName = providerType === 'supabase_pgcron' ? 'pg_cron' : 'cron-job.org';
+  const providerName = providerType === 'supabase_pgcron' ? 'pg_cron' : providerType === 'browser' ? 'Browser Scheduler' : 'cron-job.org';
 
   return (
     <div className="rounded-lg border p-4 space-y-3">

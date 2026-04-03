@@ -5,6 +5,7 @@ import { UserMenu } from '@/components/layout/user-menu';
 import { ModuleSwitcher } from '@/components/layout/module-switcher';
 import { NotificationBell } from '@/components/notifications/notification-bell';
 import { ProcessQueueButton } from '@/components/layout/process-queue-button';
+import { BrowserSchedulerIndicator } from '@/components/layout/browser-scheduler-indicator';
 import { BugReportButton } from '@/components/bug-report/bug-report-button';
 import { PublicLinksButton } from '@/components/layout/public-links-button';
 import { IncidentQueueButton } from '@/components/layout/incident-queue-button';
@@ -43,6 +44,7 @@ export function ProjectHeader({ project }: ProjectHeaderProps) {
           <PublicLinksButton projectSlug={project.slug} projectType={project.project_type} />
           <IncidentQueueButton projectSlug={project.slug} projectType={project.project_type} />
           <BugReportButton />
+          <BrowserSchedulerIndicator />
           <ProcessQueueButton />
           <ThemeToggle />
         </div>

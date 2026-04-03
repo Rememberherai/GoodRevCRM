@@ -1569,6 +1569,57 @@ export type Database = {
           },
         ]
       }
+      browser_scheduler_history: {
+        Row: {
+          created_at: string
+          duration_ms: number | null
+          error_message: string | null
+          http_status: number | null
+          id: string
+          project_id: string
+          started_at: string
+          status: string
+          template_key: string
+        }
+        Insert: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          project_id: string
+          started_at?: string
+          status?: string
+          template_key: string
+        }
+        Update: {
+          created_at?: string
+          duration_ms?: number | null
+          error_message?: string | null
+          http_status?: number | null
+          id?: string
+          project_id?: string
+          started_at?: string
+          status?: string
+          template_key?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "browser_scheduler_history_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "pipeline_summary"
+            referencedColumns: ["project_id"]
+          },
+          {
+            foreignKeyName: "browser_scheduler_history_project_id_fkey"
+            columns: ["project_id"]
+            isOneToOne: false
+            referencedRelation: "projects"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       bug_reports: {
         Row: {
           admin_notes: string | null
@@ -14447,6 +14498,10 @@ export type Database = {
       send_invoice: { Args: { p_invoice_id: string }; Returns: string }
       set_primary_quote: {
         Args: { p_project_id: string; p_quote_id: string }
+        Returns: undefined
+      }
+      shift_sequence_steps: {
+        Args: { p_from_step_number: number; p_sequence_id: string }
         Returns: undefined
       }
       signups_by_week: {

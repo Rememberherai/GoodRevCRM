@@ -130,8 +130,15 @@ export const SECRET_KEYS = {
   scheduler_provider: {
     envVar: 'SCHEDULER_PROVIDER',
     label: 'Scheduler Provider',
-    description: 'Cron backend: cronjob_org or supabase_pgcron',
+    description: 'Cron backend: cronjob_org, supabase_pgcron, or browser',
     placeholder: 'cronjob_org',
+    hidden: true, // Managed via Scheduler settings tab
+  },
+  browser_scheduler_config: {
+    envVar: 'BROWSER_SCHEDULER_CONFIG',
+    label: 'Browser Scheduler Config',
+    description: 'JSON config blob for browser-based cron scheduler',
+    placeholder: '{}',
     hidden: true, // Managed via Scheduler settings tab
   },
 } as const;

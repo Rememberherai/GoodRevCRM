@@ -10,6 +10,7 @@ import { ChatPanel } from '@/components/chat/chat-panel';
 import { LastProjectTracker } from '@/components/projects/last-project-tracker';
 import { PermissionsProvider } from '@/lib/contexts/permissions';
 import type { Database } from '@/types/database';
+import { BrowserSchedulerProvider } from '@/providers/browser-scheduler-provider';
 import type { ProjectRole } from '@/types/user';
 
 type Project = Database['public']['Tables']['projects']['Row'];
@@ -91,6 +92,7 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
   }
 
   return (
+    <BrowserSchedulerProvider slug={slug}>
     <CallClientWrapper>
       <div className="flex h-screen bg-background">
         <LastProjectTracker projectSlug={project.slug} />
@@ -108,5 +110,6 @@ export default async function ProjectLayout({ children, params }: ProjectLayoutP
       </div>
       <ChatPanel projectSlug={slug} projectType={project.project_type} />
     </CallClientWrapper>
+    </BrowserSchedulerProvider>
   );
 }
