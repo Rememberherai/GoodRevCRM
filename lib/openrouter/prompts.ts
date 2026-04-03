@@ -818,32 +818,35 @@ export function buildContactDiscoveryPrompt(
 ): string {
   const rolesFormatted = roles.map((r) => `- ${r}`).join('\n');
 
-  return `You are a professional business researcher specializing in finding key contacts at companies.
+  return `You are a research assistant that finds REAL, verifiable contacts at companies using web search.
 
-Company Information:
+Company to research:
 - Name: ${organization.name}
 ${organization.domain ? `- Domain: ${organization.domain}` : ''}
 ${organization.website ? `- Website: ${organization.website}` : ''}
 ${organization.industry ? `- Industry: ${organization.industry}` : ''}
 
-Target Roles/Titles to find:
+Roles/titles to find:
 ${rolesFormatted}
 
-Instructions:
-1. Search for people with the specified roles or similar titles at this company
-2. For each person found, provide as much verified information as possible
-3. Only include people you are reasonably confident work at this company
-4. Include LinkedIn URLs when available (use format: https://linkedin.com/in/username)
-5. If you cannot find someone for a specific role, do not make up information
-6. Provide up to ${maxResults} contacts total
+## CRITICAL RULES — READ CAREFULLY
 
-IMPORTANT:
-- Only return contacts you have reasonable confidence about
-- Do not fabricate names or contact information
-- For each contact, indicate your confidence level (0-1)
-- If email patterns are known (e.g., firstname.lastname@domain.com), you may infer emails but mark confidence lower
+1. **USE WEB SEARCH.** You have web search enabled. Actually search for these people on LinkedIn, the company website, press releases, news articles, and industry directories. Do NOT rely on your training data alone.
+2. **ONLY return people you found via web search results.** Every contact must come from a real, verifiable source — a LinkedIn profile, a company team page, a press release, a conference speaker list, or a news article.
+3. **NEVER invent or guess names.** If you cannot find a real person for a role, leave that role empty. Returning fewer real results is far better than padding with fabricated ones.
+4. **NEVER invent or guess email addresses.** Only include an email if you found it published on a webpage. Do NOT infer emails from domain patterns (e.g., firstname.lastname@domain.com). If you didn't find the email on an actual page, set it to null.
+5. **NEVER invent or guess LinkedIn URLs.** Only include a LinkedIn URL if you found the actual profile via search. Do NOT construct URLs by guessing the slug. If you didn't find it, set it to null.
+6. **Confidence scoring:** Set confidence based on source quality:
+   - 0.9-1.0 = Found on official company website team page or verified LinkedIn profile
+   - 0.7-0.89 = Found in press release, news article, or conference listing
+   - 0.5-0.69 = Found in an older source, person may have moved on
+   - Below 0.5 = Do not include
+7. **source_hint must name the actual source** where you found this person (e.g., "Company website team page", "LinkedIn profile", "Press release from 2025"). Do NOT use vague sources like "web search" or "industry knowledge."
+8. Return up to ${maxResults} contacts total. It is perfectly fine to return fewer if you cannot verify more.
 
-Your response MUST be a JSON object with this exact structure:
+## Response format
+
+Return ONLY a JSON object, no other text:
 \`\`\`json
 {
   "contacts": [
@@ -856,14 +859,14 @@ Your response MUST be a JSON object with this exact structure:
       "email": "email@domain.com or null",
       "linkedin_url": "https://linkedin.com/in/username or null",
       "confidence": 0.85,
-      "source_hint": "LinkedIn profile" or "Company website" etc.
+      "source_hint": "Specific source where you found this person"
     }
   ],
-  "notes": "Optional notes about the search, e.g., 'Could not find a dedicated Sales Director role'"
+  "notes": "Summary of search: what you found, what you couldn't find, any caveats"
 }
 \`\`\`
 
-Respond ONLY with the JSON object, no additional text.`;
+Remember: empty results are acceptable. Fabricated results are not. When in doubt, leave it out.`;
 }
 
 // Generic email discovery prompt for municipalities

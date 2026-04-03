@@ -111,6 +111,7 @@ export async function POST(request: Request, context: RouteContext) {
       {
         temperature: 0.3,
         maxTokens: 4096,
+        webSearch: true,
       }
     );
     const result = aiResult.data;
