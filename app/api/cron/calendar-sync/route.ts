@@ -1,13 +1,18 @@
-import { createServiceClient } from '@/lib/supabase/server';
+import { createServiceClient, createClient } from '@/lib/supabase/server';
 import { NextResponse } from 'next/server';
 import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
 import { syncCalendarEvents } from '@/lib/calendar/sync';
 
 // POST /api/cron/calendar-sync
+// Auth: CRON_SECRET bearer token OR session cookie (browser scheduler)
 export async function POST(request: Request) {
   const isAuthorized = await verifyCronAuth(request);
   if (!isAuthorized) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   try {

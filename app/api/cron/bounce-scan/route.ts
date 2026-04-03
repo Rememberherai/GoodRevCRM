@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
 import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
 import { scanConnectionForBounces } from '@/lib/gmail/bounce-scan';
 
@@ -15,12 +16,17 @@ function createAdminClient() {
 /**
  * GET /api/cron/bounce-scan
  * Cron-triggered bounce scan for all active Gmail connections.
- * Calls scan logic directly (no self-fetch) to avoid spawning extra function instances.
+ *
+ * Auth: CRON_SECRET bearer token OR session cookie (browser scheduler)
  */
 export async function GET(request: Request) {
   const isAuthorized = await verifyCronAuth(request);
   if (!isAuthorized) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   const supabase = createAdminClient();

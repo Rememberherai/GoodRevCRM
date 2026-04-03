@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { createClient as createSupabaseClient } from '@supabase/supabase-js';
+import { createClient } from '@/lib/supabase/server';
 import { syncEmailsForConnection } from '@/lib/gmail/sync';
 import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
 
@@ -15,15 +16,17 @@ function createAdminClient() {
 /**
  * GET /api/cron/sync-emails
  * Cron-triggered email sync for all active Gmail connections.
- * This is a fallback for when Pub/Sub push notifications aren't working.
- * Designed to be pinged by cron-job.org every 5-10 minutes.
  *
- * Auth: CRON_SECRET bearer token
+ * Auth: CRON_SECRET bearer token OR session cookie (browser scheduler)
  */
 export async function GET(request: Request) {
   const isAuthorized = await verifyCronAuth(request);
   if (!isAuthorized) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   const supabase = createAdminClient();

@@ -1,13 +1,18 @@
 import { NextResponse } from 'next/server';
 import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
 import { createAdminClient } from '@/lib/supabase/admin';
+import { createClient } from '@/lib/supabase/server';
 import { processPendingCommunityGeocodes } from '@/lib/community/geocoding-queue';
 
 // POST /api/cron/process-geocodes — Geocodes pending households and community assets
 export async function POST(request: Request) {
   const authorized = await verifyCronAuth(request);
   if (!authorized) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   try {

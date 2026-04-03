@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createServiceClient, createClient } from '@/lib/supabase/server';
 import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
 
 export const maxDuration = 60;
@@ -13,12 +13,17 @@ function localDateString(date: Date): string {
 
 /**
  * Cron job: check for overdue invoices and approaching due dates.
- * Creates tasks or sends notifications for unpaid invoices.
+ *
+ * Auth: CRON_SECRET bearer token OR session cookie (browser scheduler)
  */
 export async function GET(request: Request) {
   const isAuthed = await verifyCronAuth(request);
   if (!isAuthed) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   const supabase = createServiceClient();

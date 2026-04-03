@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { createServiceClient } from '@/lib/supabase/server';
+import { createServiceClient, createClient } from '@/lib/supabase/server';
 import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
 import { processRecurringTransactions } from '@/lib/accounting/recurring';
 
@@ -9,7 +9,11 @@ export async function GET(request: Request) {
   try {
     const isAuthed = await verifyCronAuth(request);
     if (!isAuthed) {
-      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      const supabase = await createClient();
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) {
+        return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+      }
     }
 
     const supabase = createServiceClient();

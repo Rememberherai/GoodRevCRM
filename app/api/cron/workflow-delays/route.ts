@@ -1,19 +1,23 @@
 import { NextResponse } from 'next/server';
 import { processDelayedSteps, processScheduledWorkflows } from '@/lib/workflows/delay-processor';
 import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
+import { createClient } from '@/lib/supabase/server';
 
 /**
  * Cron endpoint to:
  * 1. Process delayed workflow steps that have reached their scheduled time
  * 2. Trigger scheduled workflows whose cron/interval matches
  *
- * Should be called every minute by Vercel Cron or external scheduler.
- * Protected by CRON_SECRET header.
+ * Auth: CRON_SECRET bearer token OR session cookie (browser scheduler)
  */
 export async function GET(request: Request) {
   const isAuthorized = await verifyCronAuth(request);
   if (!isAuthorized) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   try {

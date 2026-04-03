@@ -1,14 +1,20 @@
 import { NextResponse } from 'next/server';
 import { verifyCronAuth } from '@/lib/scheduler/cron-auth';
+import { createClient } from '@/lib/supabase/server';
 import { sendBookingReminders } from '@/lib/calendar/notifications';
 import { sendEventReminders } from '@/lib/events/notifications';
 import { generateUpcomingSeriesInstances } from '@/lib/events/series';
 
 // POST /api/cron/booking-reminders — Sends 24h and 1h reminders for bookings and events
+// Auth: CRON_SECRET bearer token OR session cookie (browser scheduler)
 export async function POST(request: Request) {
   const authorized = await verifyCronAuth(request);
   if (!authorized) {
-    return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    const supabase = await createClient();
+    const { data: { user } } = await supabase.auth.getUser();
+    if (!user) {
+      return NextResponse.json({ error: 'Unauthorized' }, { status: 401 });
+    }
   }
 
   try {
