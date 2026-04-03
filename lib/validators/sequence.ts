@@ -96,6 +96,7 @@ export const createStepSchema = z.object({
   delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional(),
   condition: stepConditionSchema.nullable().optional(),
   config: stepConfigSchema.nullable().optional(),
+  send_as_reply: z.boolean().nullable().optional(),
 });
 
 export type CreateStepInput = z.infer<typeof createStepSchema>;
@@ -120,6 +121,7 @@ export const updateStepSchema = z.object({
   delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional(),
   condition: stepConditionSchema.nullable().optional(),
   config: stepConfigSchema.nullable().optional(),
+  send_as_reply: z.boolean().nullable().optional(),
   attachments: z.array(stepAttachmentSchema).nullable().optional(),
 });
 

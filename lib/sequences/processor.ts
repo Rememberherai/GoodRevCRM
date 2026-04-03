@@ -25,6 +25,7 @@ interface SequenceStep {
   delay_unit: 'minutes' | 'hours' | 'days' | 'weeks' | null;
   sms_body: string | null;
   config: StepConfig | null;
+  send_as_reply: boolean | null;
   attachments: StepAttachmentMeta[] | null;
 }
 
@@ -317,7 +318,8 @@ async function processEnrollment(
       let replyToMessageId: string | undefined;
       let threadedSubject = subject;
 
-      if (sequence.settings.send_as_reply && currentStep.step_number > 1) {
+      const shouldSendAsReply = (currentStep.send_as_reply ?? sequence.settings.send_as_reply) && currentStep.step_number > 1;
+      if (shouldSendAsReply) {
         // Find the most recent prior email sent in this enrollment.
         // eslint-disable-next-line @typescript-eslint/no-explicit-any
         const supabaseAnyThread = supabase as any;

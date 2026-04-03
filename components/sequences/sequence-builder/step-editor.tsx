@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useRef, useMemo, useEffect } from 'react';
-import { Mail, Clock, MessageSquare, Phone, CheckSquare, Linkedin, Paperclip, X, Upload, FileText, Blocks, Code } from 'lucide-react';
+import { Mail, Clock, MessageSquare, Phone, CheckSquare, Linkedin, Paperclip, X, Upload, FileText, Blocks, Code, Reply } from 'lucide-react';
 // Note: Textarea is still used for SMS/task/call editors
 import { Input } from '@/components/ui/input';
 import { Label } from '@/components/ui/label';
@@ -220,6 +220,40 @@ function EmailEditor({
       </div>
 
       <div className="space-y-4">
+        {/* Per-step send-as-reply override (only for follow-up emails) */}
+        {step.step_number > 1 && (
+          <div className="flex items-center gap-3 rounded-lg border bg-muted/30 px-3 py-2">
+            <Reply className="h-4 w-4 text-muted-foreground shrink-0" />
+            <div className="flex-1">
+              <Label htmlFor="step-send-as-reply" className="text-sm">
+                Send as reply
+              </Label>
+              <p className="text-xs text-muted-foreground">
+                {step.send_as_reply == null
+                  ? 'Using sequence default'
+                  : step.send_as_reply
+                    ? 'Will thread as a reply to the previous email'
+                    : 'Will send as a new email thread'}
+              </p>
+            </div>
+            <Select
+              value={step.send_as_reply == null ? 'inherit' : step.send_as_reply ? 'yes' : 'no'}
+              onValueChange={(v) =>
+                onUpdate({ send_as_reply: v === 'inherit' ? null : v === 'yes' })
+              }
+            >
+              <SelectTrigger id="step-send-as-reply" className="w-[120px] h-8 text-xs">
+                <SelectValue />
+              </SelectTrigger>
+              <SelectContent>
+                <SelectItem value="inherit">Inherit</SelectItem>
+                <SelectItem value="yes">Reply</SelectItem>
+                <SelectItem value="no">New thread</SelectItem>
+              </SelectContent>
+            </Select>
+          </div>
+        )}
+
         <div className="space-y-2">
           <Label htmlFor="subject">Subject Line</Label>
           <div className="flex gap-2">

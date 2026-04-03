@@ -94,6 +94,8 @@ export interface SequenceStep {
   sms_body: string | null;
   // Manual action step config (call, task, linkedin)
   config: StepConfig | null;
+  // Per-step threading override (null = inherit from sequence settings)
+  send_as_reply: boolean | null;
   // Attachments for email steps
   attachments: StepAttachment[] | null;
   created_at: string;

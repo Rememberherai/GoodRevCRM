@@ -3755,6 +3755,7 @@ defineTool({
     delay_amount: z.number().int().min(1).nullable().optional().describe('Delay amount'),
     delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional().describe('Delay unit'),
     config: z.record(z.string(), z.unknown()).nullable().optional().describe('Step config (for call/task/linkedin types)'),
+    send_as_reply: z.boolean().nullable().optional().describe('Per-step threading override: true=reply, false=new thread, null=inherit sequence setting'),
   }),
   handler: async (params, ctx) => {
     const { sequence_id, ...stepData } = params as any;
@@ -3792,6 +3793,7 @@ defineTool({
     delay_amount: z.number().int().min(1).nullable().optional(),
     delay_unit: z.enum(['minutes', 'hours', 'days', 'weeks']).nullable().optional(),
     config: z.record(z.string(), z.unknown()).nullable().optional(),
+    send_as_reply: z.boolean().nullable().optional().describe('Per-step threading override: true=reply, false=new thread, null=inherit'),
   }),
   handler: async (params, ctx) => {
     const { sequence_id, step_id, ...updates } = params as any;

@@ -11872,6 +11872,7 @@ export type Database = {
           delay_unit: string | null
           design_json: Json | null
           id: string
+          send_as_reply: boolean | null
           sequence_id: string
           sms_body: string | null
           step_number: number
@@ -11890,6 +11891,7 @@ export type Database = {
           delay_unit?: string | null
           design_json?: Json | null
           id?: string
+          send_as_reply?: boolean | null
           sequence_id: string
           sms_body?: string | null
           step_number: number
@@ -11908,6 +11910,7 @@ export type Database = {
           delay_unit?: string | null
           design_json?: Json | null
           id?: string
+          send_as_reply?: boolean | null
           sequence_id?: string
           sms_body?: string | null
           step_number?: number

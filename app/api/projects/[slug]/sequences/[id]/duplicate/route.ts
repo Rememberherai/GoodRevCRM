@@ -71,24 +71,12 @@ export async function POST(_request: Request, context: RouteContext) {
 
     // Duplicate all steps if any exist
     if (original.steps && original.steps.length > 0) {
-      const stepsToInsert = original.steps.map((step: {
-        step_number: number;
-        step_type: string;
-        delay_days: number;
-        delay_hours: number;
-        subject: string | null;
-        body_template: string | null;
-        settings: Record<string, unknown> | null;
-      }) => ({
-        sequence_id: newSequence.id,
-        step_number: step.step_number,
-        step_type: step.step_type,
-        delay_days: step.delay_days,
-        delay_hours: step.delay_hours,
-        subject: step.subject,
-        body_template: step.body_template,
-        settings: step.settings,
-      }));
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
+      const stepsToInsert = original.steps.map((step: any) => {
+        // Copy all fields except id, sequence_id, created_at, updated_at
+        const { id: _id, sequence_id: _seqId, created_at: _ca, updated_at: _ua, ...rest } = step;
+        return { ...rest, sequence_id: newSequence.id };
+      });
 
       const { error: stepsError } = await supabaseAny
         .from('sequence_steps')
